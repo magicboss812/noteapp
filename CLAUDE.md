@@ -97,3 +97,5 @@ Native Android hybrid note app (pen ink + grid-snapped Markdown text) for one de
 ## Learned
 <!-- Format: - YYYY-MM-DD <fact> (<task id>) -->
 - 2026-09-27 SDK packages are installed by the USER (`cmdline-tools/latest/bin/android sdk install platforms/android-NN`); with cmdline-tools 23 installing is the license acceptance, see docs/notes/env.md (P00-T01)
+- 2026-09-28 Test APKs (`instrumented.sh`) can be refused with INSTALL_FAILED_USER_RESTRICTED while the app APK installs (HyperOS "USB debugging (Security settings)" off); Gradle still says SUCCESS. Fallback: run the probe from a debug route in the app (docs/notes/device.md#quirks) (P01-S5)
+- 2026-09-28 Downloads: only single `curl -fsSL https://raw.githubusercontent.com/...` commands pass the permission check (no loops, no unzip/python); read library sources on GitHub (docs/notes/gotchas.md) (P01-S3)

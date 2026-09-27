@@ -1,14 +1,15 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
-phase: P01
-next: P01 REVIEW
+phase: P02
+next: P02-T01
 updated: 2026-09-28
 
 ## Completed
 - P00 done 2026-09-27 (tag p00-done): AGP 9.4.1/Kotlin 2.4.20/Gradle 9.8.0, compileSdk 37.2, minSdk 35 (device SDK 36); qa green; instrumented smoke 1/1 on Pad 7; cold launch 786 ms; A-001..A-004.
+- P01 done 2026-09-28 (tag p01-done): ADR-002..008 Accepted: ink front buffer (onTouch p95 0.28 ms), bitmap tiles (jank 0.49%, p95 gap -> P03-T10), library IO (46 MB pack 1.4 s), PdfBox merge (100 pp 0.24 s), jlatexmath (p95 0.8 ms), grid-pitch text (0.000 px, 20 fonts); A-005..A-008; qa green.
 
 ## Current phase progress
-- P01: S1, S2 (ADR-003 A), S3 (ADR-008 grid pitch), S4 (ADR-007 jlatexmath), S5 (ADR-006), S6 (ADR-004), S7 (automated part), T08
+- P02: (none)
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -25,8 +26,9 @@ updated: 2026-09-28
 - D-002 P01-T08: routes spike-ink/spike-stylus (remove in P03-T09) and spike-fonts + core:text spike/ (remove in P06-T03) stay for open USER-CHECKs (A-008).
 - D-003 P01-REVIEW: run `instrumented.sh :core:pdf` (PdfBoxOverlayMergerInstrumentedTest, PdfRenderer checks) once the tablet accepts test APKs again (USER-CHECK P01-S5); next session with the setting on.
 - D-004 P01-REVIEW: `GridParagraph.draw` allocates a Compose canvas wrapper per call; cache it or mark HOT PATH before P06-T05 paints text into tiles.
+- D-005 P01-REVIEW: .claude/rules/text-engine.md line 3 should name the grid-pitch reference scale + measured first-baseline correction (A-006); the edit was denied in the headless run, apply it interactively.
 
 ## Handoff (<= 5 lines, overwritten each session)
-- All spikes S1..S7 done; ADR-002..008 Accepted (S7 physical part is a USER-CHECK).
-- T08 done: promoted FontRegistry/FontMetricsCache/GridTextLayouter, JLatexMathRenderer (0.04 em padding), PdfBoxOverlayMerger; RaTeX and tile/IO/PDF probes deleted (A-008); D-002 keeps 3 probe routes.
-- Next: P01 REVIEW (reviewer p00-done..HEAD, fixes, full qa, maintain-memory, tag p01-done).
+- P01 closed with tag p01-done after REVIEW (4 blocking findings fixed; D-003..D-005 deferred).
+- Tablet refuses test APKs until the P01-S5 USER-CHECK setting is on; app-route probes work.
+- Next: P02-T01 (model types and geometry).
