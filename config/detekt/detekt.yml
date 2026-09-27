@@ -1,0 +1,11 @@
+# Overrides on top of detekt's default config (buildUponDefaultConfig = true).
+# Composables get relaxed size limits only (P00-T05); Compose rules come from io.nlopez.compose.rules.
+complexity:
+  LongMethod:
+    ignoreAnnotated: ['Composable']
+  LongParameterList:
+    ignoreAnnotated: ['Composable']
+
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']

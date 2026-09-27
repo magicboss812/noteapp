@@ -9,6 +9,7 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) {
         with(target) {
             pluginManager.apply("com.android.library")
+            pluginManager.apply("folio.quality")
             extensions.configure<LibraryExtension> {
                 configureAndroidCommon(this)
                 defaultConfig.consumerProguardFiles("consumer-rules.pro")

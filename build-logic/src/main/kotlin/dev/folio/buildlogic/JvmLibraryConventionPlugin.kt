@@ -14,6 +14,7 @@ class JvmLibraryConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) {
         with(target) {
             pluginManager.apply("org.jetbrains.kotlin.jvm")
+            pluginManager.apply("folio.quality")
             extensions.configure<JavaPluginExtension> {
                 sourceCompatibility = FOLIO_JAVA_VERSION
                 targetCompatibility = FOLIO_JAVA_VERSION

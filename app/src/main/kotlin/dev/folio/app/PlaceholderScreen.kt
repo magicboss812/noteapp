@@ -12,7 +12,11 @@ import androidx.compose.ui.Modifier
 
 /** Bootstrap screen until the library and editor exist (P04/P05). */
 @Composable
-internal fun PlaceholderScreen(buildType: String, versionName: String, modifier: Modifier = Modifier) {
+internal fun PlaceholderScreen(
+    buildType: String,
+    versionName: String,
+    modifier: Modifier = Modifier,
+) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             verticalArrangement = Arrangement.Center,

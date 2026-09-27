@@ -23,6 +23,8 @@ dependencies {
     compileOnly(libs.ksp.gradlePlugin)
     compileOnly(libs.room.gradlePlugin)
     compileOnly(libs.wire.gradlePlugin)
+    compileOnly(libs.spotless.gradlePlugin)
+    compileOnly(libs.detekt.gradlePlugin)
 }
 
 gradlePlugin {
@@ -50,6 +52,10 @@ gradlePlugin {
         register("room") {
             id = "folio.room"
             implementationClass = "dev.folio.buildlogic.RoomConventionPlugin"
+        }
+        register("quality") {
+            id = "folio.quality"
+            implementationClass = "dev.folio.buildlogic.QualityConventionPlugin"
         }
         register("wire") {
             id = "folio.wire"

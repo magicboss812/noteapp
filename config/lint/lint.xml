@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Lint keeps its defaults. Severity overrides live in build-logic (NewApi, MissingPermission, WrongThread = error). -->
+<lint />

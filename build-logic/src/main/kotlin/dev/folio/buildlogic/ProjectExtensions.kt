@@ -39,6 +39,11 @@ internal fun Project.configureAndroidCommon(android: CommonExtension) {
         testOptions.apply {
             unitTests.isIncludeAndroidResources = true
         }
+        lint.apply {
+            abortOnError = true
+            lintConfig = rootProject.file("config/lint/lint.xml")
+            error += setOf("NewApi", "MissingPermission", "WrongThread")
+        }
     }
     dependencies {
         add("testImplementation", libs.bundle("unit-test"))
