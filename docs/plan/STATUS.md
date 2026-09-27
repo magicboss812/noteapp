@@ -23,6 +23,8 @@ updated: 2026-09-28
 ## Deferred (id: reason)
 - D-001 P00-T07: P11 `benchmark` build type needs its own DebugHooksModule (src/benchmark, bind NoOpDebugHooks).
 - D-002 P01-T08: routes spike-ink/spike-stylus (remove in P03-T09) and spike-fonts + core:text spike/ (remove in P06-T03) stay for open USER-CHECKs (A-008).
+- D-003 P01-REVIEW: run `instrumented.sh :core:pdf` (PdfBoxOverlayMergerInstrumentedTest, PdfRenderer checks) once the tablet accepts test APKs again (USER-CHECK P01-S5); next session with the setting on.
+- D-004 P01-REVIEW: `GridParagraph.draw` allocates a Compose canvas wrapper per call; cache it or mark HOT PATH before P06-T05 paints text into tiles.
 
 ## Handoff (<= 5 lines, overwritten each session)
 - All spikes S1..S7 done; ADR-002..008 Accepted (S7 physical part is a USER-CHECK).

@@ -25,7 +25,7 @@ import kotlinx.coroutines.withContext
 /**
  * Spike P01-S3: every bundled font on college-ruled paper (U = 7.1 mm, body M), laid out with the
  * selected [BaselineMethod]. Finger drag pans; zoom and method come from `debugcmd.sh spike-fonts`.
- * Deleted or promoted by P01-T08.
+ * Kept for the P01-S3 USER-CHECK; removed by P06-T03 (STATUS D-002).
  */
 @SuppressLint("ViewConstructor") // created in code by AppDebugHooks only
 @MainThread

@@ -23,7 +23,7 @@ Verify: module tests (+ `instrumented.sh :core:text`)
 ### P06-T03 Grid line-box layout
 Implements: R-TXT-03, R-TXT-05
 Read: 07-text-engine.md#line-box, #block-styles, #grid-unit
-Do: `BlockLayout` per block (lines, heights in U multiples, baseline correction), cache keyed by (block hash, width, style key, U). Promote the P01-S3 test into a regression suite for all block styles.
+Do: `BlockLayout` per block (lines, heights in U multiples, baseline correction), cache keyed by (block hash, width, style key, U). Promote the P01-S3 test into a regression suite for all block styles (rendered baselines per zoom, not only pt error x scale), then delete core:text `spike/` and the `spike-fonts` route (A-008, STATUS D-002).
 Accept:
 - [ ] device: instrumented grid invariant test, 20 fonts x all block styles x zoom 1/2/4: |baseline - rule| <= 0.5 px
 Verify: `bash scripts/device/instrumented.sh :core:text`

@@ -42,6 +42,7 @@ Evidence 2026-09-27 (P01-S2b): Pad 7, route `spike-tiles`, A4 lined page, 1500 s
 | meminfo PSS / Graphics / Native heap MiB | 426 / 148 / 202 (Native drops to 125 within seconds) | 272 / 126 / 71 |
 | pixels differing from a direct software render (zoom 1 / 3) | 0.001% / 0.002% | 1.16% / 0.41% (GPU antialiasing differs) |
 Both strategies stay far below 1% janky frames and are tied on jank; screenshots show no seams or missing tiles.
+Budget gap: R-PERF-04 asks p95 frame <= 7 ms; both strategies measured 9 ms (pan) and 15..18 ms (zoom) p95 in this debug spike at 120 Hz, so the budget is not met yet; P03-T10 owns it (docs/notes/perf.md).
 Decision 2026-09-27: A (tie rule; also pixel-identical to the export raster path). B's lower memory is noted; the tile cache budget (05-canvas-rendering.md#tiles, 25% of largeMemoryClass) must bound A's bitmaps (P03).
 
 ## ADR-004 Library storage
@@ -66,6 +67,7 @@ Context: One file per document, containing everything incl. images visible to ot
 Options: A ZIP container + JSON manifest + protobuf pages + Markdown flows + raw assets; B single SQLite file per document; C one big protobuf; D JSON only.
 Decision: A (04-file-format.md). Wire generates Kotlin from `.proto`; the schema doubles as documentation for other readers. Markdown flows are directly readable.
 Consequences: whole-file repack on save (mitigated by working copy + STORED assets); schema discipline needed (reserved fields, migrations, golden files).
+Evidence 2026-09-28 (P01-S6): a 46 MB container in this layout (mimetype first, STORED assets, DEFLATED pages) packs in 1.39..1.45 s on the Pad 7 and reads back with all CRCs valid (ADR-004 table).
 
 ## ADR-006 PDF export
 Status: Accepted (2026-09-28, P01-S5)
@@ -82,14 +84,14 @@ Evidence 2026-09-28 (P01-S5): Pad 7, `PdfSpikeProbe` run in the debug app (route
 | Export (overlays + merge + save, 100 pages) ms | 241 / 108 / 80 (overlays 10..11) |
 | Output | 202 KB (+13%), 100 pages, all A4, overlay mark red on annotated page, absent on a plain page |
 Host test (`PdfBoxOverlayMergerTest`, Robolectric) also shows the merge adds one form XObject only to target pages and works without BouncyCastle. The generated pages are simpler than real scans or papers, so real render times will be higher.
-Decision 2026-09-28: A confirmed (merge correct, export 0.24 s vs 10 s budget); BouncyCastle stays excluded (no encrypted PDFs; import of encrypted files is a P08 question).
+Decision 2026-09-28: A confirmed (merge correct, export 0.24 s vs 10 s budget); BouncyCastle stays excluded: unencrypted originals merge without it; certificate-encrypted originals fail with a clean `Outcome.Failure` (linkage errors are caught), and password-encrypted ones (common) are a P08 import question.
 
 ## ADR-007 LaTeX rendering
 Status: Accepted (2026-09-27, P01-S4): C jlatexmath-android
 Context: Inline and block LaTeX with exact metrics (ascent/depth) so inline math never breaks the grid (R-TXT-04); offline; vector output for PDF export.
 Options: A RaTeX (MIT; Rust core with KaTeX-compatible parsing and layout, >99.5% KaTeX syntax coverage claimed, Android binding drawing on Canvas, depth metrics); B zly2006/latex (Kotlin Multiplatform Compose renderer with pre-measure API); C jlatexmath-android (GPL-2 with classpath exception, older); D KaTeX in an offscreen WebView (rejected: slow, async, WebView dependency).
 Decision (default): A, via the `MathRenderer` interface so B or C can replace it.
-Consequences: native `.so` libraries in the APK (arm64 only is enough for the Pad 7; include arm64-v8a only).
+Consequences: with the chosen option C the renderer is pure Java (no native library; +0.69 MB). The app packages arm64-v8a only for the remaining native code (ink).
 Evidence 2026-09-27 (P01-S4a, host part): `MathRenderer` + adapters in core:text, corpus testdata/math/corpus.txt (40 formulas), inline style at 50 px (body M at the text reference scale). Host numbers from `MathProbeTest` (Robolectric native graphics); A loads an Android-only `.so`, so its numbers come from `MathProbeInstrumentedTest` on the tablet (P01-S4b). APK delta: clean debug builds with and without the library.
 | Option | License | Parsed | Layout+draw p50 / p95 ms | Ink outside box | Vector output | APK delta |
 |---|---|---|---|---|---|---|
@@ -116,7 +118,7 @@ Evidence 2026-09-27 (P01-S3a, host): `BaselineProbeTest` on Robolectric native g
 | FONT_DESCENT (ref 4 px/pt, shift = font descent) | 0.64 to 10.35 / 1.28 to 20.7 / 2.56 to 41.4 (fails for all 20) | 0.000 | 0.8 to 4.4 |
 | GRID_PITCH (ref round(4U)/U px/pt, shift from first layout baseline) | 0.000 / 0.000 / 0.000 | 0.000 | 0.7 to 1.2 |
 Cause of the drift: `LineHeightStyle` rounds line heights up to whole px and layout baselines are whole px; with 4 px/pt, U = 80.5 px becomes 81 px per line. Golden: core/text/src/test/screenshots/FontSpecimen_compact.png. Device run (`BaselineProbeInstrumentedTest`, tag FolioProbe) is P01-S3b.
-Evidence 2026-09-27 (P01-S3b, device): `BaselineProbeInstrumentedTest` on the Pad 7 (1/1 passed), same fonts and paragraphs: GRID_PITCH 0.000 px at zoom 1, 2 and 4 for all 20 fonts; FONT_DESCENT 0.64 to 10.35 px at zoom 1 (worst: Shadows Into Light, IBM Plex Mono 2.91, Architects Daughter 2.52); cap-height error 0.000 px; layout 0.29 to 0.58 ms per paragraph.
+Evidence 2026-09-27 (P01-S3b, device): `BaselineProbeInstrumentedTest` on the Pad 7 (1/1 passed), same fonts and paragraphs: GRID_PITCH 0.000 px at zoom 1, 2 and 4 for all 20 fonts; FONT_DESCENT 0.64 to 10.35 px at zoom 1 (worst: Shadows Into Light, IBM Plex Mono 2.91, Architects Daughter 2.52); cap-height error 0.000 px; layout 0.29 to 0.58 ms per paragraph. The zoom 2 and 4 values are the measured pt error times the screen scale (layout happens once at the reference scale); rendered baselines per zoom are measured by the P06-T03 regression suite.
 Decision 2026-09-27: A with the GRID_PITCH placement (A-006), a form of the planned TextLayoutResult fallback.
 
 ## ADR-009 Index and search
@@ -135,7 +137,7 @@ Consequences: every mutation must be a command; property tests guard inverse cor
 Status: Accepted
 Context: Strictly offline (R-DEV-02) yet Google Fonts, icons, and math fonts are needed.
 Decision: no INTERNET permission (removed from merged manifests, verified by `verifyNoInternet`); fonts (OFL), Lucide icons (ISC), and math fonts are bundled; web links open in the user's browser via intents.
-Consequences: APK size grows (~15-25 MB); acceptable for a single-device app.
+Consequences: APK size grows; acceptable for a single-device app. Measured P01: the 20 text font families alone are about 28 MB (Merriweather 9.2 MB); debug APK about 50 MB (arm64 only).
 
 ## ADR-012 Build and modules
 Status: Accepted

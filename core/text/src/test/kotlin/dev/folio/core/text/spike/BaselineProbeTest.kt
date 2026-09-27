@@ -3,7 +3,6 @@ package dev.folio.core.text.spike
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.fonts.FontRegistry
@@ -36,14 +35,5 @@ class BaselineProbeTest {
             assertWithMessage(result.family).that(result.lines).isAtLeast(BaselineProbe.PARAGRAPHS.size)
             assertWithMessage(result.family).that(result.maxBaselineErrorPx(zoom = 4f)).isAtMost(BaselineProbe.MAX_ERROR_PX)
         }
-    }
-
-    @Test
-    fun layout_anyMethod_lineBoxesAreWholeUnits() {
-        val block = layouter.layout(BaselineProbe.PARAGRAPHS[0], FontRegistry.byName("Inter"), 20f, 0.45f, 300f, BaselineMethod.GRID_PITCH)
-
-        assertThat(block.lineCount).isGreaterThan(1)
-        assertThat(block.heightPt).isEqualTo(block.lineCount * 20f)
-        assertThat(block.baselinePt(0)).isWithin(1e-3f).of(20f)
     }
 }

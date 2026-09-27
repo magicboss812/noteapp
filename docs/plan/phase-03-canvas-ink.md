@@ -93,7 +93,7 @@ Verify: `./gradlew :core:ink:testDebugUnitTest` + device-tester
 ### P03-T09 Stylus extras (after P01-S7 USER-CHECK)
 Implements: R-INK-02
 Read: 06-ink-input.md#stylus-capabilities, docs/notes/device.md#stylus
-Do: hover cursor ring (if hover reported), stylus button hold = temporary eraser (if button events arrive), tilt shading for pencil (if tilt reported). Capability-gated; hide settings when unsupported.
+Do: hover cursor ring (if hover reported), stylus button hold = temporary eraser (if button events arrive), tilt shading for pencil (if tilt reported). Capability-gated; hide settings when unsupported. Then delete the P01 probe routes `spike-ink` and `spike-stylus` with their app/src/debug spikes code (A-008, STATUS D-002).
 Accept:
 - [ ] unit: capability gating logic
 - [ ] user: "Hover shows a size ring; holding the pen button erases (only if the probe found them)."

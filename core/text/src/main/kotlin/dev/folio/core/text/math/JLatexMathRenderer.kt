@@ -65,6 +65,7 @@ class JLatexMathRenderer(
             canvas.translate(xPx + padPx, baselineYPx - texAscentPx)
             graphics.setCanvas(canvas)
             icon.paintIcon(null, graphics, 0, 0)
+            graphics.setCanvas(null) // do not keep a tile bitmap or finished PDF page alive
             canvas.restoreToCount(save)
         }
     }

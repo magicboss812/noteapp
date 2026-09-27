@@ -14,7 +14,7 @@ Robolectric 4.17 supports up to SDK 36 while targetSdk is 37. Every module that 
 Incremental debug packaging keeps entries of removed dependencies: switching a library to `compileOnly` changed the debug APK by only kilobytes. Compare sizes only after `./gradlew :app:clean :app:assembleDebug` (P01-S4: RaTeX +3.54 MB arm64 measured this way).
 
 ## AGP 9: extra source directories via the variant API
-`android.sourceSets.getByName("androidTest").assets.srcDir(...)` fails in AGP 9 with a ClassCastException (old `AndroidLibrarySourceSet` type). Use `androidComponents { onVariants { it.androidTest?.sources?.assets?.addStaticSourceDirectory(path) } }` (see core/text/build.gradle.kts).
+`android.sourceSets.getByName("androidTest").assets.srcDir(...)` fails in AGP 9 with a ClassCastException (old `AndroidLibrarySourceSet` type). Use `androidComponents { onVariants { it.androidTest?.sources?.assets?.addStaticSourceDirectory(path) } }` (used for the math corpus in commit b8f3c31, removed with the probe in P01-T08).
 
 ## Host has no unzip
 Neither `unzip` nor `python` may be used here; inspect AAR/JAR sources on GitHub (raw.githubusercontent.com) or let Gradle resolve the artifact instead.

@@ -7,7 +7,7 @@ import kotlinx.serialization.json.putJsonObject
 
 /**
  * Spike P01-S7 accumulator: what the Focus Pen delivers to an app. Plain numbers in, JSON out, so
- * it is testable without MotionEvents. Deleted or promoted (StylusCapabilities, P03) by P01-T08.
+ * it is testable without MotionEvents. Kept for the P01-S7 USER-CHECK; P03-T09 promotes it into StylusCapabilities or deletes it (D-002).
  */
 internal class StylusStats {
     /** Observed min..max of one axis; empty until the first value. */

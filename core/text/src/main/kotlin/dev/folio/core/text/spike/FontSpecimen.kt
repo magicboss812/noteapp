@@ -10,7 +10,7 @@ import dev.folio.core.text.layout.GridTextLayouter
 /**
  * Spike P01-S3: every bundled font on college-ruled paper, one block per font. [compact] shows one
  * sample line per font (screenshot test); otherwise the first probe paragraph (`spike-fonts`).
- * Deleted or promoted by P01-T08.
+ * Kept for the P01-S3 USER-CHECK and its golden; P06-T03 promotes or deletes it (D-002).
  */
 class FontSpecimen(
     layouter: GridTextLayouter,

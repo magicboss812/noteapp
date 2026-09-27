@@ -78,6 +78,6 @@ class JLatexMathRendererTest {
         const val BLACK = 0xFF000000.toInt()
         const val MARGIN = 16
         const val INK_ALPHA = 0x40
-        const val MAX_OVERFLOW_PX = 1f
+        const val MAX_OVERFLOW_PX = 0.25f // antialiasing only; the padding must cover all glyph overshoot
     }
 }

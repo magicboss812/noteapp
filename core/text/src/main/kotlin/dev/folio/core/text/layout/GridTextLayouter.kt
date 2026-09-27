@@ -37,6 +37,8 @@ class GridParagraph internal constructor(
     private val paragraph: Paragraph,
     /** Layout px per pt. */
     val refScale: Float,
+    /** Line box height in layout px (a whole number for GRID_PITCH). */
+    val lineHeightPx: Float,
     /** Vertical shift in layout px applied to the paragraph so baselines meet rules. */
     val shiftPx: Float,
     /** Grid unit U in pt. */
@@ -92,12 +94,14 @@ class GridTextLayouter(
         method: BaselineMethod,
     ): GridParagraph {
         val proportions = metrics.proportions(family)
-        val refScale =
+        // GRID_PITCH: the line height is an exact whole px count (Compose rounds line heights up, so a
+        // float that lands a hair above n would become n + 1 and drift); the scale follows from it.
+        val lineHeightPx =
             when (method) {
-                BaselineMethod.FONT_DESCENT -> REFERENCE_SCALE
-                BaselineMethod.GRID_PITCH -> (unitPt * REFERENCE_SCALE).roundToInt() / unitPt
+                BaselineMethod.FONT_DESCENT -> unitPt * REFERENCE_SCALE
+                BaselineMethod.GRID_PITCH -> (unitPt * REFERENCE_SCALE).roundToInt().toFloat()
             }
-        val lineHeightPx = unitPt * refScale
+        val refScale = lineHeightPx / unitPt
         val fontSizePt = capFraction * unitPt / proportions.capRatio
         val fontSizePx = fontSizePt * refScale
         val style =
@@ -122,7 +126,7 @@ class GridTextLayouter(
                 BaselineMethod.FONT_DESCENT -> proportions.descentRatio * fontSizePx
                 BaselineMethod.GRID_PITCH -> if (paragraph.lineCount == 0) 0f else lineHeightPx - paragraph.getLineBaseline(0)
             }
-        return GridParagraph(paragraph, refScale, shiftPx, unitPt, fontSizePt)
+        return GridParagraph(paragraph, refScale, lineHeightPx, shiftPx, unitPt, fontSizePt)
     }
 
     companion object {

@@ -31,7 +31,7 @@ import java.io.IOException
  * Spike P01-S7: live readout of what the Focus Pen delivers (tool type, pressure, tilt,
  * orientation, distance, hover, buttons, keys, batch sizes, sample rate) plus the stylus
  * InputDevice motion ranges; writes `Folio-Debug/probe/stylus.json` every second while it changes.
- * Deleted or promoted by P01-T08.
+ * Kept for the P01-S7 USER-CHECK; removed by P03-T09 (STATUS D-002).
  */
 @SuppressLint("ViewConstructor") // created in code by AppDebugHooks only
 @MainThread

@@ -32,7 +32,7 @@ class BaselineProbeResult(
 /**
  * Spike P01-S3: lays out three paragraphs per font on a college-ruled grid (U = 7.1 mm, body M)
  * and measures how far each baseline lands from its rule. Shared by the Robolectric test, the
- * instrumented test and the `spike-fonts` debug route. Deleted or promoted by P01-T08.
+ * instrumented test and the `spike-fonts` debug route. P06-T03 turns it into the grid regression suite (D-002).
  */
 object BaselineProbe {
     /** College ruling, 7.1 mm (05-canvas-rendering.md#templates). */

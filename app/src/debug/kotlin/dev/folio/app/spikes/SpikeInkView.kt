@@ -42,7 +42,7 @@ internal enum class Handoff {
 /**
  * Spike P01-S1: a white page drawing committed strokes with [CanvasStrokeRenderer] under an
  * [InProgressStrokesView] fed by stylus events, with the highest refresh mode requested.
- * Deleted or promoted by P01-T08.
+ * Kept for the P01-S1 USER-CHECKs; removed by P03-T09 (STATUS D-002).
  */
 @SuppressLint("ViewConstructor") // created in code by AppDebugHooks only
 @MainThread

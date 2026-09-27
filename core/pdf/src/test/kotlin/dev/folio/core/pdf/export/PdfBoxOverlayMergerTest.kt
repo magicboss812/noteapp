@@ -14,7 +14,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import java.io.File
 
-/** Host check of the ADR-006 merge (PdfBox without BouncyCastle); the device timings are in PdfSpikeInstrumentedTest. */
+/** Host check of the ADR-006 merge (PdfBox without BouncyCastle); PdfRenderer checks run in PdfBoxOverlayMergerInstrumentedTest. */
 @RunWith(AndroidJUnit4::class)
 class PdfBoxOverlayMergerTest {
     @get:Rule
@@ -60,6 +60,31 @@ class PdfBoxOverlayMergerTest {
         val original = pdf("original.pdf", pages = 2)
         val overlay = pdf("overlay.pdf", pages = 2)
         val output = File(tmp.root, "output.pdf")
+
+        val result = merger.merge(original, overlay, intArrayOf(0), output)
+
+        assertThat(result).isInstanceOf(Outcome.Failure::class.java)
+        assertThat(output.exists()).isFalse()
+        assertThat(File(tmp.root, "output.pdf.tmp").exists()).isFalse()
+    }
+
+    @Test
+    fun merge_failureOverExistingOutput_leavesItUntouched() {
+        val original = pdf("original.pdf", pages = 2)
+        val overlay = pdf("overlay.pdf", pages = 2)
+        val output = tmp.newFile("output.pdf").apply { writeText("previous export") }
+
+        val result = merger.merge(original, overlay, intArrayOf(0), output)
+
+        assertThat(result).isInstanceOf(Outcome.Failure::class.java)
+        assertThat(output.readText()).isEqualTo("previous export")
+    }
+
+    @Test
+    fun merge_unwritableTarget_failsWithoutThrowing() {
+        val original = pdf("original.pdf", pages = 1)
+        val overlay = pdf("overlay.pdf", pages = 1)
+        val output = File(tmp.root, "missing-dir/output.pdf")
 
         val result = merger.merge(original, overlay, intArrayOf(0), output)
 

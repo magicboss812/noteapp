@@ -14,7 +14,7 @@ android {
         testInstrumentationRunner = "dev.folio.app.HiltTestRunner"
         buildConfigField("String", "LIBRARY_ROOT", "\"Documents/Folio\"")
         manifestPlaceholders["appLabel"] = "Folio"
-        ndk.abiFilters += "arm64-v8a" // the Pad 7 is arm64; ADR-007 (RaTeX .so) and ink natives
+        ndk.abiFilters += "arm64-v8a" // the Pad 7 is arm64; drops unused ABIs of native libraries (ink)
     }
     buildTypes {
         debug {

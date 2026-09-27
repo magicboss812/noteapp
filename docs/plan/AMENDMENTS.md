@@ -44,6 +44,6 @@ Format:
 
 ## A-008 2026-09-28 P01-T08: spike results carried into later phases
 - Change: promoted and kept: `FontRegistry` + 20 bundled fonts, `FontMetricsCache`, `GridTextLayouter` (core:text), `MathRenderer` + `JLatexMathRenderer` (core:text math), `PdfBoxOverlayMerger` (core:pdf); app packages arm64-v8a only. Deleted: tile, IO and PDF probe code, RaTeX. Kept temporarily (Deferred D-002): the debug routes `spike-ink`, `spike-fonts`, `spike-stylus` with their probe code (app spikes/, core:text spike/) because open USER-CHECKs (P01-S1, S3, S7) need them on the tablet.
-- Reason: phase-01 exit says spike code is deleted or promoted; three screens are still the only way to answer the USER-CHECKs.
+- Reason: phase-01 exit says spike code is deleted or promoted; three screens are still the only way to answer the USER-CHECKs. The removal duty was added to the P03-T09 and P06-T03 task blocks (P01 REVIEW).
 - Impact: P03 (tiles use bitmap strategy A, ADR-003; `StylusCapabilities` defaults from device.md#stylus; P03-T09 removes `spike-ink` and `spike-stylus` after the USER-CHECKs), P02 packer (write protocol measured, ADR-004), P06-T02 (FontRegistry and FontMetricsCache exist), P06-T03 (seed: GridTextLayouter, BaselineProbe tests become the regression suite, then `spike-fonts` goes), P06-T07 (JLatexMathRenderer exists), P09 export (merger exists).
 
