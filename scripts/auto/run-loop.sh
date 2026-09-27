@@ -3,10 +3,12 @@
 # Runs one fresh headless Claude Code session per task until the plan is done, something is Blocked,
 # the max count is reached, or two runs in a row make no progress.
 # Usage: bash scripts/auto/run-loop.sh [maxTasks=10]
+# Effort: FOLIO_EFFORT=high (default) | xhigh | medium, e.g. FOLIO_EFFORT=xhigh bash scripts/auto/run-loop.sh 5
 # Prerequisite: run `claude` interactively once in this repo and accept the workspace trust prompt.
 set -u
 cd "$(dirname "$0")/../.." || exit 1
 max="${1:-10}"
+effort="${FOLIO_EFFORT:-high}"
 mkdir -p .device/loop-logs
 status_file="docs/plan/STATUS.md"
 no_progress=0
@@ -26,7 +28,7 @@ for i in $(seq 1 "$max"); do
   echo "[$i/$max] $next -> $log"
 
   claude -p "Use the next-task skill: execute exactly one task (or one phase REVIEW) from docs/plan/STATUS.md, verify it, commit it, update STATUS.md, then stop with a 3-line summary." \
-    --permission-mode dontAsk --max-turns 250 > "$log" 2>&1 || echo "  claude exited non-zero (see log)"
+    --permission-mode dontAsk --effort "$effort" --max-turns 250 > "$log" 2>&1 || echo "  claude exited non-zero (see log)"
 
   tail -n 3 "$log" | sed 's/^/  /'
   head_after="$(git rev-parse HEAD 2>/dev/null || echo none)"

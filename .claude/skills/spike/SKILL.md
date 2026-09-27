@@ -1,6 +1,7 @@
 ---
 name: spike
 description: Run a time-boxed technical spike from phase-01-spikes.md to de-risk a decision with measurements on the tablet, then record evidence and the decision in decisions.md.
+effort: xhigh
 ---
 # spike
 1. Read the spike block (question, options, build, measurements, decision rule) and the referenced ADR in `docs/architecture/decisions.md`.
