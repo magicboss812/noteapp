@@ -115,4 +115,24 @@ class DebugCommandsTest {
     fun help_listsInitialCommandSet() {
         assertThat(commands.names).containsAtLeast("state", "perf-reset", "perf-dump", "route", "overlay")
     }
+
+    @Test
+    fun route_spikeInk_navigatesAndNotifiesListener() {
+        val shown = mutableListOf<String>()
+        state.onNavigate = { shown += it }
+
+        assertThat(commands.execute("route", "spike-ink").ok).isTrue()
+
+        assertThat(state.screen).isEqualTo("spike-ink")
+        assertThat(shown).containsExactly("spike-ink")
+    }
+
+    @Test
+    fun execute_extraHandler_runsWithArgAndIsListed() {
+        val withExtra =
+            DebugCommands(state, extra = mapOf("echo" to { arg -> DebugReply.error(arg ?: "none") })) { }
+
+        assertThat(withExtra.names).contains("echo")
+        assertThat(withExtra.execute("echo", "hi").json.toString()).isEqualTo("{\"error\":\"hi\"}")
+    }
 }

@@ -9,12 +9,20 @@ Decision: A. Compose for all chrome (library, toolbar, sheets, settings). The ca
 Consequences: pen input bypasses recomposition; Compose remains the productive default elsewhere. Two UI toolkits meet at one well-defined seam (`CanvasController`).
 
 ## ADR-002 Ink stack
-Status: Proposed (baseline accepted; P01-S1 adds evidence)
+Status: Accepted (2026-09-27, P01-S1)
 Context: Wet ink must be as low-latency as possible (R-INK-08); strokes need pressure/tilt brushes, geometry for erasing and lasso, and stable rendering.
 Options: A androidx.ink 1.1.0-alpha (newest alpha; public brush customization API, fixes since 1.0.0); B androidx.ink 1.0.0 stable (Dec 2025); C custom renderer on androidx.graphics front-buffered surfaces.
 Decision: A, pinned to an exact alpha. Front-buffered wet ink via `InProgressStrokesView`, finished strokes via `CanvasStrokeRenderer`, geometry for erase/lasso. The experimental mesh-editing partial eraser (1.1.0-alpha05+) is not used because its results are not yet serializable; Folio splits stroke inputs instead (06-ink-input.md#erasers). Our file format stores our own `StrokeInputs`, not ink's serialization, so a library change never breaks files.
 Fallback: B if an alpha regresses on the device; C only if the spike proves ink unusable on HyperOS.
 Revisit: when ink 1.1.0 goes stable (move to stable).
+Evidence 2026-09-27 (P01-S1): Pad 7, debug build, ink 1.1.0-alpha09, route `spike-ink` (pressure pen, CanvasStrokeRenderer page, DisplayModeHelper), 50 synthetic `input stylus swipe` strokes per run (400 ms, 50 events each). Median of runs, worst in brackets.
+| Handoff mode | Runs | `ink:onTouch` p50 / p95 / max ms | `ink:handoff` p50 / p95 ms | Janky frames | 3 screenshots after pen-up |
+|---|---|---|---|---|---|
+| commit (ViewTreeObserver frame-commit callback) | 3 | 0.20 / 0.28 (0.29) / 0.55 (0.63) | 6.4 / 8.8 (one 66 ms outlier) | 0.8% (1.6%) | stroke shown, all 3 |
+| frame (Choreographer frame callback) | 1 | 0.20 / 0.28 / 0.49 | 7.8 / 8.2 | 0.4% | stroke shown, all 3 |
+| immediate (inside `onStrokesFinished`) | 1 | 0.20 / 0.27 / 0.66 | 0.03 / 0.05 | 0.7% | stroke shown, all 3 |
+Front buffer works on HyperOS: InProgressStrokesView adds a SurfaceView (BLAST, z=1) above the window on the first stroke. Requesting the 144 Hz mode left the display at 120 Hz (device.md#display). Screenshots settle >= 100 ms after pen-up, so single-frame flicker and felt latency are a USER-CHECK. Motion prediction was not wired in the spike (P03).
+Decision 2026-09-27: A confirmed (p95 0.29 ms vs 1 ms budget, handoff clean). Handoff mode: commit, the only mode that removes wet strokes after the frame showing the committed stroke by construction (A-005).
 
 ## ADR-003 Committed content rendering
 Status: Proposed (decided by P01-S2)

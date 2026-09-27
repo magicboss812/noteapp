@@ -53,7 +53,7 @@ Spacing presets are selectable per page (page settings sheet). Text zones (body 
 ## Dry handoff
 1. `InProgressStrokesView.onStrokesFinished(strokes)` delivers finished strokes (main thread).
 2. The session executes `AddObjects` (converted `InkStroke`s). The content layer paints those strokes into the affected visible tiles synchronously on the render thread (incremental paint) and invalidates the layer.
-3. A `Choreographer` frame callback after that invalidate confirms the frame is posted; then `removeFinishedStrokes(ids)`.
+3. A `ViewTreeObserver.registerFrameCommitCallback` registered right after that invalidate fires once the frame drawing the stroke is submitted; then `removeFinishedStrokes(ids)`. (A `Choreographer` frame callback runs before that frame's draw pass, which is too early; A-005.)
 4. If tile paint fails or is pending (tile not yet rendered), the wet stroke stays until the tile containing it is drawn.
 Result: never a frame without the stroke, never a double-dark overlap longer than one frame.
 

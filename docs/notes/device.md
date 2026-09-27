@@ -9,7 +9,8 @@ Filled by P00-T02, P01-S1, P01-S7 and later discoveries. Known from Xiaomi specs
 ## Display
 - Physical 2136x3200 (natural orientation portrait per `wm size`), density 440 dpi
 - Refresh modes (fps): 30, 48, 50, 60, 90, 120, 144
-- Editor mode: not chosen yet (P01)
+- Editor mode: request the fastest mode (144 Hz, mode id 2) via `preferredDisplayModeId` (`DisplayModeHelper`). P01-S1: the active mode stayed 120 Hz, idle and inking (`diag.sh refresh`: `peakRefreshRate=120`); probably the HyperOS refresh-rate setting caps apps (USER-CHECK). Frame budgets at 120 Hz: 8.3 ms.
+- Usual orientation while testing: landscape, rotation 1 (3200x2136)
 
 ## Input
 - Touch: `NVTCapacitiveTouchScreen`
@@ -22,7 +23,10 @@ Filled by P00-T02, P01-S1, P01-S7 and later discoveries. Known from Xiaomi specs
 (from the P01-S7 probe: pressure range, tilt yes/no + range, orientation, hover yes/no, buttons delivered to apps, sample rate, synthetic `input stylus` limitations)
 
 ## Rendering
-(front-buffer layer present while inking? observed latency notes from P01-S1)
+- Front-buffered wet ink works: InProgressStrokesView adds `SurfaceView[...](BLAST)` (z=1) above the app window on the first stroke and keeps it; `screencap` captures it (P01-S1).
+- Wet-ink main-thread cost `ink:onTouch` p95 0.28 ms; wet-to-dry handoff one frame (decisions.md ADR-002 evidence).
+- HWUI logs `E/HWUI [m2] set surface nullptr` about once per wet-ink frame; harmless noise.
+- Synthetic `input stylus swipe` of 400 ms delivers 50 MotionEvents; gfxinfo flags ~80% of those frames "High input latency" (likely an artifact of injected event timestamps).
 
 ## Quirks
 - adb installs fail with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` unless Developer options > "Install via USB" is on (HyperOS may require a Mi account sign-in). Prompts on screen need a tap.

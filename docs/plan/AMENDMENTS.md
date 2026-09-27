@@ -27,3 +27,8 @@ Format:
 - Reason: per-module tasks keep module builds independent (configuration cache, project isolation later); the root task depends on every module `qa` explicitly (reviewer finding). JUnit4 (EPL-1.0) is required by the testing rule and 02-modules.md#dependencies but never ships in an APK; `verifyModuleGraph` keeps core:testing out of non-test configurations.
 - Impact: 02-modules.md#build-logic, .claude/rules/gradle.md.
 
+## A-005 2026-09-27 P01-S1: dry handoff waits for the frame-commit callback
+- Change: step 3 of the dry handoff removes finished wet strokes in a `ViewTreeObserver.registerFrameCommitCallback` callback instead of a `Choreographer` frame callback. `DisplayModeHelper` (core:render) exists from P01-S1; P03 wires it into the canvas host.
+- Reason: a frame callback posted after `invalidate()` runs in the animation phase of the same vsync, before that frame's draw, so it removes wet ink before the committed layer has drawn it (breaks "never remove earlier"). The commit callback fires after the frame is submitted: `ink:handoff` p50 6.4 ms (about one 120 Hz frame), all post-stroke screenshots clean (decisions.md ADR-002 evidence).
+- Impact: 05-canvas-rendering.md#dry-handoff; P03 canvas host tasks (dry handoff, DisplayModeHelper).
+

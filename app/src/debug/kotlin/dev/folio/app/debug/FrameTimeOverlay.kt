@@ -67,6 +67,9 @@ internal class FrameTimeOverlay(
         activity.addContentView(label, params)
     }
 
+    /** Keeps the readout above content views added after [install]. */
+    fun bringToFront() = label.bringToFront()
+
     fun setVisible(visible: Boolean) {
         if (visible == showing) return
         showing = visible

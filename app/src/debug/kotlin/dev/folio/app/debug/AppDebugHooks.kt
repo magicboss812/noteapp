@@ -1,11 +1,14 @@
 package dev.folio.app.debug
 
 import android.content.Intent
+import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.annotation.MainThread
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import dev.folio.app.DebugHooks
+import dev.folio.app.spikes.SpikeInkView
+import dev.folio.app.spikes.spikeInkCommand
 import dev.folio.core.common.FolioLog
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,23 +19,51 @@ import javax.inject.Singleton
 internal class AppDebugHooks
     @Inject
     constructor() : DebugHooks {
-        private val state = DebugAppState()
+        private val state = DebugAppState().also { it.onNavigate = ::showRoute }
+        private var activity: ComponentActivity? = null
         private var overlay: FrameTimeOverlay? = null
         private var overlayVisible = false
-        private val commands = DebugCommands(state) { visible -> setOverlayVisible(visible) }
+        private var spikeInk: SpikeInkView? = null
+        private val commands =
+            DebugCommands(
+                state,
+                extra = mapOf(SpikeInkView.ROUTE to { arg -> spikeInkCommand(spikeInk, arg) }),
+            ) { visible -> setOverlayVisible(visible) }
 
         override fun attach(activity: ComponentActivity) {
             val created = FrameTimeOverlay(activity).also { it.install() }
+            this.activity = activity
             overlay = created
+            spikeInk = null
             created.setVisible(overlayVisible)
+            showRoute(state.route) // a recreated activity shows the current route again
             activity.lifecycle.addObserver(
                 LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_DESTROY) {
                         created.dispose()
                         if (overlay === created) overlay = null
+                        if (this.activity === activity) {
+                            this.activity = null
+                            spikeInk = null
+                        }
                     }
                 },
             )
+        }
+
+        // Spike screens cover the placeholder content until P04 navigation exists.
+        private fun showRoute(route: String) {
+            val host = activity ?: return
+            if (route == SpikeInkView.ROUTE) {
+                if (spikeInk != null) return
+                val view = SpikeInkView(host)
+                host.addContentView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                overlay?.bringToFront()
+                spikeInk = view
+            } else {
+                spikeInk?.let { (it.parent as? ViewGroup)?.removeView(it) }
+                spikeInk = null
+            }
         }
 
         override fun handleIntent(intent: Intent) {

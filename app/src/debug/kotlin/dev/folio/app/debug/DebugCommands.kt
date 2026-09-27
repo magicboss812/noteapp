@@ -22,6 +22,7 @@ internal fun interface OverlaySwitch {
  */
 internal class DebugCommands(
     private val state: DebugAppState,
+    extra: Map<String, (String?) -> DebugReply> = emptyMap(),
     private val overlay: OverlaySwitch,
 ) {
     private val handlers: Map<String, (String?) -> DebugReply> =
@@ -32,7 +33,7 @@ internal class DebugCommands(
             "perf-dump" to { _ -> DebugReply.ok(perfJson(PerfMonitor.snapshot())) },
             "route" to ::route,
             "overlay" to ::overlay,
-        )
+        ) + extra
 
     val names: Set<String> get() = handlers.keys
 
