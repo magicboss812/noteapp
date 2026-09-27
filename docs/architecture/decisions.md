@@ -58,6 +58,13 @@ Context: Inline and block LaTeX with exact metrics (ascent/depth) so inline math
 Options: A RaTeX (MIT; Rust core with KaTeX-compatible parsing and layout, >99.5% KaTeX syntax coverage claimed, Android binding drawing on Canvas, depth metrics); B zly2006/latex (Kotlin Multiplatform Compose renderer with pre-measure API); C jlatexmath-android (GPL-2 with classpath exception, older); D KaTeX in an offscreen WebView (rejected: slow, async, WebView dependency).
 Decision (default): A, via the `MathRenderer` interface so B or C can replace it.
 Consequences: native `.so` libraries in the APK (arm64 only is enough for the Pad 7; include arm64-v8a only).
+Evidence 2026-09-27 (P01-S4a, host part): `MathRenderer` + adapters in core:text, corpus testdata/math/corpus.txt (40 formulas), inline style at 50 px (body M at the text reference scale). Host numbers from `MathProbeTest` (Robolectric native graphics); A loads an Android-only `.so`, so its numbers come from `MathProbeInstrumentedTest` on the tablet (P01-S4b). APK delta: clean debug builds with and without the library.
+| Option | License | Parsed | Layout+draw p50 / p95 ms | Ink outside box | Vector output | APK delta |
+|---|---|---|---|---|---|---|
+| A RaTeX 0.1.14 | MIT | device (S4b) | device (S4b) | device (S4b) | draws Canvas text, rects and paths only (source); PDF check S4b | +3.54 MB arm64-v8a only (+9.35 MB with 3 ABIs) |
+| B huarangmeng latex 1.5.0 (zly2006/latex) | MIT | not built | - | - | no: measuring and export need a Composable scope, export is PNG/SVG only, no Canvas/DrawScope API (README) | - |
+| C jlatexmath-android 0.2.0 | GPL-2.0 + linking exception | 39/40 (97.5%, `\ce` unknown) | 0.54 / 1.87 (host) | max 1.85 px, 6 of 39 over 1 px (with `setTrueValues`; the default box adds 0.18 em padding) | Graphics2D over Canvas; PDF check S4b | +0.69 MB |
+B fails the vector rule by API, so it was not built. The app now packages arm64-v8a only (also drops about 4.7 MB of other libraries' x86_64/armeabi-v7a natives).
 
 ## ADR-008 Text layout engine
 Status: Proposed (decided by P01-S3)

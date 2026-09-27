@@ -47,6 +47,7 @@ Resolved 2026-09-27 (P00-T03) from maven-metadata.xml; all 83 catalog coordinate
 | Wire (runtime, gradle plugin) | 7.0.4 | Apache-2.0 | https://repo1.maven.org/maven2/com/squareup/wire/wire-runtime/maven-metadata.xml | protobuf .folio payloads |
 | commonmark (+ gfm-tables, gfm-strikethrough, task-list-items) | 0.30.0 | BSD-2-Clause | https://repo1.maven.org/maven2/org/commonmark/commonmark/maven-metadata.xml | Markdown parsing |
 | RaTeX android | 0.1.14 | MIT | https://repo1.maven.org/maven2/io/github/erweixin/ratex-android/maven-metadata.xml | LaTeX (ADR-007); coords from github.com/erweixin/RaTeX platforms/android/README.md |
+| jlatexmath-android | 0.2.0 | GPL-2.0 with linking exception (LICENSE of the android branch) | https://repo1.maven.org/maven2/ru/noties/jlatexmath-android/maven-metadata.xml | P01-S4 option C only; removed by P01-T08 unless chosen (repo archived 2023) |
 | PdfBox-Android | 2.0.27.0 | Apache-2.0 (BouncyCastle 1.72 transitive: MIT-style) | https://repo1.maven.org/maven2/com/tom-roush/pdfbox-android/maven-metadata.xml | PDF import/export (ADR-006); try excluding bcprov in P01 |
 | Coil 3 (coil, coil-compose; no network artifacts) | 3.6.3 | Apache-2.0 | https://repo1.maven.org/maven2/io/coil-kt/coil3/coil/maven-metadata.xml | library thumbnails |
 | JUnit4 | 4.13.2 | EPL-1.0 (test-only, never shipped) | https://repo1.maven.org/maven2/junit/junit/maven-metadata.xml | JVM tests (testing rule) |
