@@ -96,4 +96,4 @@ Native Android hybrid note app (pen ink + grid-snapped Markdown text) for one de
 
 ## Learned
 <!-- Format: - YYYY-MM-DD <fact> (<task id>) -->
-- (none yet)
+- 2026-09-27 SDK packages are installed by the USER (`cmdline-tools/latest/bin/android sdk install platforms/android-NN`); with cmdline-tools 23 installing is the license acceptance, see docs/notes/env.md (P00-T01)
