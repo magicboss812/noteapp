@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "autoMemoryEnabled": false,
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebSearch",
+      "WebFetch(domain:developer.android.com)",
+      "WebFetch(domain:dl.google.com)",
+      "WebFetch(domain:maven.google.com)",
+      "WebFetch(domain:repo1.maven.org)",
+      "WebFetch(domain:central.sonatype.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:kotlinlang.org)",
+      "WebFetch(domain:docs.gradle.org)",
+      "WebFetch(domain:code.claude.com)",
+      "Bash(./gradlew *)",
+      "Bash(bash scripts/*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git tag *)",
+      "Bash(git restore *)",
+      "Bash(git stash*)",
+      "Bash(git switch *)",
+      "Bash(git branch*)",
+      "Bash(git rev-parse*)",
+      "Bash(git mv *)",
+      "Bash(git rm *)",
+      "Bash(ls*)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(sort *)",
+      "Bash(uniq *)",
+      "Bash(diff *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(rm *)",
+      "Bash(touch *)",
+      "Bash(chmod *)",
+      "Bash(unzip *)",
+      "Bash(zip *)",
+      "Bash(jq *)",
+      "Bash(sha256sum *)",
+      "Bash(file *)",
+      "Bash(echo *)",
+      "Bash(printf *)",
+      "Bash(sed -n *)",
+      "Bash(awk *)",
+      "Bash(java -version)",
+      "Bash(sdkmanager *)",
+      "Bash(curl -fsSL https://raw.githubusercontent.com/*)",
+      "Bash(curl -fsSL https://dl.google.com/*)",
+      "Bash(curl -fsSL https://maven.google.com/*)",
+      "Bash(curl -fsSL https://repo1.maven.org/*)"
+    ],
+    "deny": [
+      "Bash(adb *)",
+      "Bash(adb.exe *)",
+      "Bash(fastboot *)",
+      "Bash(sudo *)",
+      "Bash(claude *)",
+      "Bash(bash scripts/auto/*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean *)"
+    ],
+    "ask": [
+      "Bash(git push*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-context.sh\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-bash.sh\"",
+            "timeout": 20
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-protected-files.sh\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-memory-size.sh\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+# Gradle / Android
+.gradle/
+build/
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+# Signing (never commit)
+*.jks
+*.keystore
+keystore.properties
+# IDE
+.idea/
+*.iml
+.vscode/
+# Claude Code personal
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/agent-memory-local/
+# Device session state (screenshots, logs, pulled files, serial)
+.device/
+# OS
+.DS_Store
+Thumbs.db

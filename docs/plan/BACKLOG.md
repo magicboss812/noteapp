@@ -1,0 +1,12 @@
+# Backlog (out of v1 scope; do not implement without a user request)
+- B-01 Sync (Syncthing-friendly folder is already possible; later: WebDAV or git-based sync).
+- B-02 Desktop client (Compose Desktop / JVM reading `.folio`; androidx.ink supports JVM on Linux x86_64). Keep the format platform-neutral.
+- B-03 Per-paragraph line spacing overrides (v1: global grid unit per page).
+- B-04 Handwriting recognition / ink search.
+- B-05 Audio recording synced to ink.
+- B-06 Laser pointer / presentation mode; video embeds.
+- B-07 PDF text search and text selection in PDFs.
+- B-08 Two-page spread view in landscape.
+- B-09 Sections inside documents.
+- B-10 Custom brush designer.
+- B-11 Automatic backup of the library folder to a second location.

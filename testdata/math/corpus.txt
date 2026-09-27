@@ -1,0 +1,41 @@
+# One formula per line. Lines starting with # are comments. Used by P01-S4 and math regression tests.
+x^2 + y^2 = r^2
+\frac{a}{b} + \frac{c}{d} = \frac{ad + bc}{bd}
+\sqrt{x^2 + 1}
+\sqrt[3]{27} = 3
+\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}
+\int_0^{\pi} \sin x \, dx = 2
+\lim_{x \to 0} \frac{\sin x}{x} = 1
+\frac{d}{dt} \left( \frac{\partial L}{\partial \dot q} \right) - \frac{\partial L}{\partial q} = 0
+e^{i\pi} + 1 = 0
+\vec{F} = m \vec{a}
+\hat{H} \psi = E \psi
+\Delta x \, \Delta p \geq \frac{\hbar}{2}
+v(t) = v_0 + a t
+s(t) = s_0 + v_0 t + \tfrac{1}{2} a t^2
+E_{kin} = \frac{1}{2} m v^2
+F_G = G \frac{m_1 m_2}{r^2}
+\alpha, \beta, \gamma, \Gamma, \Delta, \Omega, \omega, \theta, \lambda, \mu
+\overline{AB} \parallel \overline{CD}
+\binom{n}{k} = \frac{n!}{k!(n-k)!}
+\begin{pmatrix} a & b \\ c & d \end{pmatrix}
+\det \begin{vmatrix} 1 & 2 \\ 3 & 4 \end{vmatrix} = -2
+\begin{bmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & 1 \end{bmatrix}
+f(x) = \begin{cases} x^2 & x \geq 0 \\ -x & x < 0 \end{cases}
+\begin{aligned} 2x + 3 &= 7 \\ x &= 2 \end{aligned}
+\mathbb{R}, \mathbb{N}, \mathbb{Z}, \mathbb{Q}, \mathbb{C}
+\forall \varepsilon > 0 \; \exists \delta > 0
+A \cup B, \; A \cap B, \; A \setminus B, \; x \in A
+\nabla \cdot \vec{E} = \frac{\rho}{\varepsilon_0}
+\oint_{\partial S} \vec{B} \cdot d\vec{l} = \mu_0 I
+\left| \frac{a}{b} \right|
+\log_2 8 = 3, \; \ln e = 1
+\sin^2 \theta + \cos^2 \theta = 1
+\underbrace{1 + 2 + \cdots + n}_{n \text{ terms}}
+\text{Energy: } E = mc^2
+10 \, \mathrm{m/s^2}
+\dot{x}, \ddot{x}, x', x''
+\lVert \vec{v} \rVert = \sqrt{v_x^2 + v_y^2}
+\prod_{i=1}^{n} i = n!
+\ce{2H2 + O2 -> 2H2O}
+a \equiv b \pmod{n}
