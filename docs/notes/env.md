@@ -11,11 +11,54 @@ Latest stable platform per dl.google.com repository2-3.xml (channel stable): `pl
 git 2.55.0, jq 1.8.2. `sdkmanager` is deprecated and wraps the new `android sdk` CLI; it needs a writable SDK dir even to list.
 
 ## Toolchain versions
-(AGP, Gradle, Kotlin, KSP, Compose BOM; filled in P00-T03)
+Resolved 2026-09-27 (P00-T03) from maven-metadata.xml; all 83 catalog coordinates checked to exist.
+- Gradle 9.8.0, AGP 9.4.1 (built-in Kotlin, min Gradle 9.6.0, max API 37), Kotlin 2.4.20, KSP 2.3.12, JDK 21 runs the build.
+- compileSdk/targetSdk 37 (latest stable platform android-37.x), minSdk 35.
+- Compose BOM 2026.09.00. Alphas: androidx.ink 1.1.0-alpha09 (ADR-002), detekt 2.0.0-alpha.6 (A-001).
 
 ## Dependencies
 | Name | Version | License | Source URL | Reason |
 |---|---|---|---|---|
+| Gradle wrapper | 9.8.0 | Apache-2.0 | https://services.gradle.org/versions/current | build tool; AGP 9.4 needs >= 9.6.0 |
+| Android Gradle Plugin | 9.4.1 | Apache-2.0 | https://dl.google.com/android/maven2/com/android/tools/build/gradle/maven-metadata.xml | build; max API 37, JDK 17+ (developer.android.com AGP 9.4 notes) |
+| Kotlin (KGP, compose + serialization plugins) | 2.4.20 | Apache-2.0 | https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugin/maven-metadata.xml | language; replaces AGP built-in KGP default |
+| KSP | 2.3.12 | Apache-2.0 | https://repo1.maven.org/maven2/com/google/devtools/ksp/symbol-processing-gradle-plugin/maven-metadata.xml | Hilt/Room codegen; KSP2 works with Kotlin 2.4 + AGP 9 built-in Kotlin (release notes 2.3.6/2.3.10) |
+| Compose BOM | 2026.09.00 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/compose/compose-bom/maven-metadata.xml | UI (ui 1.12.1, material3 1.4.0) |
+| activity-compose | 1.13.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/activity/activity-compose/maven-metadata.xml | Compose host activity |
+| lifecycle (runtime-compose, viewmodel-compose, process, viewmodel-navigation3) | 2.11.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/lifecycle/maven-metadata.xml | state, app lifecycle |
+| core-ktx | 1.19.1 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/core/core-ktx/maven-metadata.xml | platform helpers |
+| window | 1.5.1 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/window/window/maven-metadata.xml | window metrics |
+| material3-adaptive | 1.3.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/compose/material3/adaptive/adaptive/maven-metadata.xml | window size classes |
+| navigation3 (runtime, ui) | 1.2.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/navigation3/maven-metadata.xml | navigation (ADR-013) |
+| Hilt (android, compiler, testing, gradle plugin) | 2.60.1 | Apache-2.0 | https://repo1.maven.org/maven2/com/google/dagger/hilt-android/maven-metadata.xml | DI |
+| androidx.hilt (lifecycle-viewmodel-compose, work, compiler) | 1.4.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/hilt/maven-metadata.xml | hiltViewModel with Nav3 (A-001), Hilt workers |
+| kotlinx-coroutines (core, android, test) | 1.11.0 | Apache-2.0 | https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core/maven-metadata.xml | async |
+| kotlinx-serialization-json | 1.11.0 | Apache-2.0 | https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-json/maven-metadata.xml | manifest JSON |
+| kotlinx-collections-immutable | 0.5.2 | Apache-2.0 | https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-collections-immutable/maven-metadata.xml | stable Compose state |
+| Room (runtime, ktx, compiler, testing, gradle plugin) | 2.8.5 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/room/maven-metadata.xml | library index + FTS |
+| DataStore Preferences | 1.2.1 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/datastore/datastore-preferences/maven-metadata.xml | settings |
+| WorkManager | 2.12.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/work/work-runtime-ktx/maven-metadata.xml | background packing/export |
+| androidx.ink (authoring, brush, geometry, rendering, strokes) | 1.1.0-alpha09 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/ink/ink-authoring/maven-metadata.xml | ink (ADR-002, newest 1.1.0 alpha) |
+| tracing-ktx | 2.0.3 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/tracing/tracing-ktx/maven-metadata.xml | PerfMonitor trace sections |
+| Wire (runtime, gradle plugin) | 7.0.4 | Apache-2.0 | https://repo1.maven.org/maven2/com/squareup/wire/wire-runtime/maven-metadata.xml | protobuf .folio payloads |
+| commonmark (+ gfm-tables, gfm-strikethrough, task-list-items) | 0.30.0 | BSD-2-Clause | https://repo1.maven.org/maven2/org/commonmark/commonmark/maven-metadata.xml | Markdown parsing |
+| RaTeX android | 0.1.14 | MIT | https://repo1.maven.org/maven2/io/github/erweixin/ratex-android/maven-metadata.xml | LaTeX (ADR-007); coords from github.com/erweixin/RaTeX platforms/android/README.md |
+| PdfBox-Android | 2.0.27.0 | Apache-2.0 (BouncyCastle 1.72 transitive: MIT-style) | https://repo1.maven.org/maven2/com/tom-roush/pdfbox-android/maven-metadata.xml | PDF import/export (ADR-006); try excluding bcprov in P01 |
+| Coil 3 (coil, coil-compose; no network artifacts) | 3.6.3 | Apache-2.0 | https://repo1.maven.org/maven2/io/coil-kt/coil3/coil/maven-metadata.xml | library thumbnails |
+| JUnit4 | 4.13.2 | EPL-1.0 (test-only, never shipped) | https://repo1.maven.org/maven2/junit/junit/maven-metadata.xml | JVM tests (testing rule) |
+| Truth | 1.4.5 | Apache-2.0 | https://repo1.maven.org/maven2/com/google/truth/truth/maven-metadata.xml | assertions |
+| Turbine | 1.2.1 | Apache-2.0 | https://repo1.maven.org/maven2/app/cash/turbine/turbine/maven-metadata.xml | Flow tests |
+| Robolectric | 4.17 | MIT | https://repo1.maven.org/maven2/org/robolectric/robolectric/maven-metadata.xml | JVM Android tests |
+| Roborazzi (core, compose, junit-rule, gradle plugin) | 1.75.0 | Apache-2.0 | https://repo1.maven.org/maven2/io/github/takahirom/roborazzi/roborazzi/maven-metadata.xml | screenshot goldens |
+| androidx.test (core, runner, rules) | 1.7.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/test/runner/maven-metadata.xml | instrumented tests |
+| androidx.test.ext junit | 1.3.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/test/ext/junit/maven-metadata.xml | AndroidJUnit4 |
+| uiautomator | 2.4.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/test/uiautomator/uiautomator/maven-metadata.xml | device UI tests |
+| benchmark-macro-junit4, baselineprofile plugin | 1.5.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/benchmark/benchmark-macro-junit4/maven-metadata.xml | macrobenchmarks (P11) |
+| profileinstaller | 1.4.1 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/profileinstaller/profileinstaller/maven-metadata.xml | baseline profile install |
+| Spotless gradle plugin | 8.10.3 | Apache-2.0 | https://repo1.maven.org/maven2/com/diffplug/spotless/spotless-plugin-gradle/maven-metadata.xml | formatting gate |
+| ktlint | 1.8.0 | MIT | https://repo1.maven.org/maven2/com/pinterest/ktlint/ktlint-cli/maven-metadata.xml | Kotlin style via Spotless |
+| detekt (dev.detekt) | 2.0.0-alpha.6 | Apache-2.0 | https://repo1.maven.org/maven2/dev/detekt/detekt-gradle-plugin/maven-metadata.xml | static analysis (alpha: A-001) |
+| compose-rules detekt | 0.6.7 | Apache-2.0 | https://repo1.maven.org/maven2/io/nlopez/compose/rules/detekt/maven-metadata.xml | Compose lint rules for detekt |
 
 ## Platform differences
 - Windows: Claude Code runs shell commands through Git Bash; scripts use LF line endings (.gitattributes). adb is `adb.exe` under `%ANDROID_HOME%\platform-tools`.

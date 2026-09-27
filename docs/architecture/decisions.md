@@ -83,10 +83,11 @@ Options: A multi-module with convention plugins (02-modules.md); B single module
 Decision: A. JVM modules for model and format keep most tests fast and Android-free. minSdk = min(35, device SDK) (set in P00-T02); compileSdk/targetSdk = latest stable.
 Consequences: more build configuration up front (P00), cheaper and safer changes afterwards.
 Note 2026-09-27 (P00-T02): device reports SDK 36 (Android 16, HyperOS OS3.0), so minSdk = 35.
+Note 2026-09-27 (P00-T03, A-001): detekt 2.0.0-alpha.6 allowed (build-time only) because compose-rules 0.6.7 requires it and detekt 1.23.8 targets Kotlin 2.0.21; move to stable 2.0.0 when released.
 
 ## ADR-013 Navigation
 Status: Accepted
-Decision: Navigation 3 if a stable release exists at P00-T03, otherwise navigation-compose. Few routes (onboarding, library, editor, settings); editor split view is internal state, not navigation.
+Decision: Navigation 3 if a stable release exists at P00-T03, otherwise navigation-compose. Note 2026-09-27 (P00-T03): navigation3 1.2.0 is stable (dl.google.com maven-metadata), so Navigation 3 is used. Few routes (onboarding, library, editor, settings); editor split view is internal state, not navigation.
 
 ## ADR-014 Icons
 Status: Accepted

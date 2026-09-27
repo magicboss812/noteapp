@@ -48,7 +48,7 @@ Pin exact versions in `gradle/libs.versions.toml` (P00-T03). Stable unless marke
 |---|---|
 | Build | Android Gradle Plugin, Kotlin, KSP, Gradle wrapper |
 | UI | Compose BOM (ui, foundation, material3, animation, ui-tooling), activity-compose, lifecycle (runtime-compose, viewmodel-compose, process), core-ktx, window / material3-adaptive (window size classes), Navigation 3 if a stable release exists, else navigation-compose |
-| DI | Hilt (android, compiler), hilt-navigation-compose, hilt-work |
+| DI | Hilt (android, compiler), hilt-lifecycle-viewmodel-compose (A-001), hilt-work |
 | Async | kotlinx-coroutines (android, test) |
 | Data | kotlinx-serialization-json, kotlinx-collections-immutable, Room (runtime, ktx, compiler), DataStore Preferences, WorkManager |
 | Ink | androidx.ink `ink-authoring`, `ink-brush`, `ink-geometry`, `ink-rendering`, `ink-strokes` (+ `-compose` interop artifacts only if used) at the newest **1.1.0-alpha** (ADR-002); androidx.graphics-core and androidx.input motion prediction arrive transitively |
@@ -60,7 +60,7 @@ Pin exact versions in `gradle/libs.versions.toml` (P00-T03). Stable unless marke
 | Images | Coil 3 core + compose without any network artifact (library thumbnails only), or plain ImageDecoder if Coil adds nothing |
 | Tests | JUnit4, Truth, Turbine, Robolectric, Roborazzi (+ compose, junit rule), androidx.test (runner, rules, ext-junit), compose ui-test-junit4, uiautomator, hilt-android-testing |
 | Perf | benchmark-macro-junit4, profileinstaller, baselineprofile Gradle plugin (P11) |
-| Quality | spotless + ktlint, detekt + Compose rules plugin |
+| Quality | spotless + ktlint, detekt (2.0 alpha, A-001) + Compose rules plugin |
 
 Not allowed: networking libraries, analytics, crash reporters, Gson, RxJava, WebView-based renderers.
 
