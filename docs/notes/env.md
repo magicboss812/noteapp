@@ -4,11 +4,14 @@ Filled by P00-T01 and P00-T03. Keep <= 200 lines.
 ## Machines
 | Machine | OS / shell | JDK | Android SDK path | Last doctor run |
 |---|---|---|---|---|
-| surface (Surface, Arch Linux, kernel 6.19.8-arch1-3-surface) / bash 5.3.20 | OpenJDK 21.0.12.1 (/usr/lib/jvm/java-21-openjdk, JAVA_HOME unset) | /opt/android-sdk (root-owned) | 2026-09-27: FAIL (licenses, no platform) |
+| surface (Surface, Arch Linux, kernel 6.19.8-arch1-3-surface) / bash 5.3.20 | OpenJDK 21.0.12.1 (/usr/lib/jvm/java-21-openjdk, JAVA_HOME unset) | /opt/android-sdk (chowned to the user) | 2026-09-27: PASS |
 
-Surface SDK contents (2026-09-27): platform-tools 37.0.1, build-tools 37.0.0, cmdline-tools 23.0, platforms: none.
-Latest stable platform per dl.google.com repository2-3.xml (channel stable): `platforms;android-37.2`.
-git 2.55.0, jq 1.8.2. `sdkmanager` is deprecated and wraps the new `android sdk` CLI; it needs a writable SDK dir even to list.
+Surface SDK (2026-09-27): platform-tools 37.0.1, build-tools 37.0.0, cmdline-tools 23.0, platforms android-37.0 + android-37.2 (latest stable). git 2.55.0, jq 1.8.2.
+
+## Android CLI (cmdline-tools 23)
+- `sdkmanager` is deprecated and delegates to `android sdk` (`cmdline-tools/latest/bin/android`). Package names use slashes: `android sdk install platforms/android-37.0`.
+- There is no separate license step (`sdkmanager --licenses` prints "no longer needed"); installing a package accepts the license, so the USER runs installs of new SDK packages.
+- The SDK dir must be writable by the user (Arch AUR installs it root-owned: `sudo chown -R $USER:$USER /opt/android-sdk`).
 
 ## Toolchain versions
 Resolved 2026-09-27 (P00-T03) from maven-metadata.xml; all 83 catalog coordinates checked to exist.

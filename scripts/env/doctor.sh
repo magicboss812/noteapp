@@ -23,7 +23,7 @@ if [ -n "$sdk" ] && [ -d "$sdk" ]; then
   if ls -d "$sdk"/build-tools/* >/dev/null 2>&1; then ok "build-tools: $(ls "$sdk"/build-tools | tr '\n' ' ')"; else warn "no build-tools installed"; fi
   sm="$(ls "$sdk"/cmdline-tools/latest/bin/sdkmanager* 2>/dev/null | head -n1 || true)"
   if [ -n "$sm" ]; then ok "sdkmanager: $sm"; else warn "cmdline-tools/latest missing (needed for scripted SDK installs)"; fi
-  if [ -d "$sdk/licenses" ] && ls "$sdk"/licenses/android-sdk-license >/dev/null 2>&1; then ok "SDK license accepted"; else bad "SDK licenses not accepted: the USER runs 'sdkmanager --licenses'"; fi
+  if [ -d "$sdk/licenses" ] && ls "$sdk"/licenses/android-sdk-license >/dev/null 2>&1; then ok "SDK license accepted"; else bad "SDK licenses not accepted: the USER installs a package (cmdline-tools 23+: 'android sdk install platforms/android-NN', which accepts the license)"; fi
 else
   bad "ANDROID_HOME (or ANDROID_SDK_ROOT) not set to an existing directory"
 fi

@@ -8,10 +8,10 @@ updated: 2026-09-27
 - (none)
 
 ## Current phase progress
-- P00: T02 T03
+- P00: T01 T02 T03
 
 ## Blocked (needs user; stops dependent tasks)
-- P00-T01: /opt/android-sdk is root:root (sdkmanager cannot even list), SDK licenses not accepted, no platform installed. Blocks T04-T08 (builds). -> run: `sudo chown -R $USER:$USER /opt/android-sdk && sdkmanager --licenses` (accept yourself), then delete this line. Claude installs `platforms;android-37.2` afterwards.
+- (none)
 
 ## USER-CHECK (human verification; non-blocking)
 - (none)
@@ -20,5 +20,5 @@ updated: 2026-09-27
 - (none)
 
 ## Handoff (<= 5 lines, overwritten each session)
-- T01 blocked (SDK perms/licenses); T02 done (SDK 36, minSdk 35); T03 done (AGP 9.4.1, Kotlin 2.4.20, A-001).
-- Next: T04 skeleton; needs the T01 unblock, then install platforms;android-37.0 (and 37.2) and finish T01.
+- T01-T03 done (DOCTOR PASS after user installed platforms 37.0/37.2; SDK 36 device, minSdk 35; AGP 9.4.1, Kotlin 2.4.20, A-001).
+- Next: T04 Gradle skeleton.
