@@ -7,6 +7,7 @@ import dev.folio.core.common.Outcome
 import dev.folio.core.text.math.MathLayout
 import dev.folio.core.text.math.MathRenderer
 import java.io.ByteArrayOutputStream
+import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -84,7 +85,7 @@ object MathProbe {
             }
             val overflow = layout?.let(::inkOverflowPx) ?: continue
             maxOverflow = max(maxOverflow, overflow)
-            if (overflow > MAX_OVERFLOW_PX) overflowing += "$latex (%.1f px)".format(overflow)
+            if (overflow > MAX_OVERFLOW_PX) overflowing += "$latex (%.1f px)".format(Locale.ROOT, overflow)
         }
         scratch.recycle()
         timesMs.sort()
@@ -167,9 +168,9 @@ object MathProbe {
             appendLine("|---|---|---|---|---|")
             for (r in results) {
                 appendLine(
-                    "| ${r.renderer} | ${r.total - r.failures.size}/${r.total} (${"%.1f".format(r.successPct)}%) | " +
-                        "${"%.2f".format(r.layoutDrawP50Ms)} / ${"%.2f".format(r.layoutDrawP95Ms)} | " +
-                        "${"%.2f".format(r.maxInkOverflowPx)} | ${r.overflowing.size} |",
+                    "| ${r.renderer} | ${r.total - r.failures.size}/${r.total} (${"%.1f".format(Locale.ROOT,r.successPct)}%) | " +
+                        "${"%.2f".format(Locale.ROOT,r.layoutDrawP50Ms)} / ${"%.2f".format(Locale.ROOT,r.layoutDrawP95Ms)} | " +
+                        "${"%.2f".format(Locale.ROOT,r.maxInkOverflowPx)} | ${r.overflowing.size} |",
                 )
             }
             for (r in results) {

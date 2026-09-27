@@ -66,7 +66,7 @@ Decision (default): A, behind `PdfExporter` strategies with B and C as fallbacks
 Consequences: one stale third-party library, used only at export time on local files the user created; revisit if a maintained alternative appears.
 
 ## ADR-007 LaTeX rendering
-Status: Proposed (decided by P01-S4)
+Status: Accepted (2026-09-27, P01-S4): C jlatexmath-android
 Context: Inline and block LaTeX with exact metrics (ascent/depth) so inline math never breaks the grid (R-TXT-04); offline; vector output for PDF export.
 Options: A RaTeX (MIT; Rust core with KaTeX-compatible parsing and layout, >99.5% KaTeX syntax coverage claimed, Android binding drawing on Canvas, depth metrics); B zly2006/latex (Kotlin Multiplatform Compose renderer with pre-measure API); C jlatexmath-android (GPL-2 with classpath exception, older); D KaTeX in an offscreen WebView (rejected: slow, async, WebView dependency).
 Decision (default): A, via the `MathRenderer` interface so B or C can replace it.
@@ -78,6 +78,12 @@ Evidence 2026-09-27 (P01-S4a, host part): `MathRenderer` + adapters in core:text
 | B huarangmeng latex 1.5.0 (zly2006/latex) | MIT | not built | - | - | no: measuring and export need a Composable scope, export is PNG/SVG only, no Canvas/DrawScope API (README) | - |
 | C jlatexmath-android 0.2.0 | GPL-2.0 + linking exception | 39/40 (97.5%, `\ce` unknown) | 0.54 / 1.87 (host) | max 1.85 px, 6 of 39 over 1 px (with `setTrueValues`; the default box adds 0.18 em padding) | Graphics2D over Canvas; PDF check S4b | +0.69 MB |
 B fails the vector rule by API, so it was not built. The app now packages arm64-v8a only (also drops about 4.7 MB of other libraries' x86_64/armeabi-v7a natives).
+Evidence 2026-09-27 (P01-S4b, device): `MathProbeInstrumentedTest` on the Pad 7 (passed), 5 warm-up formulas, then 40 formulas x 5 repeats, inline style at 50 px.
+| Option | Parsed | Layout+draw p50 / p95 ms | Max ink outside box px (formulas > 1 px) | PDF output |
+|---|---|---|---|---|
+| A RaTeX | 40/40 (100%) | 1.49 / 5.09 | 1.56 (4) | vector only (76 KB) |
+| C jlatexmath | 39/40 (97.5%, `\ce` unknown) | 0.36 / 0.80 | 1.85 (6) | vector only (49 KB) |
+Decision 2026-09-27: C. Rule: success >= 95%, p95 <= 4 ms and vector output; only C meets all three (A misses p95 by 1.1 ms). Both overshoot the box on large operators and accents by up to 2 px at 50 px, so the adapter pads ascent and depth by 0.04 em (A-007). Risks accepted: the library is archived (last release 2020) and GPL-2.0 with linking exception (allowed by .claude/rules/gradle.md with this note); no mhchem `\ce`. A stays the fallback behind `MathRenderer`.
 
 ## ADR-008 Text layout engine
 Status: Accepted (2026-09-27, P01-S3)

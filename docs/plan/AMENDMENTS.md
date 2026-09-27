@@ -37,3 +37,8 @@ Format:
 - Reason: Robolectric native-graphics probe, 20 fonts x 3 paragraphs, U = 7.1 mm: the descent shift missed rules by 0.64 to 10.35 px at zoom 1 (2.6 to 41 px at zoom 4) because `LineHeightStyle` rounds each line height up to whole px (80.5 -> 81 px: 0.125 pt drift per line) and layout baselines are whole px. The grid-pitch variant put every baseline on its rule (0.000 px at zoom 1, 2, 4). Confirmed on the Pad 7 (P01-S3b): identical numbers.
 - Impact: 07-text-engine.md#line-box, decisions.md ADR-008; P06-T02 (`FontMetricsCache` no longer feeds placement), P06-T03 (`BlockLayout` uses the grid-pitch scale per U).
 
+## A-007 2026-09-27 P01-S4: LaTeX via jlatexmath-android instead of RaTeX
+- Change: ADR-007 picks option C (jlatexmath-android 0.2.0) instead of the default A (RaTeX); the RaTeX dependency is removed by P01-T08. `MathBox` ascent and depth get 0.04 em padding.
+- Reason: device probe, 40 formulas: RaTeX 100% parsed but layout+draw p95 5.09 ms (budget 4 ms); jlatexmath 97.5% parsed (no `\ce`), p95 0.80 ms, vector PDF output. Both draw up to 1.6 / 1.9 px outside their reported box at 50 px.
+- Impact: 07-text-engine.md#math, decisions.md ADR-007, docs/notes/env.md; P06-T07 (math adapter, padding, no mhchem support in the corpus tests).
+
