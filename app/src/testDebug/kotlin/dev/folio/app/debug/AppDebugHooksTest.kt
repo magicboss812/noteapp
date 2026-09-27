@@ -5,6 +5,7 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import dev.folio.app.di.AppModule
 import dev.folio.core.common.FolioLog
 import org.junit.After
 import org.junit.Before
@@ -17,7 +18,7 @@ import java.time.Duration
 @RunWith(AndroidJUnit4::class)
 class AppDebugHooksTest {
     private val lines = mutableListOf<String>()
-    private val hooks = AppDebugHooks()
+    private val hooks = AppDebugHooks(AppModule.dispatchers())
 
     @Before
     fun setUp() = FolioLog.install { _, tag, message, _ -> if (tag == DebugReply.TAG) lines += message }
