@@ -8,7 +8,7 @@ updated: 2026-09-27
 - P00 done 2026-09-27 (tag p00-done): AGP 9.4.1/Kotlin 2.4.20/Gradle 9.8.0, compileSdk 37.2, minSdk 35 (device SDK 36); qa green; instrumented smoke 1/1 on Pad 7; cold launch 786 ms; A-001..A-004.
 
 ## Current phase progress
-- P01: S1, S2 (ADR-003 A), S3 (ADR-008 grid pitch), S4 (ADR-007 jlatexmath)
+- P01: S1, S2 (ADR-003 A), S3 (ADR-008 grid pitch), S4 (ADR-007 jlatexmath), S6 (ADR-004)
 
 ## Blocked (needs user; stops dependent tasks)
 - 2026-09-27 tablet unreachable: `connect.sh` finds 0 devices (no USB serial 2b6e1b3e, no wireless debugging). Needed: connect the Pad 7 (USB + accept the debugging prompt, or Wireless debugging on the same Wi-Fi) and keep it unlocked. Stops P01-S2b (tile measurements), P01-S3b (`instrumented.sh :core:text`, FolioProbe table -> ADR-008 Accepted), P01-S4b (same command, MathProbe table + PDF vectorOnly for RaTeX -> ADR-007) and the device parts of S5..S7. [Checked]

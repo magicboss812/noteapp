@@ -10,3 +10,12 @@ Robolectric (SDK 36 sandbox) reflects into `java.io.FileDescriptor` via `jdk.int
 ## Robolectric SDK pin per module
 Robolectric 4.17 supports up to SDK 36 while targetSdk is 37. Every module that applies `folio.screenshot` needs `src/test/resources/robolectric.properties` with `sdk=36` (see :app) until Robolectric supports 37.
 
+## APK size comparisons need clean builds
+Incremental debug packaging keeps entries of removed dependencies: switching a library to `compileOnly` changed the debug APK by only kilobytes. Compare sizes only after `./gradlew :app:clean :app:assembleDebug` (P01-S4: RaTeX +3.54 MB arm64 measured this way).
+
+## AGP 9: extra source directories via the variant API
+`android.sourceSets.getByName("androidTest").assets.srcDir(...)` fails in AGP 9 with a ClassCastException (old `AndroidLibrarySourceSet` type). Use `androidComponents { onVariants { it.androidTest?.sources?.assets?.addStaticSourceDirectory(path) } }` (see core/text/build.gradle.kts).
+
+## Host has no unzip
+Neither `unzip` nor `python` may be used here; inspect AAR/JAR sources on GitHub (raw.githubusercontent.com) or let Gradle resolve the artifact instead.
+

@@ -1,0 +1,1 @@
+P01-S6 FileObserver probe fixture: pushed with scripts/device/push-fixture.sh to Folio-Debug/fixtures/.

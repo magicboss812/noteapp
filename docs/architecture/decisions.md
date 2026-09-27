@@ -45,11 +45,20 @@ Both strategies stay far below 1% janky frames and are tied on jank; screenshots
 Decision 2026-09-27: A (tie rule; also pixel-identical to the export raster path). B's lower memory is noted; the tile cache budget (05-canvas-rendering.md#tiles, 25% of largeMemoryClass) must bound A's bitmaps (P03).
 
 ## ADR-004 Library storage
-Status: Proposed (baseline accepted; P01-S6 adds evidence)
+Status: Accepted (2026-09-28, P01-S6)
 Context: User-visible folder for cross-platform copying (R-FILE-01); fast scanning and random-access ZIP reads; personal sideloaded app.
 Options: A `MANAGE_EXTERNAL_STORAGE` + `java.io.File` in `Documents/Folio`; B Storage Access Framework tree URI + DocumentFile; C app-specific external storage (`Android/data`), hidden from most file managers.
 Decision: A. Debug builds use `Documents/Folio-Debug` so tests never touch real notes.
 Consequences: one-time permission screen; not Play-Store compatible (irrelevant for sideloading). B stays the migration path if a future Android version restricts A.
+Evidence 2026-09-28 (P01-S6): Pad 7, route `spike-io`, All-files access granted, java.io on `/sdcard/Documents/Folio-Debug` (FUSE). Working copy in app files: 4 x 10 MB random assets (STORED) + 10 x 1 MB pages (DEFLATED) -> 46.0 MB `.folio`.
+| Measurement | Result |
+|---|---|
+| Pack (CRC + ZIP write + fsync + rename + directory fsync), 4 runs | 1391 / 1410 / 1413 / 1450 ms (write 1282..1363, fsync 35..39, rename 13..57, CRC 33..40); directory fsync supported |
+| Read-back verify (all entries, CRC checked) | ok, 16 entries, mimetype first |
+| App killed (`stop.sh`) mid-pack, 3 runs | target intact and valid every time; tmp removed by start-up cleanup (1 run) or already gone after the kill (2 runs, FUSE dropped the half-written file) |
+| FileObserver on `Folio-Debug/fixtures` for `push-fixture.sh` (external writer through FUSE) | CREATE + CLOSE_WRITE (DELETE first when replacing) delivered, under about 150 ms after the push (bound limited by the 6 s `debugcmd.sh` round trip) |
+| FileObserver during our own pack | CREATE `.tmp`, CLOSE_WRITE, MOVED_FROM `.tmp`, MOVED_TO target |
+Decision 2026-09-28: A confirmed. Pack stays within 1.5 s for 46 MB with little margin (P11 budget watch: most time is the FUSE write).
 
 ## ADR-005 File format
 Status: Accepted
