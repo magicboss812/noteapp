@@ -9,3 +9,7 @@ complexity:
 naming:
   FunctionNaming:
     ignoreAnnotated: ['Composable']
+
+style:
+  MaxLineLength:
+    maxLineLength: 140 # same as ktlint (.editorconfig)

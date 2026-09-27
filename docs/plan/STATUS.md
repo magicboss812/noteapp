@@ -11,7 +11,7 @@ updated: 2026-09-27
 - P00: T01 T02 T03 T04 T05
 
 ## Blocked (needs user; stops dependent tasks)
-- (none)
+- P00-T06: adb install refused (INSTALL_FAILED_USER_RESTRICTED); blocks device checks of T06-T08. -> on the tablet: Developer options > enable "Install via USB" (and "USB debugging (Security settings)"), keep it unlocked, tap Allow on install prompts; then delete this line.
 
 ## USER-CHECK (human verification; non-blocking)
 - (none)
@@ -20,5 +20,5 @@ updated: 2026-09-27
 - (none)
 
 ## Handoff (<= 5 lines, overwritten each session)
-- T01-T05 done. `./gradlew qa` green (spotless/ktlint, detekt 2.0a6 + compose rules, lint, tests, verifyModuleGraph, verifyNoInternet).
-- Next: T06 test infra (core:common APIs, core:testing, folio.screenshot + Roborazzi, instrumented smoke test).
+- T01-T05 done. T06 code + JVM/screenshot tests committed; its device item (instrumented smoke test) waits on the Blocked install toggle.
+- Next: after unblock, `bash scripts/device/instrumented.sh :app` (check result XML), mark T06 done; then T07.

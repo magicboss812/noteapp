@@ -25,6 +25,8 @@ dependencies {
     compileOnly(libs.wire.gradlePlugin)
     compileOnly(libs.spotless.gradlePlugin)
     compileOnly(libs.detekt.gradlePlugin)
+    // Roborazzi publishes its plugin marker only to the Gradle Plugin Portal; load it from Maven Central here.
+    implementation(libs.roborazzi.gradlePlugin)
 }
 
 gradlePlugin {
@@ -56,6 +58,10 @@ gradlePlugin {
         register("quality") {
             id = "folio.quality"
             implementationClass = "dev.folio.buildlogic.QualityConventionPlugin"
+        }
+        register("screenshot") {
+            id = "folio.screenshot"
+            implementationClass = "dev.folio.buildlogic.ScreenshotConventionPlugin"
         }
         register("wire") {
             id = "folio.wire"

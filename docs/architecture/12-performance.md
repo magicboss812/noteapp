@@ -44,7 +44,7 @@ Rules: no blocking IO or layout of more than one block on main; hot paths alloca
 - R8 full mode in release; Compose stability configuration; no reflection-based serialization.
 
 ## Measurement
-- `PerfMonitor` (core:common): `PerfMonitor.trace("section") { ... }` records durations into a ring buffer per section (last 1000) and also emits `androidx.tracing` sections (visible in Perfetto if ever needed). Release builds compile it to a no-op except the tracing call.
+- `PerfMonitor` (core:common): `PerfMonitor.trace("section") { ... }` records durations into a ring buffer per section (last 1000) and also emits trace sections through a `TraceSink` (:app: platform `android.os.Trace`, visible in Perfetto; A-003). Release builds keep only the tracing call (`PerfMonitor.enabled = BuildConfig.DEBUG`).
 - `debugcmd.sh perf-reset` / `perf-dump` return p50/p95/max/count per section as JSON.
 - Frame stats: `gfxinfo.sh reset` before and `gfxinfo.sh` after a scripted interaction (debug commands such as `zoom-anim`, `scroll-page`, `seed-strokes`, `seed-text` make interactions repeatable).
 - Macrobenchmarks (P11, `:benchmark`): startup (cold/warm), open note, draw 50 strokes (synthetic stylus), pan/zoom, type 200 chars; FrameTimingMetric + custom trace metrics.

@@ -2,6 +2,7 @@ plugins {
     id("folio.android.application")
     id("folio.compose")
     id("folio.hilt")
+    id("folio.screenshot")
 }
 
 android {
@@ -10,6 +11,7 @@ android {
         applicationId = "dev.folio.notes"
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "dev.folio.app.HiltTestRunner"
         buildConfigField("String", "LIBRARY_ROOT", "\"Documents/Folio\"")
         manifestPlaceholders["appLabel"] = "Folio"
     }
@@ -31,4 +33,12 @@ dependencies {
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.core.ktx)
+    testImplementation(projects.core.testing)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    androidTestImplementation(libs.hilt.android.testing)
+    androidTestImplementation(libs.truth)
+    kspAndroidTest(libs.hilt.compiler)
 }

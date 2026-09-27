@@ -25,4 +25,5 @@ Filled by P00-T02, P01-S1, P01-S7 and later discoveries. Known from Xiaomi specs
 (front-buffer layer present while inking? observed latency notes from P01-S1)
 
 ## Quirks
-(HyperOS install prompts, permission dialogs, background restrictions, anything surprising)
+- adb installs fail with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` unless Developer options > "Install via USB" is on (HyperOS may require a Mi account sign-in). Prompts on screen need a tap.
+- `pm uninstall` of a package that is not installed returns `DELETE_FAILED_INTERNAL_ERROR` (harmless).

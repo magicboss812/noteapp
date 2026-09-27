@@ -16,3 +16,9 @@ Format:
 - Change: `core:common` and `core:testing` are Kotlin/JVM modules (spec: Android libraries). `core:testing -> core:model, core:common` is an allowed edge (test-only consumer). No Gradle JVM toolchain: JDK 21 runs the build, bytecode target is 17 via compileOptions / jvmTarget / `--release 17`. build-tools pinned to the installed 37.0.0; compileSdk 37 minor 2.
 - Reason: `core:model` and `core:format` are JVM modules and must depend on `core:common` and use `core:testing` in tests; a JVM module cannot depend on an Android library. Both modules only hold pure Kotlin APIs (Android sinks for FolioLog/PerfMonitor tracing live in :app). A toolchain of 17 needs a JDK 17 install or network auto-provisioning; only JDK 21 is installed (env.md). AGP 9.4.1 defaults to build-tools 36.0.0, which is not installed and would trigger a license-bearing download.
 - Impact: 02-modules.md#module-list and graph; root `verifyModuleGraph` encodes the graph.
+
+## A-003 2026-09-27 P00-T06: PerfMonitor traces through a TraceSink; Roborazzi plugin via build-logic
+- Change: `PerfMonitor` (JVM core:common) emits trace sections through a `TraceSink` interface; :app installs a sink backed by platform `android.os.Trace` instead of androidx.tracing. Release keeps only the trace calls (`PerfMonitor.enabled = BuildConfig.DEBUG`). The Roborazzi Gradle plugin is loaded from build-logic's classpath (Maven Central artifact) instead of the `plugins {}` block.
+- Reason: androidx.tracing 2.0.3 reworked its API; the platform Trace (minSdk 35) produces the same Perfetto/atrace sections without an extra dependency and keeps core:common Android-free (A-002). Roborazzi publishes its plugin marker only to the Gradle Plugin Portal, which the build does not use (repositories: google, mavenCentral).
+- Impact: 12-performance.md#measurement; tracing-ktx stays in the catalog unused until a module needs it.
+
