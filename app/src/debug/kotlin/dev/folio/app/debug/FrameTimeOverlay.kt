@@ -12,12 +12,14 @@ import android.view.Window
 import android.view.WindowInsets
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.annotation.MainThread
 import java.util.Locale
 
 /**
  * Debug-only frame-time readout (top end corner): rendered frames per second, average and max
  * total frame duration, and frames over the 144 Hz budget, from Window frame metrics.
  */
+@MainThread
 internal class FrameTimeOverlay(
     private val activity: Activity,
 ) : Window.OnFrameMetricsAvailableListener {
@@ -78,6 +80,9 @@ internal class FrameTimeOverlay(
             label.visibility = View.GONE
         }
     }
+
+    /** Stops the readout loop and frame listener; call when the activity is destroyed. */
+    fun dispose() = setVisible(false)
 
     override fun onFrameMetricsAvailable(
         window: Window,

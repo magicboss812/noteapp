@@ -2,6 +2,7 @@ package dev.folio.app.debug
 
 import android.content.Intent
 import androidx.activity.ComponentActivity
+import androidx.annotation.MainThread
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import dev.folio.app.DebugHooks
@@ -10,6 +11,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Debug build [DebugHooks]: runs debug commands from intents and hosts the frame-time overlay. */
+@MainThread
 @Singleton
 internal class AppDebugHooks
     @Inject
@@ -25,20 +27,27 @@ internal class AppDebugHooks
             created.setVisible(overlayVisible)
             activity.lifecycle.addObserver(
                 LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_DESTROY && overlay === created) overlay = null
+                    if (event == Lifecycle.Event.ON_DESTROY) {
+                        created.dispose()
+                        if (overlay === created) overlay = null
+                    }
                 },
             )
         }
 
         override fun handleIntent(intent: Intent) {
-            intent.getStringExtra(EXTRA_DOC)?.let { state.requestedDoc = it }
+            // Launch extras and commands are consumed so a recreated activity does not apply them again.
+            intent.getStringExtra(EXTRA_DOC)?.let {
+                state.requestedDoc = it
+                intent.removeExtra(EXTRA_DOC)
+            }
             intent.getStringExtra(EXTRA_ROUTE)?.let { route ->
                 if (!state.navigate(route)) FolioLog.w(DebugReply.TAG, "unknown route '$route'")
+                intent.removeExtra(EXTRA_ROUTE)
             }
             val command = intent.getStringExtra(EXTRA_CMD) ?: return
             val arg = intent.getStringExtra(EXTRA_ARG)?.takeUnless { it == NO_ARG }
             val nonce = intent.getStringExtra(EXTRA_NONCE) ?: "none"
-            // Consume the command so a recreated activity does not run it again.
             intent.removeExtra(EXTRA_CMD)
             FolioLog.i(DebugReply.TAG, commands.execute(command, arg).toLogLine(nonce))
         }
