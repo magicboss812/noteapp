@@ -22,3 +22,8 @@ Format:
 - Reason: androidx.tracing 2.0.3 reworked its API; the platform Trace (minSdk 35) produces the same Perfetto/atrace sections without an extra dependency and keeps core:common Android-free (A-002). Roborazzi publishes its plugin marker only to the Gradle Plugin Portal, which the build does not use (repositories: google, mavenCentral).
 - Impact: 12-performance.md#measurement; tracing-ktx stays in the catalog unused until a module needs it.
 
+## A-004 2026-09-27 P00-REVIEW: qa task layout; test-only EPL-1.0 allowed
+- Change: `qa` is layered: each module gets `qa` from `folio.quality`, `verifyNoInternet<Variant>` tasks come from `folio.android.application` (including the androidTest APK manifest), and the root `qa`/`verifyNoInternet` aggregate them (spec: both live in the root build). The gradle rule's license list allows EPL-1.0 for test-only artifacts.
+- Reason: per-module tasks keep module builds independent (configuration cache, project isolation later); the root task depends on every module `qa` explicitly (reviewer finding). JUnit4 (EPL-1.0) is required by the testing rule and 02-modules.md#dependencies but never ships in an APK; `verifyModuleGraph` keeps core:testing out of non-test configurations.
+- Impact: 02-modules.md#build-logic, .claude/rules/gradle.md.
+

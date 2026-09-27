@@ -11,6 +11,7 @@ import org.gradle.kotlin.dsl.withType
 /**
  * Robolectric + Roborazzi screenshot tests. Goldens live in `src/test/screenshots` (committed);
  * `recordRoborazziDebug` writes them, `verifyRoborazziDebug` (part of qa) compares.
+ * Each module also needs `src/test/resources/robolectric.properties` with `sdk=36` (docs/notes/gotchas.md).
  */
 class ScreenshotConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) {

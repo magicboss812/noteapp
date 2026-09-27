@@ -52,7 +52,20 @@ class TempDirFolioFsTest {
     }
 
     @Test
-    fun resolve_parentSegment_isRejected() {
-        assertThrows(IllegalArgumentException::class.java) { fs.exists("../etc") }
+    fun anyMethod_invalidPath_throwsIllegalArgument() {
+        for (bad in listOf("../etc", "/abs", "a\\b")) {
+            assertThrows(IllegalArgumentException::class.java) { fs.exists(bad) }
+            assertThrows(IllegalArgumentException::class.java) { fs.readBytes(bad) }
+            assertThrows(IllegalArgumentException::class.java) { fs.writeBytesAtomic(bad, ByteArray(0)) }
+        }
+    }
+
+    @Test
+    fun writeBytesAtomic_overwrite_replacesContentAndLeavesNoTempFiles() {
+        fs.writeBytesAtomic("n.folio", byteArrayOf(1))
+        fs.writeBytesAtomic("n.folio", byteArrayOf(2, 2))
+
+        assertThat(fs.readBytes("n.folio").getOrNull()).isEqualTo(byteArrayOf(2, 2))
+        assertThat(fs.root.list()?.toList()).containsExactly("n.folio")
     }
 }

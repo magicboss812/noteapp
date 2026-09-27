@@ -147,6 +147,7 @@ ink = ["ink-authoring", "ink-brush", "ink-geometry", "ink-rendering", "ink-strok
 commonmark = ["commonmark", "commonmark-ext-gfm-tables", "commonmark-ext-gfm-strikethrough", "commonmark-ext-task-list-items"]
 unit-test = ["junit", "truth", "turbine", "coroutines-test"]
 robolectric = ["robolectric", "androidx-test-core", "androidx-test-ext-junit"]
+android-test = ["androidx-test-runner", "androidx-test-rules", "androidx-test-ext-junit", "compose-ui-test-junit4", "truth"]
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -6,3 +6,7 @@ When the APK install fails (e.g. HyperOS `INSTALL_FAILED_USER_RESTRICTED`), `con
 
 ## Robolectric on JDK 21 needs module flags
 Robolectric (SDK 36 sandbox) reflects into `java.io.FileDescriptor` via `jdk.internal.access`; without `--add-opens java.base/java.io` and `--add-exports java.base/jdk.internal.access` it fails with "Failed to interact with raw FileDescriptor internals". `folio.screenshot` sets both.
+
+## Robolectric SDK pin per module
+Robolectric 4.17 supports up to SDK 36 while targetSdk is 37. Every module that applies `folio.screenshot` needs `src/test/resources/robolectric.properties` with `sdk=36` (see :app) until Robolectric supports 37.
+

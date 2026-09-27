@@ -22,6 +22,8 @@ class JvmLibraryConventionPlugin : Plugin<Project> {
             tasks.withType<JavaCompile>().configureEach { options.release.set(FOLIO_JAVA_RELEASE) }
             extensions.configure<KotlinJvmProjectExtension> {
                 compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
+                // Compile against the JDK 17 API even though JDK 21 runs the build (A-002).
+                compilerOptions.freeCompilerArgs.add("-Xjdk-release=$FOLIO_JAVA_RELEASE")
             }
             dependencies {
                 add("testImplementation", libs.bundle("unit-test"))

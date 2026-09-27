@@ -13,8 +13,10 @@ plugins {
     alias(libs.plugins.spotless)
 }
 
-// Allowed internal edges (main configurations only). Source of truth: docs/architecture/02-modules.md
-// and .claude/rules/architecture-boundaries.md. Features may use any core module; app may use anything.
+// Allowed internal edges. Source of truth: docs/architecture/02-modules.md and
+// .claude/rules/architecture-boundaries.md. Features may use any core module; app may use anything.
+// Every declarable configuration is checked; core:testing is allowed only in test configurations
+// (test*, androidTest*, kspTest*, ...), so it can never reach an APK.
 val coreModules =
     listOf("common", "model", "format", "storage", "ink", "text", "render", "pdf", "designsystem", "testing")
         .map { ":core:$it" }
@@ -37,15 +39,17 @@ val allowedEdges: Map<String, Set<String>> =
         ":tools:icongen" to emptySet(),
         ":app" to coreModules - ":core:testing" + setOf(":feature:library", ":feature:editor", ":feature:settings"),
     )
-val mainConfigurations = setOf("api", "implementation", "compileOnly", "runtimeOnly")
+val testConfiguration = Regex("(?i)test")
 val actualEdges =
     provider {
         subprojects.filter { it.buildFile.exists() }.associate { p ->
             p.path to
                 p.configurations
-                    .filter { it.name in mainConfigurations }
-                    .flatMap { c -> c.dependencies.withType<ProjectDependency>().map { it.path } }
-                    .toSet()
+                    .filter { it.isCanBeDeclared }
+                    .flatMap { c ->
+                        val prefix = if (testConfiguration.containsMatchIn(c.name)) "test:" else ""
+                        c.dependencies.withType<ProjectDependency>().map { prefix + it.path }
+                    }.toSet()
         }
     }
 
@@ -58,7 +62,11 @@ tasks.register("verifyModuleGraph") {
         val violations =
             edges.get().flatMap { (module, deps) ->
                 val ok = allowed[module] ?: error("$module is not listed in allowedEdges (root build.gradle.kts)")
-                (deps - ok).map { "$module -> $it" }
+                deps
+                    .filterNot { dep ->
+                        val target = dep.removePrefix("test:")
+                        target == module || target in ok || (dep.startsWith("test:") && target == ":core:testing")
+                    }.map { "$module -> $it" }
             }
         check(violations.isEmpty()) { "Module graph violations:\n" + violations.joinToString("\n") }
     }
@@ -82,10 +90,11 @@ tasks.register("verifyNoInternet") {
     dependsOn(":app:verifyNoInternet")
 }
 
-// Full gate: every module's `qa` (spotless, detekt, lint, unit + screenshot tests) runs via task-name
-// selection; the root adds its own spotless, the module graph and the offline check.
+// Full gate: every module's `qa` (spotless, detekt, lint, unit + screenshot tests) plus the root's own
+// spotless, the module graph and the offline check.
 tasks.register("qa") {
     group = "verification"
     description = "All quality gates (CLAUDE.md Commands)."
     dependsOn("spotlessCheck", "verifyModuleGraph", "verifyNoInternet")
+    dependsOn(subprojects.filter { it.buildFile.exists() }.map { "${it.path}:qa" })
 }

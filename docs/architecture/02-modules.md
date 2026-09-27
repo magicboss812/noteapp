@@ -41,7 +41,7 @@ Included build `build-logic` with convention plugins:
 - `folio.compose`: Compose compiler plugin, BOM, tooling, stability config.
 - `folio.hilt`: Hilt + KSP. `folio.room`: Room + KSP + schema export to `core/storage/schemas/`.
 - `folio.wire`: Wire Gradle plugin, Kotlin output. `folio.screenshot`: Robolectric + Roborazzi.
-- `folio.quality`: spotless, detekt, lint config. Root `qa` and `verifyNoInternet` tasks live in the root build.
+- `folio.quality` (applied by every module convention): spotless, detekt, lint config, a per-module `qa`. `folio.android.application` registers `verifyNoInternet<Variant>` (app and androidTest merged manifests). The root build aggregates: root `qa` = every module `qa` + root spotless + `verifyModuleGraph` + `verifyNoInternet` (A-004).
 SDK: compileSdk/targetSdk = latest stable; minSdk from the device (P00-T02, never below 35 unless the device is older).
 
 ## Dependencies

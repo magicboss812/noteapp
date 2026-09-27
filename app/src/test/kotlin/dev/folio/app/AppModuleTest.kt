@@ -6,7 +6,7 @@ import org.junit.Test
 
 class AppModuleTest {
     @Test
-    fun debugBuildUsesDebugLibraryRoot() {
+    fun libraryConfig_debugBuild_usesDebugLibraryRoot() {
         val expected = if (BuildConfig.DEBUG) "Documents/Folio-Debug" else "Documents/Folio"
         assertThat(AppModule.libraryConfig().rootRelativePath).isEqualTo(expected)
     }

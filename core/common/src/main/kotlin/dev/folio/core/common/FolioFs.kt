@@ -10,7 +10,8 @@ data class FsEntry(
 
 /**
  * File access below one root (the library folder in the app, a temp dir in tests).
- * Paths are relative to the root and '/'-separated; ".." segments are rejected.
+ * Paths are relative to the root and '/'-separated ("" is the root). Absolute paths, '\\' and ".."
+ * segments are programmer errors and throw IllegalArgumentException in every method.
  * Calls block: run them on FolioDispatchers.io.
  */
 interface FolioFs {
@@ -23,7 +24,11 @@ interface FolioFs {
     /** Whole file content. */
     fun readBytes(path: String): Outcome<ByteArray>
 
-    /** Writes via a temp file + rename so readers never see a partial file. Creates parent dirs. */
+    /**
+     * Atomic write (file-format-storage rule): unique temp file in the same directory, flush + fsync,
+     * then rename over [path]. Readers never see a partial file; the temp file is removed on failure.
+     * Creates parent dirs.
+     */
     fun writeBytesAtomic(
         path: String,
         bytes: ByteArray,

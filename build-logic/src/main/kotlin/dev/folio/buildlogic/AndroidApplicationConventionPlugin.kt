@@ -60,6 +60,16 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                         report.set(layout.buildDirectory.file("reports/verifyNoInternet/${variant.name}.txt"))
                     }
                 all.configure { dependsOn(task) }
+                // The instrumentation APK is installed on the tablet too.
+                variant.deviceTests.forEach { (testName, deviceTest) ->
+                    val suffix = testName.replaceFirstChar { it.uppercase() }
+                    val testTask =
+                        tasks.register<VerifyNoInternetTask>("verifyNoInternet$name$suffix") {
+                            mergedManifest.set(deviceTest.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+                            report.set(layout.buildDirectory.file("reports/verifyNoInternet/${variant.name}$suffix.txt"))
+                        }
+                    all.configure { dependsOn(testTask) }
+                }
             }
         }
     }

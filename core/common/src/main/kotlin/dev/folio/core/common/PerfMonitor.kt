@@ -34,12 +34,15 @@ object PerfMonitor {
     /** Ring buffer size per section. */
     const val CAPACITY = 1000
 
+    /** Records samples when true (debug builds); set once at app start. */
     @Volatile
     var enabled: Boolean = false
 
+    /** Time source for durations; tests swap in a FakeClock. */
     @Volatile
     var clock: Clock = SystemClock
 
+    /** Where begin/end of sections go; :app installs the platform trace sink. */
     @Volatile
     var traceSink: TraceSink = TraceSink.None
 
@@ -51,17 +54,21 @@ object PerfMonitor {
         block: () -> T,
     ): T {
         // HOT PATH: no allocation beyond the first use of a section name.
-        traceSink.begin(section)
-        val startNs = if (enabled) clock.monotonicNs() else 0L
+        // Volatiles are read once so a concurrent switch cannot pair begin/end with different sinks.
+        val sink = traceSink
+        val on = enabled
+        val timer = clock
+        sink.begin(section)
+        val startNs = if (on) timer.monotonicNs() else 0L
         try {
             return block()
         } finally {
-            if (enabled) record(section, clock.monotonicNs() - startNs)
-            traceSink.end()
+            if (on) record(section, timer.monotonicNs() - startNs)
+            sink.end()
         }
     }
 
-    /** Adds one duration sample. */
+    /** Adds one duration sample (ignored while disabled). */
     fun record(
         section: String,
         durationNs: Long,
