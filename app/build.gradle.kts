@@ -37,6 +37,7 @@ dependencies {
     debugImplementation(libs.serialization.json)
     // P01 spike screens (app/src/debug/.../spikes); removed or promoted by P01-T08.
     debugImplementation(projects.core.render)
+    debugImplementation(projects.core.text)
     debugImplementation(libs.bundles.ink)
     testImplementation(projects.core.testing)
     androidTestImplementation(libs.bundles.android.test)

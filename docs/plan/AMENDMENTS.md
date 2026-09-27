@@ -32,3 +32,8 @@ Format:
 - Reason: a frame callback posted after `invalidate()` runs in the animation phase of the same vsync, before that frame's draw, so it removes wet ink before the committed layer has drawn it (breaks "never remove earlier"). The commit callback fires after the frame is submitted: `ink:handoff` p50 6.4 ms (about one 120 Hz frame), all post-stroke screenshots clean (decisions.md ADR-002 evidence).
 - Impact: 05-canvas-rendering.md#dry-handoff; P03 canvas host tasks (dry handoff, DisplayModeHelper).
 
+## A-006 2026-09-27 P01-S3: grid-pitch reference scale and measured baseline correction
+- Change: the line-box layout uses a reference scale r = round(4*U)/U px per pt (one grid unit = whole px) instead of a fixed 4 px per pt, and shifts each block by `k*U*r - firstLineBaseline` from the layout result instead of the font descent from `FontMetricsCache`. Bundled fonts: 37 files (variable where Google publishes them), about 28 MB.
+- Reason: Robolectric native-graphics probe, 20 fonts x 3 paragraphs, U = 7.1 mm: the descent shift missed rules by 0.64 to 10.35 px at zoom 1 (2.6 to 41 px at zoom 4) because `LineHeightStyle` rounds each line height up to whole px (80.5 -> 81 px: 0.125 pt drift per line) and layout baselines are whole px. The grid-pitch variant put every baseline on its rule (0.000 px at zoom 1, 2, 4). Device confirmation: P01-S3b.
+- Impact: 07-text-engine.md#line-box, decisions.md ADR-008; P06-T02 (`FontMetricsCache` no longer feeds placement), P06-T03 (`BlockLayout` uses the grid-pitch scale per U).
+

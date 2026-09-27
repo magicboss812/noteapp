@@ -65,6 +65,13 @@ Context: Every line must snap to template lines regardless of font (R-TXT-03); l
 Options: A Compose text per block with fixed line boxes + per-font baseline correction + cap-height normalization, block-based editing with a single live field; B one BasicTextField per flow (simple, but slow for long text and hard to snap); C fully custom text layout + IME (maximum control, very high cost).
 Decision (default): A. Spike fallback: per-line placement from TextLayoutResult metrics if baseline error exceeds 0.5 px.
 Consequences: cross-block selection needs custom handling; the focused block shows Markdown markers dimmed (no hidden characters).
+Evidence 2026-09-27 (P01-S3a, host): `BaselineProbeTest` on Robolectric native graphics (host minikin/Skia), 20 bundled fonts x 3 paragraphs (6 to 10 lines), college U = 7.1 mm, body M (cap 0.45 U), text width 175 mm. px = Pad 7 screen px at zoom x fit-width (5.15 px/pt at zoom 1).
+| Baseline method | Max baseline error px, zoom 1 / 2 / 4 (all fonts) | Cap-height error px | Layout ms per paragraph (host median) |
+|---|---|---|---|
+| FONT_DESCENT (ref 4 px/pt, shift = font descent) | 0.64 to 10.35 / 1.28 to 20.7 / 2.56 to 41.4 (fails for all 20) | 0.000 | 0.8 to 4.4 |
+| GRID_PITCH (ref round(4U)/U px/pt, shift from first layout baseline) | 0.000 / 0.000 / 0.000 | 0.000 | 0.7 to 1.2 |
+Cause of the drift: `LineHeightStyle` rounds line heights up to whole px and layout baselines are whole px; with 4 px/pt, U = 80.5 px becomes 81 px per line. Golden: core/text/src/test/screenshots/FontSpecimen_compact.png. Device run (`BaselineProbeInstrumentedTest`, tag FolioProbe) is P01-S3b.
+Decision 2026-09-27 (provisional until P01-S3b): A with the GRID_PITCH placement (A-006), a form of the planned TextLayoutResult fallback.
 
 ## ADR-009 Index and search
 Status: Accepted

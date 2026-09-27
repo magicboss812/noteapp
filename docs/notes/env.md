@@ -26,7 +26,8 @@ Resolved 2026-09-27 (P00-T03) from maven-metadata.xml; all 83 catalog coordinate
 | Android Gradle Plugin | 9.4.1 | Apache-2.0 | https://dl.google.com/android/maven2/com/android/tools/build/gradle/maven-metadata.xml | build; max API 37, JDK 17+ (developer.android.com AGP 9.4 notes) |
 | Kotlin (KGP, compose + serialization plugins) | 2.4.20 | Apache-2.0 | https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugin/maven-metadata.xml | language; replaces AGP built-in KGP default |
 | KSP | 2.3.12 | Apache-2.0 | https://repo1.maven.org/maven2/com/google/devtools/ksp/symbol-processing-gradle-plugin/maven-metadata.xml | Hilt/Room codegen; KSP2 works with Kotlin 2.4 + AGP 9 built-in Kotlin (release notes 2.3.6/2.3.10) |
-| Compose BOM | 2026.09.00 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/compose/compose-bom/maven-metadata.xml | UI (ui 1.12.1, material3 1.4.0) |
+| Compose BOM | 2026.09.00 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/compose/compose-bom/maven-metadata.xml | UI (ui 1.12.1, material3 1.4.0); core:text uses only ui-text (Paragraph layout) |
+| Bundled text fonts (20 families, 07-text-engine.md#fonts) | google/fonts `main`, fetched 2026-09-27 | OFL-1.1 | https://raw.githubusercontent.com/google/fonts/main/ofl/ | core/text/src/main/res/font, licenses in core/text/src/main/assets/licenses (P01-S3) |
 | activity-compose | 1.13.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/activity/activity-compose/maven-metadata.xml | Compose host activity |
 | lifecycle (runtime-compose, viewmodel-compose, process, viewmodel-navigation3) | 2.11.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/lifecycle/maven-metadata.xml | state, app lifecycle |
 | core-ktx | 1.19.1 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/core/core-ktx/maven-metadata.xml | platform helpers |

@@ -9,8 +9,8 @@ Typed text is Markdown, laid out on the page grid so that every line sits on the
 ## Line box
 - Every text line occupies a line box of height k*U (k = 1 for body text, 2 for H1/H2). Line boxes are stacked without gaps; paragraph gaps are whole empty lines.
 - The baseline of a line is the rule at the bottom of its line box. Descenders extend below the rule into the next box (like handwriting on ruled paper).
-- Implementation: Compose text with `TextStyle(lineHeight = k*U, lineHeightStyle = LineHeightStyle(Alignment.Bottom, Trim.None))`. With bottom alignment, baseline = lineBottom - descent(font, size). The renderer shifts the block by `baselineCorrection = descent` (from `FontMetricsCache`) so baselines land exactly on rules. No placement decision ever uses the font's ascent.
-- Layout happens at a fixed reference scale (4 px per pt) with linear (unhinted, subpixel) glyph metrics, so line breaks do not change with zoom. Drawing scales the canvas.
+- Implementation: Compose text with `TextStyle(lineHeight = k*U, lineHeightStyle = LineHeightStyle(Alignment.Bottom, Trim.None))`. The renderer shifts the block by `baselineCorrection = k*U*r - firstLineBaseline`, measured from the layout result (in reference px), so baselines land exactly on rules. No placement decision uses the font's ascent or descent (A-006: a descent-based shift missed rules by up to 10 px).
+- Layout happens at a fixed reference scale r = round(4*U)/U px per pt (about 4; chosen so one grid unit is a whole number of px, because Compose rounds line heights up to whole px and every non-integer pitch drifts per line) with linear (unhinted, subpixel) glyph metrics, so line breaks do not change with zoom. Drawing scales the canvas by scale / r.
 - Invariant (tested): for every line, |baselineY - (y0 + n*U)| <= 0.5 px at zoom 1, 2, 4, and every line box height is an integer multiple of U.
 
 ## Font normalization

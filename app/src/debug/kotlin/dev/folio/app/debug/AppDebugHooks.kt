@@ -8,8 +8,10 @@ import androidx.annotation.MainThread
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import dev.folio.app.DebugHooks
+import dev.folio.app.spikes.SpikeFontsView
 import dev.folio.app.spikes.SpikeInkView
 import dev.folio.app.spikes.SpikeTilesView
+import dev.folio.app.spikes.spikeFontsCommand
 import dev.folio.app.spikes.spikeInkCommand
 import dev.folio.app.spikes.spikeTilesCommand
 import dev.folio.app.spikes.zoomAnimCommand
@@ -30,16 +32,17 @@ internal class AppDebugHooks
         private var activity: ComponentActivity? = null
         private var overlay: FrameTimeOverlay? = null
         private var overlayVisible = false
-        private var spikeInk: SpikeInkView? = null
-        private var spikeTiles: SpikeTilesView? = null
+        private var spike: View? = null // the shown spike screen, if any
+        private var spikeRoute: String? = null
         private val commands =
             DebugCommands(
                 state,
                 extra =
                     mapOf(
-                        SpikeInkView.ROUTE to { arg -> spikeInkCommand(spikeInk, arg) },
-                        SpikeTilesView.ROUTE to { arg -> spikeTilesCommand(spikeTiles, arg) },
-                        "zoom-anim" to { arg -> zoomAnimCommand(spikeTiles, arg) },
+                        SpikeInkView.ROUTE to { arg -> spikeInkCommand(spike as? SpikeInkView, arg) },
+                        SpikeTilesView.ROUTE to { arg -> spikeTilesCommand(spike as? SpikeTilesView, arg) },
+                        "zoom-anim" to { arg -> zoomAnimCommand(spike as? SpikeTilesView, arg) },
+                        SpikeFontsView.ROUTE to { arg -> spikeFontsCommand(spike as? SpikeFontsView, arg) },
                     ),
             ) { visible -> setOverlayVisible(visible) }
 
@@ -47,8 +50,7 @@ internal class AppDebugHooks
             val created = FrameTimeOverlay(activity).also { it.install() }
             this.activity = activity
             overlay = created
-            spikeInk = null
-            spikeTiles = null
+            spike = null
             created.setVisible(overlayVisible)
             showRoute(state.route) // a recreated activity shows the current route again
             activity.lifecycle.addObserver(
@@ -58,8 +60,7 @@ internal class AppDebugHooks
                         if (overlay === created) overlay = null
                         if (this.activity === activity) {
                             this.activity = null
-                            spikeInk = null
-                            spikeTiles = null
+                            spike = null
                         }
                     }
                 },
@@ -69,26 +70,20 @@ internal class AppDebugHooks
         // Spike screens cover the placeholder content until P04 navigation exists.
         private fun showRoute(route: String) {
             val host = activity ?: return
-            if (route != SpikeInkView.ROUTE) spikeInk = spikeInk?.let(::remove)
-            if (route != SpikeTilesView.ROUTE) spikeTiles = spikeTiles?.let(::remove)
-            when (route) {
-                SpikeInkView.ROUTE -> if (spikeInk == null) spikeInk = SpikeInkView(host).also { show(host, it) }
-                SpikeTilesView.ROUTE -> if (spikeTiles == null) spikeTiles = SpikeTilesView(host, dispatchers).also { show(host, it) }
+            if (spike != null && spikeRoute == route) return
+            spike?.let { (it.parent as? ViewGroup)?.removeView(it) }
+            spike =
+                when (route) {
+                    SpikeInkView.ROUTE -> SpikeInkView(host)
+                    SpikeTilesView.ROUTE -> SpikeTilesView(host, dispatchers)
+                    SpikeFontsView.ROUTE -> SpikeFontsView(host, dispatchers)
+                    else -> null
+                }
+            spikeRoute = route
+            spike?.let {
+                host.addContentView(it, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                overlay?.bringToFront()
             }
-        }
-
-        private fun show(
-            host: ComponentActivity,
-            view: View,
-        ) {
-            host.addContentView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            overlay?.bringToFront()
-        }
-
-        /** Detaches [view] and returns null so callers can clear their reference in one expression. */
-        private fun <T : View> remove(view: T): T? {
-            (view.parent as? ViewGroup)?.removeView(view)
-            return null
         }
 
         override fun handleIntent(intent: Intent) {
