@@ -26,4 +26,7 @@ Filled by P00-T02, P01-S1, P01-S7 and later discoveries. Known from Xiaomi specs
 
 ## Quirks
 - adb installs fail with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` unless Developer options > "Install via USB" is on (HyperOS may require a Mi account sign-in). Prompts on screen need a tap.
+- The separate test APK (`dev.folio.notes.debug.test`, instrumented tests) also needs "USB debugging (Security settings)" (Mi account sign-in); without it only the app APK installs. Both enabled 2026-09-27.
 - `pm uninstall` of a package that is not installed returns `DELETE_FAILED_INTERNAL_ERROR` (harmless).
+- Our process logs HyperOS framework noise at start (E/ `MI-PreRender`, `FramePredict`, `FrameInsert`); ignore when scanning logcat.
+- System locale de_DE and system dark mode on (the P00 placeholder renders light; dark UI arrives in P11).
