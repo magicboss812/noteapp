@@ -20,7 +20,11 @@ Filled by P00-T02, P01-S1, P01-S7 and later discoveries. Known from Xiaomi specs
 - Touch sample rate: not measured yet
 
 ## Stylus
-(from the P01-S7 probe: pressure range, tilt yes/no + range, orientation, hover yes/no, buttons delivered to apps, sample rate, synthetic `input stylus` limitations)
+P01-S7 probe (route `spike-stylus`, writes `Folio-Debug/probe/stylus.json`; `pull.sh probe`). Automated part 2026-09-28; physical pen part is a USER-CHECK.
+- Declared motion ranges (both `NVTCapacitivePenM80p` and `P81c`, source 0x5002, resolution 0.0): X 0..2135.9, Y 0..3199.9 (natural portrait), PRESSURE 0..1, ORIENTATION -pi..pi, DISTANCE 0..1, TILT 0..pi/2. P81c also declares LTRIGGER and BRAKE 0..1 on source 0x1000010 (joystick class; meaning unknown).
+- So tilt, orientation and hover distance are declared; whether the Focus Pen actually sends non-zero tilt, hover events and button states is unverified until the USER-CHECK.
+- Synthetic `input stylus swipe`/`stylus-tap`: tool type 2 (stylus), pressure 0..1, tilt/orientation/distance 0, no hover, no buttons, 250 Hz (median 4.0 ms between samples, 1 historical sample per event). Never use synthetic input to judge tilt, hover or buttons.
+- `StylusCapabilities` defaults until the USER-CHECK answers: pressure = yes; tilt, orientation, hover = only after a real event with a non-zero value was observed in the session; buttons = no (06-ink-input.md#stylus-capabilities); sampleRateHz = measured at runtime.
 
 ## Rendering
 - Front-buffered wet ink works: InProgressStrokesView adds `SurfaceView[...](BLAST)` (z=1) above the app window on the first stroke and keeps it; `screencap` captures it (P01-S1).

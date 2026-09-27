@@ -11,10 +11,12 @@ import dev.folio.app.DebugHooks
 import dev.folio.app.spikes.SpikeFontsView
 import dev.folio.app.spikes.SpikeInkView
 import dev.folio.app.spikes.SpikeIoView
+import dev.folio.app.spikes.SpikeStylusView
 import dev.folio.app.spikes.SpikeTilesView
 import dev.folio.app.spikes.spikeFontsCommand
 import dev.folio.app.spikes.spikeInkCommand
 import dev.folio.app.spikes.spikeIoCommand
+import dev.folio.app.spikes.spikeStylusCommand
 import dev.folio.app.spikes.spikeTilesCommand
 import dev.folio.app.spikes.zoomAnimCommand
 import dev.folio.core.common.FolioDispatchers
@@ -46,6 +48,7 @@ internal class AppDebugHooks
                         "zoom-anim" to { arg -> zoomAnimCommand(spike as? SpikeTilesView, arg) },
                         SpikeFontsView.ROUTE to { arg -> spikeFontsCommand(spike as? SpikeFontsView, arg) },
                         SpikeIoView.ROUTE to { arg -> spikeIoCommand(spike as? SpikeIoView, arg) },
+                        SpikeStylusView.ROUTE to { arg -> spikeStylusCommand(spike as? SpikeStylusView, arg) },
                     ),
             ) { visible -> setOverlayVisible(visible) }
 
@@ -81,6 +84,7 @@ internal class AppDebugHooks
                     SpikeTilesView.ROUTE -> SpikeTilesView(host, dispatchers)
                     SpikeFontsView.ROUTE -> SpikeFontsView(host, dispatchers)
                     SpikeIoView.ROUTE -> SpikeIoView(host, dispatchers)
+                    SpikeStylusView.ROUTE -> SpikeStylusView(host, dispatchers)
                     else -> null
                 }
             spikeRoute = route

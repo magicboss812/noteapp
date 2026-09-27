@@ -3,6 +3,7 @@ package dev.folio.app.debug
 import dev.folio.app.spikes.SpikeFontsView
 import dev.folio.app.spikes.SpikeInkView
 import dev.folio.app.spikes.SpikeIoView
+import dev.folio.app.spikes.SpikeStylusView
 import dev.folio.app.spikes.SpikeTilesView
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -24,7 +25,7 @@ internal class DebugAppState {
 
     /** Routes the app can show today; `spike-*` routes are P01 spike screens. */
     val knownRoutes: Set<String> =
-        setOf(PLACEHOLDER, SpikeInkView.ROUTE, SpikeTilesView.ROUTE, SpikeFontsView.ROUTE, SpikeIoView.ROUTE)
+        setOf(PLACEHOLDER, SpikeInkView.ROUTE, SpikeTilesView.ROUTE, SpikeFontsView.ROUTE, SpikeIoView.ROUTE, SpikeStylusView.ROUTE)
 
     /** Called after every successful [navigate] with the new route; the hooks show the screen. */
     var onNavigate: (String) -> Unit = {}
