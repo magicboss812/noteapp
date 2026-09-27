@@ -82,6 +82,7 @@ Context: Q51 unanswered; the build is done by an AI agent that benefits from enf
 Options: A multi-module with convention plugins (02-modules.md); B single module with packages.
 Decision: A. JVM modules for model and format keep most tests fast and Android-free. minSdk = min(35, device SDK) (set in P00-T02); compileSdk/targetSdk = latest stable.
 Consequences: more build configuration up front (P00), cheaper and safer changes afterwards.
+Note 2026-09-27 (P00-T02): device reports SDK 36 (Android 16, HyperOS OS3.0), so minSdk = 35.
 
 ## ADR-013 Navigation
 Status: Accepted
