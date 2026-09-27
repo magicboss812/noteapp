@@ -5,6 +5,8 @@ plugins {
 
 android {
     namespace = "dev.folio.core.text"
+    // Only the debug package family may be installed on the tablet (CLAUDE.md), not dev.folio.core.text.test.
+    defaultConfig.testApplicationId = "dev.folio.notes.debug.test"
 }
 
 androidComponents {

@@ -4,6 +4,7 @@ import dev.folio.core.text.fonts.BundledFontFamily
 import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.layout.BaselineMethod
 import dev.folio.core.text.layout.GridTextLayouter
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -109,10 +110,13 @@ object BaselineProbe {
             )
             appendLine("|---|---|---|---|---|---|---|---|")
             for (r in results) {
-                val errors = ZOOMS.joinToString(" / ") { "%.3f".format(r.maxBaselineErrorPx(it)) }
+                val errors = ZOOMS.joinToString(" / ") { "%.3f".format(Locale.ROOT, r.maxBaselineErrorPx(it)) }
                 appendLine(
-                    "| ${r.family} | ${r.method} | ${r.lines} | $errors | ${"%.3f".format(r.capErrorPx)} | " +
-                        "${"%.2f".format(r.fontSizePt)} | ${"%.3f".format(r.capRatio)} | ${"%.2f".format(r.layoutMedianMs)} |",
+                    "| ${r.family} | ${r.method} | ${r.lines} | $errors | ${"%.3f".format(Locale.ROOT,r.capErrorPx)} | " +
+                        "${"%.2f".format(
+                            Locale.ROOT,
+                            r.fontSizePt,
+                        )} | ${"%.3f".format(Locale.ROOT,r.capRatio)} | ${"%.2f".format(Locale.ROOT,r.layoutMedianMs)} |",
                 )
             }
         }

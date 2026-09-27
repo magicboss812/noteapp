@@ -80,7 +80,7 @@ Evidence 2026-09-27 (P01-S4a, host part): `MathRenderer` + adapters in core:text
 B fails the vector rule by API, so it was not built. The app now packages arm64-v8a only (also drops about 4.7 MB of other libraries' x86_64/armeabi-v7a natives).
 
 ## ADR-008 Text layout engine
-Status: Proposed (decided by P01-S3)
+Status: Accepted (2026-09-27, P01-S3)
 Context: Every line must snap to template lines regardless of font (R-TXT-03); long text must stay fast (R-TXT-05); Notewise's slow text-box workflow must not repeat (R-CORE-01).
 Options: A Compose text per block with fixed line boxes + per-font baseline correction + cap-height normalization, block-based editing with a single live field; B one BasicTextField per flow (simple, but slow for long text and hard to snap); C fully custom text layout + IME (maximum control, very high cost).
 Decision (default): A. Spike fallback: per-line placement from TextLayoutResult metrics if baseline error exceeds 0.5 px.
@@ -91,7 +91,8 @@ Evidence 2026-09-27 (P01-S3a, host): `BaselineProbeTest` on Robolectric native g
 | FONT_DESCENT (ref 4 px/pt, shift = font descent) | 0.64 to 10.35 / 1.28 to 20.7 / 2.56 to 41.4 (fails for all 20) | 0.000 | 0.8 to 4.4 |
 | GRID_PITCH (ref round(4U)/U px/pt, shift from first layout baseline) | 0.000 / 0.000 / 0.000 | 0.000 | 0.7 to 1.2 |
 Cause of the drift: `LineHeightStyle` rounds line heights up to whole px and layout baselines are whole px; with 4 px/pt, U = 80.5 px becomes 81 px per line. Golden: core/text/src/test/screenshots/FontSpecimen_compact.png. Device run (`BaselineProbeInstrumentedTest`, tag FolioProbe) is P01-S3b.
-Decision 2026-09-27 (provisional until P01-S3b): A with the GRID_PITCH placement (A-006), a form of the planned TextLayoutResult fallback.
+Evidence 2026-09-27 (P01-S3b, device): `BaselineProbeInstrumentedTest` on the Pad 7 (1/1 passed), same fonts and paragraphs: GRID_PITCH 0.000 px at zoom 1, 2 and 4 for all 20 fonts; FONT_DESCENT 0.64 to 10.35 px at zoom 1 (worst: Shadows Into Light, IBM Plex Mono 2.91, Architects Daughter 2.52); cap-height error 0.000 px; layout 0.29 to 0.58 ms per paragraph.
+Decision 2026-09-27: A with the GRID_PITCH placement (A-006), a form of the planned TextLayoutResult fallback.
 
 ## ADR-009 Index and search
 Status: Accepted
