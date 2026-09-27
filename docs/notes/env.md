@@ -16,7 +16,7 @@ Surface SDK (2026-09-27): platform-tools 37.0.1, build-tools 37.0.0, cmdline-too
 ## Toolchain versions
 Resolved 2026-09-27 (P00-T03) from maven-metadata.xml; all 83 catalog coordinates checked to exist.
 - Gradle 9.8.0, AGP 9.4.1 (built-in Kotlin, min Gradle 9.6.0, max API 37), Kotlin 2.4.20, KSP 2.3.12, JDK 21 runs the build.
-- compileSdk/targetSdk 37 (latest stable platform android-37.x), minSdk 35.
+- compileSdk 37 minor 2 (`compileSdkMinor`), targetSdk 37, minSdk 35, build-tools 37.0.0 (A-002).
 - Compose BOM 2026.09.00. Alphas: androidx.ink 1.1.0-alpha09 (ADR-002), detekt 2.0.0-alpha.6 (A-001).
 
 ## Dependencies

@@ -1,14 +1,14 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P00
-next: P00-T04
+next: P00-T05
 updated: 2026-09-27
 
 ## Completed
 - (none)
 
 ## Current phase progress
-- P00: T01 T02 T03
+- P00: T01 T02 T03 T04
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -20,5 +20,5 @@ updated: 2026-09-27
 - (none)
 
 ## Handoff (<= 5 lines, overwritten each session)
-- T01-T03 done (DOCTOR PASS after user installed platforms 37.0/37.2; SDK 36 device, minSdk 35; AGP 9.4.1, Kotlin 2.4.20, A-001).
-- Next: T04 Gradle skeleton.
+- T01-T04 done: skeleton builds (AGP 9.4.1 built-in Kotlin, compileSdk 37.2, minSdk 35); verifyModuleGraph in root; A-001, A-002.
+- Next: T05 quality gates (spotless, detekt 2.0 alpha + compose rules, lint, verifyNoInternet, qa).

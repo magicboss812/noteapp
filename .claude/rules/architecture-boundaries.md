@@ -7,7 +7,7 @@ paths:
 ---
 # Architecture boundaries (violations fail review)
 Allowed module dependencies:
-- `core:common` -> nothing internal.
+- `core:common` -> nothing internal. JVM module (A-002), no `android.*`.
 - `core:model` -> core:common. JVM module, no `android.*`.
 - `core:format` -> core:model, core:common. JVM module, no `android.*`.
 - `core:storage` -> core:format, core:model, core:common.
@@ -16,6 +16,7 @@ Allowed module dependencies:
 - `core:render` -> core:model, core:ink, core:text, core:common.
 - `core:pdf` -> core:render, core:format, core:model, core:common.
 - `core:designsystem` -> core:common.
+- `core:testing` -> core:model, core:common. JVM module (A-002), used only via `testImplementation`.
 - `feature:*` -> any core module. Never another feature.
 - `app` -> everything. Contains wiring, navigation, Application, debug automation only.
 

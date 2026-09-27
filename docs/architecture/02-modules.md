@@ -4,7 +4,7 @@
 | Module | Type | Responsibility |
 |---|---|---|
 | `app` | Android application | Application class, MainActivity, navigation host, Hilt graph, debug automation (debug source set) |
-| `core:common` | Android library (small) | FolioDispatchers, Outcome, FolioLog, Clock, PerfMonitor, FolioFs interface |
+| `core:common` | JVM (A-002) | FolioDispatchers, Outcome, FolioLog, Clock, PerfMonitor, FolioFs interface |
 | `core:model` | JVM | Ids, units, geometry, spatial index, Document/Page/Object types, EditCommands, UndoManager |
 | `core:format` | JVM | `.folio` container read/write, Wire protobuf codecs, manifest JSON, migrations |
 | `core:storage` | Android library | LibraryConfig, permission, FolioFs impl, working copies, packer, recovery, Room index + FTS, repositories, DocumentSession, DataStore settings, bin purge worker |
@@ -13,7 +13,7 @@
 | `core:render` | Android library | Viewport, PageStackLayout, TemplateRenderer, tile caches, BitmapPool, PageRenderer, DisplayModeHelper |
 | `core:pdf` | Android library | PdfRasterizer, PDF import, PdfExporter strategies, PNG export |
 | `core:designsystem` | Android library | Tokens, FolioTheme, UI fonts, FolioIcons (generated), shared components |
-| `core:testing` | Android library | Fakes, rules, builders, fixtures helpers |
+| `core:testing` | JVM (A-002) | Fakes, rules, builders, fixtures helpers (testImplementation only) |
 | `feature:library` | Android library | Onboarding, library home, folders, tags, search, bin, new-note entry |
 | `feature:editor` | Android library | EditorRoute/ViewModel, EditorSession wiring, CanvasHostView, toolbar, tools, text editing overlay, page panel, split view, export sheet |
 | `feature:settings` | Android library | Settings screens |
@@ -30,11 +30,13 @@ core:storage -> core:format, core:model, core:common
 core:ink, core:text -> core:model, core:common
 core:format -> core:model -> core:common
 core:designsystem -> core:common
+core:testing -> core:model, core:common   (A-002; consumed via testImplementation only)
 ```
+Enforced by the root task `verifyModuleGraph` (part of `qa`).
 
 ## Build logic
 Included build `build-logic` with convention plugins:
-- `folio.android.application`, `folio.android.library`: SDK levels, JVM toolchain, Kotlin options, R8 settings, test options.
+- `folio.android.application`, `folio.android.library`: SDK levels, Java 17 bytecode (no toolchain, A-002), Kotlin options, R8 settings, test options. AGP 9 built-in Kotlin (no kotlin-android plugin).
 - `folio.jvm.library`: Kotlin JVM + JUnit.
 - `folio.compose`: Compose compiler plugin, BOM, tooling, stability config.
 - `folio.hilt`: Hilt + KSP. `folio.room`: Room + KSP + schema export to `core/storage/schemas/`.

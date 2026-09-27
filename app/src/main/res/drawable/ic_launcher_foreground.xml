@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder mark: a page with a folded corner. Replaced in P11. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#2B2B2B"
+        android:pathData="M38,32h22l12,12v32a2,2 0,0 1,-2 2H38a2,2 0,0 1,-2 -2V34a2,2 0,0 1,2 -2zM60,34v10h10z" />
+</vector>
