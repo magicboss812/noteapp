@@ -33,6 +33,7 @@ dependencies {
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.core.ktx)
+    debugImplementation(libs.serialization.json)
     testImplementation(projects.core.testing)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.rules)

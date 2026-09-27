@@ -1,0 +1,45 @@
+package dev.folio.app.debug
+
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
+/**
+ * What `state` reports. Until navigation (P04/P05) exists the app has one screen, so routes only
+ * record the request. Later phases replace these fields with reads from real app state.
+ */
+internal class DebugAppState {
+    var screen: String = PLACEHOLDER
+        private set
+    var route: String = PLACEHOLDER
+        private set
+    var requestedDoc: String? = null
+    val openDoc: String? = null
+    val tool: String? = null
+    val zoom: Float? = null
+
+    /** Routes the app can show today. */
+    val knownRoutes: Set<String> = setOf(PLACEHOLDER)
+
+    /** Returns false for an unknown route. */
+    fun navigate(to: String): Boolean {
+        if (to !in knownRoutes) return false
+        route = to
+        screen = to
+        return true
+    }
+
+    fun toJson(): JsonObject =
+        buildJsonObject {
+            put("screen", screen)
+            put("route", route)
+            put("doc", openDoc)
+            put("requestedDoc", requestedDoc)
+            put("tool", tool)
+            put("zoom", zoom)
+        }
+
+    private companion object {
+        const val PLACEHOLDER = "placeholder"
+    }
+}
