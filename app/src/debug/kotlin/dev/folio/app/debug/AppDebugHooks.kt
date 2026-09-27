@@ -11,11 +11,13 @@ import dev.folio.app.DebugHooks
 import dev.folio.app.spikes.SpikeFontsView
 import dev.folio.app.spikes.SpikeInkView
 import dev.folio.app.spikes.SpikeIoView
+import dev.folio.app.spikes.SpikePdfView
 import dev.folio.app.spikes.SpikeStylusView
 import dev.folio.app.spikes.SpikeTilesView
 import dev.folio.app.spikes.spikeFontsCommand
 import dev.folio.app.spikes.spikeInkCommand
 import dev.folio.app.spikes.spikeIoCommand
+import dev.folio.app.spikes.spikePdfCommand
 import dev.folio.app.spikes.spikeStylusCommand
 import dev.folio.app.spikes.spikeTilesCommand
 import dev.folio.app.spikes.zoomAnimCommand
@@ -49,6 +51,7 @@ internal class AppDebugHooks
                         SpikeFontsView.ROUTE to { arg -> spikeFontsCommand(spike as? SpikeFontsView, arg) },
                         SpikeIoView.ROUTE to { arg -> spikeIoCommand(spike as? SpikeIoView, arg) },
                         SpikeStylusView.ROUTE to { arg -> spikeStylusCommand(spike as? SpikeStylusView, arg) },
+                        SpikePdfView.ROUTE to { arg -> spikePdfCommand(spike as? SpikePdfView, arg) },
                     ),
             ) { visible -> setOverlayVisible(visible) }
 
@@ -85,6 +88,7 @@ internal class AppDebugHooks
                     SpikeFontsView.ROUTE -> SpikeFontsView(host, dispatchers)
                     SpikeIoView.ROUTE -> SpikeIoView(host, dispatchers)
                     SpikeStylusView.ROUTE -> SpikeStylusView(host, dispatchers)
+                    SpikePdfView.ROUTE -> SpikePdfView(host, dispatchers)
                     else -> null
                 }
             spikeRoute = route

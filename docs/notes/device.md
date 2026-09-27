@@ -34,7 +34,7 @@ P01-S7 probe (route `spike-stylus`, writes `Folio-Debug/probe/stylus.json`; `pul
 
 ## Quirks
 - adb installs fail with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` unless Developer options > "Install via USB" is on (HyperOS may require a Mi account sign-in). Prompts on screen need a tap.
-- The separate test APK (`dev.folio.notes.debug.test`, instrumented tests) also needs "USB debugging (Security settings)" (Mi account sign-in); without it only the app APK installs. Both enabled 2026-09-27. Library modules with instrumented tests set `defaultConfig.testApplicationId = "dev.folio.notes.debug.test"` so no other package is ever installed (first: core:text, P01-S3b).
+- The separate test APK (`dev.folio.notes.debug.test`, instrumented tests) also needs "USB debugging (Security settings)" (Mi account sign-in); without it only the app APK installs. Both enabled 2026-09-27. Library modules with instrumented tests set `defaultConfig.testApplicationId = "dev.folio.notes.debug.test"` so no other package is ever installed (first: core:text, P01-S3b). On 2026-09-28 the test APK was refused again (`INSTALL_FAILED_USER_RESTRICTED`, security setting off) while the app APK installed; fallback: run probes from a debug route inside the app (P01-S5 `spike-pdf`).
 - `pm uninstall` of a package that is not installed returns `DELETE_FAILED_INTERNAL_ERROR` (harmless).
 - Our process logs HyperOS framework noise at start (E/ `MI-PreRender`, `FramePredict`, `FrameInsert`); ignore when scanning logcat.
 - System locale de_DE and system dark mode on (the P00 placeholder renders light; dark UI arrives in P11).

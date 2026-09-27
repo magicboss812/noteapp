@@ -30,6 +30,9 @@ class ScreenshotConventionPlugin : Plugin<Project> {
                 )
             }
             dependencies {
+                // The Compose test artifacts below are versionless; modules without folio.compose need the BOM here.
+                add("testImplementation", platform(libs.lib("compose-bom")))
+                add("debugImplementation", platform(libs.lib("compose-bom")))
                 add("testImplementation", libs.bundle("robolectric"))
                 add("testImplementation", libs.lib("roborazzi"))
                 add("testImplementation", libs.lib("roborazzi-compose"))

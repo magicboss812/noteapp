@@ -68,11 +68,21 @@ Decision: A (04-file-format.md). Wire generates Kotlin from `.proto`; the schema
 Consequences: whole-file repack on save (mitigated by working copy + STORED assets); schema discipline needed (reserved fields, migrations, golden files).
 
 ## ADR-006 PDF export
-Status: Proposed (decided by P01-S5)
+Status: Accepted (2026-09-28, P01-S5)
 Context: Annotated PDF export must keep original PDF pages as vectors; Android's `PdfDocument` cannot import existing pages. PdfBox-Android (last release 2.0.27.0, January 2023) is stale and its BouncyCastle dependency carries known CVEs. Android API level 36.1 added `android.graphics.pdf.component` (stamp annotations with path/image/text objects, `PdfRenderer.write`).
 Options: A PdfDocument for Folio pages + PdfBox-Android `LayerUtility` overlay merge for PDF-backed pages (BouncyCastle excluded if possible); B platform stamp annotations (only if the device API level provides them); C raster original page at 200 dpi + vector annotations.
 Decision (default): A, behind `PdfExporter` strategies with B and C as fallbacks.
 Consequences: one stale third-party library, used only at export time on local files the user created; revisit if a maintained alternative appears.
+Evidence 2026-09-28 (P01-S5): Pad 7, `PdfSpikeProbe` run in the debug app (route `spike-pdf`; the separate test APK was refused that day). Source: generated 100-page A4 PDF (PdfDocument: text, rules, one 64 px image per page), 178 KB. Export: 10 overlay pages drawn with PdfDocument (ink curves, label, red mark) merged by `PdfBoxOverlayMerger` (PdfBox-Android 2.0.27.0 `LayerUtility.importPageAsForm` + append content stream), BouncyCastle excluded.
+| Measurement | Run 1 / 2 / 3 |
+|---|---|
+| First page (open + 0.5x preview) ms | 267 / 26 / 25 |
+| 512 px center tile per page p50 / p95 ms, zoom 1 | 2.5 / 2.6 (all runs) |
+| same, zoom 2 | 2.0 / 2.1 (all runs) |
+| Export (overlays + merge + save, 100 pages) ms | 241 / 108 / 80 (overlays 10..11) |
+| Output | 202 KB (+13%), 100 pages, all A4, overlay mark red on annotated page, absent on a plain page |
+Host test (`PdfBoxOverlayMergerTest`, Robolectric) also shows the merge adds one form XObject only to target pages and works without BouncyCastle. The generated pages are simpler than real scans or papers, so real render times will be higher.
+Decision 2026-09-28: A confirmed (merge correct, export 0.24 s vs 10 s budget); BouncyCastle stays excluded (no encrypted PDFs; import of encrypted files is a P08 question).
 
 ## ADR-007 LaTeX rendering
 Status: Accepted (2026-09-27, P01-S4): C jlatexmath-android
