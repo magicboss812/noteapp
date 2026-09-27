@@ -36,7 +36,7 @@ Spacing presets are selectable per page (page settings sheet). Text zones (body 
 ## Tiles
 - Tile = 512x512 px at a zoom bucket. Key = (pageId, bucketIndex, tx, ty). Two caches: background and content.
 - Rendering on the `render` dispatcher (2 threads). A tile render calls `PageRenderer.draw(canvas, page, tileRectPt, bucketScale, SCREEN)` with only objects returned by the spatial index for the tile rect.
-- Strategy (ADR-003, decided by spike P01-S2): A = software ARGB_8888 bitmaps from `BitmapPool`; B = RenderNode per tile with compositing layer. The layer views draw tiles with a matrix derived from the Viewport, so pan/zoom never re-renders during a gesture.
+- Strategy (ADR-003, Accepted by spike P01-S2): software ARGB_8888 bitmaps from `BitmapPool`, rendered with `CanvasStrokeRenderer` on a software canvas (works; ~2-4 ms per 512 px tile with 1500 strokes on the page). The layer views draw tiles with a matrix derived from the Viewport, so pan/zoom never re-renders during a gesture.
 - After gesture idle (100 ms): request tiles for the new bucket, visible first, center-out, keeping old-bucket tiles on screen until replacements are ready (no blank frames). Prefetch one tile ring around the viewport.
 - Invalidation: a command produces changed bounds per page -> tiles intersecting those bounds (all buckets) are marked stale; visible stale tiles re-render immediately, others lazily. New strokes on top of the z-order can be painted incrementally onto existing content tiles instead of a full tile re-render.
 - Memory: content + background caches <= 25% of `largeMemoryClass`; LRU eviction by bytes, visible tiles pinned. `onTrimMemory` drops non-visible tiles.

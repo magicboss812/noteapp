@@ -25,11 +25,24 @@ Front buffer works on HyperOS: InProgressStrokesView adds a SurfaceView (BLAST, 
 Decision 2026-09-27: A confirmed (p95 0.29 ms vs 1 ms budget, handoff clean). Handoff mode: commit, the only mode that removes wet strokes after the frame showing the committed stroke by construction (A-005).
 
 ## ADR-003 Committed content rendering
-Status: Proposed (decided by P01-S2)
+Status: Accepted (2026-09-27, P01-S2)
 Context: Dense pages (1500+ strokes, text, images) must pan/zoom at 144 Hz.
 Options: A software bitmap tiles (512 px) rendered off the main thread; B RenderNode tiles with compositing layers (GPU-cached display lists); C draw all objects every frame.
 Decision (default): A, because the same code path serves PNG export and it is portable; B if it wins the spike clearly on jank. C rejected (cost grows with content).
 Consequences: memory budget and tile invalidation logic required; zoom shows scaled tiles briefly until the new bucket renders.
+Evidence 2026-09-27 (P01-S2b): Pad 7, route `spike-tiles`, A4 lined page, 1500 seeded strokes (pen/marker/highlighter), 512 px tiles, CanvasStrokeRenderer on a software canvas (A) or RenderNode recording with a compositing layer (B); 3 runs per strategy, median (worst). Display ran at 120 Hz (144 requested). Zoom 1 = bucket 5 (42 tiles incl. ring), zoom 3 = bucket 8.
+| Metric | A bitmap tiles | B RenderNode tiles |
+|---|---|---|
+| zoom-anim 1->3->1 (800 ms each) janky % / p95 / p99 ms | 0.49 (0.50) / 15 (18) / 24 (28) | 0.49 (0.49) / 18 (18) / 22 (24) |
+| 10 s finger pan at zoom 3, janky % / p95 / p99 ms | 0.06 (0.06) / 9 (9) / 10 (11) | 0.06 (0.06) / 9 (9) / 10 (11) |
+| tile render p50 / p95 ms, bucket 5 | 3.72 / 8.02 (17.3) | 3.63 / 8.38 (9.29) (recording only; raster happens on the RenderThread) |
+| tile render p50 / p95 ms, bucket 8 | 2.24 / 4.35 (5.19) | 1.96 / 4.00 (4.22) |
+| settle (all visible tiles of a new bucket) p50 ms | 97 (106) | 80 (94) |
+| `tiles:draw` p95 ms | 1.11 (1.39) | 0.82 (1.09) |
+| meminfo PSS / Graphics / Native heap MiB | 426 / 148 / 202 (Native drops to 125 within seconds) | 272 / 126 / 71 |
+| pixels differing from a direct software render (zoom 1 / 3) | 0.001% / 0.002% | 1.16% / 0.41% (GPU antialiasing differs) |
+Both strategies stay far below 1% janky frames and are tied on jank; screenshots show no seams or missing tiles.
+Decision 2026-09-27: A (tie rule; also pixel-identical to the export raster path). B's lower memory is noted; the tile cache budget (05-canvas-rendering.md#tiles, 25% of largeMemoryClass) must bound A's bitmaps (P03).
 
 ## ADR-004 Library storage
 Status: Proposed (baseline accepted; P01-S6 adds evidence)
