@@ -1,14 +1,14 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P01
-next: P01-T08
+next: P01 REVIEW
 updated: 2026-09-28
 
 ## Completed
 - P00 done 2026-09-27 (tag p00-done): AGP 9.4.1/Kotlin 2.4.20/Gradle 9.8.0, compileSdk 37.2, minSdk 35 (device SDK 36); qa green; instrumented smoke 1/1 on Pad 7; cold launch 786 ms; A-001..A-004.
 
 ## Current phase progress
-- P01: S1, S2 (ADR-003 A), S3 (ADR-008 grid pitch), S4 (ADR-007 jlatexmath), S5 (ADR-006), S6 (ADR-004), S7 (automated part)
+- P01: S1, S2 (ADR-003 A), S3 (ADR-008 grid pitch), S4 (ADR-007 jlatexmath), S5 (ADR-006), S6 (ADR-004), S7 (automated part), T08
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -22,9 +22,9 @@ updated: 2026-09-28
 
 ## Deferred (id: reason)
 - D-001 P00-T07: P11 `benchmark` build type needs its own DebugHooksModule (src/benchmark, bind NoOpDebugHooks).
+- D-002 P01-T08: routes spike-ink/spike-stylus (remove in P03-T09) and spike-fonts + core:text spike/ (remove in P06-T03) stay for open USER-CHECKs (A-008).
 
 ## Handoff (<= 5 lines, overwritten each session)
 - All spikes S1..S7 done; ADR-002..008 Accepted (S7 physical part is a USER-CHECK).
-- Spike code: app/src/debug/.../spikes (routes spike-ink/tiles/fonts/io/stylus/pdf), core:text spike/ + math/, core:pdf spike/ + export/.
-- T08 must: promote JLatexMathRenderer (+0.04 em padding, A-007) and drop RaTeX; keep FontRegistry, FontMetricsCache, GridTextLayouter, PdfBoxOverlayMerger; delete the rest of the spike code; qa green.
-- Next: P01-T08, then P01 REVIEW.
+- T08 done: promoted FontRegistry/FontMetricsCache/GridTextLayouter, JLatexMathRenderer (0.04 em padding), PdfBoxOverlayMerger; RaTeX and tile/IO/PDF probes deleted (A-008); D-002 keeps 3 probe routes.
+- Next: P01 REVIEW (reviewer p00-done..HEAD, fixes, full qa, maintain-memory, tag p01-done).

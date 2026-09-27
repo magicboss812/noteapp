@@ -46,8 +46,7 @@ Resolved 2026-09-27 (P00-T03) from maven-metadata.xml; all 83 catalog coordinate
 | tracing-ktx (unused, A-003) | 2.0.3 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/tracing/tracing-ktx/maven-metadata.xml | kept for later modules; PerfMonitor uses platform Trace (A-003) |
 | Wire (runtime, gradle plugin) | 7.0.4 | Apache-2.0 | https://repo1.maven.org/maven2/com/squareup/wire/wire-runtime/maven-metadata.xml | protobuf .folio payloads |
 | commonmark (+ gfm-tables, gfm-strikethrough, task-list-items) | 0.30.0 | BSD-2-Clause | https://repo1.maven.org/maven2/org/commonmark/commonmark/maven-metadata.xml | Markdown parsing |
-| RaTeX android | 0.1.14 | MIT | https://repo1.maven.org/maven2/io/github/erweixin/ratex-android/maven-metadata.xml | LaTeX (ADR-007); coords from github.com/erweixin/RaTeX platforms/android/README.md |
-| jlatexmath-android | 0.2.0 | GPL-2.0 with linking exception (LICENSE of the android branch) | https://repo1.maven.org/maven2/ru/noties/jlatexmath-android/maven-metadata.xml | P01-S4 option C only; removed by P01-T08 unless chosen (repo archived 2023) |
+| jlatexmath-android | 0.2.0 | GPL-2.0 with linking exception (LICENSE of the android branch) | https://repo1.maven.org/maven2/ru/noties/jlatexmath-android/maven-metadata.xml | LaTeX (ADR-007, chosen by P01-S4 over RaTeX; repo archived 2023); +0.69 MB |
 | PdfBox-Android | 2.0.27.0 | Apache-2.0 | https://repo1.maven.org/maven2/com/tom-roush/pdfbox-android/maven-metadata.xml | PDF export merge (ADR-006); `org.bouncycastle` excluded in core:pdf (P01-S5: unencrypted merge works without it) |
 | Coil 3 (coil, coil-compose; no network artifacts) | 3.6.3 | Apache-2.0 | https://repo1.maven.org/maven2/io/coil-kt/coil3/coil/maven-metadata.xml | library thumbnails |
 | JUnit4 | 4.13.2 | EPL-1.0 (test-only, never shipped) | https://repo1.maven.org/maven2/junit/junit/maven-metadata.xml | JVM tests (testing rule) |

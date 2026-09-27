@@ -38,7 +38,12 @@ Format:
 - Impact: 07-text-engine.md#line-box, decisions.md ADR-008; P06-T02 (`FontMetricsCache` no longer feeds placement), P06-T03 (`BlockLayout` uses the grid-pitch scale per U).
 
 ## A-007 2026-09-27 P01-S4: LaTeX via jlatexmath-android instead of RaTeX
-- Change: ADR-007 picks option C (jlatexmath-android 0.2.0) instead of the default A (RaTeX); the RaTeX dependency is removed by P01-T08. `MathBox` ascent and depth get 0.04 em padding.
+- Change: ADR-007 picks option C (jlatexmath-android 0.2.0) instead of the default A (RaTeX); the RaTeX dependency is removed by P01-T08. `MathBox` gets 0.04 em padding on every side (P01-T08: `\vec` arrows also overshoot sideways).
 - Reason: device probe, 40 formulas: RaTeX 100% parsed but layout+draw p95 5.09 ms (budget 4 ms); jlatexmath 97.5% parsed (no `\ce`), p95 0.80 ms, vector PDF output. Both draw up to 1.6 / 1.9 px outside their reported box at 50 px.
 - Impact: 07-text-engine.md#math, decisions.md ADR-007, docs/notes/env.md; P06-T07 (math adapter, padding, no mhchem support in the corpus tests).
+
+## A-008 2026-09-28 P01-T08: spike results carried into later phases
+- Change: promoted and kept: `FontRegistry` + 20 bundled fonts, `FontMetricsCache`, `GridTextLayouter` (core:text), `MathRenderer` + `JLatexMathRenderer` (core:text math), `PdfBoxOverlayMerger` (core:pdf); app packages arm64-v8a only. Deleted: tile, IO and PDF probe code, RaTeX. Kept temporarily (Deferred D-002): the debug routes `spike-ink`, `spike-fonts`, `spike-stylus` with their probe code (app spikes/, core:text spike/) because open USER-CHECKs (P01-S1, S3, S7) need them on the tablet.
+- Reason: phase-01 exit says spike code is deleted or promoted; three screens are still the only way to answer the USER-CHECKs.
+- Impact: P03 (tiles use bitmap strategy A, ADR-003; `StylusCapabilities` defaults from device.md#stylus; P03-T09 removes `spike-ink` and `spike-stylus` after the USER-CHECKs), P02 packer (write protocol measured, ADR-004), P06-T02 (FontRegistry and FontMetricsCache exist), P06-T03 (seed: GridTextLayouter, BaselineProbe tests become the regression suite, then `spike-fonts` goes), P06-T07 (JLatexMathRenderer exists), P09 export (merger exists).
 

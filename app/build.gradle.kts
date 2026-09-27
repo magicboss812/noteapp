@@ -36,10 +36,9 @@ dependencies {
     implementation(libs.core.ktx)
     implementation(libs.coroutines.android)
     debugImplementation(libs.serialization.json)
-    // P01 spike screens (app/src/debug/.../spikes); removed or promoted by P01-T08.
+    // P01 probe screens kept for open USER-CHECKs (app/src/debug/.../spikes, STATUS D-002).
     debugImplementation(projects.core.render)
     debugImplementation(projects.core.text)
-    debugImplementation(projects.core.pdf)
     debugImplementation(libs.bundles.ink)
     testImplementation(projects.core.testing)
     androidTestImplementation(libs.bundles.android.test)

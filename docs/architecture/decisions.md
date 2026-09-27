@@ -102,7 +102,7 @@ Evidence 2026-09-27 (P01-S4b, device): `MathProbeInstrumentedTest` on the Pad 7 
 |---|---|---|---|---|
 | A RaTeX | 40/40 (100%) | 1.49 / 5.09 | 1.56 (4) | vector only (76 KB) |
 | C jlatexmath | 39/40 (97.5%, `\ce` unknown) | 0.36 / 0.80 | 1.85 (6) | vector only (49 KB) |
-Decision 2026-09-27: C. Rule: success >= 95%, p95 <= 4 ms and vector output; only C meets all three (A misses p95 by 1.1 ms). Both overshoot the box on large operators and accents by up to 2 px at 50 px, so the adapter pads ascent and depth by 0.04 em (A-007). Risks accepted: the library is archived (last release 2020) and GPL-2.0 with linking exception (allowed by .claude/rules/gradle.md with this note); no mhchem `\ce`. A stays the fallback behind `MathRenderer`.
+Decision 2026-09-27: C. Rule: success >= 95%, p95 <= 4 ms and vector output; only C meets all three (A misses p95 by 1.1 ms). Both overshoot the box on large operators and accents by up to 2 px at 50 px, so the adapter pads the box by 0.04 em on every side (A-007). Risks accepted: the library is archived (last release 2020) and GPL-2.0 with linking exception (allowed by .claude/rules/gradle.md with this note); no mhchem `\ce`. A stays the fallback behind `MathRenderer`.
 
 ## ADR-008 Text layout engine
 Status: Accepted (2026-09-27, P01-S3)

@@ -74,6 +74,7 @@ Shapes are editable when selected: move, resize (8 handles), rotate, and for lin
 ## Stylus capabilities
 `StylusCapabilities` is detected at runtime (InputDevice motion ranges + observed events) and refined by the P01-S7 probe results in docs/notes/device.md#stylus:
 - `pressure` (expected yes, 8192 levels per Xiaomi specs), `tilt`, `orientation`, `hover`, `primaryButton`, `sampleRateHz` (expected 240 Hz).
+- P01-S7: both pen digitizers declare PRESSURE, TILT (0..pi/2), ORIENTATION and DISTANCE ranges; what the Focus Pen really sends is confirmed by the physical USER-CHECK. Until then tilt, orientation and hover count as available only after a real event with a non-zero value; buttons count as unavailable (device.md#stylus).
 - Features gated by capability: tilt shading (pencil), hover cursor ring, button-hold temporary eraser. Unsupported features are hidden in settings, not shown disabled.
 - Xiaomi binds the Focus Pen buttons to system functions (screenshot, spotlight, writing); assume they never reach the app unless the probe proves otherwise.
 - System stylus handwriting (Android handwriting / HyperOS Scribe) must be disabled for editor text fields.

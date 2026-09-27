@@ -57,8 +57,8 @@ Pin exact versions in `gradle/libs.versions.toml` (P00-T03). Stable unless marke
 | Tracing | androidx.tracing-ktx |
 | Protobuf | Wire runtime + Gradle plugin |
 | Markdown | org.commonmark `commonmark`, `commonmark-ext-gfm-tables`, `commonmark-ext-gfm-strikethrough`, `commonmark-ext-task-list-items` |
-| Math | RaTeX Android binding (ADR-007; alternatives only if the spike picks them) |
-| PDF | PdfBox-Android `com.tom-roush:pdfbox-android` (ADR-006), BouncyCastle excluded if possible |
+| Math | jlatexmath-android `ru.noties:jlatexmath-android` (ADR-007, P01-S4; A-007) |
+| PDF | PdfBox-Android `com.tom-roush:pdfbox-android` (ADR-006), BouncyCastle excluded (P01-S5) |
 | Images | Coil 3 core + compose without any network artifact (library thumbnails only), or plain ImageDecoder if Coil adds nothing |
 | Tests | JUnit4, Truth, Turbine, Robolectric, Roborazzi (+ compose, junit rule), androidx.test (runner, rules, ext-junit), compose ui-test-junit4, uiautomator, hilt-android-testing |
 | Perf | benchmark-macro-junit4, profileinstaller, baselineprofile Gradle plugin (P11) |

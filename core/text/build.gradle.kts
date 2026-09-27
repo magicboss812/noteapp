@@ -5,18 +5,8 @@ plugins {
 
 android {
     namespace = "dev.folio.core.text"
-    // Only the debug package family may be installed on the tablet (CLAUDE.md), not dev.folio.core.text.test.
+    // Only the debug package family may be installed on the tablet (docs/notes/device.md#quirks).
     defaultConfig.testApplicationId = "dev.folio.notes.debug.test"
-}
-
-androidComponents {
-    // P01-S4: the instrumented math probe reads the shared corpus as an asset.
-    onVariants { variant ->
-        variant.androidTest
-            ?.sources
-            ?.assets
-            ?.addStaticSourceDirectory(rootProject.file("testdata/math").path)
-    }
 }
 
 dependencies {
@@ -25,7 +15,6 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui.text)
     implementation(libs.compose.runtime) // FontFamily.Resolver returns a State
-    implementation(libs.ratex.android)
-    implementation(libs.jlatexmath.android) // P01-S4 option C; removed by P01-T08 unless chosen
+    implementation(libs.jlatexmath.android) // ADR-007
     androidTestImplementation(libs.bundles.android.test)
 }

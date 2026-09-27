@@ -4,6 +4,7 @@
 - The library lives in shared storage so the user can copy files over USB and other apps (R-FILE-01). Access uses `MANAGE_EXTERNAL_STORAGE` (All files access) + `java.io.File` (ADR-004). Acceptable because the app is sideloaded for personal use; SAF DocumentFile would be slow for scanning and random-access ZIP.
 - First launch: onboarding explains the permission in two sentences and opens `Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` for our package. The library screen re-checks `Environment.isExternalStorageManager()` on every resume; if revoked, a blocking banner with the same button replaces the grid (open editors pack to the working copy only until access returns).
 - Debug builds can be granted via `scripts/device/grant-storage.sh`.
+- Measured (P01-S6, ADR-004): java.io on the HyperOS FUSE mount packs a 46 MB `.folio` in 1.39..1.45 s (write dominates), the tmp-fsync-rename protocol survived kills mid-pack, and FileObserver delivers external writes (e.g. over USB) as CREATE/CLOSE_WRITE.
 
 ## Library layout
 ```

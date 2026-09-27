@@ -10,17 +10,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import dev.folio.app.DebugHooks
 import dev.folio.app.spikes.SpikeFontsView
 import dev.folio.app.spikes.SpikeInkView
-import dev.folio.app.spikes.SpikeIoView
-import dev.folio.app.spikes.SpikePdfView
 import dev.folio.app.spikes.SpikeStylusView
-import dev.folio.app.spikes.SpikeTilesView
 import dev.folio.app.spikes.spikeFontsCommand
 import dev.folio.app.spikes.spikeInkCommand
-import dev.folio.app.spikes.spikeIoCommand
-import dev.folio.app.spikes.spikePdfCommand
 import dev.folio.app.spikes.spikeStylusCommand
-import dev.folio.app.spikes.spikeTilesCommand
-import dev.folio.app.spikes.zoomAnimCommand
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import javax.inject.Inject
@@ -46,12 +39,8 @@ internal class AppDebugHooks
                 extra =
                     mapOf(
                         SpikeInkView.ROUTE to { arg -> spikeInkCommand(spike as? SpikeInkView, arg) },
-                        SpikeTilesView.ROUTE to { arg -> spikeTilesCommand(spike as? SpikeTilesView, arg) },
-                        "zoom-anim" to { arg -> zoomAnimCommand(spike as? SpikeTilesView, arg) },
                         SpikeFontsView.ROUTE to { arg -> spikeFontsCommand(spike as? SpikeFontsView, arg) },
-                        SpikeIoView.ROUTE to { arg -> spikeIoCommand(spike as? SpikeIoView, arg) },
                         SpikeStylusView.ROUTE to { arg -> spikeStylusCommand(spike as? SpikeStylusView, arg) },
-                        SpikePdfView.ROUTE to { arg -> spikePdfCommand(spike as? SpikePdfView, arg) },
                     ),
             ) { visible -> setOverlayVisible(visible) }
 
@@ -76,7 +65,8 @@ internal class AppDebugHooks
             )
         }
 
-        // Spike screens cover the placeholder content until P04 navigation exists.
+        // Spike screens cover the placeholder content until P04 navigation exists. The remaining ones
+        // serve open USER-CHECKs (P01-S1, S3, S7) and are removed by D-002.
         private fun showRoute(route: String) {
             val host = activity ?: return
             if (spike != null && spikeRoute == route) return
@@ -84,11 +74,8 @@ internal class AppDebugHooks
             spike =
                 when (route) {
                     SpikeInkView.ROUTE -> SpikeInkView(host)
-                    SpikeTilesView.ROUTE -> SpikeTilesView(host, dispatchers)
                     SpikeFontsView.ROUTE -> SpikeFontsView(host, dispatchers)
-                    SpikeIoView.ROUTE -> SpikeIoView(host, dispatchers)
                     SpikeStylusView.ROUTE -> SpikeStylusView(host, dispatchers)
-                    SpikePdfView.ROUTE -> SpikePdfView(host, dispatchers)
                     else -> null
                 }
             spikeRoute = route
