@@ -57,3 +57,8 @@ Format:
 - Reason: inverse commands computed from float math (inverse affine, index arithmetic) would not restore the document exactly; the 200-command property test demands equality. Text boxes and sticky notes need flow creation and deletion as undoable steps.
 - Impact: 03-document-model.md#commands-and-undo; P06 (block edits map to `TextEdit` ranges), P07 (lasso, recolor), P02-T09 (session loads `requiredPages` before execute/undo/redo).
 
+## A-011 2026-09-28 P02-T04: manifest page summaries carry the full background
+- Change: manifest pages and `defaults` get the additive keys `background` and `origin` (infinite pages); container code is `FolioEntries` (names, order, STORED rule), `EntryReader` (implemented by `FolioContainerReader` over ZipFile and later by the working copy), `DocumentCodec` (read) and `DocumentEntries` (write). Migrations rewrite the manifest JSON (`Migration.migrateManifest`); page-payload migrations get added with the first v2 change.
+- Reason: `PageRef` holds spec + full background (03-document-model.md#document) and must be built from the manifest alone; the documented summary had only the template kind.
+- Impact: 04-file-format.md#manifest; P02-T05 (working copy implements `EntryReader`), P02-T07 scanner (reads manifest only).
+

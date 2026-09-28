@@ -39,6 +39,7 @@ Unknown entries are preserved on rewrite. Entry names are ASCII only. No absolut
 }
 ```
 The page list carries page summaries so the library and page stack never need to decode page protobufs to lay out.
+Additive keys written by v1 (A-011): each page and `defaults` also carry `background` (`paperArgb`, `template` {kind, spacingPt, lineArgb, marginLeftPt, marginTopPt, customAsset, customGridPt}, `pdf`) and, for infinite pages, `kind: "infinite"` plus `origin` ("fixed"/"custom"); `contentBounds` is `[left, top, right, bottom]`. Colors are `#AARRGGBB` strings. Readers without `background` fall back to the `template` kind and defaults. Parsing: `formatVersion` is checked first (newer -> `FormatTooNew`, older -> `MigrationRegistry` chain), then unknown keys are ignored. Size limits: manifest 4 MB, page/flow entries 64 MB.
 
 ## Protobuf schema
 File: `core/format/src/main/proto/folio/v1/page.proto` (Wire, Kotlin output). proto3.
