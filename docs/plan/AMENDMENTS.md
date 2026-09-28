@@ -77,3 +77,8 @@ Format:
 - Reason: the spec leaves title/ids of duplicates and the handling of unknown manifest keys open; a JSON patch is the only way to keep keys a newer version wrote.
 - Impact: 09-storage-library.md#repositories; P05 library UI, P02-T09 session (`open`).
 
+## A-015 2026-09-28 P02-T09: session registry, recovery trigger, modifiedMs
+- Change: `DocumentSessions` opens sessions by library path (not `DocumentRepository.open(docId)`) and packs them on app stop; :app registers the ProcessLifecycleOwner observer with a `dagger.Lazy` so nothing is built at start. Recovery runs from `LibraryEntryViewModel` the first time access is granted (`Recovery.runOnce`), not in `Application.onCreate`. `meta.modifiedMs` is stamped into the manifest at write time from the last edit instead of being changed by commands.
+- Reason: 12-performance.md keeps `Application.onCreate` free of storage work, and recovery needs All-files access; stamping modifiedMs inside commands would break exact undo.
+- Impact: 03-document-model.md#sessions; P04 editor (EditorSession wraps a DocumentSession), P05 (RecoveryEvents snackbar).
+

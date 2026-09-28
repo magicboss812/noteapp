@@ -10,6 +10,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.folio.core.common.Clock
 import dev.folio.core.common.FolioDispatchers
+import dev.folio.core.common.FolioFs
+import dev.folio.core.common.JavaFileFolioFs
 import dev.folio.core.format.manifest.ManifestApp
 import dev.folio.core.storage.LibraryConfig
 import dev.folio.core.storage.index.IndexDb
@@ -20,7 +22,20 @@ import dev.folio.core.storage.library.LibraryRoot
 import dev.folio.core.storage.library.StoragePermission
 import dev.folio.core.storage.repo.DocumentRepository
 import dev.folio.core.storage.repo.LibraryRepository
+import dev.folio.core.storage.session.DocumentSessions
+import dev.folio.core.storage.work.Packer
+import dev.folio.core.storage.work.Recovery
+import dev.folio.core.storage.work.RecoveryEvents
+import dev.folio.core.storage.work.WorkingCopyStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import javax.inject.Qualifier
 import javax.inject.Singleton
+
+/** App-private files (`files/`: working copies, backups), as opposed to the library root. */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class AppFiles
 
 /** Hilt bindings of core:storage. [LibraryConfig], [Clock], [ManifestApp] and dispatchers come from :app. */
 @Module
@@ -63,6 +78,54 @@ internal abstract class StorageModule {
             dispatchers: FolioDispatchers,
             app: ManifestApp,
         ): DocumentRepository = DocumentRepository(root.fs, scanner, db.dao(), clock, dispatchers, app)
+
+        @Provides
+        @Singleton
+        @AppFiles
+        fun appFiles(
+            @ApplicationContext context: Context,
+        ): FolioFs = JavaFileFolioFs(context.filesDir)
+
+        @Provides
+        @Singleton
+        fun workingCopies(
+            @AppFiles appFs: FolioFs,
+            root: LibraryRoot,
+        ): WorkingCopyStore = WorkingCopyStore(appFs, root.fs)
+
+        @Provides
+        @Singleton
+        fun packer(
+            @AppFiles appFs: FolioFs,
+            root: LibraryRoot,
+            clock: Clock,
+        ): Packer = Packer(root.fs, appFs, clock)
+
+        @Provides
+        @Singleton
+        fun recoveryEvents(): RecoveryEvents = RecoveryEvents()
+
+        @Provides
+        @Singleton
+        fun recovery(
+            store: WorkingCopyStore,
+            packer: Packer,
+            clock: Clock,
+            events: RecoveryEvents,
+        ): Recovery = Recovery(store, packer, clock, events)
+
+        // Sessions outlive screens (timers, onStop packs): they run in a process-wide supervisor scope.
+        @Provides
+        @Singleton
+        fun sessions(
+            store: WorkingCopyStore,
+            packer: Packer,
+            scanner: LibraryScanner,
+            clock: Clock,
+            dispatchers: FolioDispatchers,
+            app: ManifestApp,
+        ): DocumentSessions =
+            DocumentSessions(store, packer, scanner, clock, dispatchers, CoroutineScope(SupervisorJob() + dispatchers.io), app)
 
         @Provides
         @Singleton

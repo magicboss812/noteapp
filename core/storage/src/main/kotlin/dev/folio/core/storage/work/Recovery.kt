@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Something start-up recovery did that the UI reports once (04-file-format.md#crash-recovery). */
 sealed interface RecoveryEvent {
@@ -56,7 +57,12 @@ class Recovery(
     private val clock: Clock,
     private val events: RecoveryEvents,
 ) {
-    /** Runs once at app start before any document opens. Blocking: io dispatcher. */
+    private val done = AtomicBoolean(false)
+
+    /** [run] on the first call of the process only (the library entry calls it once access is granted). */
+    fun runOnce(): List<RecoveryEvent> = if (done.compareAndSet(false, true)) run() else emptyList()
+
+    /** Packs dirty working copies; call before any document opens. Blocking: io dispatcher. */
     fun run(): List<RecoveryEvent> {
         val out = ArrayList<RecoveryEvent>()
         for (copy in store.all()) {

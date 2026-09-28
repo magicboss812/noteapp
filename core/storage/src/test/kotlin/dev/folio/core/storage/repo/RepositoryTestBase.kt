@@ -27,7 +27,7 @@ abstract class RepositoryTestBase {
     protected lateinit var library: LibraryRepository
 
     private val direct = Dispatchers.Unconfined
-    private val dispatchers = FolioDispatchers(direct, direct, direct, direct, direct)
+    protected val dispatchers = FolioDispatchers(direct, direct, direct, direct, direct)
 
     @Before
     fun setUpRepositories() {
@@ -43,7 +43,8 @@ abstract class RepositoryTestBase {
     protected fun spec(
         title: String,
         folder: String = "",
-    ) = NewDocumentSpec(folder, title, ModelFixtures.A4, ModelFixtures.LINED_BACKGROUND)
+        pages: Int = 1,
+    ) = NewDocumentSpec(folder, title, ModelFixtures.A4, ModelFixtures.LINED_BACKGROUND, pages)
 
     protected fun file(path: String) = File(fs.root, path)
 

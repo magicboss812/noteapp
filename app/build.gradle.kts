@@ -33,6 +33,7 @@ dependencies {
     implementation(projects.core.common)
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.lifecycle.process)
     implementation(libs.core.ktx)
     implementation(libs.coroutines.android)
     debugImplementation(libs.serialization.json)
