@@ -7,18 +7,25 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dev.folio.app.di.AppModule
 import dev.folio.core.common.FolioLog
+import dev.folio.core.storage.library.LibraryAccess
+import dev.folio.core.storage.library.LibraryRoot
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
+import java.io.File
 import java.time.Duration
 
 @RunWith(AndroidJUnit4::class)
 class AppDebugHooksTest {
     private val lines = mutableListOf<String>()
-    private val hooks = AppDebugHooks(AppModule.dispatchers())
+    private val hooks =
+        AppDebugHooks(
+            AppModule.dispatchers(),
+            LibraryAccess({ false }, LibraryRoot(File(System.getProperty("java.io.tmpdir"), "folio-debughooks-test"))),
+        )
 
     @Before
     fun setUp() = FolioLog.install { _, tag, message, _ -> if (tag == DebugReply.TAG) lines += message }
@@ -46,7 +53,7 @@ class AppDebugHooksTest {
 
     @Test
     fun handleIntent_docAndRouteExtras_appliedOnceAndConsumed() {
-        val intent = Intent().putExtra("folio.debug.doc", "a.folio").putExtra("folio.debug.route", "placeholder")
+        val intent = Intent().putExtra("folio.debug.doc", "a.folio").putExtra("folio.debug.route", "library")
 
         hooks.handleIntent(intent)
 

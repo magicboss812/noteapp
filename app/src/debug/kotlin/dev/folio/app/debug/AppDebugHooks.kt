@@ -16,6 +16,12 @@ import dev.folio.app.spikes.spikeInkCommand
 import dev.folio.app.spikes.spikeStylusCommand
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
+import dev.folio.core.storage.library.LibraryAccess
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,8 +32,13 @@ internal class AppDebugHooks
     @Inject
     constructor(
         private val dispatchers: FolioDispatchers,
+        private val libraryAccess: LibraryAccess,
     ) : DebugHooks {
-        private val state = DebugAppState().also { it.onNavigate = ::showRoute }
+        private val state =
+            DebugAppState(
+                library = ::libraryJson,
+                baseScreen = { if (libraryAccess.isGranted()) DebugAppState.LIBRARY else ONBOARDING },
+            ).also { it.onNavigate = ::showRoute }
         private var activity: ComponentActivity? = null
         private var overlay: FrameTimeOverlay? = null
         private var overlayVisible = false
@@ -65,8 +76,7 @@ internal class AppDebugHooks
             )
         }
 
-        // Spike screens cover the placeholder content until P04 navigation exists. The remaining ones
-        // serve open USER-CHECKs (P01-S1, S3, S7) and are removed by D-002.
+        // Spike screens cover the library entry content until P04 navigation exists; they are removed by D-002.
         private fun showRoute(route: String) {
             val host = activity ?: return
             if (spike != null && spikeRoute == route) return
@@ -102,12 +112,20 @@ internal class AppDebugHooks
             FolioLog.i(DebugReply.TAG, commands.execute(command, arg).toLogLine(nonce))
         }
 
+        private fun libraryJson(): JsonObject =
+            buildJsonObject {
+                put("granted", libraryAccess.isGranted())
+                put("root", libraryAccess.rootPath)
+                putJsonArray("folders") { libraryAccess.existingSystemFolders().forEach { add(JsonPrimitive(it)) } }
+            }
+
         private fun setOverlayVisible(visible: Boolean) {
             overlayVisible = visible
             overlay?.setVisible(visible)
         }
 
         private companion object {
+            const val ONBOARDING = "onboarding"
             const val EXTRA_CMD = "folio.debug.cmd"
             const val EXTRA_ARG = "folio.debug.arg"
             const val EXTRA_NONCE = "folio.debug.nonce"

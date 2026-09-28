@@ -1,5 +1,6 @@
 plugins {
     id("folio.android.library")
+    id("folio.hilt")
     alias(libs.plugins.kotlin.serialization)
 }
 
@@ -8,7 +9,7 @@ android {
 }
 
 dependencies {
-    implementation(projects.core.format)
+    api(projects.core.format)
     implementation(projects.core.model)
     implementation(projects.core.common)
     implementation(libs.serialization.json)

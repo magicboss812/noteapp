@@ -8,21 +8,26 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /**
- * What `state` reports. Until navigation (P04/P05) exists the app has one screen, so routes only
- * record the request. Later phases replace these fields with reads from real app state.
+ * What `state` reports. Until navigation (P04/P05) exists the app has one base screen (the library
+ * entry: storage onboarding or library placeholder); routes only record the request. Later phases
+ * replace these fields with reads from real app state.
  */
-internal class DebugAppState {
-    var screen: String = PLACEHOLDER
+internal class DebugAppState(
+    /** Library access facts (`library` key), null when unavailable. */
+    private val library: () -> JsonObject? = { null },
+    /** Screen shown on the base route: "onboarding" or "library". */
+    private val baseScreen: () -> String = { LIBRARY },
+) {
+    var route: String = LIBRARY
         private set
-    var route: String = PLACEHOLDER
-        private set
+    val screen: String get() = if (route == LIBRARY) baseScreen() else route
     var requestedDoc: String? = null
     val openDoc: String? = null
     val tool: String? = null
     val zoom: Float? = null
 
-    /** Routes the app can show today; `spike-*` routes are P01 probe screens kept for open USER-CHECKs (D-002). */
-    val knownRoutes: Set<String> = setOf(PLACEHOLDER, SpikeInkView.ROUTE, SpikeFontsView.ROUTE, SpikeStylusView.ROUTE)
+    /** Routes the app can show today; `spike-*` routes are P01 probe screens (D-002). */
+    val knownRoutes: Set<String> = setOf(LIBRARY, SpikeInkView.ROUTE, SpikeFontsView.ROUTE, SpikeStylusView.ROUTE)
 
     /** Called after every successful [navigate] with the new route; the hooks show the screen. */
     var onNavigate: (String) -> Unit = {}
@@ -31,7 +36,6 @@ internal class DebugAppState {
     fun navigate(to: String): Boolean {
         if (to !in knownRoutes) return false
         route = to
-        screen = to
         onNavigate(to)
         return true
     }
@@ -44,9 +48,11 @@ internal class DebugAppState {
             put("requestedDoc", requestedDoc)
             put("tool", tool)
             put("zoom", zoom)
+            library()?.let { put("library", it) }
         }
 
-    private companion object {
-        const val PLACEHOLDER = "placeholder"
+    companion object {
+        /** Base route: the library entry screen. */
+        const val LIBRARY = "library"
     }
 }

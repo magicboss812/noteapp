@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.MaterialTheme
 import dagger.hilt.android.AndroidEntryPoint
+import dev.folio.feature.library.ui.LibraryEntryRoute
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -19,7 +20,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                PlaceholderScreen(buildType = BuildConfig.BUILD_TYPE, versionName = BuildConfig.VERSION_NAME)
+                LibraryEntryRoute()
             }
         }
         debugHooks.attach(this)

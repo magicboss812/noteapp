@@ -3,8 +3,10 @@ package dev.folio.app.debug
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.common.PerfMonitor
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -27,7 +29,7 @@ class DebugCommandsTest {
     }
 
     @Test
-    fun state_fresh_reportsPlaceholderScreenAndNullFields() {
+    fun state_fresh_reportsLibraryScreenAndNullFields() {
         val reply = commands.execute("state", null)
 
         assertThat(reply.ok).isTrue()
@@ -36,7 +38,7 @@ class DebugCommandsTest {
             reply.json
                 .getValue("screen")
                 .jsonPrimitive.content,
-        ).isEqualTo("placeholder")
+        ).isEqualTo("library")
         assertThat(reply.json.getValue("doc")).isEqualTo(JsonNull)
     }
 
@@ -44,7 +46,7 @@ class DebugCommandsTest {
     fun toLogLine_okReply_matchesDebugcmdFormat() {
         val line = commands.execute("state", null).toLogLine("42")
 
-        assertThat(line).startsWith("nonce=42 ok=true {\"screen\":\"placeholder\"")
+        assertThat(line).startsWith("nonce=42 ok=true {\"screen\":\"library\"")
     }
 
     @Test
@@ -88,19 +90,31 @@ class DebugCommandsTest {
     fun route_unknownName_notOkAndStateUnchanged() {
         assertThat(commands.execute("route", "nowhere").ok).isFalse()
         assertThat(commands.execute("route", null).ok).isFalse()
-        assertThat(state.route).isEqualTo("placeholder")
+        assertThat(state.route).isEqualTo("library")
     }
 
     @Test
     fun route_knownName_okAndReportsState() {
-        val reply = commands.execute("route", "placeholder")
+        val reply = commands.execute("route", "library")
 
         assertThat(reply.ok).isTrue()
         assertThat(
             reply.json
                 .getValue("route")
                 .jsonPrimitive.content,
-        ).isEqualTo("placeholder")
+        ).isEqualTo("library")
+    }
+
+    @Test
+    fun state_libraryProvider_reportsOnboardingScreenAndLibraryFacts() {
+        val withLibrary =
+            DebugAppState(
+                library = { buildJsonObject { put("granted", false) } },
+                baseScreen = { "onboarding" },
+            )
+        val json = DebugCommands(withLibrary) { }.execute("state", null).json
+        assertThat(json.getValue("screen").jsonPrimitive.content).isEqualTo("onboarding")
+        assertThat(json.getValue("library").toString()).isEqualTo("{\"granted\":false}")
     }
 
     @Test
