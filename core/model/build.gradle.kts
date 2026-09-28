@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
-    implementation(projects.core.common)
+    api(projects.core.common)
     api(libs.collections.immutable)
+    testImplementation(projects.core.testing)
 }

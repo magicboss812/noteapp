@@ -52,3 +52,8 @@ Format:
 - Reason: 03-document-model.md had `EditCommand.execute(doc)` but no place for decoded page bodies in `Document`; keeping them in the immutable state keeps commands pure and undo inverses exact without a second mutable page store.
 - Impact: 03-document-model.md#document; P02-T02 commands, P02-T09 session (page cache = `pageBodies` + LRU bookkeeping).
 
+## A-010 2026-09-28 P02-T02: exact-inverse helper commands, UpdateFlows/UpdateAssets, requiredPages
+- Change: besides the listed commands, core:model has `InsertObjectsAt`, `UpdateObjects`, `SetObjectOrder`, `RestorePages`, `SetPageOrder` (used as exact inverses), `UpdateFlows(put, remove)` (flow create/delete/style; not in the spec list) and `UpdateAssets(put, remove)` instead of `AddAsset`. `EditFlow` carries text range edits. Commands expose `requiredPages` and `coalesceKey`. `UndoManager` takes the injected `Clock` (monotonic time for the 1000 ms window) and exposes `nextUndo`/`nextRedo`. core:testing depends on core:model (`ModelFixtures`), allowed by architecture-boundaries.
+- Reason: inverse commands computed from float math (inverse affine, index arithmetic) would not restore the document exactly; the 200-command property test demands equality. Text boxes and sticky notes need flow creation and deletion as undoable steps.
+- Impact: 03-document-model.md#commands-and-undo; P06 (block edits map to `TextEdit` ranges), P07 (lasso, recolor), P02-T09 (session loads `requiredPages` before execute/undo/redo).
+

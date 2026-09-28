@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P02
-next: P02-T02
+next: P02-T03
 updated: 2026-09-28
 
 ## Completed
@@ -9,7 +9,7 @@ updated: 2026-09-28
 - P01 done 2026-09-28 (tag p01-done): ADR-002..008 Accepted: ink front buffer (onTouch p95 0.28 ms), bitmap tiles (jank 0.49%, p95 gap -> P03-T10), library IO (46 MB pack 1.4 s), PdfBox merge (100 pp 0.24 s), jlatexmath (p95 0.8 ms), grid-pitch text (0.000 px, 20 fonts); A-005..A-008; qa green.
 
 ## Current phase progress
-- P02: T01
+- P02: T01 T02
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -26,5 +26,5 @@ updated: 2026-09-28
 
 ## Handoff (<= 5 lines, overwritten each session)
 - P01 USER-CHECKs answered: stylus facts in device.md#stylus (457 Hz, tilt, hover, no buttons); D-003 ran 1/1 on the Pad 7.
-- P02-T01 done: model types, geometry, UniformGridIndex; A-009 (Document.pageBodies).
-- Next: P02-T02 (commands and undo).
+- P02-T01/T02 done: model, geometry, grid index, commands + UndoManager; A-009, A-010.
+- Next: P02-T03 (protobuf schema and codecs).
