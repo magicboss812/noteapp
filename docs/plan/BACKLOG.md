@@ -10,3 +10,4 @@
 - B-09 Sections inside documents.
 - B-10 Custom brush designer.
 - B-11 Automatic backup of the library folder to a second location.
+- B-12 User request 2026-09-28 (P01-S3 feedback): free font size per flow that keeps its relation to the template rules (line box grows in whole U steps with the size), and vertical placement of text inside the line box (top, middle, bottom of the rule gap). v1 already scales S/M/L with U (07-text-engine.md#font-normalization); decide scope in P06-T02 (STATUS Deferred D-006).

@@ -9,7 +9,7 @@ Filled by P00-T02, P01-S1, P01-S7 and later discoveries. Known from Xiaomi specs
 ## Display
 - Physical 2136x3200 (natural orientation portrait per `wm size`), density 440 dpi
 - Refresh modes (fps): 30, 48, 50, 60, 90, 120, 144
-- Editor mode: request the fastest mode (144 Hz, mode id 2) via `preferredDisplayModeId` (`DisplayModeHelper`). P01-S1: the active mode stayed 120 Hz, idle and inking (`diag.sh refresh`: `peakRefreshRate=120`); probably the HyperOS refresh-rate setting caps apps (USER-CHECK). Frame budgets at 120 Hz: 8.3 ms.
+- Editor mode: request the fastest mode (144 Hz, mode id 2) via `preferredDisplayModeId` (`DisplayModeHelper`). P01-S1: the active mode stayed 120 Hz, idle and inking (`diag.sh refresh`: `peakRefreshRate=120`); probably the HyperOS refresh-rate setting caps apps; the user closed that check as not needed (2026-09-28), so budgets assume 120 Hz. Frame budgets at 120 Hz: 8.3 ms.
 - Usual orientation while testing: landscape, rotation 1 (3200x2136)
 
 ## Input
@@ -20,11 +20,12 @@ Filled by P00-T02, P01-S1, P01-S7 and later discoveries. Known from Xiaomi specs
 - Touch sample rate: not measured yet
 
 ## Stylus
-P01-S7 probe (route `spike-stylus`, writes `Folio-Debug/probe/stylus.json`; `pull.sh probe`). Automated part 2026-09-28; physical pen part is a USER-CHECK.
+P01-S7 probe (route `spike-stylus`, writes `Folio-Debug/probe/stylus.json`; `pull.sh probe`). Automated part and physical Focus Pen session 2026-09-28 (user: hover very sharp, tilt good at all angles).
 - Declared motion ranges (both `NVTCapacitivePenM80p` and `P81c`, source 0x5002, resolution 0.0): X 0..2135.9, Y 0..3199.9 (natural portrait), PRESSURE 0..1, ORIENTATION -pi..pi, DISTANCE 0..1, TILT 0..pi/2. P81c also declares LTRIGGER and BRAKE 0..1 on source 0x1000010 (joystick class; meaning unknown).
-- So tilt, orientation and hover distance are declared; whether the Focus Pen actually sends non-zero tilt, hover events and button states is unverified until the USER-CHECK.
+- Real pen (487 contact + 733 hover events): pressure 0.0001..1.0; tilt 0..1.206 rad (69 deg max observed); orientation 0..pi; hover distance 0..1; sample rate 457 Hz (median 2.19 ms, up to 3 historical samples per event).
+- Pen buttons: no button state, no key code reached the app while hovering or touching (HyperOS consumes them). Treat buttons as unavailable.
 - Synthetic `input stylus swipe`/`stylus-tap`: tool type 2 (stylus), pressure 0..1, tilt/orientation/distance 0, no hover, no buttons, 250 Hz (median 4.0 ms between samples, 1 historical sample per event). Never use synthetic input to judge tilt, hover or buttons.
-- `StylusCapabilities` defaults until the USER-CHECK answers: pressure = yes; tilt, orientation, hover = only after a real event with a non-zero value was observed in the session; buttons = no (06-ink-input.md#stylus-capabilities); sampleRateHz = measured at runtime.
+- `StylusCapabilities` defaults: pressure, tilt, orientation, hover = yes; buttons = no (06-ink-input.md#stylus-capabilities); sampleRateHz = measured at runtime (expect about 450).
 
 ## Rendering
 - Front-buffered wet ink works: InProgressStrokesView adds `SurfaceView[...](BLAST)` (z=1) above the app window on the first stroke and keeps it; `screencap` captures it (P01-S1).
