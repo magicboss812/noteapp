@@ -133,7 +133,7 @@ Flow style file `flows/<flowId>.json`: `{"fontFamily":"Inter","sizeRatio":0.5,"p
 1. Editing happens in the working copy `files/work/<docId>/` (same layout as the ZIP, unpacked) plus `base.json` (source path, source size + mtime, manifest modifiedMs at open, dirty entry names, lastPackMs).
 2. Entry autosave: changed pages/flows/manifest are written after 1 s idle as `<entry>.tmp` -> fsync -> rename.
 3. Pack triggers: editor close, app `onStop`, every 30 s while dirty, before export and share.
-4. Pack: write `<name>.folio.tmp` in the target directory from the working copy (entry order as in "Container layout"), flush + fsync, rename over `<name>.folio`, fsync directory where supported. Then copy the previous file version to `files/backup/<docId>.folio` (one generation) and update `base.json`.
+4. Pack: write a temp file (`.<name>.folio.<random>.tmp`) in the target directory from the working copy (entry order as in "Container layout"), flush + fsync, rename over `<name>.folio`, fsync directory where supported, update `base.json`. Before the first pack of a working copy, the file as it was opened is copied to `files/backup/<docId>.folio` (one generation, A-012). After a conflict pack the working copy is bound to the conflict file.
 5. Packing never blocks the main thread. Pack of a 50 MB document <= 1.5 s (assets STORED, no recompression).
 
 ## Crash recovery

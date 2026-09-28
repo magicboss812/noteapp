@@ -1,6 +1,8 @@
 # Overrides on top of detekt's default config (buildUponDefaultConfig = true).
 # Composables get relaxed size limits only (P00-T05); Compose rules come from io.nlopez.compose.rules.
 complexity:
+  TooManyFunctions:
+    ignoreOverridden: true # interface implementations (FolioFs, EntryReader) cannot choose their size
   LongMethod:
     ignoreAnnotated: ['Composable']
   LongParameterList:
@@ -11,6 +13,8 @@ naming:
     ignoreAnnotated: ['Composable']
 
 style:
+  ReturnCount:
+    excludeGuardClauses: true # `val x = y ?: return ...` guards at the top of IO functions
   MagicNumber:
     ignoreEnums: true # enum entries are the named constants (paper sizes, format codes)
   MaxLineLength:

@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P02
-next: P02-T05
+next: P02-T06
 updated: 2026-09-28
 
 ## Completed
@@ -9,7 +9,7 @@ updated: 2026-09-28
 - P01 done 2026-09-28 (tag p01-done): ADR-002..008 Accepted: ink front buffer (onTouch p95 0.28 ms), bitmap tiles (jank 0.49%, p95 gap -> P03-T10), library IO (46 MB pack 1.4 s), PdfBox merge (100 pp 0.24 s), jlatexmath (p95 0.8 ms), grid-pitch text (0.000 px, 20 fonts); A-005..A-008; qa green.
 
 ## Current phase progress
-- P02: T01 T02 T03 T04
+- P02: T01 T02 T03 T04 T05
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -26,5 +26,5 @@ updated: 2026-09-28
 
 ## Handoff (<= 5 lines, overwritten each session)
 - P01 USER-CHECKs answered: stylus facts in device.md#stylus (457 Hz, tilt, hover, no buttons); D-003 ran 1/1 on the Pad 7.
-- P02-T01..T04 done: model, commands + UndoManager (A-009, A-010), Wire page codec (1000x120 inputs = 709 KB), manifest + container (A-011).
-- Next: P02-T05 (working copy and packer).
+- P02-T01..T04 done: model, commands + UndoManager (A-009, A-010), Wire page codec (1000x120 inputs = 709 KB), manifest + container (A-011), working copy + packer + recovery (A-012).
+- Next: P02-T06 (library root and permission flow, needs device-tester).

@@ -62,3 +62,8 @@ Format:
 - Reason: `PageRef` holds spec + full background (03-document-model.md#document) and must be built from the manifest alone; the documented summary had only the template kind.
 - Impact: 04-file-format.md#manifest; P02-T05 (working copy implements `EntryReader`), P02-T07 scanner (reads manifest only).
 
+## A-012 2026-09-28 P02-T05: streaming FolioFs, backup of the opened version, JavaFileFolioFs in core:common
+- Change: `FolioFs` gains `stat`, `openRead`, `writeAtomic(path) { out -> }` (atomic streaming write incl. directory fsync) and `deleteRecursively`; the java.io implementation `JavaFileFolioFs` lives in core:common (P02-T06 listed it in core:storage) and backs `TempDirFolioFs`. The packer copies the source to `files/backup/<docId>.folio` once per working copy, before its first replacement, instead of "after the rename". Unpacking streams the ZIP (`ZipInputStream`) through `FolioFs`, 8 GB total bound. Detekt: `TooManyFunctions.ignoreOverridden`, `ReturnCount.excludeGuardClauses`.
+- Reason: packs of 50 MB documents cannot go through in-memory `readBytes`/`writeBytesAtomic`; after the rename the previous version no longer exists, so the backup has to be taken before, and once per editing session keeps it cheap (one extra copy) and more useful (state before the session).
+- Impact: 04-file-format.md#write-protocol; P02-T06 (uses `JavaFileFolioFs` for the library root), P02-T09 session (flush autosaver, then pack, under one mutex).
+
