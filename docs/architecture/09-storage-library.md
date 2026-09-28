@@ -25,12 +25,12 @@
 Room database `index.db` in app-private storage. Disposable: can be deleted and rebuilt by a full scan.
 | Table | Columns |
 |---|---|
-| documents | docId (PK), path, folderPath, title, createdMs, modifiedMs, favorite, pageCount, textPreview, fileSize, fileMtime, coverThumbPath, formatVersion, status (ok, tooNew, corrupt) |
+| documents | path (PK, library-relative), docId (indexed), folderPath, title, createdMs, modifiedMs, favorite, pageCount, textPreview, fileSize, fileMtime, coverThumbPath, formatVersion, status (OK, TOO_NEW, CORRUPT) |
 | folders | path (PK), parentPath, name, tint, createdMs |
-| tags | docId, tag (PK both) |
-| links | fromDocId, toDocId (PK both) |
-| doc_fts | FTS4 virtual table: docId (unindexed), title, body |
-Duplicate docIds (a file copied manually): the second file gets a new docId on first open (manifest rewritten), index keeps both.
+| tags | path (FK documents, cascade), tag (PK both) |
+| links | fromPath (FK documents, cascade), toDocId (PK both) |
+| doc_fts | FTS4 (unicode61 tokenizer): path (not indexed), title, body |
+Duplicate docIds (a file copied manually): the second file gets a new docId on first open (manifest rewritten); until then the index keeps both rows, which is why rows are keyed by path (A-013). Unreadable files get a row with the file name as title and status TOO_NEW or CORRUPT.
 
 ## Scanning
 - Full scan: walk the root (skip hidden dirs), for each `.folio` read only `manifest.json` and `search/text.txt` via ZipFile random access, upsert rows in batched transactions (200 per transaction). Runs on first launch, when the root changes, and from Settings "Rebuild index".

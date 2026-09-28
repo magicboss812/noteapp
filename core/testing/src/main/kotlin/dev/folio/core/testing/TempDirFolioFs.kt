@@ -47,6 +47,8 @@ class TempDirFolioFs :
 
     override fun openRead(path: String): Outcome<InputStream> = delegate.openRead(path)
 
+    override fun localFile(path: String): File? = delegate.localFile(path)
+
     override fun writeAtomic(
         path: String,
         write: (OutputStream) -> Unit,

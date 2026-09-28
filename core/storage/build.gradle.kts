@@ -1,6 +1,7 @@
 plugins {
     id("folio.android.library")
     id("folio.hilt")
+    id("folio.room")
     alias(libs.plugins.kotlin.serialization)
 }
 
@@ -14,4 +15,5 @@ dependencies {
     implementation(projects.core.common)
     implementation(libs.serialization.json)
     testImplementation(projects.core.testing)
+    testImplementation(libs.bundles.robolectric)
 }

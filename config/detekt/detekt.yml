@@ -3,6 +3,7 @@
 complexity:
   TooManyFunctions:
     ignoreOverridden: true # interface implementations (FolioFs, EntryReader) cannot choose their size
+    allowedFunctionsPerInterface: 30 # Room DAOs list one method per query
   LongMethod:
     ignoreAnnotated: ['Composable']
   LongParameterList:

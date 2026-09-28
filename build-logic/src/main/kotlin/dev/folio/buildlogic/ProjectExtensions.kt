@@ -7,8 +7,10 @@ import org.gradle.api.artifacts.MinimalExternalModuleDependency
 import org.gradle.api.artifacts.VersionCatalog
 import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.provider.Provider
+import org.gradle.api.tasks.testing.Test
 import org.gradle.kotlin.dsl.dependencies
 import org.gradle.kotlin.dsl.getByType
+import org.gradle.kotlin.dsl.withType
 
 /** Bytecode level for every module. Built with JDK 21 without a toolchain (A-002). */
 internal val FOLIO_JAVA_VERSION = JavaVersion.VERSION_17
@@ -44,6 +46,13 @@ internal fun Project.configureAndroidCommon(android: CommonExtension) {
             lintConfig = rootProject.file("config/lint/lint.xml")
             error += setOf("NewApi", "MissingPermission", "WrongThread")
         }
+    }
+    tasks.withType<Test>().configureEach {
+        // Robolectric (SDK 36) reflects into FileDescriptor internals; JDK 21 blocks that unless opened.
+        jvmArgs(
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+        )
     }
     dependencies {
         add("testImplementation", libs.bundle("unit-test"))

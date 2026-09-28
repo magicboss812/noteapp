@@ -30,6 +30,9 @@ interface FolioFs {
     /** Whole file content. */
     fun readBytes(path: String): Outcome<ByteArray>
 
+    /** Local file behind [path] for random-access readers (ZipFile), or null if not backed by java.io files. */
+    fun localFile(path: String): java.io.File? = null
+
     /** Stream over the file; the caller closes it. */
     fun openRead(path: String): Outcome<InputStream>
 

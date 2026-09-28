@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P02
-next: P02-T07
+next: P02-T08
 updated: 2026-09-28
 
 ## Completed
@@ -9,7 +9,7 @@ updated: 2026-09-28
 - P01 done 2026-09-28 (tag p01-done): ADR-002..008 Accepted: ink front buffer (onTouch p95 0.28 ms), bitmap tiles (jank 0.49%, p95 gap -> P03-T10), library IO (46 MB pack 1.4 s), PdfBox merge (100 pp 0.24 s), jlatexmath (p95 0.8 ms), grid-pitch text (0.000 px, 20 fonts); A-005..A-008; qa green.
 
 ## Current phase progress
-- P02: T01 T02 T03 T04 T05 T06 (device half of T06 accept blocked, see Blocked)
+- P02: T01 T02 T03 T04 T05 T06 T07 (T06 device half of T06 accept blocked, see Blocked)
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: onboarding on device unverified; `pm clear` keeps All-files access and no wrapper revokes it -> either turn off Settings > Apps > Folio Debug > All files access and tell Claude to rerun the onboarding check, or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else.
@@ -26,5 +26,5 @@ updated: 2026-09-28
 
 ## Handoff (<= 5 lines, overwritten each session)
 - P01 USER-CHECKs answered: stylus facts in device.md#stylus (457 Hz, tilt, hover, no buttons); D-003 ran 1/1 on the Pad 7.
-- P02-T01..T04 done: model, commands + UndoManager (A-009, A-010), Wire page codec (1000x120 inputs = 709 KB), manifest + container (A-011), working copy + packer + recovery (A-012), library access + onboarding (granted path verified on Pad 7).
-- Next: P02-T07 (library index).
+- P02-T01..T04 done: model, commands + UndoManager (A-009, A-010), Wire page codec (1000x120 inputs = 709 KB), manifest + container (A-011), working copy + packer + recovery (A-012), library access + onboarding (granted path verified on Pad 7), Room index + scanner (500 docs 149 ms, A-013).
+- Next: P02-T08 (repositories).

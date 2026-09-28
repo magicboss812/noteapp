@@ -34,6 +34,8 @@ class JavaFileFolioFs(
         return outcomeOf("read $path") { file.readBytes() }
     }
 
+    override fun localFile(path: String): File = resolve(path)
+
     override fun openRead(path: String): Outcome<InputStream> {
         val file = resolve(path)
         return outcomeOf("open $path") { file.inputStream().buffered() }

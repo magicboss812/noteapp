@@ -67,3 +67,8 @@ Format:
 - Reason: packs of 50 MB documents cannot go through in-memory `readBytes`/`writeBytesAtomic`; after the rename the previous version no longer exists, so the backup has to be taken before, and once per editing session keeps it cheap (one extra copy) and more useful (state before the session).
 - Impact: 04-file-format.md#write-protocol; P02-T06 (uses `JavaFileFolioFs` for the library root), P02-T09 session (flush autosaver, then pack, under one mutex).
 
+## A-013 2026-09-28 P02-T07: index keyed by path; FolioFs.localFile
+- Change: `documents` has primary key `path` (docId indexed), `tags`/`links` reference the document path with cascading deletes, `doc_fts` stores the path (unicode61 tokenizer for umlauts). Moves are a delete plus insert of the same docId. `FolioFs.localFile(path)` exposes the java.io.File for ZipFile random access. The scanner also deletes hidden `*.folio*.tmp` files older than 10 minutes (crash recovery). Build: the Robolectric JDK 21 `--add-opens` flags moved from the screenshot plugin to every Android module's unit tests.
+- Reason: 09-storage-library.md keeps both rows for duplicated docIds, which a docId primary key cannot hold; the scan budget needs random access (manifest + search text only) rather than streaming whole ZIPs.
+- Impact: 09-storage-library.md#index; P02-T08 repositories (resolve by docId via `documentsById`, rank title hits first in Kotlin), P05 library UI.
+

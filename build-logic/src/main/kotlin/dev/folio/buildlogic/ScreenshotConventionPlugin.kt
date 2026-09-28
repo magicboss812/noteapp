@@ -23,11 +23,7 @@ class ScreenshotConventionPlugin : Plugin<Project> {
             tasks.withType<Test>().configureEach {
                 systemProperty("robolectric.graphicsMode", "NATIVE")
                 systemProperty("robolectric.pixelCopyRenderMode", "hardware")
-                // Robolectric (SDK 36) reflects into FileDescriptor internals; JDK 21 blocks that unless opened.
-                jvmArgs(
-                    "--add-opens=java.base/java.io=ALL-UNNAMED",
-                    "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
-                )
+                // JDK 21 --add-opens for Robolectric come from configureAndroidCommon.
             }
             dependencies {
                 // The Compose test artifacts below are versionless; modules without folio.compose need the BOM here.
