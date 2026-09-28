@@ -45,6 +45,7 @@ File: `core/format/src/main/proto/folio/v1/page.proto` (Wire, Kotlin output). pr
 ```proto
 syntax = "proto3";
 package folio.v1;
+option java_package = "dev.folio.core.format.proto.v1";   // generated Kotlin package only; no wire effect
 
 message Page {
   string id = 1;
@@ -106,6 +107,7 @@ message Attachment { string asset = 1; string display_name = 2; string mime = 3;
 message Rect { float left = 1; float top = 2; float right = 3; float bottom = 4; }
 message Point { float x = 1; float y = 2; }
 ```
+Decoding (`PageCodec`): missing required messages (spec, background, template, stroke inputs, rects), blank ids, duplicate object ids and stroke channels of different lengths are `Corrupt(entry)`; `*_UNSPECIFIED` or unknown enum values map to defaults (A4, portrait, BLANK, BALLPOINT, POLYGON, BOX, STYLUS); a `PageObject` with no known kind (newer writer) is skipped. `content_bounds` is written for infinite pages and recomputed on read.
 Flow style file `flows/<flowId>.json`: `{"fontFamily":"Inter","sizeRatio":0.5,"paragraphGapLines":0,"align":"start","autoContinue":true}`.
 
 ## Stroke encoding

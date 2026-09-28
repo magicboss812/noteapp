@@ -1,0 +1,65 @@
+// .folio v1 page payload (docs/architecture/04-file-format.md#protobuf-schema). Never reuse field numbers.
+syntax = "proto3";
+package folio.v1;
+
+option java_package = "dev.folio.core.format.proto.v1";
+
+message Page {
+  string id = 1;
+  PageSpec spec = 2;
+  Background background = 3;
+  repeated PageObject objects = 4;     // index 0 = bottom of z-order
+  Rect content_bounds = 5;             // infinite pages, cached
+}
+message PageSpec {
+  oneof kind { Fixed fixed = 1; Infinite infinite = 2; Custom custom = 3; }
+}
+message Fixed { PaperSize size = 1; Orientation orientation = 2; }
+message Infinite { oneof origin { Fixed origin_fixed = 1; Custom origin_custom = 2; } }
+message Custom { float width_pt = 1; float height_pt = 2; }
+enum PaperSize { PAPER_SIZE_UNSPECIFIED = 0; A3 = 1; A4 = 2; A5 = 3; }
+enum Orientation { ORIENTATION_UNSPECIFIED = 0; PORTRAIT = 1; LANDSCAPE = 2; }
+
+message Background { fixed32 paper_argb = 1; Template template = 2; PdfBackground pdf = 3; }
+message Template {
+  TemplateKind kind = 1; float spacing_pt = 2; fixed32 line_argb = 3;
+  float margin_left_pt = 4; float margin_top_pt = 5; string custom_asset = 6; float custom_grid_pt = 7;
+}
+enum TemplateKind {
+  TEMPLATE_KIND_UNSPECIFIED = 0; BLANK = 1; LINED = 2; GRID = 3; DOTTED = 4; CORNELL = 5;
+  GRAPH_AXES = 6; MUSIC_STAFF = 7; PLANNER_DAILY = 8; PLANNER_WEEKLY = 9; CUSTOM = 10;
+}
+message PdfBackground { string asset = 1; uint32 page_index = 2; }
+
+message PageObject {
+  string id = 1;
+  oneof kind {
+    InkStroke stroke = 2; Shape shape = 3; FlowFrame frame = 4;
+    Image image = 5; StickyNote sticky = 6; Attachment attachment = 7;
+  }
+}
+message InkStroke { BrushSpec brush = 1; StrokeInputs inputs = 2; Rect bounds = 3; }
+message BrushSpec { BrushKind kind = 1; fixed32 argb = 2; float size_pt = 3; uint32 version = 4; float pressure_gamma = 5; }
+enum BrushKind { BRUSH_KIND_UNSPECIFIED = 0; BALLPOINT = 1; FOUNTAIN = 2; PENCIL = 3; MARKER = 4; HIGHLIGHTER = 5; }
+message StrokeInputs {
+  sint64 origin_x = 1;                 // first point, 1/64 pt units
+  sint64 origin_y = 2;
+  repeated sint32 dx = 3;              // deltas from previous point (first = 0)
+  repeated sint32 dy = 4;
+  repeated sint32 dt = 5;              // 0.1 ms units, first = 0
+  repeated uint32 pressure = 6;        // 0..1023, empty if unavailable
+  repeated uint32 tilt = 7;            // 0.1 deg (0..900), empty if unavailable
+  repeated sint32 orientation = 8;     // 0.1 deg (-1800..1800), empty if unavailable
+  InputTool tool = 9;
+}
+enum InputTool { INPUT_TOOL_UNSPECIFIED = 0; STYLUS = 1; ERASER_END = 2; SYNTHETIC = 3; }
+message Shape { ShapeKind kind = 1; repeated Point points = 2; float rotation_deg = 3; StrokeStyle stroke = 4; fixed32 fill_argb = 5; bool has_fill = 6; Rect bounds = 7; }
+enum ShapeKind { SHAPE_KIND_UNSPECIFIED = 0; LINE = 1; ARROW = 2; RECTANGLE = 3; ELLIPSE = 4; TRIANGLE = 5; POLYGON = 6; }
+message StrokeStyle { fixed32 argb = 1; float width_pt = 2; bool dashed = 3; }
+message FlowFrame { string flow_id = 1; Rect rect = 2; uint32 order = 3; FrameRole role = 4; bool auto_grow = 5; }
+enum FrameRole { FRAME_ROLE_UNSPECIFIED = 0; BODY = 1; BOX = 2; }
+message Image { string asset = 1; Rect rect = 2; float rotation_deg = 3; Rect crop = 4; }
+message StickyNote { string flow_id = 1; Rect rect = 2; float rotation_deg = 3; fixed32 argb = 4; }
+message Attachment { string asset = 1; string display_name = 2; string mime = 3; Point position = 4; }
+message Rect { float left = 1; float top = 2; float right = 3; float bottom = 4; }
+message Point { float x = 1; float y = 2; }
