@@ -72,3 +72,8 @@ Format:
 - Reason: 09-storage-library.md keeps both rows for duplicated docIds, which a docId primary key cannot hold; the scan budget needs random access (manifest + search text only) rather than streaming whole ZIPs.
 - Impact: 09-storage-library.md#index; P02-T08 repositories (resolve by docId via `documentsById`, rank title hits first in Kotlin), P05 library UI.
 
+## A-014 2026-09-28 P02-T08: repository details
+- Change: repositories address documents by library path; metadata edits of closed documents rewrite the container with a JSON-level manifest patch (`ManifestPatch`); duplicates take the new file name as title; `LibraryRepository` also owns folder create/rename/move/tint/delete; bin state is a `StateFlow` read from `.trash` sidecars. `Clock` and `ManifestApp` are provided by :app's AppModule.
+- Reason: the spec leaves title/ids of duplicates and the handling of unknown manifest keys open; a JSON patch is the only way to keep keys a newer version wrote.
+- Impact: 09-storage-library.md#repositories; P05 library UI, P02-T09 session (`open`).
+

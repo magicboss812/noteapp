@@ -42,6 +42,7 @@ Duplicate docIds (a file copied manually): the second file gets a new docId on f
 - `LibraryRepository`: `folderTree(): Flow`, `documents(folder, filter, sort): Flow` (filters: all, favorites, tag, bin), `search(query): Flow`, `setFavorite`, `setTags`, folder CRUD (create, rename, tint, move, delete to bin).
 - `DocumentRepository`: `create(NewDocumentSpec)`, `importPdf(uri)`, `importFolio(uri)`, `open(docId): DocumentSession`, `duplicate`, `rename`, `move`, `delete` (to bin), `restore`, `deleteForever`, `emptyBin`, `purgeBin(retention)`.
 - All operations are suspend functions on the io dispatcher returning `Outcome`.
+- Implementation notes (A-014): operations take library-relative paths and act on closed documents (open ones change through their session). Favorite, tags, rename and duplicate rewrite the `.folio` (all entries streamed, `manifest.json` patched as JSON so unknown keys survive; rename also rewrites the first line of `search/text.txt`). A duplicate gets a new docId and the title of its file name ("X (2)"). The bin list comes from the `.trash` sidecars, not the index. `importPdf` arrives with P08-T01, `importFolio` with the P05 New menu, `open` returns the P02-T09 session.
 
 ## Trash
 - Deleting a document or folder moves it to `.trash/<epochMs>__<name>` plus sidecar `<same>.trash.json` `{ "originalPath": "Physics/Kinematics.folio", "deletedMs": ..., "docId": ... }`.
