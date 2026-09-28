@@ -21,6 +21,7 @@ data class Document(
   val pages: PersistentList<PageRef>,          // order = page order; Page bodies load lazily
   val flows: PersistentMap<FlowId, TextFlow>,
   val assets: PersistentMap<AssetId, AssetInfo>,
+  val pageBodies: PersistentMap<PageId, Page>,  // decoded bodies the session holds (A-009)
 )
 data class DocumentMeta(
   val id: DocId, val title: String, val createdMs: Long, val modifiedMs: Long,
@@ -29,7 +30,7 @@ data class DocumentMeta(
 )
 data class AssetInfo(val id: AssetId, val mime: String, val bytes: Long, val originalName: String?)
 ```
-`PageRef` = id + lightweight summary (spec, background) so the page stack can lay out all pages without decoding objects. `Page` is decoded on demand by the session.
+`PageRef(id, spec, background, contentBounds?)` = lightweight summary so the page stack can lay out all pages without decoding objects. `Page` is decoded on demand by the session and kept in `pageBodies`; a page without a body is unchanged since its last write. Commands that touch objects require the body to be loaded; for a loaded page, body spec/background equal the `PageRef` (A-009).
 
 ## Pages
 ```kotlin

@@ -11,5 +11,7 @@ naming:
     ignoreAnnotated: ['Composable']
 
 style:
+  MagicNumber:
+    ignoreEnums: true # enum entries are the named constants (paper sizes, format codes)
   MaxLineLength:
     maxLineLength: 140 # same as ktlint (.editorconfig)

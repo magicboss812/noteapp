@@ -47,3 +47,8 @@ Format:
 - Reason: phase-01 exit says spike code is deleted or promoted; three screens are still the only way to answer the USER-CHECKs. The removal duty was added to the P03-T09 and P06-T03 task blocks (P01 REVIEW).
 - Impact: P03 (tiles use bitmap strategy A, ADR-003; `StylusCapabilities` defaults from device.md#stylus; P03-T09 removes `spike-ink` and `spike-stylus` after the USER-CHECKs), P02 packer (write protocol measured, ADR-004), P06-T02 (FontRegistry and FontMetricsCache exist), P06-T03 (seed: GridTextLayouter, BaselineProbe tests become the regression suite, then `spike-fonts` goes), P06-T07 (JLatexMathRenderer exists), P09 export (merger exists).
 
+## A-009 2026-09-28 P02-T01: loaded page bodies live in Document.pageBodies
+- Change: `Document` gets `pageBodies: PersistentMap<PageId, Page>` (decoded bodies held by the session); `PageRef` carries `contentBounds`. Object commands require the body of their page to be loaded; the session loads bodies before executing and evicts only clean, unreferenced ones (LRU 30). Geometry adds `RectPt.distanceTo`, `offset`, `Affine.after`; rect edges are inclusive and `RectPt.EMPTY` is the union identity. Detekt `MagicNumber.ignoreEnums = true`.
+- Reason: 03-document-model.md had `EditCommand.execute(doc)` but no place for decoded page bodies in `Document`; keeping them in the immutable state keeps commands pure and undo inverses exact without a second mutable page store.
+- Impact: 03-document-model.md#document; P02-T02 commands, P02-T09 session (page cache = `pageBodies` + LRU bookkeeping).
+
