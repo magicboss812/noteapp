@@ -15,11 +15,11 @@ updated: 2026-09-28
 - (none)
 
 ## USER-CHECK (human verification; non-blocking)
-- P01-S1: `bash scripts/device/launch.sh --route spike-ink`, write with the Focus Pen there, then in Xiaomi Notes -> rate perceived lag 1-5 for each and report any flicker or gap when lifting the pen.
-- P01-S3: `bash scripts/device/launch.sh --route spike-fonts` (drag to scroll, `debugcmd.sh spike-fonts zoom=2`) -> every font sits on the lines and all look equally sized; note any font that looks too bold or too light.
-- P01-S7: `bash scripts/device/launch.sh --route spike-stylus`, `debugcmd.sh spike-stylus reset`; with the Focus Pen: hover 5 s, write, tilt the pen while writing, press each pen button while hovering and while touching -> reply "-> ok"; then Claude runs `pull.sh probe` and fills device.md#stylus (tilt, hover, buttons, real sample rate). P03-T09 depends on it.
-- P01-S5: Developer options > "USB debugging (Security settings)" was off on 2026-09-28 (test APK refused) -> turn it on again so `instrumented.sh` works (app-route fallback used meanwhile).
-- P01-S1: HyperOS Settings > Display > refresh rate: which option is set, and is 144 Hz offered? -> with 144 Hz set, `bash scripts/device/diag.sh refresh` on spike-ink shows 120 or 144 (app request stayed at 120 Hz).
+- P01-S1: `bash scripts/device/launch.sh --route spike-ink`, write with the Focus Pen there, then in Xiaomi Notes -> rate perceived lag 1-5 for each and report any flicker or gap when lifting the pen. [Checked, very responsive]
+- P01-S3: `bash scripts/device/launch.sh --route spike-fonts` (drag to scroll, `debugcmd.sh spike-fonts zoom=2`) -> every font sits on the lines and all look equally sized; note any font that looks too bold or too light. [Checked, very good spacing, consider if not in the plan: font size can be changed, but relative spacing to template lines stays, so absolute spacing changes dynamically with font size; font can be alligned from top to middle to bottom in between the template lines]
+- P01-S7: `bash scripts/device/launch.sh --route spike-stylus`, `debugcmd.sh spike-stylus reset`; with the Focus Pen: hover 5 s, write, tilt the pen while writing, press each pen button while hovering and while touching -> reply "-> ok"; then Claude runs `pull.sh probe` and fills device.md#stylus (tilt, hover, buttons, real sample rate). P03-T09 depends on it. [Checked, 450hz response, really good results on all tilting angles which is great, hovering also xtremely sharp]
+- P01-S5: Developer options > "USB debugging (Security settings)" was off on 2026-09-28 (test APK refused) -> turn it on again so `instrumented.sh` works (app-route fallback used meanwhile). [Checked, it's on]
+- P01-S1: HyperOS Settings > Display > refresh rate: which option is set, and is 144 Hz offered? -> with 144 Hz set, `bash scripts/device/diag.sh refresh` on spike-ink shows 120 or 144 (app request stayed at 120 Hz). [Checked and its obsolute, no usercheck for this necessary]
 
 ## Deferred (id: reason)
 - D-001 P00-T07: P11 `benchmark` build type needs its own DebugHooksModule (src/benchmark, bind NoOpDebugHooks).
