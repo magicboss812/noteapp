@@ -41,7 +41,7 @@ Native Android hybrid note app (pen ink + grid-snapped Markdown text) for one de
 | Instrumented tests | `bash scripts/device/instrumented.sh :module [connectedDebugAndroidTest]` |
 | Screenshot | `bash scripts/device/screenshot.sh <name>` -> `.device/screens/<name>.png` |
 | Logs / frames / diag | `logcat.sh [n]`, `gfxinfo.sh [reset]`, `diag.sh layers`, `refresh`, `meminfo` (all in scripts/device) |
-| Unattended loop | `bash scripts/auto/run-loop.sh <maxTasks>` (the user starts it, never you) |
+| Unattended loop | `bash scripts/auto/run-loop.sh [phase\|task]`, one fresh session per task; rerun to resume (the user starts it, never you) |
 
 ## Module map (details: docs/architecture/02-modules.md)
 | Module | Owns |

@@ -32,4 +32,5 @@ updated: 2026-09-29
 ## Handoff (<= 5 lines, overwritten each session)
 - P02 closed with tag p02-done after REVIEW (6 blocking findings fixed, A-016; D-007..D-010 deferred). Storage stack: WorkingCopyStore, Packer, Recovery, LibraryScanner, repositories, DocumentSessions (Hilt in StorageModule).
 - D-008 (float validation) is due before P03-T03 templates render decoded values.
+- run-loop.sh now gives every task its own session; Blocked lines no longer end the run, only `[STOP]` lines do (next-task sections 7-9).
 - Next: P03-T01 (viewport math).

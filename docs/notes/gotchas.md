@@ -22,3 +22,6 @@ Incremental debug packaging keeps entries of removed dependencies: switching a l
 ## Host has no unzip
 Neither `unzip` nor `python` may be used here; inspect AAR/JAR sources on GitHub (raw.githubusercontent.com) or let Gradle resolve the artifact instead.
 
+## Long sessions are the token cost, not the memory files
+Loop logs of P01/P02 (2026-09-29): one session carried all of P02, no auto-compaction ever fired, and the main context grew from 26K to 626K tokens per call. Cache reads were 35M tokens in one P01 run against 178K output; the P02 REVIEW alone re-read ~600K per turn (15.7M over 49 turns). Since then run-loop.sh starts every task in a fresh session and resumes a session only for the task it was working on. Each of the 35 denied Bash commands in those runs also cost a full-context turn.
+

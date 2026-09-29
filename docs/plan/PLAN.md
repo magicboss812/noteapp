@@ -66,7 +66,7 @@ updated: YYYY-MM-DD
 ## Handoff (<= 5 lines, overwritten each session)
 - ...
 ```
-Rules: a user answers a Blocked item by writing under it or deleting it; USER-CHECK lines get `-> ok` or `-> fail: ...` appended by the user. At session start, process answered items first (fail -> create a fix task note in Handoff and fix before continuing).
+Rules: Blocked items do not stop the unattended run; only a line ending in `[STOP]` does (next-task skill section 7). A user answers a Blocked item by writing under it or deleting it, and removes `[STOP]` when answering; USER-CHECK lines get `-> ok` or `-> fail: ...` appended by the user. At session start, process answered items first (fail -> create a fix task note in Handoff and fix before continuing).
 
 ## Kit manifest (verified in the bootstrap session)
 - CLAUDE.md, README.md, BOOTSTRAP_PROMPT.md, .gitignore, .gitattributes
