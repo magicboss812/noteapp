@@ -92,3 +92,8 @@ Format:
 - Reason: the doc's `round` formula contradicted "bucket at or above"; dp constants in screen space would make page tops depend on zoom; float offsets deep in a 200-page stack at 8x lose 0.25 px, over the 0.5 px focal budget.
 - Impact: 05-canvas-rendering.md#viewport; P03-T02 canvas host and T04 tiles use `Viewport`, `PageStackLayout`, `ZoomBuckets` (core/render viewport package).
 
+## A-018 2026-09-30 P03-T03: template details
+- Change: `GridUnit` lives in core:model instead of core/render `template/`, sanitizes decoded values (U 2..50 mm, NaN/<= 0 -> kind default, margins 0..A3 height), and only LINED/GRID/DOTTED read `spacingPt`. GRAPH_AXES axes sit on the grid lines nearest the page center (not the exact center). Structured kinds (Cornell, music, planners, custom) repeat their origin frame on infinite pages. CUSTOM images come through a `TemplateAssets` interface. Until P03-T04, `BackgroundTileLayer` draws templates directly each frame (device: dotted 20 pages jank 0.25%, p95 19 ms).
+- Reason: core:text needs GridUnit but cannot depend on core:render. Axes off the grid would break the grid invariant for text. Asset decoding (PDF raster in core:pdf) cannot live in core:render.
+- Impact: 02-modules.md (core:model), 05-canvas-rendering.md#templates, 07-text-engine.md#grid-unit; D-008 now covers only rects and custom page sizes; D-011.
+

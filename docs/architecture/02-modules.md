@@ -5,7 +5,7 @@
 |---|---|---|
 | `app` | Android application | Application class, MainActivity, navigation host, Hilt graph, debug automation (debug source set) |
 | `core:common` | JVM (A-002) | FolioDispatchers, Outcome, FolioLog, Clock, PerfMonitor, FolioFs interface |
-| `core:model` | JVM | Ids, units, geometry, spatial index, Document/Page/Object types, EditCommands, UndoManager |
+| `core:model` | JVM | Ids, units, geometry, spatial index, Document/Page/Object types, GridUnit, EditCommands, UndoManager |
 | `core:format` | JVM | `.folio` container read/write, Wire protobuf codecs, manifest JSON, migrations |
 | `core:storage` | Android library | LibraryConfig, permission, FolioFs impl, working copies, packer, recovery, Room index + FTS, repositories, DocumentSession, DataStore settings, bin purge worker |
 | `core:ink` | Android library | BrushCatalog, InputRouter, StylusCapabilities, stroke conversion, erasers, lasso membership, shape recognizer, ruler math |

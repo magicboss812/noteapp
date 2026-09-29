@@ -33,6 +33,7 @@ All templates are vector-drawn, aligned to the grid origin (x0 = 0 or left margi
 | PLANNER_WEEKLY | week header, 7 day boxes (2 columns + notes box), lined interiors | 7.1 mm |
 | CUSTOM | PNG or PDF page asset scaled to the page; user sets U (default 7.1 mm) | user value |
 Spacing presets are selectable per page (page settings sheet). Text zones (body frames) per template are defined in 07-text-engine.md#flows-and-frames.
+Rendering details (A-018, core/render `template/`): `TemplatePresets` holds the default template per kind (top margin 25 mm for lined/blank/Cornell/music/planners, 12 mm side margins for music/planners, lattices from the page corner). `TemplateRenderer` draws rules 0.5 pt, separators 1 pt, margin line 0.75 pt (all at least 1 device px), every ruled line on a GridUnit rule. Lined rules end at the last rule above a 12 mm bottom margin. GRAPH_AXES axes lie on the grid lines nearest the page center, darker lines every 5th line counted from the axes. Planner labels are English, color `#8A94A6`. Lattices (lined, grid, dotted, graph) extend unbounded on infinite pages; the other kinds repeat their origin frame. CUSTOM images come from a `TemplateAssets` source (decoded PNG or rasterized PDF page), scaled to the page frame.
 
 ## Tiles
 - Tile = 512x512 px at a zoom bucket. Key = (pageId, bucketIndex, tx, ty). Two caches: background and content.

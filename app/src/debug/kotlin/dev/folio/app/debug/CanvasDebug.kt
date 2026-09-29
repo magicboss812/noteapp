@@ -14,8 +14,8 @@ import dev.folio.core.model.Document
 import dev.folio.core.model.Orientation
 import dev.folio.core.model.PageSpec
 import dev.folio.core.model.PaperSize
-import dev.folio.core.model.Template
 import dev.folio.core.model.TemplateKind
+import dev.folio.core.render.template.TemplatePresets
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.storage.repo.DocumentRepository
 import dev.folio.core.storage.repo.NewDocumentSpec
@@ -31,16 +31,20 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-/** Parsed `open` argument: a library path, or `blank:N` (a generated N-page blank A4 document). */
+/**
+ * Parsed `open` argument: a library path, or `<template>:N` such as `blank:20` or `lined:5` (a generated
+ * N-page A4 document with that default template; any kind but CUSTOM).
+ */
 internal sealed interface OpenTarget {
     data class Path(
         val path: String,
     ) : OpenTarget
 
-    data class Blank(
+    data class Generated(
         val pages: Int,
+        val kind: TemplateKind = TemplateKind.BLANK,
     ) : OpenTarget {
-        val title: String get() = "blank-$pages"
+        val title: String get() = "${kind.name.lowercase()}-$pages"
         val path: String get() = "$FOLDER/$title.folio"
     }
 
@@ -51,9 +55,11 @@ internal sealed interface OpenTarget {
 
         fun parse(arg: String?): OpenTarget? {
             if (arg.isNullOrBlank()) return null
-            val count = arg.removePrefix("blank:")
-            if (count == arg) return Path(arg)
-            return count.toIntOrNull()?.takeIf { it in 1..MAX_PAGES }?.let(::Blank)
+            val prefix = arg.substringBefore(':', missingDelimiterValue = "")
+            val kind = TemplateKind.entries.firstOrNull { it != TemplateKind.CUSTOM && it.name.equals(prefix, ignoreCase = true) }
+            if (kind == null) return Path(arg)
+            val pages = arg.substringAfter(':').toIntOrNull()?.takeIf { it in 1..MAX_PAGES } ?: return null
+            return Generated(pages, kind)
         }
     }
 }
@@ -132,11 +138,12 @@ internal class CanvasDebug(
     val zoom: Float? get() = controller?.viewport?.takeIf { it.layout != null }?.zoom
 
     fun open(arg: String?): DebugReply {
-        val target = OpenTarget.parse(arg) ?: return DebugReply.error("open needs <library path> or blank:<1..500>")
+        val target =
+            OpenTarget.parse(arg) ?: return DebugReply.error("open needs <library path> or <template>:<1..500> (blank, lined, ...)")
         val path =
             when (target) {
                 is OpenTarget.Path -> target.path
-                is OpenTarget.Blank -> target.path
+                is OpenTarget.Generated -> target.path
             }
         opening = path
         lastError = null
@@ -203,8 +210,9 @@ internal class CanvasDebug(
     }
 
     private suspend fun Outcome<DocumentSession>.orCreate(target: OpenTarget): Outcome<DocumentSession> {
-        if (this is Outcome.Success || target !is OpenTarget.Blank) return this
-        val spec = NewDocumentSpec(OpenTarget.FOLDER, target.title, A4, BLANK_BACKGROUND, target.pages)
+        if (this is Outcome.Success || target !is OpenTarget.Generated) return this
+        val background = Background(WHITE, TemplatePresets.default(target.kind), null)
+        val spec = NewDocumentSpec(OpenTarget.FOLDER, target.title, A4, background, target.pages)
         return documents.create(spec).flatMap { sessions.open(it.path) }
     }
 
@@ -221,10 +229,7 @@ internal class CanvasDebug(
 
     private companion object {
         const val NO_CANVAS = "no canvas shown; run open first"
+        const val WHITE = 0xFFFFFFFF.toInt()
         val A4 = PageSpec.Fixed(PaperSize.A4, Orientation.PORTRAIT)
-
-        // BLANK template, U = 7.0 mm (05-canvas-rendering.md#templates).
-        val BLANK_BACKGROUND =
-            Background(0xFFFFFFFF.toInt(), Template(TemplateKind.BLANK, 19.843f, 0xFFC9D3E0.toInt(), 0f, 0f, null, null), null)
     }
 }

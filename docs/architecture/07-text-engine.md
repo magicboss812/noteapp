@@ -5,6 +5,7 @@ Typed text is Markdown, laid out on the page grid so that every line sits on the
 - U (points) comes from the page template (05-canvas-rendering.md#templates): rule spacing, grid cell, dot spacing, or the blank/custom default.
 - Grid origin: y0 = template `marginTopPt`; rule lines at y0 + n*U. Horizontal grid columns (grid/dotted/graph templates) at x0 + m*U; lined templates have no column snapping except the margin line.
 - `GridUnit.of(template)` is the single source for U and the grid origin. Changing the template spacing re-flows text on that page (line counts change, content never overlaps).
+- `GridUnit` lives in core:model (used by core:text and core:render). Only LINED/GRID/DOTTED read `spacingPt` (CUSTOM reads `customGridPt`); other kinds use the fixed U of the table. Invalid decoded values (NaN, <= 0) fall back to the kind default, U is clamped to 2..50 mm, margins to 0..A3 height (A-018).
 
 ## Line box
 - Every text line occupies a line box of height k*U (k = 1 for body text, 2 for H1/H2). Line boxes are stacked without gaps; paragraph gaps are whole empty lines.

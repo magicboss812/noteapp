@@ -1,6 +1,7 @@
 package dev.folio.app.debug
 
 import com.google.common.truth.Truth.assertThat
+import dev.folio.core.model.TemplateKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Test
@@ -10,10 +11,14 @@ class CanvasDebugTest {
         CanvasDebug({ error("unused") }, { error("unused") }, CoroutineScope(Dispatchers.Unconfined), 2.5f) {}
 
     @Test
-    fun openTarget_parse_pathBlankAndInvalid() {
+    fun openTarget_parse_pathGeneratedAndInvalid() {
         assertThat(OpenTarget.parse("notes/a.folio")).isEqualTo(OpenTarget.Path("notes/a.folio"))
-        assertThat(OpenTarget.parse("blank:20")).isEqualTo(OpenTarget.Blank(20))
-        assertThat((OpenTarget.parse("blank:20") as OpenTarget.Blank).path).isEqualTo("perf/blank-20.folio")
+        assertThat(OpenTarget.parse("notes:a.folio")).isEqualTo(OpenTarget.Path("notes:a.folio"))
+        assertThat(OpenTarget.parse("blank:20")).isEqualTo(OpenTarget.Generated(20))
+        assertThat((OpenTarget.parse("blank:20") as OpenTarget.Generated).path).isEqualTo("perf/blank-20.folio")
+        assertThat(OpenTarget.parse("planner_daily:3")).isEqualTo(OpenTarget.Generated(3, TemplateKind.PLANNER_DAILY))
+        assertThat((OpenTarget.parse("Lined:5") as OpenTarget.Generated).path).isEqualTo("perf/lined-5.folio")
+        assertThat(OpenTarget.parse("custom:2")).isEqualTo(OpenTarget.Path("custom:2"))
         assertThat(OpenTarget.parse("blank:0")).isNull()
         assertThat(OpenTarget.parse("blank:x")).isNull()
         assertThat(OpenTarget.parse(null)).isNull()
