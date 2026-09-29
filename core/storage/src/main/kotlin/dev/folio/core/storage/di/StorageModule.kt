@@ -11,6 +11,7 @@ import dagger.hilt.components.SingletonComponent
 import dev.folio.core.common.Clock
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioFs
+import dev.folio.core.common.FolioLog
 import dev.folio.core.common.JavaFileFolioFs
 import dev.folio.core.format.manifest.ManifestApp
 import dev.folio.core.storage.LibraryConfig
@@ -27,6 +28,7 @@ import dev.folio.core.storage.work.Packer
 import dev.folio.core.storage.work.Recovery
 import dev.folio.core.storage.work.RecoveryEvents
 import dev.folio.core.storage.work.WorkingCopyStore
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import javax.inject.Qualifier
@@ -66,7 +68,8 @@ internal abstract class StorageModule {
             root: LibraryRoot,
             db: IndexDb,
             clock: Clock,
-        ): LibraryScanner = LibraryScanner(root.fs, db, clock)
+            dispatchers: FolioDispatchers,
+        ): LibraryScanner = LibraryScanner(root.fs, db, clock, dispatchers)
 
         @Provides
         @Singleton
@@ -125,7 +128,9 @@ internal abstract class StorageModule {
             dispatchers: FolioDispatchers,
             app: ManifestApp,
         ): DocumentSessions =
-            DocumentSessions(store, packer, scanner, clock, dispatchers, CoroutineScope(SupervisorJob() + dispatchers.io), app)
+            DocumentSessions(store, packer, scanner, clock, dispatchers, CoroutineScope(SupervisorJob() + dispatchers.io + LogErrors), app)
+
+        private val LogErrors = CoroutineExceptionHandler { _, e -> FolioLog.e("DocumentSessions", "background task failed", e) }
 
         @Provides
         @Singleton

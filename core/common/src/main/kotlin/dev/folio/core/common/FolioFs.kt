@@ -13,8 +13,8 @@ data class FsEntry(
 
 /**
  * File access below one root (the library folder or app files in the app, a temp dir in tests).
- * Paths are relative to the root and '/'-separated ("" is the root). Absolute paths, '\\' and ".."
- * segments are programmer errors and throw IllegalArgumentException in every method.
+ * Paths are relative to the root and '/'-separated ("" is the root). Absolute paths, '\\', empty, "."
+ * and ".." segments are programmer errors and throw IllegalArgumentException in every method.
  * Calls block: run them on FolioDispatchers.io.
  */
 interface FolioFs {

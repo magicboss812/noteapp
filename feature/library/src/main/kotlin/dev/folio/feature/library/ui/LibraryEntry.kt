@@ -61,7 +61,7 @@ fun LibraryEntryScreen(
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when (state) {
             LibraryAccessState.Checking -> Unit
-            LibraryAccessState.NeedsPermission -> StorageOnboarding(onGrantAccess)
+            is LibraryAccessState.NeedsPermission -> StorageOnboarding(state.folder, onGrantAccess)
             is LibraryAccessState.Ready -> LibraryPlaceholder(state.rootPath)
             is LibraryAccessState.Failed -> CenteredColumn { Text(text = "The library folder cannot be used: ${state.message}") }
         }
@@ -79,12 +79,15 @@ private fun CenteredColumn(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun StorageOnboarding(onGrantAccess: () -> Unit) {
+private fun StorageOnboarding(
+    folder: String,
+    onGrantAccess: () -> Unit,
+) {
     CenteredColumn {
         Text(text = "Keep your notes as files", style = MaterialTheme.typography.headlineMedium)
         Text(
             text =
-                "Folio stores every notebook as a normal file in Documents/Folio, so you can copy it to a computer or back it up. " +
+                "Folio stores every notebook as a normal file in $folder, so you can copy it to a computer or back it up. " +
                     "Android needs you to allow access to all files once for this; Folio never goes online.",
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
@@ -105,13 +108,15 @@ private fun LibraryPlaceholder(rootPath: String) {
 @Preview(name = "onboarding light", widthDp = 1164, heightDp = 777)
 @Composable
 private fun OnboardingLightPreview() {
-    MaterialTheme { LibraryEntryScreen(LibraryAccessState.NeedsPermission, onGrantAccess = {}) }
+    MaterialTheme { LibraryEntryScreen(LibraryAccessState.NeedsPermission("Documents/Folio"), onGrantAccess = {}) }
 }
 
 @Preview(name = "onboarding dark", widthDp = 1164, heightDp = 777, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun OnboardingDarkPreview() {
-    MaterialTheme(colorScheme = darkColorScheme()) { LibraryEntryScreen(LibraryAccessState.NeedsPermission, onGrantAccess = {}) }
+    MaterialTheme(colorScheme = darkColorScheme()) {
+        LibraryEntryScreen(LibraryAccessState.NeedsPermission("Documents/Folio"), onGrantAccess = {})
+    }
 }
 
 @Preview(name = "library light", widthDp = 1164, heightDp = 777)

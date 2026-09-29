@@ -1,8 +1,10 @@
 package dev.folio.core.storage.work
 
 import com.google.common.truth.Truth.assertThat
+import dev.folio.core.common.Outcome
 import dev.folio.core.storage.work.WorkFixture.orThrow
 import dev.folio.core.testing.FakeClock
+import dev.folio.core.testing.FaultyFolioFs
 import dev.folio.core.testing.TempDirFolioFs
 import org.junit.Before
 import org.junit.Rule
@@ -69,14 +71,29 @@ class RecoveryTest {
     }
 
     @Test
-    fun recovery_sourceDeleted_keepsCopyAsOrphanThenDropsAfter7Days() {
+    fun recovery_sourceDeleted_keepsOrphan7DaysFromFirstReport() {
+        // The document was last modified months before the edit: that age must not count.
         dirtyCopy("# Lost")
         libraryFile(source).delete()
         assertThat(recovery.run()).containsExactly(RecoveryEvent.Orphaned(doc.meta.id, "Physics: Week 1"))
+        clock.advanceMs(6L * DAY_MS)
+        assertThat(recovery.run()).containsExactly(RecoveryEvent.Orphaned(doc.meta.id, "Physics: Week 1"))
         assertThat(store.find(doc.meta.id)).isNotNull()
-        clock.advanceMs(8L * 24 * 60 * 60 * 1000)
+        clock.advanceMs(2L * DAY_MS)
         assertThat(recovery.run()).isEmpty()
         assertThat(store.find(doc.meta.id)).isNull()
+    }
+
+    @Test
+    fun writeEntries_crashAfterDirtyMark_isStillRecovered() {
+        val app = FaultyFolioFs(fs.sub("app"), ".md")
+        val faultyStore = WorkingCopyStore(app, fs.sub("library"))
+        val copy = faultyStore.open(source).orThrow()
+        val flow = doc.flows.values.first()
+        app.failAfterBytes = 0
+        assertThat(copy.writeEntries(mapOf("flows/${flow.id.value}.md" to "# x".toByteArray()))).isInstanceOf(Outcome.Failure::class.java)
+        assertThat(faultyStore.find(doc.meta.id)!!.isDirty).isTrue()
+        assertThat(recovery.run()).containsExactly(RecoveryEvent.Recovered(doc.meta.id, source))
     }
 
     @Test
@@ -91,8 +108,11 @@ class RecoveryTest {
         val copy = store.open(source).orThrow()
         val flow = doc.flows.values.first()
         copy.writeEntries(mapOf("flows/${flow.id.value}.md" to markdown.toByteArray())).orThrow()
-        copy.updateBase(copy.base.copy(manifestModifiedMs = clock.nowMs())).orThrow()
     }
 
     private fun libraryFile(path: String) = File(fs.root, "library/$path")
+
+    private companion object {
+        const val DAY_MS = 24L * 60 * 60 * 1000
+    }
 }

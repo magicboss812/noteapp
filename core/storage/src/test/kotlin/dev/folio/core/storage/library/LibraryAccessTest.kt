@@ -13,7 +13,7 @@ class LibraryAccessTest {
     fun check_notGranted_needsPermissionAndCreatesNothing() {
         val dir = File(tmp.root, "Documents/Folio-Debug")
         val access = LibraryAccess({ false }, LibraryRoot(dir))
-        assertThat(access.check()).isEqualTo(LibraryAccessState.NeedsPermission)
+        assertThat(access.check()).isEqualTo(LibraryAccessState.NeedsPermission("Documents/Folio-Debug"))
         assertThat(dir.exists()).isFalse()
     }
 

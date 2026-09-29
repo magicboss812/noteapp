@@ -14,6 +14,7 @@ import dev.folio.core.storage.work.PackResult
 import dev.folio.core.storage.work.Packer
 import dev.folio.core.storage.work.WorkingCopyStore
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -43,18 +44,26 @@ class DocumentSessions(
             open.values.firstOrNull { it.path == path }?.let { return@withLock Outcome.Success(it) }
             withContext(dispatchers.io) {
                 store.open(path).flatMap { copy ->
-                    DocumentCodec.readDocument(copy).map { doc ->
-                        DocumentSession(copy, doc, packer, clock, dispatchers, scope, app, thumbnails, ::indexAfterPack)
+                    if (open.containsKey(copy.docId)) {
+                        return@flatMap Outcome.Failure("document ${copy.docId.value} is already open from another path")
+                    }
+                    // Each session backs up the file as it was opened (A-012), even when the copy is reused.
+                    copy.updateBase(copy.base.copy(backupDone = false)).flatMap {
+                        DocumentCodec.readDocument(copy).map { doc ->
+                            DocumentSession(copy, doc, packer, clock, dispatchers, scope, app, thumbnails, ::indexAfterPack)
+                        }
                     }
                 }
             }.also { if (it is Outcome.Success) open[it.value.docId] = it.value }
         }
 
-    /** Closes (final pack) and forgets [session]. */
-    suspend fun close(session: DocumentSession): Outcome<PackResult> {
-        lock.withLock { open.remove(session.docId) }
-        return session.close()
-    }
+    /** Final pack of [session], then forgets it. Not cancellable: leaving a screen must not skip the pack. */
+    suspend fun close(session: DocumentSession): Outcome<PackResult> =
+        withContext(NonCancellable) {
+            val result = session.close()
+            lock.withLock { open.remove(session.docId) }
+            result
+        }
 
     /** Packs every open session (app `onStop`). */
     suspend fun packAll() {

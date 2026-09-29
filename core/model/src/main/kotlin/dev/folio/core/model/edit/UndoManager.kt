@@ -68,10 +68,14 @@ class UndoManager(
         publish()
     }
 
-    /** Reverts the newest entry on [doc]; returns the result, or null if there is nothing to undo. */
+    /**
+     * Reverts the newest entry on [doc]; returns the result, or null if there is nothing to undo. If the
+     * inverse throws, the history is unchanged.
+     */
     fun undo(doc: Document): Applied? {
-        val entry = undoStack.removeLastOrNull() ?: return null
+        val entry = undoStack.lastOrNull() ?: return null
         val applied = entry.command.execute(doc)
+        undoStack.removeLast()
         redoStack.addLast(Entry(applied.inverse, entry.key, 0L))
         coalesceOpen = false
         publish()
@@ -80,8 +84,9 @@ class UndoManager(
 
     /** Re-applies the newest undone entry on [doc]; returns the result, or null if there is nothing to redo. */
     fun redo(doc: Document): Applied? {
-        val entry = redoStack.removeLastOrNull() ?: return null
+        val entry = redoStack.lastOrNull() ?: return null
         val applied = entry.command.execute(doc)
+        redoStack.removeLast()
         undoStack.addLast(Entry(applied.inverse, entry.key, clock.monotonicNs()))
         coalesceOpen = false
         publish()

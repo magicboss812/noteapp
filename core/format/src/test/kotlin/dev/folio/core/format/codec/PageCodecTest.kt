@@ -98,6 +98,14 @@ class PageCodecTest {
     }
 
     @Test
+    fun decode_unsafePageId_isCorrupt() {
+        listOf("", ".", "..", "a/b").forEach { id ->
+            val pb = PageCodec.toProto(ModelFixtures.page("p")).copy(id = id)
+            assertCorrupt(PageCodec.decode(PbPage.ADAPTER.encode(pb), "pages/p.pb"))
+        }
+    }
+
+    @Test
     fun strokeCodec_largeCoordinates_noDrift() {
         val inputs =
             dev.folio.core.model.StrokeInputs(

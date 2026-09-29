@@ -25,6 +25,12 @@ class FaultyFolioFs(
     var fired: Boolean = false
         private set
 
+    // Delegation would send this straight to the delegate and skip the injected failure.
+    override fun writeBytesAtomic(
+        path: String,
+        bytes: ByteArray,
+    ): Outcome<Unit> = writeAtomic(path) { it.write(bytes) }
+
     override fun writeAtomic(
         path: String,
         write: (OutputStream) -> Unit,

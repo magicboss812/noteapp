@@ -5,10 +5,13 @@ Longer explanations moved out of CLAUDE.md `## Learned` or rules. One section pe
 When the APK install fails (e.g. HyperOS `INSTALL_FAILED_USER_RESTRICTED`), `connectedDebugAndroidTest` still ends with BUILD SUCCESSFUL. Judge instrumented runs by `<module>/build/outputs/androidTest-results/connected/**/TEST-*.xml` (test count > 0, no failures), never by the Gradle status alone.
 
 ## Robolectric on JDK 21 needs module flags
-Robolectric (SDK 36 sandbox) reflects into `java.io.FileDescriptor` via `jdk.internal.access`; without `--add-opens java.base/java.io` and `--add-exports java.base/jdk.internal.access` it fails with "Failed to interact with raw FileDescriptor internals". `folio.screenshot` sets both.
+Robolectric (SDK 36 sandbox) reflects into `java.io.FileDescriptor` via `jdk.internal.access`; without `--add-opens java.base/java.io` and `--add-exports java.base/jdk.internal.access` it fails with "Failed to interact with raw FileDescriptor internals". Since P02-T07 `configureAndroidCommon` (build-logic) sets both for every Android module's unit tests.
 
 ## Robolectric SDK pin per module
-Robolectric 4.17 supports up to SDK 36 while targetSdk is 37. Every module that applies `folio.screenshot` needs `src/test/resources/robolectric.properties` with `sdk=36` (see :app) until Robolectric supports 37.
+Robolectric 4.17 supports up to SDK 36 while targetSdk is 37. Every module with Robolectric tests (screenshot or not: :app, core:text, core:pdf, core:storage, feature:library) needs `src/test/resources/robolectric.properties` with `sdk=36`; otherwise tests fail with `NoSuchMethodException: InputManager.getInstance()`.
+
+## Detekt 2.0 config keys
+Detekt 2.0 renamed thresholds: `TooManyFunctions` uses `allowedFunctionsPer{Class,Interface,File,Object,Enum}` (not `thresholdIn*`); an unknown key fails every detekt task. Also: detekt run in the same Gradle call as `spotlessApply` may report line numbers of the pre-format file; rerun detekt alone before fixing.
 
 ## APK size comparisons need clean builds
 Incremental debug packaging keeps entries of removed dependencies: switching a library to `compileOnly` changed the debug APK by only kilobytes. Compare sizes only after `./gradlew :app:clean :app:assembleDebug` (P01-S4: RaTeX +3.54 MB arm64 measured this way).

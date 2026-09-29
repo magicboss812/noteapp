@@ -82,3 +82,8 @@ Format:
 - Reason: 12-performance.md keeps `Application.onCreate` free of storage work, and recovery needs All-files access; stamping modifiedMs inside commands would break exact undo.
 - Impact: 03-document-model.md#sessions; P04 editor (EditorSession wraps a DocumentSession), P05 (RecoveryEvents snackbar).
 
+## A-016 2026-09-29 P02-REVIEW: storage safety fixes
+- Change: ids from files are validated (`FolioIds`) and `FolioFs` rejects empty/`.` segments; a manual duplicate (second file with a docId whose working copy belongs to another existing file) gets a new docId on open, a dirty copy follows its moved file; the dirty mark is written to `base.json` before the entries; orphaned working copies are kept 7 days from the first time recovery reported them (`orphanSinceMs`); pages stay pinned by edit generation until the autosave of that generation is written; `LibraryScanner` switches to io itself; undo/redo pop only after the inverse succeeded; `DocumentSessions.close` packs under NonCancellable and each session backs up the file as opened; rename rewrites in place then moves; file stems are capped at 200 UTF-8 bytes (conflict names included); onboarding names the configured folder.
+- Reason: reviewer findings (P02 REVIEW): data loss or deletion of other documents' working copies, main-thread IO, crashes on hostile files.
+- Impact: 04-file-format.md#versioning (id rules, known unknown-key loss after session edits, D-010), 04#crash-recovery, 09-storage-library.md#index; Deferred D-007..D-010.
+

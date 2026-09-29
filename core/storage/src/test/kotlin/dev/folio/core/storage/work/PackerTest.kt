@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import dev.folio.core.common.Outcome
 import dev.folio.core.format.container.DocumentEntries
+import dev.folio.core.storage.repo.FileNames
 import dev.folio.core.storage.work.WorkFixture.orThrow
 import dev.folio.core.testing.FakeClock
 import dev.folio.core.testing.FaultyFolioFs
@@ -82,9 +83,14 @@ class PackerTest {
     }
 
     @Test
-    fun safeFileName_replacesReservedCharacters() {
-        assertThat(Packer.safeFileName("Physics: Week 1/2 <draft>?")).isEqualTo("Physics- Week 1-2 -draft--")
-        assertThat(Packer.safeFileName(".hidden")).isEqualTo("hidden")
+    fun stemOf_replacesReservedCharactersAndLimitsBytes() {
+        assertThat(FileNames.stemOf("Physics: Week 1/2 <draft>?")).isEqualTo("Physics- Week 1-2 -draft--")
+        assertThat(FileNames.stemOf(".hidden")).isEqualTo("hidden")
+        assertThat(FileNames.stemOf("   ")).isEqualTo("Untitled")
+        val emoji = FileNames.stemOf("📚".repeat(100)) // 4 UTF-8 bytes each
+        assertThat(emoji.encodeToByteArray().size).isAtMost(200)
+        assertThat(emoji.length % 2).isEqualTo(0) // no split surrogate pair
+        assertThat(FileNames.stemOf("x".repeat(300))).hasLength(120)
     }
 
     private companion object {

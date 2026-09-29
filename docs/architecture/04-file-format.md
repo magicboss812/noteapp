@@ -128,6 +128,8 @@ Flow style file `flows/<flowId>.json`: `{"fontFamily":"Inter","sizeRatio":0.5,"p
 - Readers accept `formatVersion <= supported` and run migrations in sequence (`Migration(from, to)` registry in core:format). Newer versions: typed error `FormatTooNew`, open impossible, library shows a badge.
 - Additive changes within a major version: new optional JSON keys (ignored by older readers), new protobuf fields with new numbers. Removing or reinterpreting fields requires a major bump.
 - Every version change adds golden files under `testdata/format/v<N>/`.
+- Known v1 limit (A-016, Deferred D-010): metadata operations of the library keep unknown manifest keys and entries, but a document edited in a session is written from the model, so unknown manifest keys, unknown protobuf fields and objects of unknown kinds are dropped on its next pack. Unknown entries are kept (the working copy holds them).
+- Ids from files are checked before use (A-016): doc, page and flow ids match `[A-Za-z0-9][A-Za-z0-9_-]{0,127}`, asset ids are lowercase SHA-256 hex; anything else is `Corrupt`. Page entries are limited to 16 MB.
 
 ## Write protocol
 1. Editing happens in the working copy `files/work/<docId>/` (same layout as the ZIP, unpacked) plus `base.json` (source path, source size + mtime, manifest modifiedMs at open, dirty entry names, lastPackMs).
@@ -137,9 +139,9 @@ Flow style file `flows/<flowId>.json`: `{"fontFamily":"Inter","sizeRatio":0.5,"p
 5. Packing never blocks the main thread. Pack of a 50 MB document <= 1.5 s (assets STORED, no recompression).
 
 ## Crash recovery
-- On app start, scan `files/work/*/base.json`. A working copy with dirty entries or newer than its source is packed (unless the source changed externally, see Conflicts). The UI shows a one-time "Recovered unsaved changes" snackbar.
+- On app start, scan `files/work/*/base.json`. A working copy with dirty entries is packed (unless the source changed externally, see Conflicts); entries are marked dirty in `base.json` before they are written, so every written change is covered (A-016). The UI shows a one-time "Recovered unsaved changes" snackbar.
 - Stale `.folio.tmp` files in the library are deleted on start if older than 10 minutes.
-- Working copies of documents that no longer exist (deleted externally) are kept for 7 days and offered as "Recovered: <title>" in the library.
+- Working copies of documents that no longer exist (deleted externally) are kept for 7 days from the first time they are reported and offered as "Recovered: <title>" in the library. A dirty copy whose file was moved follows the file when it is opened at its new path.
 
 ## Conflicts
 - Before packing, compare the source file's size + mtime with `base.json`. If the source changed externally (another app, USB copy) and the working copy is dirty: pack to `<title> (conflict YYYY-MM-DD HH-mm).folio` in the same folder, keep the external version untouched, notify the user.

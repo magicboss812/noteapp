@@ -22,8 +22,21 @@ class LibraryEntryScreenshotTest {
 
     @Test
     fun entry_needsPermission_showsOnboarding() {
-        compose.setContent { MaterialTheme { LibraryEntryScreen(LibraryAccessState.NeedsPermission, onGrantAccess = {}) } }
+        compose.setContent {
+            MaterialTheme {
+                LibraryEntryScreen(
+                    LibraryAccessState.NeedsPermission("Documents/Folio"),
+                    onGrantAccess = {},
+                )
+            }
+        }
         compose.onRoot().captureRoboImage("src/test/screenshots/LibraryEntry_onboarding.png")
+    }
+
+    @Test
+    fun entry_failed_showsMessage() {
+        compose.setContent { MaterialTheme { LibraryEntryScreen(LibraryAccessState.Failed("cannot create .trash"), onGrantAccess = {}) } }
+        compose.onRoot().captureRoboImage("src/test/screenshots/LibraryEntry_failed.png")
     }
 
     @Test

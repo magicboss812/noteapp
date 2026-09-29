@@ -9,15 +9,24 @@ object FileNames {
     private const val MAX_STEM = 120
     private val UNSAFE = Regex("[\\\\/:*?\"<>|\\p{Cntrl}]")
 
-    /** [title] as a file stem: invalid characters become '-', no leading dots, at most 120 chars, never empty. */
-    fun stemOf(title: String): String =
-        title
-            .replace(UNSAFE, "-")
-            .trim()
-            .trimStart('.')
-            .take(MAX_STEM)
-            .trim()
-            .ifEmpty { "Untitled" }
+    /**
+     * [title] as a file stem: invalid characters become '-', no leading dots, at most 120 chars and
+     * 200 UTF-8 bytes (file systems allow 255 bytes; suffixes like " (conflict ...)" need room), never empty.
+     */
+    fun stemOf(title: String): String {
+        var stem =
+            title
+                .replace(UNSAFE, "-")
+                .trim()
+                .trimStart('.')
+                .take(MAX_STEM)
+        while (stem.encodeToByteArray().size > MAX_STEM_BYTES) {
+            stem = stem.dropLast(if (stem.length >= 2 && stem[stem.length - 1].isLowSurrogate()) 2 else 1)
+        }
+        return stem.trim().ifEmpty { "Untitled" }
+    }
+
+    private const val MAX_STEM_BYTES = 200
 
     /** Library path in [dir] for [stem] + [ext] that does not exist yet: "Name", "Name (2)", "Name (3)", ... */
     fun unique(

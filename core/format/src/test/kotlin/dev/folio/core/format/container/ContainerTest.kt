@@ -68,6 +68,22 @@ class ContainerTest {
     }
 
     @Test
+    fun manifest_unsafeIds_areCorrupt() {
+        val base = """"format":"folio","formatVersion":1,"title":"T","createdMs":1,"modifiedMs":2"""
+        listOf(
+            """{$base,"id":""}""",
+            """{$base,"id":"."}""",
+            """{$base,"id":"../x"}""",
+            """{$base,"id":"d1","pages":[{"id":"a/b","kind":"fixed","size":"A4","widthPt":1,"heightPt":1}]}""",
+            """{$base,"id":"d1","flows":[".."]}""",
+            """{$base,"id":"d1","assets":[{"id":"ABC","path":"assets/x","mime":"image/png","bytes":1}]}""",
+        ).forEach { text ->
+            val result = DocumentCodec.parseManifest(text)
+            assertThat((result as Outcome.Failure).cause).isInstanceOf(FormatError.Corrupt::class.java)
+        }
+    }
+
+    @Test
     fun manifest_newerMajorVersion_rejectedWithFormatTooNew() {
         val text = """{"format":"folio","formatVersion":2,"id":"d1","title":"T","createdMs":1,"modifiedMs":2}"""
         val result = DocumentCodec.parseManifest(text)

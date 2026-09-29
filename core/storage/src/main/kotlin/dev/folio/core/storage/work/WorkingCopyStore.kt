@@ -6,8 +6,11 @@ import dev.folio.core.common.flatMap
 import dev.folio.core.common.map
 import dev.folio.core.common.outcomeOf
 import dev.folio.core.format.container.DocumentCodec
+import dev.folio.core.format.container.FolioContainerReader
 import dev.folio.core.format.container.FolioEntries
 import dev.folio.core.model.DocId
+import dev.folio.core.storage.repo.ContainerRewriter
+import dev.folio.core.storage.repo.ManifestPatch
 import java.io.IOException
 import java.io.InputStream
 import java.util.UUID
@@ -22,26 +25,51 @@ class WorkingCopyStore(
     private val libraryFs: FolioFs,
 ) {
     /**
-     * Working copy for the `.folio` at [sourcePath]. Reuses an existing copy of the same document if it
-     * was made from this file and the file did not change since (size + mtime), or if it has unsaved
-     * changes (the packer resolves those as a conflict). Otherwise unpacks the file fresh.
+     * Working copy for the `.folio` at [sourcePath]:
+     * - a copy made from this file is reused if the file is unchanged (size + mtime) or the copy has
+     *   unsaved changes (the packer resolves those as a conflict);
+     * - a copy of the same docId made from another file that still exists means [sourcePath] is a manual
+     *   duplicate: it gets a new docId first (manifest rewritten, 09-storage-library.md#index);
+     * - a dirty copy whose file is gone follows the file to [sourcePath] (moved outside the app);
+     * - otherwise the file is unpacked fresh.
      */
     fun open(sourcePath: String): Outcome<WorkingCopy> {
         val stat = libraryFs.stat(sourcePath) ?: return Outcome.Failure("source $sourcePath does not exist")
         return peekDocId(sourcePath).flatMap { docId ->
             val existing = find(docId)
-            val unchanged =
-                existing != null &&
-                    existing.base.sourcePath == sourcePath &&
-                    existing.base.sourceSize == stat.sizeBytes &&
-                    existing.base.sourceMtimeMs == stat.modifiedMs
-            if (existing != null && (unchanged || existing.isDirty)) {
-                Outcome.Success(existing)
-            } else {
-                unpack(sourcePath, docId, stat.sizeBytes, stat.modifiedMs)
+            when {
+                existing == null -> {
+                    unpack(sourcePath, docId, stat.sizeBytes, stat.modifiedMs)
+                }
+
+                existing.base.sourcePath == sourcePath -> {
+                    val unchanged = existing.base.sourceSize == stat.sizeBytes && existing.base.sourceMtimeMs == stat.modifiedMs
+                    if (unchanged ||
+                        existing.isDirty
+                    ) {
+                        Outcome.Success(existing)
+                    } else {
+                        unpack(sourcePath, docId, stat.sizeBytes, stat.modifiedMs)
+                    }
+                }
+
+                libraryFs.exists(existing.base.sourcePath) -> {
+                    reassignId(sourcePath).flatMap { open(sourcePath) }
+                }
+
+                existing.isDirty -> {
+                    existing.updateBase(existing.base.copy(sourcePath = sourcePath)).map { existing }
+                }
+
+                else -> {
+                    unpack(sourcePath, docId, stat.sizeBytes, stat.modifiedMs)
+                }
             }
         }
     }
+
+    private fun reassignId(sourcePath: String): Outcome<Unit> =
+        ContainerRewriter(libraryFs).rewrite(sourcePath, sourcePath, ManifestPatch(id = DocId.random().value))
 
     /** Existing working copy of [docId], or null (missing or unreadable `base.json`). */
     fun find(docId: DocId): WorkingCopy? {
@@ -61,9 +89,15 @@ class WorkingCopyStore(
     /** Deletes the working copy of [docId]. */
     fun discard(docId: DocId): Outcome<Unit> = appFs.deleteRecursively(WorkingCopy.dirOf(docId))
 
-    /** Reads the document id from the manifest, the second entry of a `.folio`. */
-    private fun peekDocId(sourcePath: String): Outcome<DocId> =
-        libraryFs
+    /** Reads the document id from the manifest (random access when file-backed, else a stream up to the manifest). */
+    private fun peekDocId(sourcePath: String): Outcome<DocId> {
+        val local = libraryFs.localFile(sourcePath)
+        if (local != null) {
+            return FolioContainerReader.open(local).flatMap { reader ->
+                reader.use { DocumentCodec.readManifest(it).map { m -> DocId(m.id) } }
+            }
+        }
+        return libraryFs
             .openRead(sourcePath)
             .flatMap { input ->
                 outcomeOf("read manifest of $sourcePath") {
@@ -74,6 +108,7 @@ class WorkingCopyStore(
                     }
                 }
             }.flatMap { text -> DocumentCodec.parseManifest(text).map { DocId(it.id) } }
+    }
 
     private fun unpack(
         sourcePath: String,

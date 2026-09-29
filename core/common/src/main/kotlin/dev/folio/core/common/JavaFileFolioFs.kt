@@ -102,10 +102,11 @@ class JavaFileFolioFs(
     }
 
     private fun resolve(path: String): File {
-        require(!path.startsWith("/") && '\\' !in path && path.split('/').none { it == ".." }) {
-            "path must be relative, '/'-separated, without '..': $path"
+        if (path.isEmpty()) return root
+        require(!path.startsWith("/") && '\\' !in path && path.split('/').none { it.isEmpty() || it == "." || it == ".." }) {
+            "path must be relative, '/'-separated, without empty, '.' or '..' segments: $path"
         }
-        return if (path.isEmpty()) root else File(root, path)
+        return File(root, path)
     }
 
     private fun File.toEntry(): FsEntry =

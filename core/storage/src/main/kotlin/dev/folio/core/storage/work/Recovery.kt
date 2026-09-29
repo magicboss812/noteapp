@@ -87,9 +87,13 @@ class Recovery(
             PackResult.SourceMissing -> orphan(copy)
         }
 
+    // The 7 days count from the first time the orphan was reported to the user, never from older
+    // document timestamps, so unsaved work is always offered before it expires.
     private fun orphan(copy: WorkingCopy): RecoveryEvent? {
-        val lastActivityMs = maxOf(copy.base.lastPackMs, copy.base.manifestModifiedMs)
-        if (clock.nowMs() - lastActivityMs > ORPHAN_KEEP_MS) {
+        val since = copy.base.orphanSinceMs
+        if (since == null) {
+            copy.updateBase(copy.base.copy(orphanSinceMs = clock.nowMs()))
+        } else if (clock.nowMs() - since > ORPHAN_KEEP_MS) {
             store.discard(copy.docId)
             return null
         }

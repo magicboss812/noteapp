@@ -64,7 +64,11 @@ class DocumentSession internal constructor(
     private val copyLock = Any()
     private val state = MutableStateFlow(initial)
     private val lru = LinkedHashMap<PageId, Unit>(INITIAL_LRU, LOAD_FACTOR, true)
-    private val pinned = HashSet<PageId>()
+
+    // Page -> generation of its latest unsaved edit; guarded by synchronized(pinned).
+    private val pinned = HashMap<PageId, Long>()
+    private val flushedGeneration = HashMap<PageId, Long>()
+    private var pinGeneration = 0L
     private val undoManager = UndoManager(clock)
     private var lastEditMs = initial.meta.modifiedMs
     private var packTimer: Job? = null
@@ -134,7 +138,14 @@ class DocumentSession internal constructor(
             val (command, run) = next()
             if (command == null) return@withLock Outcome.Success(Unit)
             ensureLoaded(command.requiredPages).let { if (it is Outcome.Failure) return@withLock it }
-            val applied = run(state.value) ?: return@withLock Outcome.Success(Unit)
+            val applied =
+                try {
+                    run(state.value)
+                } catch (e: IllegalArgumentException) {
+                    return@withLock Outcome.Failure("history step rejected", e)
+                } catch (e: IllegalStateException) {
+                    return@withLock Outcome.Failure("history step rejected", e)
+                } ?: return@withLock Outcome.Success(Unit)
             commit(applied.doc, command.requiredPages)
             Outcome.Success(Unit)
         }
@@ -180,14 +191,16 @@ class DocumentSession internal constructor(
         }
         val removedPages = before.pages.map { it.id }.toSet() - after.pages.map { it.id }.toSet()
         removedPages.forEach { lru.remove(it) }
+        // Publish the new state before bumping pin generations: a flush that sees a generation also sees
+        // the state that produced it (see pageBytes/writeEntries).
+        state.value = evict(after, protect = touched + changedPages)
         (changedPages + removedPages).forEach { id ->
-            synchronized(pinned) { pinned += id }
+            synchronized(pinned) { pinned[id] = ++pinGeneration }
             autosaver.schedule(FolioEntries.page(id)) { pageBytes(id) }
         }
         scheduleFlows(before, after)
         autosaver.schedule(FolioEntries.MANIFEST) { manifestBytes() }
         autosaver.schedule(FolioEntries.SEARCH_TEXT) { DocumentEntries.searchText(state.value).encodeToByteArray() }
-        state.value = evict(after, protect = touched + changedPages)
         if (changedPages.isNotEmpty()) thumbnails.pagesChanged(state.value, changedPages)
         startPackTimer()
     }
@@ -209,7 +222,10 @@ class DocumentSession internal constructor(
         index: Int,
     ): ByteArray? = state.value.flows[id]?.let { DocumentEntries.encodeFlow(it)[index].second }
 
+    // Runs inside an autosave flush, possibly concurrently with an edit: capture the pin generation
+    // before reading the state, so a later edit keeps the page pinned for the next flush.
     private fun pageBytes(id: PageId): ByteArray? {
+        synchronized(pinned) { pinned[id]?.let { flushedGeneration[id] = it } }
         val doc = state.value
         val body = doc.pageBodies[id] ?: return if (doc.pageRef(id) == null) null else unchangedPage(id)
         return PageCodec.encode(body)
@@ -228,7 +244,12 @@ class DocumentSession internal constructor(
         val result = synchronized(copyLock) { copy.writeEntries(entries) }
         if (result is Outcome.Success) {
             val written = entries.keys.filter { it.startsWith("pages/") }.map { PageId(it.removePrefix("pages/").removeSuffix(".pb")) }
-            synchronized(pinned) { pinned.removeAll(written.toSet()) }
+            synchronized(pinned) {
+                for (id in written) {
+                    val generation = flushedGeneration.remove(id)
+                    if (generation != null && pinned[id] == generation) pinned.remove(id)
+                }
+            }
         }
         return result
     }
@@ -239,7 +260,7 @@ class DocumentSession internal constructor(
     ): Document {
         if (doc.pageBodies.size <= maxDecodedPages) return doc
         val bodies = doc.pageBodies.builder()
-        val keep = synchronized(pinned) { pinned + protect }
+        val keep = synchronized(pinned) { pinned.keys + protect }
         val iterator = lru.keys.iterator()
         while (bodies.size > maxDecodedPages && iterator.hasNext()) {
             val id = iterator.next()

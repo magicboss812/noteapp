@@ -116,10 +116,28 @@ class DocumentRepository(
     ): Outcome<String> =
         io {
             val stem = FileNames.stemOf(title)
-            val sameName = FileNames.nameOf(path) == stem + FileNames.FOLIO_EXT
-            val target = if (sameName) path else FileNames.unique(fs, FileNames.parentOf(path), stem, FileNames.FOLIO_EXT)
-            rewriter.rewrite(path, target, ManifestPatch(title = title)).flatMap {
-                if (target == path) Outcome.Success(target) else fs.delete(path).map { target }
+            val newName = stem + FileNames.FOLIO_EXT
+            val oldName = FileNames.nameOf(path)
+            val parent = FileNames.parentOf(path)
+            // Rewrite in place, then rename: there is never a second file with the same docId.
+            rewriter.rewrite(path, path, ManifestPatch(title = title)).flatMap {
+                when {
+                    newName == oldName -> {
+                        Outcome.Success(path)
+                    }
+
+                    // Case-only change on the case-insensitive shared storage: go through a temp name.
+                    newName.equals(oldName, ignoreCase = true) -> {
+                        val temp = FileNames.join(parent, ".rename-${clock.nowMs()}.tmp")
+                        val target = FileNames.join(parent, newName)
+                        fs.move(path, temp).flatMap { fs.move(temp, target) }.map { target }
+                    }
+
+                    else -> {
+                        val target = FileNames.unique(fs, parent, stem, FileNames.FOLIO_EXT)
+                        fs.move(path, target).map { target }
+                    }
+                }
             }
         }.also { result -> if (result is Outcome.Success) reindex(removed = listOf(path), added = result.value) }
 

@@ -2,6 +2,7 @@ package dev.folio.core.storage.index
 
 import androidx.room.withTransaction
 import dev.folio.core.common.Clock
+import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioFs
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.FsEntry
@@ -11,6 +12,7 @@ import dev.folio.core.format.FormatError
 import dev.folio.core.format.container.DocumentCodec
 import dev.folio.core.format.container.FolioContainerReader
 import dev.folio.core.format.container.FolioEntries
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -26,32 +28,40 @@ data class ScanStats(
  * Keeps the index in sync with the library folder (09-storage-library.md#scanning): walks visible
  * folders, reads only `manifest.json` and `search/text.txt` of new or changed `.folio` files (ZipFile
  * random access) and writes in transactions of [batchSize] documents. Also deletes stale temp files of
- * interrupted packs (04-file-format.md#crash-recovery). Run on the io dispatcher.
+ * interrupted packs (04-file-format.md#crash-recovery). Every public method switches to the io
+ * dispatcher itself, so callers may use it from any context.
  */
 class LibraryScanner(
     private val fs: FolioFs,
     private val db: IndexDb,
     private val clock: Clock,
+    private val dispatchers: FolioDispatchers,
     private val batchSize: Int = DEFAULT_BATCH,
 ) {
     private val dao = db.dao()
 
     /** Re-reads every document. */
-    suspend fun fullScan(): ScanStats = scan(force = true)
+    suspend fun fullScan(): ScanStats = withContext(dispatchers.io) { scan(force = true) }
 
     /** Re-reads documents whose size or mtime changed; removes rows of vanished files. */
-    suspend fun incrementalScan(): ScanStats = scan(force = false)
+    suspend fun incrementalScan(): ScanStats = withContext(dispatchers.io) { scan(force = false) }
 
     /** Indexes one file after our own write (no walk). */
     suspend fun indexFile(path: String) {
-        val stat = fs.stat(path) ?: return removeFiles(listOf(path))
-        val doc = read(stat)
-        db.withTransaction { write(listOf(doc)) }
+        withContext(dispatchers.io) {
+            val stat = fs.stat(path)
+            if (stat == null) {
+                db.withTransaction { delete(listOf(path)) }
+            } else {
+                val doc = read(stat)
+                db.withTransaction { write(listOf(doc)) }
+            }
+        }
     }
 
     /** Removes rows of files that no longer exist (our own delete or move). */
     suspend fun removeFiles(paths: List<String>) {
-        db.withTransaction { delete(paths) }
+        withContext(dispatchers.io) { db.withTransaction { delete(paths) } }
     }
 
     private suspend fun scan(force: Boolean): ScanStats {

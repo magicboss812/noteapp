@@ -23,8 +23,11 @@ object FolioEntries {
     /** Largest manifest accepted (untrusted input bound). */
     const val MAX_MANIFEST_BYTES = 4L * 1024 * 1024
 
-    /** Largest page or flow entry accepted. */
+    /** Largest flow or text entry accepted. */
     const val MAX_PAYLOAD_BYTES = 64L * 1024 * 1024
+
+    /** Largest page entry accepted: Wire boxes repeated ints, so decoding needs many times the size. */
+    const val MAX_PAGE_BYTES = 16L * 1024 * 1024
 
     private const val MAX_NAME_LENGTH = 255
     private const val ASCII_MAX = 0x7F

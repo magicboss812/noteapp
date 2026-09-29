@@ -41,6 +41,8 @@ data class RestorePages(
         val bodies = doc.pageBodies.builder()
         for (entry in entries.sortedBy { it.index }) {
             require(existing.add(entry.page.id)) { "page ${entry.page.id.value} already exists" }
+            val objects = entry.page.objects
+            require(objects.distinctBy { it.id }.size == objects.size) { "duplicate object ids on page ${entry.page.id.value}" }
             require(entry.index in 0..refs.size) { "index ${entry.index} out of range" }
             refs.add(entry.index, entry.page.toRef())
             bodies[entry.page.id] = entry.page

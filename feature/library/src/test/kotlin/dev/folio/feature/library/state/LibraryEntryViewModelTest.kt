@@ -35,7 +35,7 @@ class LibraryEntryViewModelTest {
             assertThat(vm.state.value).isEqualTo(LibraryAccessState.Checking)
             vm.refresh()
             testScheduler.advanceUntilIdle()
-            assertThat(vm.state.value).isEqualTo(LibraryAccessState.NeedsPermission)
+            assertThat(vm.state.value).isEqualTo(LibraryAccessState.NeedsPermission(library.label))
             granted = true
             vm.refresh()
             testScheduler.advanceUntilIdle()

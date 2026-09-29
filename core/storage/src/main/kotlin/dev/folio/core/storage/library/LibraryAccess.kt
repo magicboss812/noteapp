@@ -28,6 +28,9 @@ class LibraryRoot(
 ) {
     /** File system rooted at the library folder. */
     val fs: FolioFs by lazy { JavaFileFolioFs(dir) }
+
+    /** Short name for UI copy: parent and folder name ("Documents/Folio"). */
+    val label: String get() = listOfNotNull(dir.parentFile?.name, dir.name).joinToString("/")
 }
 
 /** Access state shown by the library entry screen. */
@@ -35,8 +38,10 @@ sealed interface LibraryAccessState {
     /** Not yet known (first check pending). */
     data object Checking : LibraryAccessState
 
-    /** All-files access missing: show onboarding. */
-    data object NeedsPermission : LibraryAccessState
+    /** All-files access missing: show onboarding naming [folder] (e.g. "Documents/Folio"). */
+    data class NeedsPermission(
+        val folder: String,
+    ) : LibraryAccessState
 
     /** Library usable at [rootPath]. */
     data class Ready(
@@ -59,7 +64,7 @@ class LibraryAccess
     ) {
         /** Current state; creates the root and its hidden folders when access is granted. */
         fun check(): LibraryAccessState {
-            if (!permission.isGranted()) return LibraryAccessState.NeedsPermission
+            if (!permission.isGranted()) return LibraryAccessState.NeedsPermission(root.label)
             return when (val r = LibraryLayout.ensure(root.fs)) {
                 is Outcome.Success -> LibraryAccessState.Ready(root.dir.path)
                 is Outcome.Failure -> LibraryAccessState.Failed(r.message)

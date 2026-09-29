@@ -9,6 +9,7 @@ import dev.folio.core.common.getOrNull
 import dev.folio.core.format.container.DocumentCodec
 import dev.folio.core.format.container.FolioContainerWriter
 import dev.folio.core.format.container.WriterEntry
+import dev.folio.core.storage.repo.FileNames
 import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
@@ -105,13 +106,14 @@ class Packer(
         val source = copy.base.sourcePath
         val dir = source.substringBeforeLast('/', "")
         val title =
-            DocumentCodec
-                .readManifest(copy)
-                .getOrNull()
-                ?.title
-                ?.let(::safeFileName)
-                ?.ifBlank { null }
-                ?: source.substringAfterLast('/').removeSuffix(".folio")
+            FileNames.stemOf(
+                DocumentCodec
+                    .readManifest(copy)
+                    .getOrNull()
+                    ?.title
+                    ?.ifBlank { null }
+                    ?: source.substringAfterLast('/').removeSuffix(FileNames.FOLIO_EXT),
+            )
         val stamp = CONFLICT_STAMP.format(Instant.ofEpochMilli(clock.nowMs()).atZone(zone))
         val stem = "$title (conflict $stamp)"
         val candidates = sequenceOf("$stem.folio") + generateSequence(2) { it + 1 }.map { "$stem ($it).folio" }
@@ -124,9 +126,5 @@ class Packer(
         const val BACKUP_DIR = "backup"
         private const val TAG = "Packer"
         private val CONFLICT_STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH-mm")
-        private val UNSAFE = Regex("[\\\\/:*?\"<>|\\p{Cntrl}]")
-
-        /** [title] made safe as a file name on Android and desktop file systems. */
-        fun safeFileName(title: String): String = title.replace(UNSAFE, "-").trim().trimStart('.')
     }
 }

@@ -35,7 +35,15 @@ class LibraryScannerTest {
     @Before
     fun setUp() {
         db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), IndexDb::class.java).build()
-        scanner = LibraryScanner(fs, db, clock)
+        val io = kotlinx.coroutines.Dispatchers.IO
+        scanner =
+            LibraryScanner(
+                fs,
+                db,
+                clock,
+                dev.folio.core.common
+                    .FolioDispatchers(io, io, io, io, io),
+            )
     }
 
     @After

@@ -24,6 +24,8 @@ data class BaseInfo(
     val dirtyEntries: Set<String> = emptySet(),
     val lastPackMs: Long = 0L,
     val backupDone: Boolean = false,
+    /** When recovery first reported the source as missing; the copy is kept 7 days from then. */
+    val orphanSinceMs: Long? = null,
 )
 
 /**
@@ -67,17 +69,17 @@ class WorkingCopy internal constructor(
     fun open(name: String): Outcome<InputStream> = appFs.openRead(path(name))
 
     /**
-     * Writes changed entries atomically one by one (null = delete), then records them as dirty in
-     * `base.json`. After a crash in between, the entry is on disk but maybe not marked: recovery also
-     * packs copies whose entries are newer than the last pack.
+     * Records the entries as dirty in `base.json` first, then writes them atomically one by one
+     * (null = delete). A crash in between leaves at worst a dirty mark on an unchanged entry (an extra
+     * pack), never a written change that recovery does not see.
      */
     fun writeEntries(changes: Map<String, ByteArray?>): Outcome<Unit> {
-        for ((name, bytes) in changes) {
-            require(name != BASE_JSON && !name.startsWith(".")) { "reserved entry name $name" }
-            val result = if (bytes == null) appFs.delete(path(name)) else appFs.writeBytesAtomic(path(name), bytes)
-            if (result is Outcome.Failure) return result
+        changes.keys.forEach { require(it != BASE_JSON && !it.startsWith(".")) { "reserved entry name $it" } }
+        return updateBase(base.copy(dirtyEntries = base.dirtyEntries + changes.keys)).flatMap {
+            changes.entries.fold<Map.Entry<String, ByteArray?>, Outcome<Unit>>(Outcome.Success(Unit)) { acc, (name, bytes) ->
+                acc.flatMap { if (bytes == null) appFs.delete(path(name)) else appFs.writeBytesAtomic(path(name), bytes) }
+            }
         }
-        return updateBase(base.copy(dirtyEntries = base.dirtyEntries + changes.keys))
     }
 
     /** Replaces and persists `base.json`. */

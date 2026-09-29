@@ -89,6 +89,7 @@ data class ReplaceObjects(
         val remaining = page.objects.removeAll { it.id in idSet }
         val remainingIds = remaining.mapTo(HashSet()) { it.id }
         require(added.none { it.id in remainingIds }) { "added object id already on page" }
+        require(added.distinctBy { it.id }.size == added.size) { "duplicate object ids" }
         val at = entries.minOfOrNull { it.index } ?: remaining.size
         val newPage = page.copy(objects = remaining.addAll(at, added))
         val inverse = Batch(listOf(RemoveObjects(pageId, added.map { it.id }), InsertObjectsAt(pageId, entries)))

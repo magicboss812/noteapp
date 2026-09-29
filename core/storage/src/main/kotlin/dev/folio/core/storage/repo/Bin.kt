@@ -88,8 +88,13 @@ internal class Bin(
             .map { target }
     }
 
-    fun deleteForever(entry: BinEntry): Outcome<Unit> =
-        fs.deleteRecursively(entry.trashPath).flatMap { fs.delete(sidecarOf(entry.trashPath)) }
+    fun deleteForever(entry: BinEntry): Outcome<Unit> {
+        // BinEntry is public: never let a hand-made entry delete anything outside the bin.
+        require(entry.trashPath.startsWith("${LibraryLayout.TRASH}/") && '/' !in entry.trashPath.removePrefix("${LibraryLayout.TRASH}/")) {
+            "not a bin entry: ${entry.trashPath}"
+        }
+        return fs.deleteRecursively(entry.trashPath).flatMap { fs.delete(sidecarOf(entry.trashPath)) }
+    }
 
     /** Deletes every bin entry. Returns the number deleted. */
     fun empty(): Outcome<Int> = purge { true }

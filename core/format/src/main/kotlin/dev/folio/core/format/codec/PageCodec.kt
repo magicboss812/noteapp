@@ -1,6 +1,7 @@
 package dev.folio.core.format.codec
 
 import dev.folio.core.common.Outcome
+import dev.folio.core.format.FolioIds
 import dev.folio.core.format.FormatError
 import dev.folio.core.model.Page
 import dev.folio.core.model.PageId
@@ -49,7 +50,7 @@ object PageCodec {
         )
 
     internal fun fromProto(pb: PbPage): Page {
-        corruptIf(pb.id.isBlank()) { "page id missing" }
+        corruptIf(!FolioIds.isSafeId(pb.id)) { "unsafe page id '${pb.id}'" }
         val spec = LayoutCodec.specFromProto(pb.spec.orCorrupt("page spec"))
         val background = LayoutCodec.backgroundFromProto(pb.background.orCorrupt("background"))
         val objects = pb.objects.mapNotNull(ObjectCodec::fromProto)

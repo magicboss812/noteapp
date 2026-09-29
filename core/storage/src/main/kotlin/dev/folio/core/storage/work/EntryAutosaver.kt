@@ -2,6 +2,8 @@ package dev.folio.core.storage.work
 
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
+import dev.folio.core.common.flatMap
+import dev.folio.core.common.outcomeOf
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -45,7 +47,11 @@ class EntryAutosaver(
         lock.withLock {
             val batch = synchronized(pending) { LinkedHashMap(pending).also { pending.clear() } }
             if (batch.isEmpty()) return@withLock Outcome.Success(Unit)
-            val result = withContext(io) { write(batch.mapValues { (_, provider) -> provider() }) }
+            val result =
+                withContext(io) {
+                    // A throwing provider (encoder bug) must not lose the batch or crash the scope.
+                    outcomeOf("encode autosave entries") { batch.mapValues { (_, provider) -> provider() } }.flatMap(write)
+                }
             if (result is Outcome.Failure) {
                 FolioLog.w(TAG, "autosave failed: ${result.message}", result.cause)
                 // Keep the entries so the next flush retries them (newer providers win).

@@ -32,7 +32,7 @@ abstract class RepositoryTestBase {
     @Before
     fun setUpRepositories() {
         db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), IndexDb::class.java).build()
-        scanner = LibraryScanner(fs, db, clock)
+        scanner = LibraryScanner(fs, db, clock, dispatchers)
         documents = DocumentRepository(fs, scanner, db.dao(), clock, dispatchers, ManifestApp("Folio", "test"))
         library = LibraryRepository(fs, scanner, db.dao(), dispatchers, documents)
     }

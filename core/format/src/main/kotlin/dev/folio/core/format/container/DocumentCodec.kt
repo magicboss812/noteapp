@@ -3,8 +3,10 @@ package dev.folio.core.format.container
 import dev.folio.core.common.Outcome
 import dev.folio.core.common.flatMap
 import dev.folio.core.common.map
+import dev.folio.core.format.FolioIds
 import dev.folio.core.format.codec.CorruptDataException
 import dev.folio.core.format.codec.PageCodec
+import dev.folio.core.format.codec.corruptIf
 import dev.folio.core.format.manifest.FlowStyleJson
 import dev.folio.core.format.manifest.FolioJson
 import dev.folio.core.format.manifest.Manifest
@@ -43,9 +45,17 @@ object DocumentCodec {
             migrations.plan(version).map { plan ->
                 var json: JsonObject = raw
                 plan.forEach { json = it.migrateManifest(json) }
-                FolioJson.decodeFromJsonElement(Manifest.serializer(), json)
+                FolioJson.decodeFromJsonElement(Manifest.serializer(), json).also(::checkIds)
             }
         }
+
+    // Ids become path parts (entries, working copies): reject anything unsafe as Corrupt.
+    private fun checkIds(m: Manifest) {
+        corruptIf(!FolioIds.isSafeId(m.id)) { "unsafe document id '${m.id}'" }
+        m.pages.forEach { p -> corruptIf(!FolioIds.isSafeId(p.id)) { "unsafe page id '${p.id}'" } }
+        m.flows.forEach { f -> corruptIf(!FolioIds.isSafeId(f)) { "unsafe flow id '$f'" } }
+        m.assets.forEach { a -> corruptIf(!FolioIds.isAssetId(a.id)) { "unsafe asset id '${a.id}'" } }
+    }
 
     /** Document with meta, page refs, flows and assets; page bodies only if [loadPages]. */
     fun readDocument(
@@ -68,7 +78,7 @@ object DocumentCodec {
         id: PageId,
     ): Outcome<Page> {
         val name = FolioEntries.page(id)
-        return reader.read(name, FolioEntries.MAX_PAYLOAD_BYTES).flatMap { bytes ->
+        return reader.read(name, FolioEntries.MAX_PAGE_BYTES).flatMap { bytes ->
             PageCodec.decode(bytes, name).flatMap { page ->
                 if (page.id == id) Outcome.Success(page) else corrupt(name, "page id ${page.id.value} does not match its entry")
             }
