@@ -9,11 +9,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 
 /**
- * Embeds a [CanvasHostView] for [controller]. The page list is collected into the view directly (no
+ * Embeds a [CanvasHostView] for [controller]. The document is collected into the view directly (no
  * recomposition per document change); [onHost] receives the view once created (debug automation).
  */
 @Composable
@@ -36,10 +34,7 @@ fun CanvasHost(
         val view = host
         LaunchedEffect(view) {
             if (view == null) return@LaunchedEffect
-            controller.document
-                .map { it.pages }
-                .distinctUntilChanged()
-                .collect { view.setPages(it) }
+            controller.document.collect { view.setDocument(it) }
         }
     }
 }

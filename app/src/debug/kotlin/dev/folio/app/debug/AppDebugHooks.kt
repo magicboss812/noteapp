@@ -44,7 +44,7 @@ internal class AppDebugHooks
     ) : DebugHooks {
         private val scope = CoroutineScope(SupervisorJob() + dispatchers.main)
         private val canvas: CanvasDebug =
-            CanvasDebug(sessions::get, documents::get, scope, Resources.getSystem().displayMetrics.density) {
+            CanvasDebug(sessions::get, documents::get, scope, Resources.getSystem().displayMetrics.density, dispatchers.render) {
                 showRoute(DebugAppState.CANVAS, force = true)
                 state.navigate(DebugAppState.CANVAS)
             }
@@ -72,6 +72,7 @@ internal class AppDebugHooks
                         "open" to canvas::open,
                         "zoom-anim" to canvas::zoomAnim,
                         "scroll-page" to canvas::scrollPage,
+                        "seed-strokes" to canvas::seedStrokes,
                     ),
             ) { visible -> setOverlayVisible(visible) }
 

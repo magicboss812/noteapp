@@ -12,9 +12,13 @@ import dev.folio.core.common.flatMap
 import dev.folio.core.model.Background
 import dev.folio.core.model.Document
 import dev.folio.core.model.Orientation
+import dev.folio.core.model.PageId
 import dev.folio.core.model.PageSpec
 import dev.folio.core.model.PaperSize
 import dev.folio.core.model.TemplateKind
+import dev.folio.core.model.edit.AddObjects
+import dev.folio.core.model.edit.Batch
+import dev.folio.core.model.edit.RemoveObjects
 import dev.folio.core.render.template.TemplatePresets
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.storage.repo.DocumentRepository
@@ -24,6 +28,7 @@ import dev.folio.core.storage.session.DocumentSessions
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasHost
 import dev.folio.feature.editor.canvas.CanvasHostView
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -106,15 +111,25 @@ internal data class ScrollPage(
 private class SessionCanvasController(
     val session: DocumentSession,
     density: Float,
+    override val renderDispatcher: CoroutineDispatcher,
+    private val scope: CoroutineScope,
 ) : CanvasController {
     override val document: StateFlow<Document> get() = session.document
     override val viewport = Viewport(density)
+
+    override fun loadPages(ids: Collection<PageId>) {
+        scope.launch {
+            val result = session.loadPages(ids)
+            if (result is Outcome.Failure) FolioLog.w(DebugReply.TAG, "loadPages: ${result.message}")
+        }
+    }
 }
 
 /**
- * Debug commands for the canvas host (P03-T02): `open <path>|blank:N` opens a document through
+ * Debug commands for the canvas host (P03-T02, T04): `open <path>|blank:N` opens a document through
  * [DocumentSessions] and shows it on the `canvas` route; `zoom-anim` and `scroll-page` script the
- * viewport for frame stats. Replaced by the P04 editor route and EditorSession.
+ * viewport for frame stats; `seed-strokes n[,page]` replaces a page's objects with n synthetic strokes.
+ * Replaced by the P04 editor route and EditorSession.
  */
 @MainThread
 internal class CanvasDebug(
@@ -122,6 +137,7 @@ internal class CanvasDebug(
     private val documentsProvider: () -> DocumentRepository,
     private val scope: CoroutineScope,
     private val density: Float,
+    private val renderDispatcher: CoroutineDispatcher,
     private val onOpened: () -> Unit,
 ) {
     private val sessions: DocumentSessions get() = sessionsProvider()
@@ -176,6 +192,34 @@ internal class CanvasDebug(
         return DebugReply.ok(json() ?: JsonObject(emptyMap()))
     }
 
+    fun seedStrokes(arg: String?): DebugReply {
+        val seed = SeedStrokes.parse(arg) ?: return DebugReply.error("seed-strokes needs n[,page] with n in 1..${SeedStrokes.MAX_COUNT}")
+        val current = controller ?: return DebugReply.error(NO_CANVAS)
+        val ref =
+            current.document.value.pages
+                .getOrNull(seed.page - 1) ?: return DebugReply.error("no page ${seed.page}")
+        val strokes = SyntheticStrokes.generate(seed.count, ref.spec.widthPt, ref.spec.heightPt)
+        scope.launch {
+            val loaded = current.session.loadPages(listOf(ref.id))
+            val existing =
+                current.document.value.pageBodies[ref.id]
+                    ?.objects
+                    ?.map { it.id }
+                    .orEmpty()
+            val result =
+                if (loaded is Outcome.Failure) {
+                    loaded
+                } else {
+                    current.session.execute(Batch(listOf(RemoveObjects(ref.id, existing), AddObjects(ref.id, strokes))))
+                }
+            FolioLog.i(
+                DebugReply.TAG,
+                "seed-strokes ${seed.count} on page ${seed.page} -> ${(result as? Outcome.Failure)?.message ?: "ok"}",
+            )
+        }
+        return DebugReply.ok(buildJsonObject { put("seeding", seed.count) })
+    }
+
     /** The canvas screen for the open document, or null if none is open. */
     fun createView(context: Context): View? {
         val current = controller ?: return null
@@ -205,6 +249,25 @@ internal class CanvasDebug(
                 put("animating", host?.isAnimating)
                 put("requestedHz", host?.requestedHz)
                 put("activeHz", host?.display?.refreshRate)
+                put(
+                    "objects",
+                    current.document.value.pageBodies.values
+                        .sumOf { it.objects.size },
+                )
+                host?.tileStats?.let { t ->
+                    put(
+                        "tiles",
+                        buildJsonObject {
+                            put("budgetMiBPerLayer", t.budgetBytesPerLayer / MIB)
+                            put("background", t.backgroundTiles)
+                            put("backgroundMiB", t.backgroundBytes / MIB)
+                            put("content", t.contentTiles)
+                            put("contentMiB", t.contentBytes / MIB)
+                            put("pending", t.pending)
+                            put("evictions", t.evictions)
+                        },
+                    )
+                }
             }
         }
     }
@@ -223,13 +286,14 @@ internal class CanvasDebug(
             return
         }
         previous?.let { old -> scope.launch { sessions.close(old.session) } }
-        controller = SessionCanvasController(session, density)
+        controller = SessionCanvasController(session, density, renderDispatcher, scope)
         onOpened()
     }
 
     private companion object {
         const val NO_CANVAS = "no canvas shown; run open first"
         const val WHITE = 0xFFFFFFFF.toInt()
+        const val MIB = 1024L * 1024L
         val A4 = PageSpec.Fixed(PaperSize.A4, Orientation.PORTRAIT)
     }
 }

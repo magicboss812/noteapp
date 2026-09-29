@@ -78,6 +78,16 @@ class PageRenderer(
         canvas.restore()
     }
 
+    /** Fills the painter cache of object [index] of [content] ahead of drawing (ink meshes). */
+    @WorkerThread
+    fun prepare(
+        content: PageContent,
+        index: Int,
+    ) {
+        val o = content[index]
+        if (o is InkStroke) ink.prepare(o, content, index)
+    }
+
     private fun drawObjects(
         canvas: Canvas,
         content: PageContent,

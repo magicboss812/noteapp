@@ -2,8 +2,12 @@ package dev.folio.feature.editor.canvas
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.ActivityManager
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.res.Configuration
+import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -12,19 +16,54 @@ import android.widget.OverScroller
 import androidx.annotation.MainThread
 import androidx.ink.authoring.InProgressStrokesView
 import dev.folio.core.common.PerfMonitor
-import dev.folio.core.model.PageRef
+import dev.folio.core.model.Document
+import dev.folio.core.model.PageId
+import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.render.DisplayModeHelper
+import dev.folio.core.render.PageRenderer
+import dev.folio.core.render.RenderTarget
+import dev.folio.core.render.tiles.BitmapPool
+import dev.folio.core.render.tiles.TileGrid
+import dev.folio.core.render.tiles.TileLayer
+import dev.folio.core.render.tiles.VisiblePage
 import dev.folio.core.render.viewport.Viewport
+import dev.folio.core.render.viewport.ViewportMode
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlin.math.max
+import kotlin.math.min
+
+/** Tile cache numbers for debug `state` (05-canvas-rendering.md#tiles). */
+data class TileStats(
+    /** Budget per layer, bytes. */
+    val budgetBytesPerLayer: Long,
+    /** Cached background entries (empty tiles included). */
+    val backgroundTiles: Int,
+    /** Bytes of background tiles. */
+    val backgroundBytes: Long,
+    /** Cached content entries (empty tiles included). */
+    val contentTiles: Int,
+    /** Bytes of content tiles. */
+    val contentBytes: Long,
+    /** Renders queued or running, both layers. */
+    val pending: Int,
+    /** Tiles evicted by the budget, both layers. */
+    val evictions: Int,
+)
 
 /**
  * The editor canvas (05-canvas-rendering.md#layers), hosted by an `AndroidView`. Children bottom to
  * top: [BackgroundTileLayer], [ContentTileLayer], an overlay slot for Compose, and androidx.ink's
  * [InProgressStrokesView]. All touch input arrives in [dispatchTouchEvent]; today only finger pan and
- * zoom ([FingerGestures]), stylus routing arrives with InputRouter (P03-T06). While attached it
- * requests the fastest display mode ([DisplayModeHelper]).
+ * zoom ([FingerGestures]), stylus routing arrives with InputRouter (P03-T06). Pan and zoom only move
+ * existing tiles; 100 ms after the viewport settles the host requests tiles at the new bucket. While
+ * attached it requests the fastest display mode ([DisplayModeHelper]).
  */
 @SuppressLint("ViewConstructor") // created in code by CanvasHost only
 @MainThread
+@Suppress("TooManyFunctions") // view lifecycle, gestures, document updates and tile scheduling
 class CanvasHostView internal constructor(
     context: Context,
     private val controller: CanvasController,
@@ -34,8 +73,13 @@ class CanvasHostView internal constructor(
     constructor(context: Context, controller: CanvasController) : this(context, controller, ::InProgressStrokesView)
 
     private val viewport: Viewport get() = controller.viewport
-    private val background = BackgroundTileLayer(context, controller.viewport)
-    private val content = ContentTileLayer(context)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val pool = BitmapPool()
+    private val budgetPerLayer = tileBudgetBytes(context) / 2
+    private val backgroundTiles = tileLayer(RenderTarget.SCREEN_BACKGROUND)
+    private val contentTiles = tileLayer(RenderTarget.SCREEN_CONTENT)
+    private val background = BackgroundTileLayer(context, controller.viewport, backgroundTiles)
+    private val content = ContentTileLayer(context, controller.viewport, contentTiles)
     private val displayModes = context.findActivity()?.window?.let(::DisplayModeHelper)
     private val gestures =
         ViewConfiguration.get(context).let { config ->
@@ -52,7 +96,12 @@ class CanvasHostView internal constructor(
             )
         }
     private val animator = ViewportAnimator(controller.viewport, ::onViewportChanged)
-    private var pages: List<PageRef>? = null
+    private val idleRequest = Runnable { requestTiles() }
+    private val memoryCallbacks = MemoryCallbacks()
+    private var document: Document? = null
+    private var lastViewportChangeMs = 0L
+    private var settleStartNs = 0L
+    private var lastVisible: List<VisiblePage> = emptyList()
 
     /** Slot for the Compose overlay (focused text, selection, lasso, ...), above committed content. */
     val overlay = FrameLayout(context)
@@ -72,11 +121,39 @@ class CanvasHostView internal constructor(
         addView(wetLayer, LayoutParams(match))
     }
 
-    /** Lays out [next] (the document's page list); keeps the viewport position when pages change. */
-    fun setPages(next: List<PageRef>) {
-        if (next == pages) return
-        pages = next
-        layoutPages()
+    /** Current tile cache numbers. */
+    val tileStats: TileStats
+        get() =
+            TileStats(
+                budgetBytesPerLayer = budgetPerLayer,
+                backgroundTiles = backgroundTiles.tileCount,
+                backgroundBytes = backgroundTiles.bytes,
+                contentTiles = contentTiles.tileCount,
+                contentBytes = contentTiles.bytes,
+                pending = backgroundTiles.pendingCount + contentTiles.pendingCount,
+                evictions = backgroundTiles.evictions + contentTiles.evictions,
+            )
+
+    /**
+     * Shows [next]: lays out its pages (keeping the viewport position) and hands page summaries and
+     * loaded bodies to the tile layers, which invalidate what changed.
+     */
+    fun setDocument(next: Document) {
+        val previous = document
+        if (previous === next) return
+        document = next
+        if (previous?.pages != next.pages) layoutPages()
+        val keep = HashSet<String>(next.pages.size * 2)
+        for (ref in next.pages) {
+            keep += ref.id.value
+            backgroundTiles.setPage(ref, null)
+            contentTiles.setPage(ref, next.pageBodies[ref.id])
+        }
+        backgroundTiles.retainPages(keep)
+        contentTiles.retainPages(keep)
+        invalidateLayers()
+        // Mid-gesture the idle timer requests later; otherwise refresh stale or newly loaded tiles now.
+        if (SystemClock.uptimeMillis() - lastViewportChangeMs >= IDLE_MS && !isAnimating) requestTiles()
     }
 
     /** Animates the zoom (times fit-width) [fromZoom] -> [toZoom] over [durationMs] around the view center. */
@@ -107,12 +184,19 @@ class CanvasHostView internal constructor(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         requestedHz = display?.let { d -> displayModes?.request(d) }
+        context.registerComponentCallbacks(memoryCallbacks)
     }
 
     override fun onDetachedFromWindow() {
         animator.cancel()
         gestures.release()
         displayModes?.release()
+        context.unregisterComponentCallbacks(memoryCallbacks)
+        removeCallbacks(idleRequest)
+        scope.coroutineContext.cancelChildren()
+        backgroundTiles.clear()
+        contentTiles.clear()
+        pool.clear()
         super.onDetachedFromWindow()
     }
 
@@ -136,21 +220,121 @@ class CanvasHostView internal constructor(
         }
 
     private fun layoutPages() {
-        val current = pages ?: return
+        val current = document?.pages ?: return
         if (width == 0 || height == 0) return
         viewport.setPages(current, width.toFloat(), height.toFloat())
         onViewportChanged()
     }
 
     private fun onViewportChanged() {
+        // HOT PATH: per gesture event and animation frame.
+        invalidateLayers()
+        lastViewportChangeMs = SystemClock.uptimeMillis()
+        removeCallbacks(idleRequest)
+        postDelayed(idleRequest, IDLE_MS)
+    }
+
+    private fun invalidateLayers() {
         background.invalidate()
         content.invalidate()
     }
 
-    /** PerfMonitor sections. */
+    /** Requests tiles for the visible pages at the current bucket and decodes their bodies (plus neighbors). */
+    private fun requestTiles() {
+        val stack = viewport.layout ?: return
+        val doc = document ?: return
+        if (isAnimating) {
+            postDelayed(idleRequest, IDLE_MS)
+            return
+        }
+        val visible = ArrayList<VisiblePage>()
+        val missing = ArrayList<PageId>()
+        val scale = viewport.scale
+        val ringPt = TileGrid.tileSizePt(viewport.bucketIndex)
+        val centerX = width / 2f
+        val centerY = height / 2f
+        val canvasMode = viewport.mode is ViewportMode.Canvas
+        viewport.forEachVisiblePage(width.toFloat(), height.toFloat()) { i, originX, originY, l, t, r, b ->
+            val frame = stack.framePt(i)
+            val prefetch =
+                if (canvasMode) {
+                    RectPt(l - ringPt, t - ringPt, r + ringPt, b + ringPt)
+                } else {
+                    RectPt(
+                        max(frame.left, l - ringPt),
+                        max(frame.top, t - ringPt),
+                        min(frame.right, r + ringPt),
+                        min(
+                            frame.bottom,
+                            b + ringPt,
+                        ),
+                    )
+                }
+            val page = stack.pages[i]
+            visible += VisiblePage(page.id.value, RectPt(l, t, r, b), (centerX - originX) / scale, (centerY - originY) / scale, prefetch)
+            for (j in max(0, i - 1)..min(stack.size - 1, i + 1)) {
+                val id = stack.pages[j].id
+                if (id !in doc.pageBodies && id !in missing) missing += id
+            }
+        }
+        if (missing.isNotEmpty()) controller.loadPages(missing)
+        // Visible tiles of both layers queue before any prefetch tile.
+        backgroundTiles.request(visible, scale)
+        contentTiles.request(visible, scale)
+        backgroundTiles.prefetch(visible, scale)
+        contentTiles.prefetch(visible, scale)
+        lastVisible = visible
+        settleStartNs = if (backgroundTiles.isSettled && contentTiles.isSettled) 0L else PerfMonitor.clock.monotonicNs()
+        if (contentTiles.pendingCount == 0) contentTiles.warmUp(visible)
+    }
+
+    private fun onTileReady() {
+        invalidateLayers()
+        val start = settleStartNs
+        if (start != 0L && backgroundTiles.isSettled && contentTiles.isSettled) {
+            PerfMonitor.record(SECTION_SETTLE, PerfMonitor.clock.monotonicNs() - start)
+            settleStartNs = 0L
+        }
+        if (contentTiles.pendingCount == 0) contentTiles.warmUp(lastVisible)
+    }
+
+    private fun tileLayer(target: RenderTarget) =
+        TileLayer(target, budgetPerLayer, pool, scope, controller.renderDispatcher, ::PageRenderer, ::onTileReady)
+
+    private inner class MemoryCallbacks : ComponentCallbacks2 {
+        override fun onTrimMemory(level: Int) {
+            backgroundTiles.trimMemory()
+            contentTiles.trimMemory()
+        }
+
+        override fun onConfigurationChanged(newConfig: Configuration) = Unit
+
+        @Deprecated("Deprecated in Java")
+        override fun onLowMemory() = onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_COMPLETE)
+    }
+
+    /** PerfMonitor sections and timing. */
     companion object {
         /** Time spent routing one MotionEvent. */
         const val SECTION_TOUCH = "canvas:touch"
+
+        /** From the idle tile request until every visible tile of both layers is rendered. */
+        const val SECTION_SETTLE = "render:settle"
+
+        /** Viewport idle time before tiles of the new bucket are requested. */
+        const val IDLE_MS = 100L
+
+        /** Share of `largeMemoryClass` for both tile caches (05-canvas-rendering.md#tiles). */
+        private const val BUDGET_SHARE = 4
+        private const val BYTES_PER_MB = 1024L * 1024L
+
+        private fun tileBudgetBytes(context: Context): Long {
+            val reported = context.getSystemService(ActivityManager::class.java)?.largeMemoryClass ?: 0
+            val mb = if (reported > 0) reported else DEFAULT_LARGE_MEMORY_MB
+            return mb * BYTES_PER_MB / BUDGET_SHARE
+        }
+
+        private const val DEFAULT_LARGE_MEMORY_MB = 512
     }
 }
 

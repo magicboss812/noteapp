@@ -1,7 +1,9 @@
 package dev.folio.feature.editor.canvas
 
 import dev.folio.core.model.Document
+import dev.folio.core.model.PageId
 import dev.folio.core.render.viewport.Viewport
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -9,9 +11,15 @@ import kotlinx.coroutines.flow.StateFlow
  * Later tasks add `commit(strokes)`, `hitTest`, `currentTool()` and `requestRender(bounds)`.
  */
 interface CanvasController {
-    /** The open document; the host lays out its pages. */
+    /** The open document; the host lays out its pages and tiles the loaded page bodies. */
     val document: StateFlow<Document>
 
     /** Pan and zoom state of this pane, owned by the session so it survives the view. */
     val viewport: Viewport
+
+    /** Where tiles render (`FolioDispatchers.render`, 2 threads). */
+    val renderDispatcher: CoroutineDispatcher
+
+    /** Asks the session to decode [ids] (visible pages and neighbors); [document] updates when they arrive. */
+    fun loadPages(ids: Collection<PageId>)
 }

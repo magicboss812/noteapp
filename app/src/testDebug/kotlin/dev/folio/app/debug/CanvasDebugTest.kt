@@ -8,7 +8,7 @@ import org.junit.Test
 
 class CanvasDebugTest {
     private val canvas =
-        CanvasDebug({ error("unused") }, { error("unused") }, CoroutineScope(Dispatchers.Unconfined), 2.5f) {}
+        CanvasDebug({ error("unused") }, { error("unused") }, CoroutineScope(Dispatchers.Unconfined), 2.5f, Dispatchers.Unconfined) {}
 
     @Test
     fun openTarget_parse_pathGeneratedAndInvalid() {
@@ -43,9 +43,30 @@ class CanvasDebugTest {
     }
 
     @Test
+    fun seedStrokes_parse_countAndOptionalPage() {
+        assertThat(SeedStrokes.parse("1500")).isEqualTo(SeedStrokes(1500, 1))
+        assertThat(SeedStrokes.parse("20,3")).isEqualTo(SeedStrokes(20, 3))
+        assertThat(SeedStrokes.parse("0")).isNull()
+        assertThat(SeedStrokes.parse("5001")).isNull()
+        assertThat(SeedStrokes.parse("10,0")).isNull()
+        assertThat(SeedStrokes.parse(null)).isNull()
+    }
+
+    @Test
+    fun syntheticStrokes_sameSeed_sameStrokesInsideThePage() {
+        val a = SyntheticStrokes.generate(200, 595f, 842f)
+        val b = SyntheticStrokes.generate(200, 595f, 842f)
+
+        assertThat(a).isEqualTo(b)
+        assertThat(a.map { it.id }.toSet()).hasSize(200)
+        assertThat(a.all { it.bounds.left >= 0f && it.bounds.right <= 595f && it.bounds.bottom <= 842f }).isTrue()
+    }
+
+    @Test
     fun commands_noCanvasShown_replyNotOk() {
         assertThat(canvas.zoomAnim("1,3,800").ok).isFalse()
         assertThat(canvas.scrollPage("3").ok).isFalse()
+        assertThat(canvas.seedStrokes("10").ok).isFalse()
         assertThat(canvas.open("blank:0").ok).isFalse()
         assertThat(canvas.json()).isNull()
     }

@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P03
-next: P03-T04
+next: P03-T05
 updated: 2026-09-30
 
 ## Completed
@@ -10,7 +10,7 @@ updated: 2026-09-30
 - P02 done 2026-09-29 (tag p02-done): model + commands (200-command undo property test), folio.v1 codec (1000x120 inputs 709 KB), container + goldens, crash-safe packer (100 injected failures), recovery, Room index (500 docs 149 ms), repositories, sessions (LRU 30); REVIEW fixed 6 blocking findings; A-009..A-016; qa green.
 
 ## Current phase progress
-- P03: T01, T02, T03, T04a (D-008 decode ranges), T04b (core/render tiles + PageRenderer)
+- P03: T01, T02, T03, T04
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck 2026-09-29: All files access was still granted before any grant, so the `[Checked]` mark did not revoke it. -> turn off Settings > Apps > Folio Debug > Permissions > All files access, then write "-> revoked" here (Claude reruns without grant-storage.sh first); or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else. [technically revoked, no app permissions yet to change (none at all), so there is no "All files access" permission]
@@ -30,8 +30,8 @@ updated: 2026-09-30
 - D-011 P03-T03: CUSTOM templates render through `TemplateAssets` but nothing implements it yet (PNG decode from session assets, PDF page raster via core:pdf) and there is no import UI; add both in P08 (with the PDF raster).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P03-T03 done: core/render `template/` = `TemplateRenderer` (all 10 kinds, infinite repetition), `TemplatePresets`, `TemplateAssets`; `GridUnit` in core:model (A-018). 32 goldens in core/render/src/test/screenshots.
-- `BackgroundTileLayer` draws templates directly per frame (device: dotted:20 jank 0.25% p95 19 ms, lined:20 0.25% p95 13 ms); T04 moves them into background tiles via `PageRenderer`.
-- Debug: `open <template>:N` (blank, lined, dotted, graph_axes, planner_weekly, ...) generates perf/<kind>-N.folio; `zoom-anim`, `scroll-page`, `state.canvas` as before.
-- Seen twice now (T02, T03): a finger swipe at the document top at fit width did not pan (offsetYPx stayed 0), no error. Reproduce and fix in T06 input routing, or earlier if it blocks T04 device checks.
-- Next: P03-T04 (tile caches); D-008 rect/custom-size validation is due before tiles render decoded values.
+- P03-T04 done (T04a D-008 decode ranges A-019, T04b core/render `tiles/` + `PageRenderer` + core:ink `StrokeBuilder`, T04c editor wiring; A-020). Device: 1500 strokes jank 0.34%/0.31%, `render:settle` p95 122 ms.
+- Canvas: `CanvasController` gained `renderDispatcher` + `loadPages`; `CanvasHostView.setDocument` feeds both `TileLayer`s; idle request 100 ms after the last viewport change.
+- `StrokeBuilder` maps BrushKind to androidx.ink stock families; T05 `BrushCatalog` should replace `familyOf` there (meshes are cached in `PageContent` slots).
+- Debug: `seed-strokes n[,page]` (replaces page objects, idempotent), `state.canvas.tiles`/`objects`; each `debugcmd.sh` call takes ~6 s. Finger swipes panned fine in T04 (earlier no-pan report not reproduced).
+- Next: P03-T05 brush catalog.

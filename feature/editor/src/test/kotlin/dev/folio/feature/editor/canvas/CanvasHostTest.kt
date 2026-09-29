@@ -1,6 +1,7 @@
 package dev.folio.feature.editor.canvas
 
 import android.content.Context
+import android.os.Looper
 import android.view.MotionEvent.ACTION_DOWN
 import android.view.MotionEvent.ACTION_MOVE
 import android.view.MotionEvent.ACTION_UP
@@ -14,17 +15,21 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.model.Document
+import dev.folio.core.model.PageId
 import dev.folio.core.model.PageSpec
 import dev.folio.core.model.geometry.PointPt
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.toViewPx
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.feature.editor.canvas.TouchEvents.event
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import java.time.Duration
 
 // Xiaomi Pad 7 in landscape: 3200x2136 px at 440 dpi (docs/notes/device.md).
 private const val PAD7_LANDSCAPE = "w1164dp-h777dp-land-440dpi"
@@ -38,6 +43,14 @@ private class FakeCanvasController(
             .resources.displayMetrics.density
     override val document = MutableStateFlow<Document>(ModelFixtures.document(List(pages) { ModelFixtures.page("p$it") }))
     override val viewport = Viewport(density)
+
+    // Tiles render inline on the main thread, so a frame after the idle request shows them.
+    override val renderDispatcher = Dispatchers.Unconfined
+    val loadRequests = ArrayList<PageId>()
+
+    override fun loadPages(ids: Collection<PageId>) {
+        loadRequests += ids
+    }
 }
 
 @RunWith(AndroidJUnit4::class)
@@ -51,6 +64,13 @@ class CanvasHostTest {
 
     private fun show() {
         compose.setContent { CanvasHost(controller, Modifier.fillMaxSize(), onHost = { host = it }) }
+        settle()
+    }
+
+    /** Runs the idle tile request (100 ms after the last viewport change) and the resulting frame. */
+    private fun settle() {
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(CanvasHostView.IDLE_MS * 2))
         compose.waitForIdle()
     }
 
@@ -72,7 +92,7 @@ class CanvasHostTest {
         show()
 
         compose.runOnUiThread { hostView().animateZoom(0.3f, 0.3f, durationMs = 0) }
-        compose.waitForIdle()
+        settle()
 
         assertThat(controller.viewport.zoom).isWithin(1e-4f).of(0.3f)
         compose.onRoot().captureRoboImage("src/test/screenshots/CanvasHost_stackZoomedOut.png")
@@ -120,5 +140,28 @@ class CanvasHostTest {
         compose.waitForIdle()
 
         assertThat(controller.viewport.layout?.size).isEqualTo(3)
+    }
+
+    @Test
+    fun idleRequest_rendersVisibleBackgroundTiles_contentOfEmptyPagesNeedsNoBitmaps() {
+        show()
+
+        val stats = hostView().tileStats
+        assertThat(stats.pending).isEqualTo(0)
+        assertThat(stats.backgroundBytes).isGreaterThan(0L)
+        assertThat(stats.contentTiles).isGreaterThan(0)
+        assertThat(stats.contentBytes).isEqualTo(0L)
+        assertThat(controller.loadRequests).isEmpty() // every body of the fixture is loaded
+    }
+
+    @Test
+    fun setDocument_unloadedVisiblePage_asksTheSessionToLoadIt() {
+        show()
+
+        val doc = controller.document.value
+        controller.document.value = doc.copy(pageBodies = doc.pageBodies.remove(doc.pages[0].id))
+        settle()
+
+        assertThat(controller.loadRequests).contains(doc.pages[0].id)
     }
 }

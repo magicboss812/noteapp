@@ -23,6 +23,14 @@ interface InkPainter {
         index: Int,
         toDevice: Matrix,
     )
+
+    /** Builds what [draw] would cache for [stroke] (object [index] of [content]) without drawing. */
+    @WorkerThread
+    fun prepare(
+        stroke: InkStroke,
+        content: PageContent,
+        index: Int,
+    ) = Unit
 }
 
 /** androidx.ink [CanvasStrokeRenderer] with meshes from [StrokeBuilder], cached per page snapshot. */
@@ -37,14 +45,28 @@ class AndroidInkPainter : InkPainter {
         index: Int,
         toDevice: Matrix,
     ) {
-        val mesh =
-            when (val cached = content.meshSlot(index)) {
-                is Stroke -> cached
-                null -> build(stroke).also { content.setMeshSlot(index, it ?: UNDRAWABLE) }
-                else -> null // UNDRAWABLE
-            } ?: return
+        val mesh = mesh(stroke, content, index) ?: return
         renderer.draw(canvas, mesh, toDevice)
     }
+
+    override fun prepare(
+        stroke: InkStroke,
+        content: PageContent,
+        index: Int,
+    ) {
+        mesh(stroke, content, index)
+    }
+
+    private fun mesh(
+        stroke: InkStroke,
+        content: PageContent,
+        index: Int,
+    ): Stroke? =
+        when (val cached = content.meshSlot(index)) {
+            is Stroke -> cached
+            null -> build(stroke).also { content.setMeshSlot(index, it ?: UNDRAWABLE) }
+            else -> null // UNDRAWABLE
+        }
 
     private fun build(stroke: InkStroke): Stroke? =
         try {

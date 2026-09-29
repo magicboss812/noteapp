@@ -18,6 +18,7 @@ import dev.folio.core.render.viewport.ZoomBuckets
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -59,10 +60,10 @@ class TileLayer(
         val content: PageContent?,
     )
 
-    private val cache =
-        TileCache<Bitmap>(budgetBytes, pool::release) { count, bytes ->
-            FolioLog.d(TAG, "${target.name}: evicted $count tiles (${bytes / BYTES_PER_MIB} MiB)")
-        }
+    // Evictions are logged once per request (debug builds), not per tile.
+    private val cache = TileCache<Bitmap>(budgetBytes, pool::release)
+    private var loggedEvictions = 0
+    private var warmUp: Job? = null
     private val pages = HashMap<String, PageState>()
     private val inFlight = HashMap<TileKey, Job>()
     private val waitingVisible = HashSet<TileKey>()
@@ -147,9 +148,9 @@ class TileLayer(
     }
 
     /**
-     * Starts renders at [scale]'s bucket for [visible] pages: missing or stale visible tiles first
-     * (center-out across pages), then the prefetch ring while the budget has room. Cancels renders of
-     * other buckets.
+     * Starts renders at [scale]'s bucket for the missing or stale tiles on screen of [visible] pages,
+     * center-out across pages, and cancels renders of other buckets. Call [prefetch] after the
+     * requests of every layer, so all visible tiles queue before any prefetch tile.
      */
     fun request(
         visible: List<VisiblePage>,
@@ -163,32 +164,73 @@ class TileLayer(
             job.cancel()
             stale.remove()
         }
-        waitingVisible.clear()
-        val sizePt = TileGrid.tileSizePt(bucket)
-        val order = ArrayList<Pair<Float, TileKey>>()
-        val ring = ArrayList<Pair<Float, TileKey>>()
-        for (v in visible) {
-            val inView = TileGrid.range(v.visibleRectPt, bucket)
-            val around = TileGrid.range(v.prefetchRectPt, bucket)
-            for (ty in around.tyMin..around.tyMax) {
-                for (tx in around.txMin..around.txMax) {
-                    val dx = (tx + HALF) * sizePt - v.centerXPt
-                    val dy = (ty + HALF) * sizePt - v.centerYPt
-                    val item = (dx * dx + dy * dy) to TileKey(v.page, bucket, tx, ty)
-                    if (inView.contains(tx, ty)) order += item else ring += item
-                }
-            }
+        warmUp?.cancel()
+        if (cache.evictions != loggedEvictions) {
+            FolioLog.d(TAG, "${target.name}: evicted ${cache.evictions - loggedEvictions} tiles since the last request")
+            loggedEvictions = cache.evictions
         }
-        order.sortBy { it.first }
-        ring.sortBy { it.first }
-        for ((_, key) in order) {
+        waitingVisible.clear()
+        for (key in ordered(visible, bucket, ring = false)) {
             ensure(key)
             if (key in inFlight) waitingVisible += key
         }
-        for ((_, key) in ring) {
+    }
+
+    /** Starts renders for the ring of tiles around [visible] pages (center-out) while the budget has room. */
+    fun prefetch(
+        visible: List<VisiblePage>,
+        scale: Float,
+    ) {
+        for (key in ordered(visible, ZoomBuckets.indexFor(scale), ring = true)) {
             if (cache.bytes + (inFlight.size + 1) * TileGrid.TILE_BYTES > cache.budgetBytes) break
             ensure(key)
         }
+    }
+
+    /**
+     * Once everything visible is rendered: prepares painter caches (ink meshes) of every object of
+     * [visible] pages on the render dispatcher, so strokes panned into view later do not mesh during
+     * the tile render. Cancelled by the next [request].
+     */
+    fun warmUp(visible: List<VisiblePage>) {
+        if (target != RenderTarget.SCREEN_CONTENT || inFlight.isNotEmpty()) return
+        val contents = visible.mapNotNull { pages[it.page]?.content }
+        if (contents.isEmpty()) return
+        warmUp?.cancel()
+        warmUp =
+            scope.launch(renderDispatcher) {
+                val renderer = renderers.get() ?: newRenderer().also(renderers::set)
+                for (content in contents) {
+                    for (i in 0 until content.size) {
+                        ensureActive()
+                        renderer.prepare(content, i)
+                    }
+                }
+            }
+    }
+
+    /** Tile keys of [visible] pages at [bucket], center-out: the tiles on screen, or ([ring]) those around them. */
+    private fun ordered(
+        visible: List<VisiblePage>,
+        bucket: Int,
+        ring: Boolean,
+    ): List<TileKey> {
+        val sizePt = TileGrid.tileSizePt(bucket)
+        val keys = ArrayList<Pair<Float, TileKey>>()
+        for (v in visible) {
+            val inView = TileGrid.range(v.visibleRectPt, bucket)
+            val area = if (ring) TileGrid.range(v.prefetchRectPt, bucket) else inView
+            for (ty in area.tyMin..area.tyMax) {
+                for (tx in area.txMin..area.txMax) {
+                    if (ring && inView.contains(tx, ty)) continue
+                    val dx = (tx + HALF) * sizePt - v.centerXPt
+                    val dy = (ty + HALF) * sizePt - v.centerYPt
+                    keys += (dx * dx + dy * dy) to TileKey(v.page, bucket, tx, ty)
+                }
+            }
+        }
+        keys.sortBy { it.first }
+        return keys.map { it.second }
     }
 
     /** Clears the pin of the previous frame; call once before the [draw] calls of a frame. */
@@ -239,6 +281,7 @@ class TileLayer(
 
     /** Cancels renders and drops every tile. */
     fun clear() {
+        warmUp?.cancel()
         inFlight.values.forEach(Job::cancel)
         inFlight.clear()
         waitingVisible.clear()
@@ -401,6 +444,5 @@ class TileLayer(
         private const val TAG = "Tiles"
         private const val HALF = 0.5f
         private const val INITIAL_SLOTS = 64
-        private const val BYTES_PER_MIB = 1024 * 1024
     }
 }

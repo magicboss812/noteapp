@@ -102,6 +102,33 @@ class TileLayerTest {
     }
 
     @Test
+    fun prefetch_ringAroundVisibleTiles_onlyAfterRequest_andWithinBudget() {
+        val layer = layer(RenderTarget.SCREEN_BACKGROUND)
+        layer.setPage(a4.toRef(), null)
+        val view = RectPt(0f, 0f, 200f, 200f) // bucket 2: tile (0, 0)
+        val around = VisiblePage("p", view, 100f, 100f, RectPt(0f, 0f, 460f, 460f))
+
+        layer.request(listOf(around), scale = 2f)
+        assertThat(layer.pendingCount).isEqualTo(1)
+        layer.prefetch(listOf(around), scale = 2f)
+        scope.testScheduler.advanceUntilIdle()
+
+        assertThat(layer.tileCount).isEqualTo(4)
+    }
+
+    @Test
+    fun warmUp_preparesEveryObjectOfVisiblePages() {
+        val layer = layer(RenderTarget.SCREEN_CONTENT)
+        val page = a4.withStrokes(stroke("s1", 100f, 100f), stroke("s2", 500f, 800f))
+        layer.setPage(page.toRef(), page)
+
+        layer.warmUp(listOf(visible(frame)))
+        scope.testScheduler.advanceUntilIdle()
+
+        assertThat(painter.prepared).containsExactly("s1", "s2")
+    }
+
+    @Test
     fun draw_missingCurrentBucket_fallsBackToOtherBucketTiles() {
         val layer = layer(RenderTarget.SCREEN_CONTENT)
         val page = a4.withStrokes(stroke("s1", 100f, 100f))
@@ -160,7 +187,16 @@ class TileLayerTest {
     /** Fills stroke bounds and records which strokes were drawn (render threads are the test thread here). */
     private class CountingPainter : InkPainter {
         val draws = ArrayList<String>()
+        val prepared = ArrayList<String>()
         private val paint = Paint().apply { color = Color.BLACK }
+
+        override fun prepare(
+            stroke: InkStroke,
+            content: PageContent,
+            index: Int,
+        ) {
+            prepared += stroke.id.value
+        }
 
         override fun draw(
             canvas: Canvas,
