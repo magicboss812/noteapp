@@ -11,4 +11,5 @@ dependencies {
     implementation(projects.core.text)
     implementation(projects.core.model)
     implementation(projects.core.common)
+    testImplementation(projects.core.testing)
 }

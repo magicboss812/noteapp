@@ -87,3 +87,8 @@ Format:
 - Reason: reviewer findings (P02 REVIEW): data loss or deletion of other documents' working copies, main-thread IO, crashes on hostile files.
 - Impact: 04-file-format.md#versioning (id rules, known unknown-key loss after session edits, D-010), 04#crash-recovery, 09-storage-library.md#index; Deferred D-007..D-010.
 
+## A-017 2026-09-29 P03-T01: viewport details
+- Change: the zoom bucket is the smallest 2^(k/2) at or above the scale (`ceil`, not `round`); stack gap and side padding are 16/24 dp at fit-width and zoom with the pages (stack space in pt); the half-screen overscroll is vertical only, horizontally the column is centered while narrower than the view and clamped to its edges otherwise; view offsets are doubles; a canvas page fits its origin width at fit-width.
+- Reason: the doc's `round` formula contradicted "bucket at or above"; dp constants in screen space would make page tops depend on zoom; float offsets deep in a 200-page stack at 8x lose 0.25 px, over the 0.5 px focal budget.
+- Impact: 05-canvas-rendering.md#viewport; P03-T02 canvas host and T04 tiles use `Viewport`, `PageStackLayout`, `ZoomBuckets` (core/render viewport package).
+

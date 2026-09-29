@@ -4,8 +4,9 @@
 - `Viewport` state: `scale` (px per pt), `offsetPx` (document origin in view px), `mode` = `Stack` (fixed pages in a vertical column) or `Canvas(pageId)` (one infinite page, free 2D).
 - `PageStackLayout`: pages in one vertical column, centered horizontally, 16 dp gap, 24 dp side padding. Page tops are prefix sums; lookups by binary search. Infinite pages appear in the stack as a card sized to their content bounds (min: origin size) with a "canvas" badge; tapping enters Canvas mode.
 - Fit-width scale = (viewWidth - 48 dp) / widest page width. Zoom range 0.2x..8x of fit-width. Default on open: fit-width, first page top (or last position, stored per document in DataStore).
-- Zoom buckets for tile resolution: `bucketScale = 2^(round(2*log2(scale))/2)` (steps of sqrt 2). Tiles render at the bucket at or above the current scale.
-- Focal-point zoom keeps the document point under the pinch center fixed. Pan is clamped in Stack mode (half a screen of overscroll), unclamped in Canvas mode.
+- Stack space is pt at zoom 1: the 16 dp gap and 24 dp side padding hold at fit-width and scale with the pages (A-017). Canvas mode fits the infinite page's origin width.
+- Zoom buckets for tile resolution: `bucketScale = 2^(ceil(2*log2(scale))/2)` (steps of sqrt 2). Tiles render at the bucket at or above the current scale.
+- Focal-point zoom keeps the document point under the pinch center fixed. Pan is clamped in Stack mode (vertically half a screen of overscroll; horizontally centered while the column is narrower than the view, else clamped to its edges), unclamped in Canvas mode. View offsets are doubles (float loses 0.25 px deep in long stacks).
 - All pt <-> px conversions live in `Viewport` (`toViewPx`, `toPagePt`, `visibleRectPt(pageId)`).
 
 ## Layers
