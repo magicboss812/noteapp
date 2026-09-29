@@ -102,3 +102,8 @@ Format:
 - Reason: STATUS D-008; tiles, the page stack and the ink mesher must never see NaN or overflowing tile indices from a hostile file.
 - Impact: 04-file-format.md#protobuf-schema (decoding paragraph); closes D-008.
 
+## A-020 2026-09-30 P03-T04: tile and page renderer details
+- Change: `RenderTarget` has SCREEN_BACKGROUND and SCREEN_CONTENT instead of one SCREEN target with layer flags; `PageRenderer.draw` takes the `PageRef` plus a `PageContent` snapshot (null = no objects). Empty tiles are cached without bitmaps; the budget is split evenly between the two layers and is soft for pinned (on-screen) tiles; prefetch only while the budget has room; missing current-bucket slots fall back to the nearest other bucket. core:ink gets `StrokeBuilder` (stock androidx.ink families until BrushCatalog, P03-T05) and exposes ink-brush/ink-strokes as `api`.
+- Reason: a background tile of a blank page is pure paper and a content tile without objects is transparent, so rendering them wastes memory; at 3200x2136 one layer needs up to ~48 visible tiles, so a hard budget would evict tiles on screen.
+- Impact: 05-canvas-rendering.md#tiles, #page-renderer.
+

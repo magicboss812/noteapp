@@ -12,5 +12,6 @@ dependencies {
     implementation(projects.core.text)
     implementation(projects.core.model)
     implementation(projects.core.common)
+    implementation(libs.ink.rendering)
     testImplementation(projects.core.testing)
 }
