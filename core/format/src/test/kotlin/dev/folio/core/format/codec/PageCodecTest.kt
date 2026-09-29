@@ -91,6 +91,52 @@ class PageCodecTest {
     }
 
     @Test
+    fun decode_nonFiniteOrHugeGeometry_isCorrupt() {
+        val page = ModelFixtures.page("p", listOf(ModelFixtures.randomStroke(Random(4), points = 5)))
+        val pb = PageCodec.toProto(page)
+        val obj = pb.objects[0]
+        val stroke = obj.stroke!!
+        val bounds = stroke.bounds!!
+        val broken =
+            listOf(
+                stroke.copy(bounds = bounds.copy(left = Float.NaN)),
+                stroke.copy(bounds = bounds.copy(right = 2e6f)),
+                stroke.copy(brush = stroke.brush!!.copy(size_pt = Float.NaN)),
+                stroke.copy(brush = stroke.brush!!.copy(size_pt = 0f)),
+                stroke.copy(brush = stroke.brush!!.copy(size_pt = 501f)),
+                stroke.copy(brush = stroke.brush!!.copy(pressure_gamma = Float.POSITIVE_INFINITY)),
+                stroke.copy(inputs = stroke.inputs!!.copy(origin_x = Long.MAX_VALUE / 2)),
+            )
+        broken.forEachIndexed { i, s ->
+            val bytes = PbPage.ADAPTER.encode(pb.copy(objects = listOf(obj.copy(stroke = s))))
+            assertWithMessage("case $i").that(PageCodec.decode(bytes, "pages/p.pb")).isInstanceOf(Outcome.Failure::class.java)
+        }
+    }
+
+    @Test
+    fun decode_customPageSizeOutOfRange_isCorrupt() {
+        listOf(PageSpec.Custom(0f, 100f), PageSpec.Custom(100f, 14_401f), PageSpec.Custom(Float.NaN, 100f)).forEach { spec ->
+            val pb = PageCodec.toProto(ModelFixtures.page("p").copy(spec = spec))
+            assertCorrupt(PageCodec.decode(PbPage.ADAPTER.encode(pb), "pages/p.pb"))
+        }
+        val ok = PageCodec.toProto(ModelFixtures.page("p").copy(spec = PageSpec.Custom(14_400f, 1f)))
+        assertThat(decode(PbPage.ADAPTER.encode(ok)).spec).isEqualTo(PageSpec.Custom(14_400f, 1f))
+    }
+
+    @Test
+    fun decode_invertedRect_isEmpty() {
+        val rect =
+            DecodeLimits.rect(
+                Float.POSITIVE_INFINITY,
+                Float.POSITIVE_INFINITY,
+                Float.NEGATIVE_INFINITY,
+                Float.NEGATIVE_INFINITY,
+                "r",
+            )
+        assertThat(rect.isEmpty).isTrue()
+    }
+
+    @Test
     fun decode_unknownObjectKind_isSkipped() {
         val pb = PageCodec.toProto(ModelFixtures.page("p"))
         val withUnknown = pb.copy(objects = listOf(PbPageObject(id = "future")))

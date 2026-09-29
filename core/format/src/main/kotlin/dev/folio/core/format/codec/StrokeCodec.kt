@@ -43,7 +43,7 @@ internal object StrokeCodec {
         )
     }
 
-    /** Throws [CorruptDataException] for inconsistent channel sizes. */
+    /** Throws [CorruptDataException] for inconsistent channel sizes or positions outside [DecodeLimits.coord]. */
     fun decode(pb: PbStrokeInputs): StrokeInputs {
         val n = pb.dx.size
         corruptIf(n > MAX_SAMPLES) { "stroke has $n samples" }
@@ -51,9 +51,15 @@ internal object StrokeCodec {
         corruptIf(pb.pressure.isNotEmpty() && pb.pressure.size != n) { "pressure size differs" }
         corruptIf(pb.tilt.isNotEmpty() && pb.tilt.size != n) { "tilt size differs" }
         corruptIf(pb.orientation.isNotEmpty() && pb.orientation.size != n) { "orientation size differs" }
+        val x = integrate(pb.origin_x, pb.dx, POS_UNITS_PER_PT)
+        val y = integrate(pb.origin_y, pb.dy, POS_UNITS_PER_PT)
+        for (i in 0 until n) {
+            DecodeLimits.coord(x[i], "stroke x")
+            DecodeLimits.coord(y[i], "stroke y")
+        }
         return StrokeInputs(
-            x = integrate(pb.origin_x, pb.dx, POS_UNITS_PER_PT),
-            y = integrate(pb.origin_y, pb.dy, POS_UNITS_PER_PT),
+            x = x,
+            y = y,
             tMs = integrate(0L, pb.dt, TIME_UNITS_PER_MS),
             pressure = if (pb.pressure.isEmpty()) null else FloatArray(n) { pb.pressure[it].toFloat() / PRESSURE_MAX },
             tiltDeg = if (pb.tilt.isEmpty()) null else FloatArray(n) { (pb.tilt[it] / ANGLE_UNITS_PER_DEG).toFloat() },

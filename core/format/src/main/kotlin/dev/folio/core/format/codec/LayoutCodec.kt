@@ -106,7 +106,8 @@ internal object LayoutCodec {
         PageSpec.Fixed(EnumCodec.paperSize(pb.size), EnumCodec.orientation(pb.orientation))
 
     private fun customFromProto(pb: PbCustom): PageSpec.Custom {
-        corruptIf(!(pb.width_pt > 0f && pb.height_pt > 0f)) { "custom page size ${pb.width_pt} x ${pb.height_pt}" }
+        DecodeLimits.positive(pb.width_pt, DecodeLimits.MAX_PAGE_PT, "custom page width")
+        DecodeLimits.positive(pb.height_pt, DecodeLimits.MAX_PAGE_PT, "custom page height")
         return PageSpec.Custom(pb.width_pt, pb.height_pt)
     }
 }
@@ -116,11 +117,11 @@ internal fun rectToProto(r: RectPt): PbRect = PbRect(r.left, r.top, r.right, r.b
 internal fun rectFromProto(
     pb: PbRect?,
     what: String,
-): RectPt = pb.orCorrupt(what).let { RectPt(it.left, it.top, it.right, it.bottom) }
+): RectPt = pb.orCorrupt(what).let { DecodeLimits.rect(it.left, it.top, it.right, it.bottom, what) }
 
 internal fun pointToProto(p: PointPt): PbPoint = PbPoint(p.x, p.y)
 
-internal fun pointFromProto(pb: PbPoint): PointPt = PointPt(pb.x, pb.y)
+internal fun pointFromProto(pb: PbPoint): PointPt = DecodeLimits.point(pb.x, pb.y, "point")
 
 /** Non-null value or [CorruptDataException] "<what> missing". */
 internal fun <T : Any> T?.orCorrupt(what: String): T = this ?: throw CorruptDataException("$what missing")

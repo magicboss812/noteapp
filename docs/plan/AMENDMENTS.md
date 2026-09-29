@@ -97,3 +97,8 @@ Format:
 - Reason: core:text needs GridUnit but cannot depend on core:render. Axes off the grid would break the grid invariant for text. Asset decoding (PDF raster in core:pdf) cannot live in core:render.
 - Impact: 02-modules.md (core:model), 05-canvas-rendering.md#templates, 07-text-engine.md#grid-unit; D-008 now covers only rects and custom page sizes; D-011.
 
+## A-019 2026-09-30 P03-T04: decoded value ranges
+- Change: page decoding rejects NaN/infinite/|v| > 10^6 pt coordinates (rects, points, stroke samples), custom page edges outside (0, 14400] pt (page entries and manifest), widths outside (0, 500] pt and non-finite rotations or pressure gamma; inverted rect edges decode as the empty rect.
+- Reason: STATUS D-008; tiles, the page stack and the ink mesher must never see NaN or overflowing tile indices from a hostile file.
+- Impact: 04-file-format.md#protobuf-schema (decoding paragraph); closes D-008.
+

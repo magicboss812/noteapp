@@ -93,7 +93,8 @@ internal object ObjectCodec {
             }
 
             sticky != null -> {
-                StickyNote(id, FlowId(sticky.flow_id), rectFromProto(sticky.rect, "sticky rect"), sticky.rotation_deg, sticky.argb)
+                val rotationDeg = DecodeLimits.finite(sticky.rotation_deg, "sticky rotation")
+                StickyNote(id, FlowId(sticky.flow_id), rectFromProto(sticky.rect, "sticky rect"), rotationDeg, sticky.argb)
             }
 
             attachment != null -> {
@@ -124,6 +125,8 @@ internal object ObjectCodec {
         pb: PbInkStroke,
     ): InkStroke {
         val b = pb.brush.orCorrupt("brush")
+        DecodeLimits.positive(b.size_pt, DecodeLimits.MAX_WIDTH_PT, "brush size")
+        DecodeLimits.finite(b.pressure_gamma, "pressure gamma")
         val brush = BrushSpec(EnumCodec.brushKind(b.kind), b.argb, b.size_pt, b.version, b.pressure_gamma)
         return InkStroke(id, brush, StrokeCodec.decode(pb.inputs.orCorrupt("stroke inputs")), rectFromProto(pb.bounds, "stroke bounds"))
     }
@@ -148,8 +151,8 @@ internal object ObjectCodec {
             id = id,
             kind = EnumCodec.shapeKind(pb.kind),
             points = pb.points.map(::pointFromProto),
-            rotationDeg = pb.rotation_deg,
-            stroke = StrokeStyle(style.argb, style.width_pt, style.dashed),
+            rotationDeg = DecodeLimits.finite(pb.rotation_deg, "shape rotation"),
+            stroke = StrokeStyle(style.argb, DecodeLimits.width(style.width_pt, "outline width"), style.dashed),
             fillArgb = if (pb.has_fill) pb.fill_argb else null,
             bounds = rectFromProto(pb.bounds, "shape bounds"),
         )
@@ -160,6 +163,7 @@ internal object ObjectCodec {
         pb: PbImage,
     ): ImageObject {
         val crop = pb.crop?.let { RectF01(it.left, it.top, it.right, it.bottom) } ?: RectF01.FULL
-        return ImageObject(id, AssetId(pb.asset), rectFromProto(pb.rect, "image rect"), pb.rotation_deg, crop)
+        val rotationDeg = DecodeLimits.finite(pb.rotation_deg, "image rotation")
+        return ImageObject(id, AssetId(pb.asset), rectFromProto(pb.rect, "image rect"), rotationDeg, crop)
     }
 }

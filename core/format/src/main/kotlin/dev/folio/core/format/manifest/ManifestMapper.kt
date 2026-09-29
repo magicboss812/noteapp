@@ -1,6 +1,7 @@
 package dev.folio.core.format.manifest
 
 import dev.folio.core.format.codec.CorruptDataException
+import dev.folio.core.format.codec.DecodeLimits
 import dev.folio.core.format.codec.corruptIf
 import dev.folio.core.format.manifest.ManifestValues.formatArgb
 import dev.folio.core.format.manifest.ManifestValues.parseArgb
@@ -140,7 +141,7 @@ internal object ManifestMapper {
         val bounds =
             p.contentBounds?.let {
                 corruptIf(it.size != RECT_VALUES) { "contentBounds needs 4 values" }
-                RectPt(it[0], it[1], it[2], it[3])
+                DecodeLimits.rect(it[0], it[1], it[2], it[3], "contentBounds")
             }
         return PageRef(PageId(p.id), spec, background, if (spec is PageSpec.Infinite) bounds else null)
     }
@@ -210,7 +211,8 @@ internal data class SpecFields(
     private fun custom(): PageSpec.Custom {
         val w = widthPt
         val h = heightPt
-        corruptIf(w == null || h == null || !(w > 0f && h > 0f)) { "custom page size $w x $h" }
+        val max = DecodeLimits.MAX_PAGE_PT
+        corruptIf(w == null || h == null || !(w > 0f && w <= max && h > 0f && h <= max)) { "custom page size $w x $h" }
         return PageSpec.Custom(w ?: 0f, h ?: 0f)
     }
 

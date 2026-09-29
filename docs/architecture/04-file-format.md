@@ -108,7 +108,7 @@ message Attachment { string asset = 1; string display_name = 2; string mime = 3;
 message Rect { float left = 1; float top = 2; float right = 3; float bottom = 4; }
 message Point { float x = 1; float y = 2; }
 ```
-Decoding (`PageCodec`): missing required messages (spec, background, template, stroke inputs, rects), blank ids, duplicate object ids and stroke channels of different lengths are `Corrupt(entry)`; `*_UNSPECIFIED` or unknown enum values map to defaults (A4, portrait, BLANK, BALLPOINT, POLYGON, BOX, STYLUS); a `PageObject` with no known kind (newer writer) is skipped. `content_bounds` is written for infinite pages and recomputed on read.
+Decoding (`PageCodec`): missing required messages (spec, background, template, stroke inputs, rects), blank ids, duplicate object ids and stroke channels of different lengths are `Corrupt(entry)`; `*_UNSPECIFIED` or unknown enum values map to defaults (A4, portrait, BLANK, BALLPOINT, POLYGON, BOX, STYLUS); a `PageObject` with no known kind (newer writer) is skipped. Value ranges (A-019, `DecodeLimits`): coordinates of rects, points and stroke samples finite with |v| <= 10^6 pt (inverted rect edges decode as the empty rect), custom page edges in (0, 14400] pt (also in the manifest), brush and outline widths in (0, 500] pt, rotations and pressure gamma finite; anything else is `Corrupt(entry)`. `content_bounds` is written for infinite pages and recomputed on read.
 Flow style file `flows/<flowId>.json`: `{"fontFamily":"Inter","sizeRatio":0.5,"paragraphGapLines":0,"align":"start","autoContinue":true}`.
 
 ## Stroke encoding
