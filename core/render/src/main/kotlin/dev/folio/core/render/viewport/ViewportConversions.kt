@@ -48,6 +48,18 @@ fun Viewport.visiblePages(): IntRange {
     return current.visibleRange((-offsetYPx / scale).toFloat(), ((viewHeightPx - offsetYPx) / scale).toFloat())
 }
 
+/** View x of doc-space x [xPt] (stack space, or the canvas page's space in canvas mode). No allocation. */
+fun Viewport.docToViewX(xPt: Float): Double = offsetXPx + xPt.toDouble() * scale
+
+/** View y of doc-space y [yPt], see [docToViewX]. */
+fun Viewport.docToViewY(yPt: Float): Double = offsetYPx + yPt.toDouble() * scale
+
+/** Unclamped [Viewport.offsetYPx] that puts stack card [index] one gap below the view top. */
+fun Viewport.offsetYForPageTop(index: Int): Double {
+    val stack = requireNotNull(layout) { "setPages first" }
+    return -(stack.cardTopPt(index) - stack.gapPt).toDouble() * scale
+}
+
 private fun Viewport.pageIndex(pageId: PageId): Int {
     val canvas = mode as? ViewportMode.Canvas
     require(canvas == null || canvas.pageId == pageId) { "page ${pageId.value} is not the canvas page" }

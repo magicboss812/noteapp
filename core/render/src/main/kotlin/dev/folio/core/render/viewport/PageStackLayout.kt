@@ -58,12 +58,17 @@ class PageStackLayout(
     /** Card rect of page [index] in stack space. */
     fun cardRectPt(index: Int): RectPt {
         val frame = frames[index]
-        val left = (contentWidthPt - frame.widthPt) / 2f
-        return RectPt.ofSize(left, cardTopsPt[index], frame.widthPt, frame.heightPt)
+        return RectPt.ofSize(cardLeftPt(index), cardTopsPt[index], frame.widthPt, frame.heightPt)
     }
 
+    /** Stack-space left of card [index] (no allocation, unlike [cardRectPt]). */
+    fun cardLeftPt(index: Int): Float = (contentWidthPt - frames[index].widthPt) / 2f
+
+    /** Stack-space top of card [index]. */
+    fun cardTopPt(index: Int): Float = cardTopsPt[index]
+
     /** Stack-space x of page [index]'s page-space origin. */
-    fun originXPt(index: Int): Float = (contentWidthPt - frames[index].widthPt) / 2f - frames[index].left
+    fun originXPt(index: Int): Float = cardLeftPt(index) - frames[index].left
 
     /** Stack-space y of page [index]'s page-space origin. */
     fun originYPt(index: Int): Float = cardTopsPt[index] - frames[index].top

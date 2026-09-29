@@ -13,3 +13,4 @@ Budgets: docs/architecture/12-performance.md#budgets. Append one row per measure
 | 2026-09-27 | 8e65e3b | debug instr. | grid text layout per paragraph, 20 fonts | 0.29 .. 0.58 ms | none yet (P06) | GRID_PITCH, U = 7.1 mm |
 | 2026-09-28 | bdd4c90 | debug | 100-page PDF export, 10 overlays merged | 80 .. 241 ms | <= 10 s (ADR-006 rule) | first page 25..267 ms, tile 2.0..2.6 ms (simple generated pages) |
 | 2026-09-28 | c64ad0c | debug | pack 46 MB `.folio` to shared storage | 1391 .. 1450 ms | <= 1.5 s | 4 runs; FUSE write dominates, little margin |
+| 2026-09-30 | P03-T02 | debug | canvas host, 20 blank pages: 4 zoom-anims + 2 scroll-page + 10 finger swipes, janky % / p95 / p99 | 0.19% / 13 ms / 19 ms (5182 frames); zoom-anim only 0.53% | <= 1% | 120 Hz active; `canvas:touch` p95 0.35 ms; no tiles yet (page cards only) |

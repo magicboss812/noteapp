@@ -236,6 +236,42 @@ class ViewportTest {
         assertThat(vp.fitWidthScale).isWithin(1e-4f).of((VIEW_H - 2 * 24f * DENSITY) / a4.widthPt)
     }
 
+    @Test
+    fun zoomTo_absoluteZoom_setsZoomAndKeepsFocus() {
+        val vp = viewport()
+        val id = PageId("p0")
+        val focus = PointPx(VIEW_W / 2f, 900f)
+        val before = vp.toPagePt(id, focus)
+
+        vp.zoomTo(3f, focus.x, focus.y)
+
+        assertThat(vp.zoom).isWithin(1e-4f).of(3f)
+        val after = vp.toViewPx(id, before)
+        assertThat(hypot(after.x - focus.x, after.y - focus.y)).isLessThan(0.5f)
+    }
+
+    @Test
+    fun docToView_matchesToViewPx() {
+        val vp = viewport()
+        vp.zoomBy(2.5f, 100f, 2000f)
+        vp.panBy(0f, -50_000f)
+        val stack = requireNotNull(vp.layout)
+
+        val corner = vp.toViewPx(PageId("p30"), PointPt(0f, 0f))
+
+        assertThat(vp.docToViewX(stack.cardLeftPt(30)).toFloat()).isWithin(0.01f).of(corner.x)
+        assertThat(vp.docToViewY(stack.cardTopPt(30)).toFloat()).isWithin(0.01f).of(corner.y)
+    }
+
+    @Test
+    fun offsetYForPageTop_page10_putsCardTopOneGapBelowViewTop() {
+        val vp = viewport()
+
+        vp.panBy(0f, (vp.offsetYForPageTop(10) - vp.offsetYPx).toFloat())
+
+        assertThat(vp.toViewPx(PageId("p10"), PointPt(0f, 0f)).y).isWithin(0.05f).of(16f * DENSITY)
+    }
+
     private companion object {
         const val DENSITY = 2.5f
         const val VIEW_W = 2136f

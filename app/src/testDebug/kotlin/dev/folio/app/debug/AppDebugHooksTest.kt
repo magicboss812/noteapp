@@ -25,6 +25,8 @@ class AppDebugHooksTest {
         AppDebugHooks(
             AppModule.dispatchers(),
             LibraryAccess({ false }, LibraryRoot(File(System.getProperty("java.io.tmpdir"), "folio-debughooks-test"))),
+            { error("storage not used by these tests") },
+            { error("storage not used by these tests") },
         )
 
     @Before

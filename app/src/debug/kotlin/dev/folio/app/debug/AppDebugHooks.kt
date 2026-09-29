@@ -1,12 +1,14 @@
 package dev.folio.app.debug
 
 import android.content.Intent
+import android.content.res.Resources
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.annotation.MainThread
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import dagger.Lazy
 import dev.folio.app.DebugHooks
 import dev.folio.app.spikes.SpikeFontsView
 import dev.folio.app.spikes.SpikeInkView
@@ -17,6 +19,10 @@ import dev.folio.app.spikes.spikeStylusCommand
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.storage.library.LibraryAccess
+import dev.folio.core.storage.repo.DocumentRepository
+import dev.folio.core.storage.session.DocumentSessions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -33,12 +39,23 @@ internal class AppDebugHooks
     constructor(
         private val dispatchers: FolioDispatchers,
         private val libraryAccess: LibraryAccess,
+        sessions: Lazy<DocumentSessions>, // lazy: storage is built on the first `open` only
+        documents: Lazy<DocumentRepository>,
     ) : DebugHooks {
+        private val scope = CoroutineScope(SupervisorJob() + dispatchers.main)
+        private val canvas: CanvasDebug =
+            CanvasDebug(sessions::get, documents::get, scope, Resources.getSystem().displayMetrics.density) {
+                showRoute(DebugAppState.CANVAS, force = true)
+                state.navigate(DebugAppState.CANVAS)
+            }
         private val state =
             DebugAppState(
                 library = ::libraryJson,
                 baseScreen = { if (libraryAccess.isGranted()) DebugAppState.LIBRARY else ONBOARDING },
-            ).also { it.onNavigate = ::showRoute }
+                openDocPath = { canvas.openDoc },
+                canvasZoom = { canvas.zoom },
+                canvas = { canvas.json() },
+            ).also { it.onNavigate = { route -> showRoute(route) } }
         private var activity: ComponentActivity? = null
         private var overlay: FrameTimeOverlay? = null
         private var overlayVisible = false
@@ -52,6 +69,9 @@ internal class AppDebugHooks
                         SpikeInkView.ROUTE to { arg -> spikeInkCommand(spike as? SpikeInkView, arg) },
                         SpikeFontsView.ROUTE to { arg -> spikeFontsCommand(spike as? SpikeFontsView, arg) },
                         SpikeStylusView.ROUTE to { arg -> spikeStylusCommand(spike as? SpikeStylusView, arg) },
+                        "open" to canvas::open,
+                        "zoom-anim" to canvas::zoomAnim,
+                        "scroll-page" to canvas::scrollPage,
                     ),
             ) { visible -> setOverlayVisible(visible) }
 
@@ -70,19 +90,25 @@ internal class AppDebugHooks
                         if (this.activity === activity) {
                             this.activity = null
                             spike = null
+                            canvas.onViewGone()
                         }
                     }
                 },
             )
         }
 
-        // Spike screens cover the library entry content until P04 navigation exists; they are removed by D-002.
-        private fun showRoute(route: String) {
+        // Spike and canvas screens cover the library entry content until P04 navigation exists (spikes: D-002).
+        private fun showRoute(
+            route: String,
+            force: Boolean = false,
+        ) {
             val host = activity ?: return
-            if (spike != null && spikeRoute == route) return
+            if (spike != null && spikeRoute == route && !force) return
             spike?.let { (it.parent as? ViewGroup)?.removeView(it) }
+            if (spikeRoute == DebugAppState.CANVAS) canvas.onViewGone()
             spike =
                 when (route) {
+                    DebugAppState.CANVAS -> canvas.createView(host)
                     SpikeInkView.ROUTE -> SpikeInkView(host)
                     SpikeFontsView.ROUTE -> SpikeFontsView(host, dispatchers)
                     SpikeStylusView.ROUTE -> SpikeStylusView(host, dispatchers)

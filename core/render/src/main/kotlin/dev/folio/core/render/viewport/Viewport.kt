@@ -65,6 +65,9 @@ class Viewport(
     /** Tile bucket for the current scale ([ZoomBuckets]). */
     val bucketIndex: Int get() = ZoomBuckets.indexFor(scale)
 
+    /** Zoom as a multiple of fit-width. */
+    val zoom: Float get() = scale / fitWidthScale
+
     /**
      * Lays out [pages] for a view of [widthPx] x [heightPx]. The first call shows fit-width at the first
      * page top; later calls keep the zoom relative to fit-width and the doc point at the view center.
@@ -135,6 +138,13 @@ class Viewport(
         offsetYPx = focusYPx - docY * newScale
         clampOffsets()
     }
+
+    /** Sets the zoom to [zoom] times fit-width (clamped) around ([focusXPx], [focusYPx]), see [zoomBy]. */
+    fun zoomTo(
+        zoom: Float,
+        focusXPx: Float,
+        focusYPx: Float,
+    ) = zoomBy(zoom * fitWidthScale / scale, focusXPx, focusYPx)
 
     /** Moves the content by ([dxPx], [dyPx]); clamped in stack mode, free in canvas mode. */
     fun panBy(

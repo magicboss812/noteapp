@@ -9,7 +9,7 @@ Filled by P00-T02, P01-S1, P01-S7 and later discoveries. Known from Xiaomi specs
 ## Display
 - Physical 2136x3200 (natural orientation portrait per `wm size`), density 440 dpi
 - Refresh modes (fps): 30, 48, 50, 60, 90, 120, 144
-- Editor mode: request the fastest mode (144 Hz, mode id 2) via `preferredDisplayModeId` (`DisplayModeHelper`). P01-S1: the active mode stayed 120 Hz, idle and inking (`diag.sh refresh`: `peakRefreshRate=120`); probably the HyperOS refresh-rate setting caps apps; the user closed that check as not needed (2026-09-28), so budgets assume 120 Hz. Frame budgets at 120 Hz: 8.3 ms.
+- Editor mode: request the fastest mode (144 Hz, mode id 2) via `preferredDisplayModeId` (`DisplayModeHelper`). P01-S1: the active mode stayed 120 Hz, idle and inking (`diag.sh refresh`: `peakRefreshRate=120`); probably the HyperOS refresh-rate setting caps apps; the user closed that check as not needed (2026-09-28), so budgets assume 120 Hz. Frame budgets at 120 Hz: 8.3 ms. P03-T02 (canvas host, 2026-09-30): requested mode 2 = 144.00002 Hz (the app's `Display.mode` reports it), panel still runs modeId 1 (`diag.sh refresh`: `peakRefreshRate=120.00001`, `mActiveRenderFrameRate=120.00001`; `display.refreshRate` = 120.00001).
 - Usual orientation while testing: landscape, rotation 1 (3200x2136)
 
 ## Input

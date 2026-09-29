@@ -1,8 +1,8 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P03
-next: P03-T02
-updated: 2026-09-29
+next: P03-T03
+updated: 2026-09-30
 
 ## Completed
 - P00 done 2026-09-27 (tag p00-done): AGP 9.4.1/Kotlin 2.4.20/Gradle 9.8.0, compileSdk 37.2, minSdk 35 (device SDK 36); qa green; instrumented smoke 1/1 on Pad 7; cold launch 786 ms; A-001..A-004.
@@ -10,7 +10,7 @@ updated: 2026-09-29
 - P02 done 2026-09-29 (tag p02-done): model + commands (200-command undo property test), folio.v1 codec (1000x120 inputs 709 KB), container + goldens, crash-safe packer (100 injected failures), recovery, Room index (500 docs 149 ms), repositories, sessions (LRU 30); REVIEW fixed 6 blocking findings; A-009..A-016; qa green.
 
 ## Current phase progress
-- P03: T01
+- P03: T01, T02
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck 2026-09-29: All files access was still granted before any grant, so the `[Checked]` mark did not revoke it. -> turn off Settings > Apps > Folio Debug > Permissions > All files access, then write "-> revoked" here (Claude reruns without grant-storage.sh first); or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else. [technically revoked, no app permissions yet to change (none at all), so there is no "All files access" permission]
@@ -30,7 +30,8 @@ updated: 2026-09-29
 - D-010 P02-REVIEW: session packs drop unknown manifest keys, unknown proto fields and unknown object kinds (04#versioning); preserve raw JSON and opaque objects before v2 exists. Also missing: LibraryWatcher event test (P05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P03-T01 done: core/render `viewport/` = `Viewport` (mutable, main thread; `setPages`, `show(mode)`, `fitWidth`, `zoomBy`, `panBy`; Double offsets), conversions in ViewportConversions.kt (`toViewPx`, `toPagePt`, `visibleRectPt`, `visiblePages`), `PageStackLayout`, `ZoomBuckets` (ceil). A-017.
-- T02 CanvasHostView should drive gestures through `Viewport.zoomBy/panBy` and draw layers with the offsets/scale; no other pt<->px math.
-- D-008 (float validation) is due before P03-T03 templates render decoded values.
-- Next: P03-T02 (canvas host and gestures, device-tester checks).
+- P03-T02 done: feature/editor `canvas/` = `CanvasHostView` (Background/ContentTileLayer, overlay slot, InProgressStrokesView), `FingerGestures` (pan+fling, pinch), `ViewportAnimator`, `CanvasHost` composable, minimal `CanvasController` (document, viewport). Device: jank 0.19% (zoom-anim 0.53%), touch p95 0.35 ms, 144 Hz requested / 120 Hz active.
+- Debug (app/src/debug CanvasDebug): `open <path>|blank:N` (perf/blank-N.folio) -> route `canvas`; `zoom-anim a,b,ms`; `scroll-page n[,ms]`; `state.canvas`. Stand-in controller until P04 EditorSession.
+- T03 templates draw in `BackgroundTileLayer` (now: surround + page cards only; tiles come in T04). D-008 (float validation) is due before templates render decoded values.
+- Device-tester saw one unreproduced case: first slow drag at the document top did not pan; repeats worked. Watch for it in T06 routing.
+- Next: P03-T03 (templates).

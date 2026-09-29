@@ -1,0 +1,230 @@
+package dev.folio.app.debug
+
+import android.content.Context
+import android.view.View
+import androidx.annotation.MainThread
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import dev.folio.core.common.FolioLog
+import dev.folio.core.common.Outcome
+import dev.folio.core.common.flatMap
+import dev.folio.core.model.Background
+import dev.folio.core.model.Document
+import dev.folio.core.model.Orientation
+import dev.folio.core.model.PageSpec
+import dev.folio.core.model.PaperSize
+import dev.folio.core.model.Template
+import dev.folio.core.model.TemplateKind
+import dev.folio.core.render.viewport.Viewport
+import dev.folio.core.storage.repo.DocumentRepository
+import dev.folio.core.storage.repo.NewDocumentSpec
+import dev.folio.core.storage.session.DocumentSession
+import dev.folio.core.storage.session.DocumentSessions
+import dev.folio.feature.editor.canvas.CanvasController
+import dev.folio.feature.editor.canvas.CanvasHost
+import dev.folio.feature.editor.canvas.CanvasHostView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
+/** Parsed `open` argument: a library path, or `blank:N` (a generated N-page blank A4 document). */
+internal sealed interface OpenTarget {
+    data class Path(
+        val path: String,
+    ) : OpenTarget
+
+    data class Blank(
+        val pages: Int,
+    ) : OpenTarget {
+        val title: String get() = "blank-$pages"
+        val path: String get() = "$FOLDER/$title.folio"
+    }
+
+    companion object {
+        /** Library folder of generated documents. */
+        const val FOLDER = "perf"
+        private const val MAX_PAGES = 500
+
+        fun parse(arg: String?): OpenTarget? {
+            if (arg.isNullOrBlank()) return null
+            val count = arg.removePrefix("blank:")
+            if (count == arg) return Path(arg)
+            return count.toIntOrNull()?.takeIf { it in 1..MAX_PAGES }?.let(::Blank)
+        }
+    }
+}
+
+/** Parsed `zoom-anim from,to,durationMs` (zooms are multiples of fit-width). */
+internal data class ZoomAnim(
+    val from: Float,
+    val to: Float,
+    val durationMs: Long,
+) {
+    companion object {
+        private const val PARTS = 3
+        private const val MAX_DURATION_MS = 10_000L
+
+        fun parse(arg: String?): ZoomAnim? {
+            val parts = arg?.split(',')?.takeIf { it.size == PARTS } ?: return null
+            val zooms = Viewport.MIN_ZOOM..Viewport.MAX_ZOOM
+            val from = parts[0].toFloatOrNull()?.takeIf { it in zooms }
+            val to = parts[1].toFloatOrNull()?.takeIf { it in zooms }
+            val durationMs = parts[2].toLongOrNull()?.takeIf { it in 0..MAX_DURATION_MS }
+            return if (from != null && to != null && durationMs != null) ZoomAnim(from, to, durationMs) else null
+        }
+    }
+}
+
+/** Parsed `scroll-page n[,durationMs]`; [page] is 1-based. */
+internal data class ScrollPage(
+    val page: Int,
+    val durationMs: Long,
+) {
+    companion object {
+        private const val MAX_DURATION_MS = 60_000L
+
+        fun parse(arg: String?): ScrollPage? {
+            val parts = arg?.split(',')?.takeIf { it.size in 1..2 } ?: return null
+            val page = parts[0].toIntOrNull()?.takeIf { it >= 1 } ?: return null
+            val durationMs = if (parts.size == 2) parts[1].toLongOrNull()?.takeIf { it in 0..MAX_DURATION_MS } else 0L
+            return durationMs?.let { ScrollPage(page, it) }
+        }
+    }
+}
+
+/** Until EditorSession exists (P04) a document session plus a viewport stands in for the controller. */
+private class SessionCanvasController(
+    val session: DocumentSession,
+    density: Float,
+) : CanvasController {
+    override val document: StateFlow<Document> get() = session.document
+    override val viewport = Viewport(density)
+}
+
+/**
+ * Debug commands for the canvas host (P03-T02): `open <path>|blank:N` opens a document through
+ * [DocumentSessions] and shows it on the `canvas` route; `zoom-anim` and `scroll-page` script the
+ * viewport for frame stats. Replaced by the P04 editor route and EditorSession.
+ */
+@MainThread
+internal class CanvasDebug(
+    private val sessionsProvider: () -> DocumentSessions,
+    private val documentsProvider: () -> DocumentRepository,
+    private val scope: CoroutineScope,
+    private val density: Float,
+    private val onOpened: () -> Unit,
+) {
+    private val sessions: DocumentSessions get() = sessionsProvider()
+    private val documents: DocumentRepository get() = documentsProvider()
+    private var controller: SessionCanvasController? = null
+    private var host: CanvasHostView? = null
+    private var opening: String? = null
+    private var lastError: String? = null
+
+    /** Library path of the open document. */
+    val openDoc: String? get() = controller?.session?.path
+
+    /** Zoom of the laid-out canvas. */
+    val zoom: Float? get() = controller?.viewport?.takeIf { it.layout != null }?.zoom
+
+    fun open(arg: String?): DebugReply {
+        val target = OpenTarget.parse(arg) ?: return DebugReply.error("open needs <library path> or blank:<1..500>")
+        val path =
+            when (target) {
+                is OpenTarget.Path -> target.path
+                is OpenTarget.Blank -> target.path
+            }
+        opening = path
+        lastError = null
+        scope.launch {
+            val result = sessions.open(path).orCreate(target)
+            opening = null
+            when (result) {
+                is Outcome.Success -> show(result.value)
+                is Outcome.Failure -> lastError = "${result.message}: ${result.cause}"
+            }
+            FolioLog.i(DebugReply.TAG, "open $path -> ${lastError ?: "ok"}")
+        }
+        return DebugReply.ok(buildJsonObject { put("opening", path) })
+    }
+
+    fun zoomAnim(arg: String?): DebugReply {
+        val anim =
+            ZoomAnim.parse(arg) ?: return DebugReply.error("zoom-anim needs from,to,ms (zoom ${Viewport.MIN_ZOOM}..${Viewport.MAX_ZOOM})")
+        val view = host ?: return DebugReply.error(NO_CANVAS)
+        view.animateZoom(anim.from, anim.to, anim.durationMs)
+        return DebugReply.ok(json() ?: JsonObject(emptyMap()))
+    }
+
+    fun scrollPage(arg: String?): DebugReply {
+        val scroll = ScrollPage.parse(arg) ?: return DebugReply.error("scroll-page needs n[,ms] with n >= 1")
+        val view = host ?: return DebugReply.error(NO_CANVAS)
+        val count = controller?.viewport?.layout?.size ?: 0
+        if (scroll.page > count) return DebugReply.error("page ${scroll.page} > $count pages")
+        view.scrollToPage(scroll.page - 1, scroll.durationMs)
+        return DebugReply.ok(json() ?: JsonObject(emptyMap()))
+    }
+
+    /** The canvas screen for the open document, or null if none is open. */
+    fun createView(context: Context): View? {
+        val current = controller ?: return null
+        return ComposeView(context).apply {
+            setContent { CanvasHost(current, Modifier.fillMaxSize(), onHost = { host = it }) }
+        }
+    }
+
+    /** The canvas screen was removed. */
+    fun onViewGone() {
+        host = null
+    }
+
+    /** Canvas facts for `state`; null when nothing is open or opening. */
+    fun json(): JsonObject? {
+        val current = controller
+        if (current == null && opening == null && lastError == null) return null
+        return buildJsonObject {
+            opening?.let { put("opening", it) }
+            lastError?.let { put("error", it) }
+            if (current != null) {
+                val vp = current.viewport
+                put("pages", current.document.value.pages.size)
+                put("zoom", vp.zoom)
+                put("offsetYPx", vp.offsetYPx)
+                put("visibleView", host != null)
+                put("animating", host?.isAnimating)
+                put("requestedHz", host?.requestedHz)
+                put("activeHz", host?.display?.refreshRate)
+            }
+        }
+    }
+
+    private suspend fun Outcome<DocumentSession>.orCreate(target: OpenTarget): Outcome<DocumentSession> {
+        if (this is Outcome.Success || target !is OpenTarget.Blank) return this
+        val spec = NewDocumentSpec(OpenTarget.FOLDER, target.title, A4, BLANK_BACKGROUND, target.pages)
+        return documents.create(spec).flatMap { sessions.open(it.path) }
+    }
+
+    private fun show(session: DocumentSession) {
+        val previous = controller
+        if (previous?.session === session) {
+            onOpened()
+            return
+        }
+        previous?.let { old -> scope.launch { sessions.close(old.session) } }
+        controller = SessionCanvasController(session, density)
+        onOpened()
+    }
+
+    private companion object {
+        const val NO_CANVAS = "no canvas shown; run open first"
+        val A4 = PageSpec.Fixed(PaperSize.A4, Orientation.PORTRAIT)
+
+        // BLANK template, U = 7.0 mm (05-canvas-rendering.md#templates).
+        val BLANK_BACKGROUND =
+            Background(0xFFFFFFFF.toInt(), Template(TemplateKind.BLANK, 19.843f, 0xFFC9D3E0.toInt(), 0f, 0f, null, null), null)
+    }
+}

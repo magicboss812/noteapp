@@ -7,7 +7,7 @@
 - Stack space is pt at zoom 1: the 16 dp gap and 24 dp side padding hold at fit-width and scale with the pages (A-017). Canvas mode fits the infinite page's origin width.
 - Zoom buckets for tile resolution: `bucketScale = 2^(ceil(2*log2(scale))/2)` (steps of sqrt 2). Tiles render at the bucket at or above the current scale.
 - Focal-point zoom keeps the document point under the pinch center fixed. Pan is clamped in Stack mode (vertically half a screen of overscroll; horizontally centered while the column is narrower than the view, else clamped to its edges), unclamped in Canvas mode. View offsets are doubles (float loses 0.25 px deep in long stacks).
-- All pt <-> px conversions live in `Viewport` (`toViewPx`, `toPagePt`, `visibleRectPt(pageId)`).
+- All pt <-> px conversions live in `Viewport` (`toViewPx`, `toPagePt`, `visibleRectPt(pageId)`; per-frame drawing uses the non-allocating `docToViewX/Y` with `PageStackLayout.cardLeftPt/cardTopPt`).
 
 ## Layers
 `CanvasHostView` (FrameLayout, hosted by an `AndroidView`) stacks, bottom to top:
