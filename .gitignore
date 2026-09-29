@@ -24,7 +24,7 @@ CLAUDE.local.md
 .claude/settings.local.json
 .claude/agent-memory-local/
 # Device session state (screenshots, logs, pulled files, serial)
-.device/
+.device/screens/
 # OS
 .DS_Store
 Thumbs.db

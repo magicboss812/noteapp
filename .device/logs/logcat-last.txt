@@ -1,0 +1,184 @@
+--------- beginning of main
+E/Zygote  (24034): process_name_ptr:24034 dev.folio.notes.debug
+E/Zygote  (24034): SetMemoryProtected process_name_ptr:24034 dev.folio.notes.debug
+I/lio.notes.debug(24034): Late-enabling -Xcheck:jni
+I/lio.notes.debug(24034): Using generational CollectorTypeCMC GC.
+D/nativeloader(24034): Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+--------- beginning of system
+I/ActivityThread(24034): Current dynamic renderEngine type=0
+D/MiuiDownscaleImpl(24034): set override inverted scale : 1.0
+D/AppScoutStateMachine(24034): 24034-ScoutStateMachinecreated
+I/RENDER_TURBO(24034): onActivityThreadCreate not in white list, pkg=dev.folio.notes.debug, type=uke
+D/ActivityThread(24034): setEmbeddedParam packageName=dev.folio.notes.debug processName=dev.folio.notes.debug isEmbedded=false isIsolated=false
+D/ApplicationLoaders(24034): Returning zygote-cached class loader: /system_ext/framework/androidx.window.extensions.jar
+D/ApplicationLoaders(24034): Returning zygote-cached class loader: /system_ext/framework/androidx.window.sidecar.jar
+D/nativeloader(24034): Configuring clns-10 for other apk /data/app/~~yZos_t8tnv8P9332MTgwMA==/dev.folio.notes.debug-NH4z0bNS_fgsoGiXq5jtQw==/base.apk. target_sdk_version=37, uses_libraries=, library_path=/data/app/~~yZos_t8tnv8P9332MTgwMA==/dev.folio.notes.debug-NH4z0bNS_fgsoGiXq5jtQw==/lib/arm64:/data/app/~~yZos_t8tnv8P9332MTgwMA==/dev.folio.notes.debug-NH4z0bNS_fgsoGiXq5jtQw==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand:/data/user/0/dev.folio.notes.debug
+I/lio.notes.debug(24034): AssetManager2(0xb400006f39a38f58) locale list changing from [] to [de-DE]
+E/MiuiPreloadClassImpl(24034): invoke error.
+D/MiuiMonitorThread(24034): Shared singleton Thread for stability monitor start
+D/HWUI    (24034): [HWUI] Flag vulkan_enhance_pipeline_cache enabled
+D/HWUI    (24034): [HWUI] EnhanceVkPipelineCache is disabled
+D/HWUI    (24034): [HWUI] Flag ddre enabled
+V/GraphicsEnvironment(24034): Currently set values for:
+V/GraphicsEnvironment(24034):   angle_gl_driver_selection_pkgs=[]
+V/GraphicsEnvironment(24034):   angle_gl_driver_selection_values=[]
+V/GraphicsEnvironment(24034): dev.folio.notes.debug is not listed in per-application setting
+V/GraphicsEnvironment(24034): ANGLE allowlist from config: 
+V/GraphicsEnvironment(24034): dev.folio.notes.debug is not listed in ANGLE allowlist or settings, returning default
+V/GraphicsEnvironment(24034): Updatable production driver is not supported on the device.
+I/Perf    (24034): Connecting to perf service.
+D/ActivityThread(24034): useGrowthLimitOutExpendMethod invoke error.
+D/ResMonitorStub(24034): The current process type is: third_party_app, process name is: dev.folio.notes.debug
+I/ActivityThread(24034): TrafficStats init done
+E/ashmem  (24034): Pinning is deprecated since Android Q. Please use trim or other methods.
+I/ForceDarkHelperStubImpl(24034): initialize for dev.folio.notes.debug , ForceDarkAppConfig: null
+D/nativeloader(24034): Load libforcedarkimpl.so using system ns (caller=/system_ext/framework/miui-framework.jar): ok
+D/HWUI    (24034): JNI_OnLoad success
+I/MiuiForceDarkConfig(24034): setConfig density:2.750000, mainRule:0, secondaryRule:0, tertiaryRule:0
+I/ActivityThread(24034): Miui Feature Init done
+I/ActivityThread(24034): currentPkg not in xmlPackages
+W/libc    (24034): Access denied finding property "vendor.boostfwk.frameprefetcher"
+D/FramePredict(24034): FramePredict init: true
+D/HWUI    (24034): [HWUI] Flag vulkan_enhance_pipeline_cache enabled
+D/HWUI    (24034): [HWUI] EnhanceVkPipelineCache is disabled
+D/HWUI    (24034): [HWUI] Flag ddre enabled
+D/lio.notes.debug(24034): blurUtils, initBackgroundBlurMinInterval processName(dev.folio.notes.debug), inWhiteLists(0)
+I/ActivityThread(24034): HardwareRenderer preload  done
+I/DisplayManager(24034): Choreographer implicitly registered for the refresh rate.
+D/MIUIAutoUIImpl(24034): MIUIAutoUIImpl has been initialized !!
+W/libc    (24034): Access denied finding property "vendor.migl.debug"
+I/libMiGL (24034): EnableDR: 0
+D/libMiGL (24034): mDFIInterval: -1
+I/lio.notes.debug(24034): AssetManager2(0xb400006f39a3b1b8) locale list changing from [] to [de-DE]
+I/AdrenoGLES-0(24034): QUALCOMM build                   : a0053eb399, I31b05c049d
+I/AdrenoGLES-0(24034): Build Date                       : 12/22/25
+I/AdrenoGLES-0(24034): OpenGL ES Shader Compiler Version: E031.45.02.25
+I/AdrenoGLES-0(24034): Local Branch                     : 
+I/AdrenoGLES-0(24034): Remote Branch                    : refs/tags/AU_LINUX_ANDROID_LA.VENDOR.14.3.0.11.00.00.974.116
+I/AdrenoGLES-0(24034): Remote Branch                    : NONE
+I/AdrenoGLES-0(24034): Reconstruct Branch               : NOTHING
+I/AdrenoGLES-0(24034): Build Config                     : S P 16.1.2 AArch64
+I/AdrenoGLES-0(24034): Driver Path                      : /vendor/lib64/egl/libGLESv2_adreno.so
+I/AdrenoGLES-0(24034): Driver Version                   : 0762.36.1
+I/AdrenoGLES-0(24034): Process Name                     : dev.folio.notes.debug
+I/AdrenoGLES-0(24034): PFP: 0x01310168, ME: 0x00000000
+D/DesktopModeFlags(24034): Toggle override initialized to: OVERRIDE_UNSET
+D/DecorView(24034): updateFreeformOutlineFromActivity, inFreeform=false,inFreeformWindowMode=false
+I/AdrenoUtils(24034): <ReadGpuID:357>: Reading chip ID through GSL
+D/WmSystemUiDebug(24034): set navigation bar color,Alpha=0.0, RGB:0,0,0 caller:androidx.activity.EdgeToEdgeApi35.setUp:353 androidx.activity.EdgeToEdge.enableEdgeToEdge$lambda$1:101 androidx.activity.EdgeToEdge$$ExternalSyntheticLambda0.run:0 androidx.activity.EdgeToEdge.enable:127 androidx.activity.EdgeToEdge.enable$default:79 dev.folio.app.MainActivity.onCreate:18 android.app.Activity.performCreate:9428 android.app.Activity.performCreate:9371 android.app.Instrumentation.callActivityOnCreate:1537 android.app.ActivityThread.performLaunchActivity:4703 
+I/libEGL  (24034): shader cache num entries: 13
+D/HWUI    (24034): [HWUI] Flag vulkan_enhance_pipeline_cache enabled
+D/HWUI    (24034): [HWUI] EnhanceVkPipelineCache is disabled
+D/HWUI    (24034): [HWUI] Flag ddre enabled
+D/SKIA    (24034): [Skia] Flag vulkan_enhance_pipeline_cache enabled
+D/SKIA    (24034): [Skia] EnhanceVkPipelineCache is false
+D/HWUI    (24034): MiShaderPrecompile handle dev.folio.notes.debug, isSksl: 0, isAppInPreCacheList: 0, isGpuVersionChanged: 0, isSkslChanged: 0
+D/Activity(24034): Activity = ActivityInfo{750a239 dev.folio.app.MainActivity}, Resume onConfigurationChanged = {1.0 ?mcc0mnc [de_DE] masculine ldltr sw777dp w1164dp h777dp 440dpi xlrg hdr widecg land night finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 3200, 2136) mAppBounds=Rect(0, 0 - 3200, 2136) mMaxBounds=Rect(0, 0 - 3200, 2136) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_90 mInSplitScreen=false letterBoxed=false foScaled=false isSpecificEmbedded=false embeddingScale=1.0} s.2 fontWeightAdjustment=0/d/0 themeChanged=0 themeChangedFlags=0 display=0 extraData = Bundle[{}] screenType=0/0}
+D/RenderLite(24034): trim renderNode enable: false
+D/FramePredict(24034): init success
+E/MI-PreRender(24034): init cloud whiteList failed
+D/lio.notes.debug(24034): MiuiProcessManagerServiceStub setSchedFifo
+I/MiuiProcessManagerImpl(24034): setSchedFifo pid:24034, mode:3
+D/HWUI    (24034): TAG_DDRE, CanvasContext::setDdreActivities: 
+I/ForceDarkHelperStubImpl(24034): setViewRootImplForceDark: false for dev.folio.app.MainActivity@bc18ba9, reason: AppDarkModeEnable
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+E/FramePredict(24034): registerContentObserver fail
+D/HWUI    (24034): [HWUI] Flag vulkan_enhance_pipeline_cache enabled
+D/HWUI    (24034): [HWUI] EnhanceVkPipelineCache is disabled
+D/HWUI    (24034): [HWUI] Flag ddre enabled
+D/DecorViewImmersiveImpl(24034): onAttachedToWindow. pkg: dev.folio.notes.debug
+I/ComputilityLevel(24034): getComputilityLevel(): 4
+D/DecorViewImmersiveImpl(24034): dev.folio.app.MainActivity@bc18ba9 already set forced E2E by app
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+D/VRI[MainActivity](24034): vri.Setup new sync=wmsSync-VRI[MainActivity]#0
+D/VRI[MainActivity](24034): vri.reportDrawFinished 0 0 Rect(0, 0 - 3200, 2136)
+I/NativeTurboSchedManager(24034): Load libmiui_runtime
+I/lio.notes.debug(24034): hiddenapi: Accessing hidden method Landroid/os/SystemProperties;->addChangeCallback(Ljava/lang/Runnable;)V (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/compose/ui/platform/AndroidComposeView$Companion; (domain=app, TargetSdkVersion=37) using reflection: allowed
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+I/HandWritingStubImpl(24034): refreshLastKeyboardType: 1
+I/HandWritingStubImpl(24034): getCurrentKeyboardType: 1
+D/InsetsController(24034): hide(ime(), fromIme=false)
+I/ImeTracker(24034): dev.folio.notes.debug:375e1f5e: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+I/HandWritingStubImpl(24034): getCurrentKeyboardType: 1
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+W/InsetsSource(24034): Has no intersection or mTmpFrame.height(), return Insets.NONE mTmpFrame.height() =0 hasIntersection =false
+I/lio.notes.debug(24034): Compiler allocated 6807KB to compile void android.view.ViewRootImpl.performTraversals()
+I/FolioDebug(24034): nonce=1790549670766 ok=true {"state":"running","runs":[]}
+D/Activity(24034): Activity = ActivityInfo{750a239 dev.folio.app.MainActivity}, Resume onConfigurationChanged = {1.0 ?mcc0mnc [de_DE] masculine ldltr sw777dp w1164dp h777dp 440dpi xlrg hdr widecg land night finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 3200, 2136) mAppBounds=Rect(0, 0 - 3200, 2136) mMaxBounds=Rect(0, 0 - 3200, 2136) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_90 mInSplitScreen=false letterBoxed=false foScaled=false isSpecificEmbedded=false embeddingScale=1.0} s.2 fontWeightAdjustment=0/d/0 themeChanged=0 themeChangedFlags=0 display=0 extraData = Bundle[{}] screenType=0/0}
+D/VRI[MainActivity](24034): getMiuiFreeformStackInfo mTmpFrames.miuiFreeFormStackInfo: null
+D/nativeloader(24034): Load libpdfclient.so using APEX ns com_android_mediaprovider for caller /apex/com.android.mediaprovider/javalib/framework-pdf.jar: ok
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a63950
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a63950
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a65710
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a65710
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a67150
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a67150
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a62290
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a62290
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a620d0
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a620d0
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a63e90
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a63e90
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a65e10
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a65e10
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a64e50
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a64e50
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a64210
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a64210
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a65710
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a65710
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a66890
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a66890
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a64ad0
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a64ad0
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a62b50
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a62b50
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a61b90
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a61b90
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a66350
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a66350
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a64e50
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a64e50
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a643d0
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a643d0
+D/pdf_document_jni(24034): Creating FPDF_DOCUMENT from fd: 179
+D/pdf_document_jni(24034): Deleting Document: 0xb400007029a62290
+D/pdf_document_jni(24034): Destroyed Document: 0xb400007029a62290
+I/FolioProbe(24034): run=1 firstPageMs=267.2 tileZ1 p50/p95=2.5/2.6 tileZ2 p50/p95=2.0/2.1 overlayMs=11 exportMs=241 inBytes=178452 outBytes=201730 merged=true pages=100 allA4=true markAnnotated=true markPlain=false
+I/FolioProbe(24034): run=2 firstPageMs=26.3 tileZ1 p50/p95=2.5/2.6 tileZ2 p50/p95=2.0/2.1 overlayMs=10 exportMs=108 inBytes=178452 outBytes=201730 merged=true pages=100 allA4=true markAnnotated=true markPlain=false
+I/FolioProbe(24034): run=3 firstPageMs=25.2 tileZ1 p50/p95=2.5/2.6 tileZ2 p50/p95=2.0/2.1 overlayMs=11 exportMs=80 inBytes=178452 outBytes=201730 merged=true pages=100 allA4=true markAnnotated=true markPlain=false
+D/ProfileInstaller(24034): Installing profile for dev.folio.notes.debug
+I/FolioDebug(24034): nonce=179054967530264 ok=true {"state":"done","runs":["run=1 firstPageMs=267.2 tileZ1 p50/p95=2.5/2.6 tileZ2 p50/p95=2.0/2.1 overlayMs=11 exportMs=241 inBytes=178452 outBytes=201730 merged=true pages=100 allA4=true markAnnotated=true markPlain=false","run=2 firstPageMs=26.3 tileZ1 p50/p95=2.5/2.6 tileZ2 p50/p95=2.0/2.1 overlayMs=10 exportMs=108 inBytes=178452 outBytes=201730 merged=true pages=100 allA4=true markAnnotated=true markPlain=false","run=3 firstPageMs=25.2 tileZ1 p50/p95=2.5/2.6 tileZ2 p50/p95=2.0/2.1 overlayMs=11 exportMs=80 inBytes=178452 outBytes=201730 merged=true pages=100 allA4=true markAnnotated=true markPlain=false"]}
+D/Activity(24034): Activity = ActivityInfo{750a239 dev.folio.app.MainActivity}, Resume onConfigurationChanged = {1.0 ?mcc0mnc [de_DE] masculine ldltr sw777dp w1164dp h777dp 440dpi xlrg hdr widecg land night finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 3200, 2136) mAppBounds=Rect(0, 0 - 3200, 2136) mMaxBounds=Rect(0, 0 - 3200, 2136) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_90 mInSplitScreen=false letterBoxed=false foScaled=false isSpecificEmbedded=false embeddingScale=1.0} s.2 fontWeightAdjustment=0/d/0 themeChanged=0 themeChangedFlags=0 display=0 extraData = Bundle[{}] screenType=0/0}
