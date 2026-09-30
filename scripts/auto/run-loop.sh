@@ -8,6 +8,7 @@
 # repeatedly end without progress.
 #
 # Usage:  bash scripts/auto/run-loop.sh [phase|task]        (default: phase)
+# Ctrl+C stops the running Claude session (with its tools and subagents) and exits the script.
 # Resume after a crash, reboot or Ctrl+C: run the same command again. The run state in
 # .device/loop-logs/run.state brings back the interrupted task's session with its full context.
 # Env:
@@ -135,7 +136,7 @@ limit_text() {
 
 probe() {   # 0 = Claude answers; else unavailable (output kept in $probe_out)
   # Runs outside the repository so the probe loads no CLAUDE.md, hooks or STATUS snapshot.
-  ( cd "${TMPDIR:-/tmp}" && timeout 180 claude -p "Reply with the single word OK." --max-turns 1 --effort low \
+  ( cd "${TMPDIR:-/tmp}" && timeout --foreground 180 claude -p "Reply with the single word OK." --max-turns 1 --effort low \
       --permission-mode dontAsk ) > "$probe_out" 2>&1 && grep -q "OK" "$probe_out"
 }
 
@@ -183,14 +184,22 @@ feed_filter='
 run_headless() {   # $1 = new|resume ; sets RUN_TEXT (result and CLI lines), LAST_RESULT and SID
   local kind="$1" log args sid
   log="$log_dir/$(date +%Y%m%d-%H%M%S)-${cur_task// /_}.jsonl"
+  cur_log="$log"
   if [ "$kind" = new ]; then args=(-p "$(new_prompt "$cur_task")"); else args=(-p "$(continue_prompt "$cur_task")" --resume "$SID"); fi
+  # Runs as a background job in its own process group (set -m), so Ctrl+C reaches on_interrupt at
+  # once and on_interrupt can stop the whole session tree, tools and subagent shells included.
+  set -m
   if [ "$feed" = "1" ]; then
-    claude "${args[@]}" --permission-mode dontAsk --effort "$effort" --max-turns 400 \
-      --output-format stream-json --verbose 2>&1 | tee "$log" | jq -rj --unbuffered "$feed_filter" 2>/dev/null
+    ( claude "${args[@]}" --permission-mode dontAsk --effort "$effort" --max-turns 400 \
+        --output-format stream-json --verbose < /dev/null 2>&1 | tee "$log" | jq -rj --unbuffered "$feed_filter" 2>/dev/null ) &
   else
-    claude "${args[@]}" --permission-mode dontAsk --effort "$effort" --max-turns 400 \
-      --output-format stream-json --verbose > "$log" 2>&1
+    ( claude "${args[@]}" --permission-mode dontAsk --effort "$effort" --max-turns 400 \
+        --output-format stream-json --verbose < /dev/null > "$log" 2>&1 ) &
   fi
+  child_pid=$!
+  set +m
+  wait "$child_pid"
+  child_pid=""
   sid=$(jq -r 'select(.session_id? != null) | .session_id' "$log" 2>/dev/null | tail -n1)
   [ -n "$sid" ] && SID="$sid"
   # Limit messages arrive as the session result or as plain CLI lines, never inside tool output.
@@ -269,6 +278,37 @@ run_rc() {   # $1 = new|resume
   RUN_TEXT="$(cat "$reset_file" 2>/dev/null)"
   LAST_RESULT=""
 }
+
+# ---------- Ctrl+C ----------
+# Ctrl+C (or kill -TERM) stops the running Claude session with all its children, saves the run
+# state and exits. Rerunning the same command resumes that session. In rc mode Ctrl+C belongs to the
+# interactive Claude UI; quit Claude there, then press Ctrl+C here.
+child_pid=""; cur_log=""; cur_task=""; SID=""
+kill_tree() {   # $1 = pid of the session job (also its process group id), $2 = signal name
+  if [ -r "/proc/$1/winpid" ] && command -v taskkill >/dev/null 2>&1; then
+    taskkill //PID "$(cat "/proc/$1/winpid")" //T //F >/dev/null 2>&1; return
+  fi
+  kill "-$2" -- "-$1" 2>/dev/null || kill "-$2" "$1" 2>/dev/null
+}
+on_interrupt() {
+  local sid i
+  trap '' INT TERM
+  echo
+  if [ -n "$child_pid" ] && kill -0 -- "-$child_pid" 2>/dev/null; then
+    say "Ctrl+C: stopping the Claude session."
+    kill_tree "$child_pid" TERM
+    for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 -- "-$child_pid" 2>/dev/null || break; sleep 1; done
+    kill -0 -- "-$child_pid" 2>/dev/null && kill_tree "$child_pid" KILL
+  fi
+  if [ -n "$cur_log" ] && [ -f "$cur_log" ]; then
+    sid=$(jq -r 'select(.session_id? != null) | .session_id' "$cur_log" 2>/dev/null | tail -n1)
+    [ -n "$sid" ] && SID="$sid"
+  fi
+  [ -n "$cur_task" ] && save_state
+  say "Stopped by Ctrl+C during ${cur_task:-startup}. Rerun the same command to resume that session (FOLIO_FRESH=1 starts it new)."
+  exit 130
+}
+trap on_interrupt INT TERM
 
 # ---------- main ----------
 if goal_reached; then echo "Nothing to do: goal already reached (next: $(field next))."; exit 0; fi
