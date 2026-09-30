@@ -119,6 +119,24 @@ class TileCacheTest {
         assertThat(released).containsExactly("a/0/0")
     }
 
+    @Test
+    fun put_overBudget_neverEvictsProtectedEntries_butTrimUnpinnedDoes() {
+        val released = ArrayList<String>()
+        val guarded =
+            TileCache<String>(budgetBytes = 2 * TILE, release = { released += it }, isProtected = { it.key.bucket == 0 })
+        guarded.put(key("a", 0, 0, bucket = 0), "base", TILE)
+        guarded.beginFrame()
+        guarded.put(key("a", 0, 0), "old", TILE)
+        guarded.beginFrame()
+        guarded.put(key("a", 1, 0), "new", TILE)
+
+        assertThat(released).containsExactly("old")
+        assertThat(guarded.bytesOf { it.key.bucket == 0 }).isEqualTo(TILE)
+        guarded.beginFrame()
+        assertThat(guarded.trimUnpinned()).isEqualTo(2)
+        assertThat(released).containsExactly("old", "base", "new")
+    }
+
     private fun put(
         page: String,
         tx: Int,

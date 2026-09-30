@@ -35,6 +35,7 @@ import dev.folio.core.render.tiles.TileLayer
 import dev.folio.core.render.tiles.VisiblePage
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.ViewportMode
+import dev.folio.core.render.viewport.ZoomBuckets
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -109,10 +110,13 @@ class CanvasHostView internal constructor(
             )
         }
     private val animator = ViewportAnimator(controller.viewport, ::onViewportChanged)
-    private val idleRequest = Runnable { requestTiles() }
+    private val idleRequest = Runnable { requestTiles(idle = true) }
     private val memoryCallbacks = MemoryCallbacks()
     private var document: Document? = null
     private var lastViewportChangeMs = 0L
+    private var lastPanRequestMs = 0L
+    private var requestedBucket = TileLayer.NO_BUCKET
+    private val loading = HashSet<PageId>()
     private var settleStartNs = 0L
     private var lastVisible: List<VisiblePage> = emptyList()
 
@@ -236,6 +240,7 @@ class CanvasHostView internal constructor(
             erasePreview = null
             eraseCommittedOn = null
         }
+        loading.removeAll(next.pageBodies.keys)
         if (previous?.pages != next.pages) layoutPages()
         val keep = HashSet<String>(next.pages.size * 2)
         for (ref in next.pages) {
@@ -251,7 +256,7 @@ class CanvasHostView internal constructor(
     private fun refreshTiles() {
         invalidateLayers()
         // Mid-gesture the idle timer requests later; otherwise refresh stale or newly loaded tiles now.
-        if (SystemClock.uptimeMillis() - lastViewportChangeMs >= IDLE_MS && !isAnimating) requestTiles()
+        if (SystemClock.uptimeMillis() - lastViewportChangeMs >= IDLE_MS && !isAnimating) requestTiles(idle = true)
         handoff.check()
     }
 
@@ -402,9 +407,15 @@ class CanvasHostView internal constructor(
     private fun onViewportChanged() {
         // HOT PATH: per gesture event and animation frame.
         invalidateLayers()
-        lastViewportChangeMs = SystemClock.uptimeMillis()
+        val now = SystemClock.uptimeMillis()
+        lastViewportChangeMs = now
         removeCallbacks(idleRequest)
         postDelayed(idleRequest, IDLE_MS)
+        // Panning at the requested bucket: tiles moving into view render now instead of after the gesture.
+        if (viewport.bucketIndex == requestedBucket && now - lastPanRequestMs >= PAN_REQUEST_MS) {
+            lastPanRequestMs = now
+            requestTiles(idle = false)
+        }
     }
 
     private fun invalidateLayers() {
@@ -412,11 +423,15 @@ class CanvasHostView internal constructor(
         content.invalidate()
     }
 
-    /** Requests tiles for the visible pages at the current bucket and decodes their bodies (plus neighbors). */
-    private fun requestTiles() {
+    /**
+     * Requests tiles for the visible pages at the current bucket (plus base tiles and the prefetch ring)
+     * and decodes their bodies (plus neighbors). [idle]: the viewport settled (the request that may change
+     * the bucket, timed as `render:settle`); otherwise a pan at the requested bucket.
+     */
+    private fun requestTiles(idle: Boolean) {
         val stack = viewport.layout ?: return
         val doc = document ?: return
-        if (isAnimating) {
+        if (idle && isAnimating) {
             postDelayed(idleRequest, IDLE_MS)
             return
         }
@@ -428,38 +443,69 @@ class CanvasHostView internal constructor(
         val centerY = height / 2f
         val canvasMode = viewport.mode is ViewportMode.Canvas
         viewport.forEachVisiblePage(width.toFloat(), height.toFloat()) { i, originX, originY, l, t, r, b ->
-            val frame = stack.framePt(i)
-            val prefetch =
-                if (canvasMode) {
-                    RectPt(l - ringPt, t - ringPt, r + ringPt, b + ringPt)
-                } else {
-                    RectPt(
-                        max(frame.left, l - ringPt),
-                        max(frame.top, t - ringPt),
-                        min(frame.right, r + ringPt),
-                        min(
-                            frame.bottom,
-                            b + ringPt,
-                        ),
-                    )
-                }
+            val shown = RectPt(l, t, r, b)
+            val frame = if (canvasMode) null else stack.framePt(i)
             val page = stack.pages[i]
-            visible += VisiblePage(page.id.value, RectPt(l, t, r, b), (centerX - originX) / scale, (centerY - originY) / scale, prefetch)
-            for (j in max(0, i - 1)..min(stack.size - 1, i + 1)) {
-                val id = stack.pages[j].id
-                if (id !in doc.pageBodies && id !in missing) missing += id
-            }
+            visible +=
+                VisiblePage(
+                    page.id.value,
+                    shown,
+                    (centerX - originX) / scale,
+                    (centerY - originY) / scale,
+                    prefetchRectPt(shown, ringPt, frame),
+                    baseRectPt(shown, frame),
+                )
+            for (j in max(0, i - 1)..min(stack.size - 1, i + 1)) addIfUnloaded(stack.pages[j].id, doc, idle, missing)
         }
-        if (missing.isNotEmpty()) controller.loadPages(missing)
+        if (missing.isNotEmpty()) {
+            loading += missing
+            controller.loadPages(missing)
+        }
         // Visible tiles of both layers queue before any prefetch tile.
         backgroundTiles.request(visible, scale)
         contentTiles.request(visible, scale)
-        backgroundTiles.prefetch(visible, scale)
-        contentTiles.prefetch(visible, scale)
+        val baseBucket = ZoomBuckets.indexFor(viewport.fitWidthScale) - BASE_BUCKET_STEPS
+        backgroundTiles.prefetch(visible, scale, baseBucket)
+        contentTiles.prefetch(visible, scale, baseBucket)
         lastVisible = visible
-        settleStartNs = if (backgroundTiles.isSettled && contentTiles.isSettled) 0L else PerfMonitor.clock.monotonicNs()
+        requestedBucket = viewport.bucketIndex
+        if (idle) settleStartNs = if (backgroundTiles.isSettled && contentTiles.isSettled) 0L else PerfMonitor.clock.monotonicNs()
         if (contentTiles.pendingCount == 0) contentTiles.warmUp(visible)
         handoff.check()
+    }
+
+    /** [shown] grown by [ringPt] each way, clipped to [frame] on a fixed page (null: infinite canvas). */
+    private fun prefetchRectPt(
+        shown: RectPt,
+        ringPt: Float,
+        frame: RectPt?,
+    ): RectPt {
+        val ring = RectPt(shown.left - ringPt, shown.top - ringPt, shown.right + ringPt, shown.bottom + ringPt)
+        if (frame == null) return ring
+        return RectPt(max(frame.left, ring.left), max(frame.top, ring.top), min(frame.right, ring.right), min(frame.bottom, ring.bottom))
+    }
+
+    /** Base tiles: the whole fixed page; around the view (one view size each way) on an infinite canvas. */
+    private fun baseRectPt(
+        shown: RectPt,
+        frame: RectPt?,
+    ): RectPt =
+        frame ?: RectPt(
+            2 * shown.left - shown.right,
+            2 * shown.top - shown.bottom,
+            2 * shown.right - shown.left,
+            2 * shown.bottom - shown.top,
+        )
+
+    /** Adds [id] to [missing] when its body is not decoded; pan requests leave loads in flight alone, idle requests retry them. */
+    private fun addIfUnloaded(
+        id: PageId,
+        doc: Document,
+        idle: Boolean,
+        missing: MutableList<PageId>,
+    ) {
+        val retry = idle || id !in loading
+        if (id !in doc.pageBodies && id !in missing && retry) missing += id
     }
 
     private fun onTileReady() {
@@ -547,6 +593,12 @@ class CanvasHostView internal constructor(
 
         /** Viewport idle time before tiles of the new bucket are requested. */
         const val IDLE_MS = 100L
+
+        /** Minimum time between tile requests while panning at the requested bucket. */
+        const val PAN_REQUEST_MS = 50L
+
+        // Base tiles render 4 half-octaves (1/4 of the px per pt) below the fit-width bucket.
+        private const val BASE_BUCKET_STEPS = 4
 
         /** Share of `largeMemoryClass` for both tile caches (05-canvas-rendering.md#tiles). */
         private const val BUDGET_SHARE = 4

@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P03
-next: P03-T10
+next: P03 REVIEW
 updated: 2026-09-30
 
 ## Completed
@@ -10,15 +10,13 @@ updated: 2026-09-30
 - P02 done 2026-09-29 (tag p02-done): model + commands (200-command undo property test), folio.v1 codec (1000x120 inputs 709 KB), container + goldens, crash-safe packer (100 injected failures), recovery, Room index (500 docs 149 ms), repositories, sessions (LRU 30); REVIEW fixed 6 blocking findings; A-009..A-016; qa green.
 
 ## Current phase progress
-- P03: T01, T02, T03, T04, T05, T06, T07, T08, T09
+- P03: T01, T02, T03, T04, T05, T06, T07, T08, T09, T10
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck 2026-09-29: All files access was still granted before any grant, so the `[Checked]` mark did not revoke it. -> turn off Settings > Apps > Folio Debug > Permissions > All files access, then write "-> revoked" here (Claude reruns without grant-storage.sh first); or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else. [technically revoked, no app permissions yet to change (none at all), so there is no "All files access" permission]
 
 ## USER-CHECK (human verification; non-blocking)
-- P03-T07: install the debug app, `open lined:4` (or any doc) on the canvas route and write a page of notes quickly with the Focus Pen -> no flicker, gap or double (darker) line when lifting the pen; reopen after closing the app -> everything is still there, no "(conflict ...)" copies in Documents/Folio-Debug. [Checked, smooth writing with no flickering, template and strokes sections only flicker or not render while moving/zooming the page, should be minized so page already prerenders during zoom or at least stays longer even behind screen (doesn't happen when app is restarted, so when strokes load from the folie file, but generally this issue needs to be minized); brush strokes and everything are saved on app restart]
-- P03-T08: after drawing, run `bash scripts/device/debugcmd.sh tool eraser` (or `tool eraser,partial`) and erase with the Focus Pen -> ink vanishes while you move, nothing flickers back when you lift; `debugcmd.sh undo` brings the whole gesture back; `tool pen` to draw again.[Checked, erasing very smooth and responsive, undo also works, hovering above does not erase things fortunately; eraser width should be resizeable, but ignore this request if it is already considered]
-- P03-T09: on the canvas route hold the Focus Pen just above the page -> a thin ring follows the tip (pen: about the stroke width; after `debugcmd.sh tool eraser`: the 10 pt eraser circle) and disappears when the pen touches or leaves; the pencil still shades wider and lighter when tilted. Pen button: HyperOS keeps it (P01-S7), so holding it must NOT erase; if it ever does erase, note it here. [no thin ring visible]
+- P03-T10 (your T07 flicker report, A-026): install the debug app, open a page with lots of ink, then pan quickly with one finger and pinch in and out (also right after writing, without restarting) -> template and strokes stay visible (briefly blurrier while zoomed, sharp again within about 0.2 s); no white patches or vanishing lines. Eraser width choice comes with the P04-T03 tool options row (4/10/24 pt exist).
 
 ## Deferred (id: reason)
 - D-001 P00-T07: P11 `benchmark` build type needs its own DebugHooksModule (src/benchmark, bind NoOpDebugHooks).
@@ -30,12 +28,13 @@ updated: 2026-09-30
 - D-009 P02-REVIEW: unpack fsyncs every entry and bounds total size at 8 GB; one fsync pass and a size-ratio zip-bomb bound (P11 perf).
 - D-010 P02-REVIEW: session packs drop unknown manifest keys, unknown proto fields and unknown object kinds (04#versioning); preserve raw JSON and opaque objects before v2 exists. Also missing: LibraryWatcher event test (P05).
 - D-011 P03-T03: CUSTOM templates render through `TemplateAssets` but nothing implements it yet (PNG decode from session assets, PDF page raster via core:pdf) and there is no import UI; add both in P08 (with the PDF raster).
-- D-012 P03-T06: wet ink has no motion prediction yet (06#wet-ink, ADR-002); `androidx.input:input-motionprediction` is pre-release (1.0.0-rc01 on androidx main), so decide it with a decisions.md note and measure in P03-T10.
-- D-013 P03-T08: erase worker time has no PerfMonitor section (only `ink:onTouch` covers eraser input); add `ink:erase` per drained batch and measure it in P03-T10.
 - D-014 P03-T09: tilt shading has no off switch (A-025): dry rendering applies tilt whenever stored inputs carry tilt; the P11-T01 setting needs a stored per-stroke choice (or dropping tilt at commit) so wet and dry ink agree.
+- D-015 P03-T10: `ink:commit` p95 2.02 ms vs 2 ms in debug (A-026 known gap); re-measure in the P11 benchmark build, if still over convert inputs (`StrokeBuilder.inputsOf`, `InkStroke.of`) off main.
+- D-016 P03-T10: .claude/rules/rendering.md line 5 should read "During pan/zoom gestures transform existing tiles; only newly uncovered tiles at the current bucket are requested (throttled). Re-render at the new bucket after 100 ms idle: visible tiles first, center-out. Base tiles (low bucket) of visible pages are never evicted by the budget (A-026)."; edit denied headless, apply interactively.
+- D-017 P03-T09 (USER-CHECK: "no thin ring visible"): hover ring never shows on the Pad 7. Likely cause: hover reaches `CanvasHostView` via `dispatchHoverEvent`/`onHoverEvent`, not the overridden `dispatchGenericMotionEvent`, so `InputRouter` never sees it. Fix in P03-REVIEW with a failing Robolectric test first, then a new USER-CHECK.
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P03-T09 done (A-025): core:ink `StylusFeatures`/`StylusPreferences`/`HoverTarget`; editor `HoverCursor` + `HoverRingView` (plain View above the overlay slot), button eraser in `StylusTools`, `CanvasController.stylusPreferences`; spike-ink/spike-stylus code deleted, app no longer depends on androidx.ink directly.
-- Debug `state` reports `canvas.stylus` with `button=` and `hoverRing=`; synthetic `input stylus` sends no hover, so the ring is only checkable by the user.
-- `ink:commit` p95 was 3.09 ms in the T08 run (budget 2 ms, 1.92 in T07): fix or record in P03-T10. The first swipe after `open` is sometimes dropped by `input stylus`; resend it.
-- Next: P03-T10 performance pass (also D-012 motion prediction decision, D-013 `ink:erase` section).
+- P03-T10 done (A-026): pan-time tile requests (50 ms throttle), protected base tiles (fit-width bucket - 4), layered fallback, prefetch budget ignores evictable buckets; `ink:erase` section; motion prediction not adopted (ADR-002 note).
+- Budgets (debug, 1500 strokes): onTouch 0.33, commit 2.02 (gap, D-015), settle p95 119 ms, janky 0.24%; gfxinfo p95 21 ms is a known gap, R-PERF-04 p95 moves to P11 CPU frame time (12-performance.md).
+- P02-T06 user note says the app now has no All files access; recheck the onboarding (without grant-storage.sh) during P03-REVIEW device checks.
+- Next: P03-REVIEW (reviewer subagent, fix D-017 hover ring, full `./gradlew qa`, tag p03-done).

@@ -23,6 +23,7 @@ Evidence 2026-09-27 (P01-S1): Pad 7, debug build, ink 1.1.0-alpha09, route `spik
 | immediate (inside `onStrokesFinished`) | 1 | 0.20 / 0.27 / 0.66 | 0.03 / 0.05 | 0.7% | stroke shown, all 3 |
 Front buffer works on HyperOS: InProgressStrokesView adds a SurfaceView (BLAST, z=1) above the window on the first stroke. Requesting the 144 Hz mode left the display at 120 Hz (device.md#display). Screenshots settle >= 100 ms after pen-up, so single-frame flicker and felt latency are a USER-CHECK. Motion prediction was not wired in the spike (P03).
 Decision 2026-09-27: A confirmed (p95 0.29 ms vs 1 ms budget, handoff clean). Handoff mode: commit, the only mode that removes wet strokes after the frame showing the committed stroke by construction (A-005).
+Note 2026-09-30 (P03-T10, D-012): motion prediction is not adopted for now. `androidx.input:input-motionprediction` is still pre-release (1.0.0-rc01), front-buffered wet ink already measures `ink:onTouch` p95 0.33 ms on a 1500-stroke page, and the user reported writing as smooth with no flicker (P03-T07 USER-CHECK). Predicted points would also need removing at pen-up without a visible jump. Revisit in P11 when the library is stable or if users report felt latency.
 
 ## ADR-003 Committed content rendering
 Status: Accepted (2026-09-27, P01-S2)

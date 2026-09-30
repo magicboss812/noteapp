@@ -189,10 +189,70 @@ class TileLayerTest {
         assertThat(differing.toDouble() / (w * h)).isLessThan(MAX_DIFF_SHARE)
     }
 
+    @Test
+    fun draw_nearerBucketCoversSlotPartly_restComesFromCoarserBucket() {
+        val layer = layer(RenderTarget.SCREEN_CONTENT)
+        val page = a4.withStrokes(stroke("s1", 100f, 100f), stroke("s2", 300f, 100f))
+        layer.setPage(page.toRef(), page)
+        layer.request(listOf(visible(frame)), scale = 1f) // bucket 0: the whole page
+        scope.testScheduler.advanceUntilIdle()
+        layer.request(listOf(visible(RectPt(0f, 0f, 200f, 200f))), scale = 2f) // bucket 2: tile (0, 0), 0..256 pt
+        scope.testScheduler.advanceUntilIdle()
+
+        // Bucket 3 (2.83 px/pt, 181 pt slots): slot tx 1 spans 181..362 pt, bucket 2 covers it only up to 256 pt.
+        val scale = ZoomBuckets.scaleOf(3)
+        val out = Bitmap.createBitmap((400f * scale).toInt(), (200f * scale).toInt(), Bitmap.Config.ARGB_8888)
+        layer.beginFrame()
+        layer.draw(Canvas(out), "p", 0f, 0f, scale, 0f, 0f, 400f, 200f)
+
+        assertThat(Color.alpha(out.getPixel((305f * scale).toInt(), (105f * scale).toInt()))).isGreaterThan(0) // s2, from bucket 0
+        assertThat(Color.alpha(out.getPixel((105f * scale).toInt(), (105f * scale).toInt()))).isGreaterThan(0) // s1, from bucket 2
+        assertThat(Color.alpha(out.getPixel((200f * scale).toInt(), (20f * scale).toInt()))).isEqualTo(0)
+    }
+
+    @Test
+    fun prefetch_baseBucket_rendersWholePage_andSurvivesBudgetPressure() {
+        val layer = layer(RenderTarget.SCREEN_BACKGROUND, budget = 6 * TileGrid.TILE_BYTES)
+        layer.setPage(a4.toRef(), null)
+        val corner = VisiblePage("p", RectPt(0f, 0f, 200f, 200f), 100f, 100f, RectPt(0f, 0f, 200f, 200f), baseRectPt = frame)
+        layer.request(listOf(corner), scale = 2f)
+        layer.prefetch(listOf(corner), scale = 2f, baseBucket = 0)
+        scope.testScheduler.advanceUntilIdle()
+        assertThat(layer.isDrawn("p", 0f, 0f, frame.right, frame.bottom, scale = 1f)).isTrue() // 4 base tiles
+
+        layer.beginFrame() // nothing drawn: every tile loses its pin
+        val wide = VisiblePage("p", RectPt(0f, 0f, 590f, 380f), 295f, 190f, RectPt(0f, 0f, 590f, 380f), baseRectPt = frame)
+        layer.request(listOf(wide), scale = 4f) // bucket 4: 128 pt tiles, 5 x 3 = 15 > budget
+        layer.prefetch(listOf(wide), scale = 4f, baseBucket = 0)
+        scope.testScheduler.advanceUntilIdle()
+
+        assertThat(layer.isDrawn("p", 0f, 0f, frame.right, frame.bottom, scale = 1f)).isTrue()
+        assertThat(layer.isDrawn("p", 0f, 0f, 200f, 200f, scale = 2f)).isFalse() // the old bucket-2 tile was evicted
+        assertThat(layer.isDrawn("p", 0f, 0f, 590f, 380f, scale = 4f)).isTrue()
+    }
+
+    @Test
+    fun prefetch_cacheFullOfOtherBuckets_stillPrefetchesTheRing() {
+        val layer = layer(RenderTarget.SCREEN_BACKGROUND, budget = 5 * TileGrid.TILE_BYTES)
+        layer.setPage(a4.toRef(), null)
+        layer.request(listOf(visible(frame)), scale = 1f) // 4 tiles at bucket 0
+        scope.testScheduler.advanceUntilIdle()
+
+        layer.beginFrame()
+        val around = VisiblePage("p", RectPt(0f, 0f, 200f, 200f), 100f, 100f, RectPt(0f, 0f, 460f, 460f))
+        layer.request(listOf(around), scale = 2f) // bucket 2: tile (0, 0); the cache is full with it
+        layer.prefetch(listOf(around), scale = 2f)
+        scope.testScheduler.advanceUntilIdle()
+
+        assertThat(layer.isDrawn("p", 0f, 0f, 460f, 460f, scale = 2f)).isTrue() // ring of 3 tiles, old bucket evicted
+        assertThat(layer.bytes).isAtMost(5 * TileGrid.TILE_BYTES)
+    }
+
     private fun layer(
         target: RenderTarget,
         painterFactory: () -> PageRenderer = { PageRenderer(ink = painter) },
-    ) = TileLayer(target, BUDGET, pool, scope, dispatcher, painterFactory) { ready++ }
+        budget: Long = BUDGET,
+    ) = TileLayer(target, budget, pool, scope, dispatcher, painterFactory) { ready++ }
 
     private fun visible(rect: RectPt) = VisiblePage("p", rect, rect.center.x, rect.center.y, rect)
 

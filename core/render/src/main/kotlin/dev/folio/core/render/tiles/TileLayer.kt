@@ -21,7 +21,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.abs
 
 /** What a tile request needs to know about one visible page. */
 data class VisiblePage(
@@ -35,13 +34,15 @@ data class VisiblePage(
     val centerYPt: Float,
     /** Prefetch area (visible rect plus one tile ring, clamped like [visibleRectPt]). */
     val prefetchRectPt: RectPt,
+    /** Area kept at the base bucket (the page frame of fixed pages), see [TileLayer.prefetch]. */
+    val baseRectPt: RectPt = prefetchRectPt,
 )
 
 /**
  * One tile cache (background or content, 05-canvas-rendering.md#tiles): renders missing and stale
- * tiles of the current bucket on the render dispatcher (visible first, center-out, then one prefetch
- * ring), draws cached tiles with the viewport transform, and keeps other-bucket tiles on screen where
- * the current bucket has no tile yet. Main thread only, except the renders.
+ * tiles of the current bucket on the render dispatcher (visible first, center-out, then the base tiles
+ * and one prefetch ring), draws cached tiles with the viewport transform, and keeps other-bucket tiles
+ * on screen where the current bucket has no tile yet. Main thread only, except the renders.
  */
 @MainThread
 @Suppress("TooManyFunctions") // page updates, request, draw, trim and their private helpers
@@ -61,8 +62,12 @@ class TileLayer(
     )
 
     // Evictions are logged once per request (debug builds), not per tile.
-    private val cache = TileCache<Bitmap>(budgetBytes, pool::release)
+    private val cache = TileCache<Bitmap>(budgetBytes, pool::release, isProtected = ::isBaseTile)
     private var loggedEvictions = 0
+
+    // Base tiles (see prefetch): bucket and area per page; NO_BUCKET = none.
+    private var baseBucket = NO_BUCKET
+    private val baseRects = HashMap<String, RectPt>()
     private var warmUp: Job? = null
     private val pages = HashMap<String, PageState>()
     private val inFlight = HashMap<TileKey, Job>()
@@ -141,6 +146,7 @@ class TileLayer(
     /** Forgets pages not in [keep] and drops their tiles. */
     fun retainPages(keep: Set<String>) {
         pages.keys.retainAll(keep)
+        baseRects.keys.retainAll(keep)
         cache.retainPages(keep)
         val gone = inFlight.keys.filter { it.page !in keep }
         for (key in gone) inFlight.remove(key)?.cancel()
@@ -149,8 +155,8 @@ class TileLayer(
 
     /**
      * Starts renders at [scale]'s bucket for the missing or stale tiles on screen of [visible] pages,
-     * center-out across pages, and cancels renders of other buckets. Call [prefetch] after the
-     * requests of every layer, so all visible tiles queue before any prefetch tile.
+     * center-out across pages, and cancels renders of other buckets (except base tiles). Call
+     * [prefetch] after the requests of every layer, so all visible tiles queue before any prefetch tile.
      */
     fun request(
         visible: List<VisiblePage>,
@@ -160,7 +166,7 @@ class TileLayer(
         val stale = inFlight.entries.iterator()
         while (stale.hasNext()) {
             val (key, job) = stale.next()
-            if (key.bucket == bucket) continue
+            if (key.bucket == bucket || key.bucket == baseBucket) continue
             job.cancel()
             stale.remove()
         }
@@ -170,21 +176,46 @@ class TileLayer(
             loggedEvictions = cache.evictions
         }
         waitingVisible.clear()
-        for (key in ordered(visible, bucket, ring = false)) {
+        for (key in ordered(visible, bucket, Area.VISIBLE)) {
             ensure(key)
             if (key in inFlight) waitingVisible += key
         }
     }
 
-    /** Starts renders for the ring of tiles around [visible] pages (center-out) while the budget has room. */
+    /**
+     * Starts renders for the base tiles of [visible] pages, then for the ring of tiles around them
+     * (center-out). Base tiles cover each page's [VisiblePage.baseRectPt] at [baseBucket] (a coarse
+     * bucket, used only while [scale]'s bucket is finer): they are never evicted while their page is
+     * visible, so pan and zoom always find at least a blurred copy of the page. Ring tiles start only
+     * while the tiles this view needs (current bucket, base, queued) fit the budget; older tiles of other
+     * buckets make room for them.
+     */
     fun prefetch(
         visible: List<VisiblePage>,
         scale: Float,
+        baseBucket: Int = NO_BUCKET,
     ) {
-        for (key in ordered(visible, ZoomBuckets.indexFor(scale), ring = true)) {
-            if (cache.bytes + (inFlight.size + 1) * TileGrid.TILE_BYTES > cache.budgetBytes) break
-            ensure(key)
+        val bucket = ZoomBuckets.indexFor(scale)
+        this.baseBucket = if (baseBucket < bucket) baseBucket else NO_BUCKET
+        baseRects.clear()
+        if (this.baseBucket != NO_BUCKET) {
+            for (v in visible) baseRects[v.page] = v.baseRectPt
+            for (key in ordered(visible, this.baseBucket, Area.BASE)) ensure(key)
         }
+        val shown = visible.mapTo(HashSet()) { it.page }
+        var neededBytes = cache.bytesOf { (it.key.bucket == bucket && it.key.page in shown) || isBaseTile(it) }
+        neededBytes += inFlight.size * TileGrid.TILE_BYTES
+        for (key in ordered(visible, bucket, Area.RING)) {
+            if (neededBytes + TileGrid.TILE_BYTES > cache.budgetBytes) break
+            if (ensure(key)) neededBytes += TileGrid.TILE_BYTES
+        }
+    }
+
+    private fun isBaseTile(entry: TileCache.Entry<Bitmap>): Boolean {
+        if (entry.key.bucket != baseBucket) return false
+        val area = baseRects[entry.key.page] ?: return false
+        val r = entry.rectPt
+        return r.left < area.right && area.left < r.right && r.top < area.bottom && area.top < r.bottom
     }
 
     /**
@@ -209,17 +240,27 @@ class TileLayer(
             }
     }
 
-    /** Tile keys of [visible] pages at [bucket], center-out: the tiles on screen, or ([ring]) those around them. */
+    /** Which tiles of a visible page [ordered] lists. */
+    private enum class Area { VISIBLE, RING, BASE }
+
+    /** Tile keys of [visible] pages at [bucket] in [which] area, center-out. */
     private fun ordered(
         visible: List<VisiblePage>,
         bucket: Int,
-        ring: Boolean,
+        which: Area,
     ): List<TileKey> {
         val sizePt = TileGrid.tileSizePt(bucket)
         val keys = ArrayList<Pair<Float, TileKey>>()
+        val ring = which == Area.RING
         for (v in visible) {
             val inView = TileGrid.range(v.visibleRectPt, bucket)
-            val area = if (ring) TileGrid.range(v.prefetchRectPt, bucket) else inView
+            val area =
+                when (which) {
+                    Area.VISIBLE -> inView
+                    Area.RING -> TileGrid.range(v.prefetchRectPt, bucket)
+                    Area.BASE -> TileGrid.range(v.baseRectPt, bucket)
+                }
+            if (area.isEmpty) continue
             for (ty in area.tyMin..area.tyMax) {
                 for (tx in area.txMin..area.txMax) {
                     if (ring && inView.contains(tx, ty)) continue
@@ -261,16 +302,21 @@ class TileLayer(
         covered.fill(false, 0, slots)
         val entries = cache.entries(page)
         var missing = slots
+        var others = 0L // bit (b - bucket + FALLBACK_REACH) per other bucket b within reach
         for (i in entries.indices) {
             val e = entries[i]
             val k = e.key
-            if (k.bucket != bucket || !range.contains(k.tx, k.ty)) continue
-            covered[slotIndex(k.tx, k.ty)] = true
-            missing--
-            cache.markUsed(e)
-            e.payload?.let { drawTile(canvas, it, k, originXPx, originYPx, scale) }
+            if (k.bucket != bucket) {
+                val bit = k.bucket - bucket + FALLBACK_REACH
+                if (bit in 0 until 2 * FALLBACK_REACH + 1) others = others or (1L shl bit)
+            } else if (range.contains(k.tx, k.ty)) {
+                covered[slotIndex(k.tx, k.ty)] = true
+                missing--
+                cache.markUsed(e)
+                e.payload?.let { drawTile(canvas, it, k, originXPx, originYPx, scale) }
+            }
         }
-        if (missing > 0) drawFallbacks(canvas, entries, bucket, originXPx, originYPx, scale)
+        if (missing > 0 && others != 0L) drawFallbacks(canvas, entries, bucket, others, originXPx, originYPx, scale)
     }
 
     /**
@@ -311,15 +357,22 @@ class TileLayer(
         inFlight.values.forEach(Job::cancel)
         inFlight.clear()
         waitingVisible.clear()
+        baseRects.clear()
         cache.clear()
     }
 
-    /** Where the current bucket has no tile yet: draws the nearest other bucket's tiles, clipped to the slot. */
+    /**
+     * Where the current bucket has no tile yet: fills the slot from the other buckets in [others], nearest
+     * first (finer before coarser at equal distance). Each bucket draws only into the part of the slot
+     * that nearer buckets left uncovered, so partial coverage never leaves a hole and transparent content
+     * tiles never draw twice.
+     */
     @Suppress("LongParameterList")
     private fun drawFallbacks(
         canvas: Canvas,
         entries: List<TileCache.Entry<Bitmap>>,
         bucket: Int,
+        others: Long,
         originXPx: Float,
         originYPx: Float,
         scale: Float,
@@ -329,13 +382,26 @@ class TileLayer(
             for (tx in range.txMin..range.txMax) {
                 if (covered[slotIndex(tx, ty)]) continue
                 slot.set(originXPx + tx * sizePx, originYPx + ty * sizePx, originXPx + (tx + 1) * sizePx, originYPx + (ty + 1) * sizePx)
-                val best = nearestBucket(entries, bucket, originXPx, originYPx, scale)
-                if (best != Int.MIN_VALUE) drawSlotFrom(canvas, entries, best, originXPx, originYPx, scale)
+                canvas.save()
+                canvas.clipRect(slot)
+                var filled = false
+                for (d in 1..FALLBACK_REACH) {
+                    if (!filled && others and (1L shl (FALLBACK_REACH + d)) != 0L) {
+                        filled = drawSlotFrom(canvas, entries, bucket + d, originXPx, originYPx, scale)
+                    }
+                    if (!filled && others and (1L shl (FALLBACK_REACH - d)) != 0L) {
+                        filled = drawSlotFrom(canvas, entries, bucket - d, originXPx, originYPx, scale)
+                    }
+                }
+                canvas.restore()
             }
         }
     }
 
-    /** Draws the entries of bucket [from] that overlap [slot], clipped to it. */
+    /**
+     * Draws the entries of bucket [from] that overlap [slot] into the current clip, then clips their
+     * rects out. True when one of them contains the whole slot (nothing left to fill).
+     */
     @Suppress("LongParameterList")
     private fun drawSlotFrom(
         canvas: Canvas,
@@ -344,34 +410,17 @@ class TileLayer(
         originXPx: Float,
         originYPx: Float,
         scale: Float,
-    ) {
-        canvas.save()
-        canvas.clipRect(slot)
+    ): Boolean {
+        var filled = false
         for (i in entries.indices) {
             val e = entries[i]
-            if (e.key.bucket == from && RectF.intersects(tileRectInto(dst, e.key, originXPx, originYPx, scale), slot)) {
-                cache.markUsed(e)
-                e.payload?.let { canvas.drawBitmap(it, null, dst, bitmapPaint) }
-            }
+            if (e.key.bucket != from || !RectF.intersects(tileRectInto(dst, e.key, originXPx, originYPx, scale), slot)) continue
+            cache.markUsed(e)
+            e.payload?.let { canvas.drawBitmap(it, null, dst, bitmapPaint) }
+            if (dst.contains(slot)) filled = true
+            canvas.clipOutRect(dst)
         }
-        canvas.restore()
-    }
-
-    /** Bucket closest to [bucket] among other-bucket entries overlapping [slot]; MIN_VALUE if none. */
-    private fun nearestBucket(
-        entries: List<TileCache.Entry<Bitmap>>,
-        bucket: Int,
-        originXPx: Float,
-        originYPx: Float,
-        scale: Float,
-    ): Int {
-        var best = Int.MIN_VALUE
-        for (i in entries.indices) {
-            val b = entries[i].key.bucket
-            if (b == bucket || (best != Int.MIN_VALUE && abs(b - bucket) >= abs(best - bucket))) continue
-            if (RectF.intersects(tileRectInto(dst, entries[i].key, originXPx, originYPx, scale), slot)) best = b
-        }
-        return best
+        return filled
     }
 
     private fun drawTile(
@@ -407,25 +456,39 @@ class TileLayer(
         ty: Int,
     ): Int = (ty - range.tyMin) * (range.txMax - range.txMin + 1) + (tx - range.txMin)
 
-    /** Makes sure [key] is cached and fresh or being rendered. */
-    private fun ensure(key: TileKey) {
+    /** Makes sure [key] is cached and fresh or being rendered; true when this call started a render. */
+    private fun ensure(key: TileKey): Boolean {
         val entry = cache[key]
-        if ((entry != null && !entry.stale) || key in inFlight) return
-        val state = pages[key.page] ?: return
+        val state = pages[key.page]
+        val fresh = entry != null && !entry.stale
+        if (fresh || key in inFlight || state == null) return false
         val rect = TileGrid.tileRectPt(key.bucket, key.tx, key.ty)
-        when {
-            target == RenderTarget.SCREEN_CONTENT && state.content == null -> {
-                return
-            }
+        val renders =
+            when {
+                // Body not loaded yet.
+                target == RenderTarget.SCREEN_CONTENT && state.content == null -> {
+                    false
+                }
 
-            // body not loaded yet
+                PageRenderer.isPlainPaper(state.ref, target) ||
+                    (target == RenderTarget.SCREEN_CONTENT && state.content?.isEmptyIn(rect) == true) -> {
+                    cache.put(key, null, 0)
+                    false
+                }
 
-            PageRenderer.isPlainPaper(state.ref, target) ||
-                (target == RenderTarget.SCREEN_CONTENT && state.content?.isEmptyIn(rect) == true) -> {
-                cache.put(key, null, 0)
-                return
+                else -> {
+                    true
+                }
             }
-        }
+        if (renders) launchRender(key, state, rect)
+        return renders
+    }
+
+    private fun launchRender(
+        key: TileKey,
+        state: PageState,
+        rect: RectPt,
+    ) {
         val bitmap = pool.acquire()
         var cached = false
         val job =
@@ -467,8 +530,14 @@ class TileLayer(
         /** One content tile render (render thread). */
         const val SECTION_RENDER_CONTENT = "tiles:render:content"
 
+        /** `baseBucket` of [prefetch]: no base tiles. */
+        const val NO_BUCKET = Int.MIN_VALUE
+
         private const val TAG = "Tiles"
         private const val HALF = 0.5f
         private const val INITIAL_SLOTS = 64
+
+        // Other buckets up to this many half-octaves away serve as fallbacks (bit mask in a Long).
+        private const val FALLBACK_REACH = 20
     }
 }

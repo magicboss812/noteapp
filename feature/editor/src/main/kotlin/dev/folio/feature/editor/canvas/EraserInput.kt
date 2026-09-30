@@ -2,6 +2,7 @@ package dev.folio.feature.editor.canvas
 
 import android.view.MotionEvent
 import androidx.annotation.MainThread
+import dev.folio.core.common.PerfMonitor
 import dev.folio.core.ink.erase.EraseResult
 import dev.folio.core.ink.erase.EraseSession
 import dev.folio.core.ink.erase.EraserOptions
@@ -148,15 +149,21 @@ internal class EraserInput(
             withContext(worker) {
                 val session = EraseSession(page, settings)
                 for (ignored in signal) {
-                    if (points.drainInto(session)) {
-                        val preview = session.result()
-                        gesture.launch { onPreview(preview) }
-                    }
+                    val preview = PerfMonitor.trace(SECTION_ERASE) { if (points.drainInto(session)) session.result() else null }
+                    if (preview != null) gesture.launch { onPreview(preview) }
                 }
-                points.drainInto(session)
-                session.result()
+                PerfMonitor.trace(SECTION_ERASE) {
+                    points.drainInto(session)
+                    session.result()
+                }
             }
         onFinished(result)
+    }
+
+    /** PerfMonitor sections. */
+    companion object {
+        /** Worker time per drained sample batch: erasing plus building the preview result. */
+        const val SECTION_ERASE = "ink:erase"
     }
 }
 

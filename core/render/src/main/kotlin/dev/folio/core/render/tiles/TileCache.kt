@@ -6,8 +6,10 @@ import dev.folio.core.model.geometry.RectPt
 /**
  * Tiles of one layer (05-canvas-rendering.md#tiles), LRU by bytes. An entry is pinned while it was
  * drawn in the latest frame ([beginFrame] + [markUsed]) or put since then; pinned entries are never
- * evicted, so the budget is soft while more than it is on screen. Invalidation marks entries stale;
- * stale entries keep drawing until their replacement arrives. Main thread only.
+ * evicted, so the budget is soft while more than it is on screen. Entries for which [isProtected] holds
+ * (the low-resolution base tiles of the pages on screen) are never evicted by the budget either.
+ * Invalidation marks entries stale; stale entries keep drawing until their replacement arrives. Main
+ * thread only.
  */
 @MainThread
 @Suppress("TooManyFunctions") // cache API: frame pinning, lookup, put, invalidation, page and memory trims
@@ -16,6 +18,7 @@ class TileCache<T : Any>(
     val budgetBytes: Long,
     private val release: (T) -> Unit,
     private val onEvicted: (count: Int, bytes: Long) -> Unit = { _, _ -> },
+    private val isProtected: (Entry<T>) -> Boolean = { false },
 ) {
     /** One cached tile; [payload] null = nothing to draw here (known empty). */
     class Entry<T : Any> internal constructor(
@@ -128,8 +131,8 @@ class TileCache<T : Any>(
         }
     }
 
-    /** Drops every entry that is not pinned (memory pressure). Returns the number dropped. */
-    fun trimUnpinned(): Int = evict(Long.MAX_VALUE)
+    /** Drops every entry that is not pinned, protected ones included (memory pressure). Returns the number dropped. */
+    fun trimUnpinned(): Int = evict(Long.MAX_VALUE, keepProtected = false)
 
     /** Drops everything. */
     fun clear() {
@@ -138,15 +141,28 @@ class TileCache<T : Any>(
 
     private fun trim() {
         if (bytes <= budgetBytes) return
-        evict(bytes - budgetBytes)
+        evict(bytes - budgetBytes, keepProtected = true)
     }
 
-    /** Evicts unpinned entries, least recently used first (stale first among equals), until [needBytes] are freed. */
-    private fun evict(needBytes: Long): Int {
+    /** Sum of [Entry.bytes] over entries matching [predicate]. */
+    fun bytesOf(predicate: (Entry<T>) -> Boolean): Long {
+        var sum = 0L
+        for (entry in byKey.values) if (predicate(entry)) sum += entry.bytes
+        return sum
+    }
+
+    /**
+     * Evicts unpinned entries (and unless [keepProtected], protected ones), least recently used first
+     * (stale first among equals), until [needBytes] are freed.
+     */
+    private fun evict(
+        needBytes: Long,
+        keepProtected: Boolean,
+    ): Int {
         val pinnedFrame = frame
         val candidates =
             byKey.values
-                .filter { it.lastUsedFrame < pinnedFrame }
+                .filter { it.lastUsedFrame < pinnedFrame && !(keepProtected && isProtected(it)) }
                 .sortedWith(compareBy<Entry<T>> { it.lastUsedFrame }.thenByDescending { it.stale })
         var freed = 0L
         var count = 0
