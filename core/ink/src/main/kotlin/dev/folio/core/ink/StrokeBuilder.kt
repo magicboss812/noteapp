@@ -5,8 +5,11 @@ import androidx.ink.brush.InputToolType
 import androidx.ink.strokes.MutableStrokeInputBatch
 import androidx.ink.strokes.Stroke
 import androidx.ink.strokes.StrokeInput
+import androidx.ink.strokes.StrokeInputBatch
 import dev.folio.core.ink.brush.BrushCatalog
 import dev.folio.core.model.InkStroke
+import dev.folio.core.model.InputTool
+import dev.folio.core.model.StrokeInputs
 import kotlin.math.PI
 import kotlin.math.roundToLong
 
@@ -48,4 +51,34 @@ object StrokeBuilder {
         }
         return Stroke(brush, batch)
     }
+
+    /**
+     * Stored inputs of a finished wet stroke's [batch] (the reverse of [build]; 06-ink-input.md#wet-ink):
+     * positions as given (page pt when the stroke was started in page space), times relative to the
+     * first sample, and only the channels the batch has.
+     */
+    fun inputsOf(batch: StrokeInputBatch): StrokeInputs {
+        val n = batch.size
+        val x = FloatArray(n)
+        val y = FloatArray(n)
+        val tMs = FloatArray(n)
+        val pressure = if (batch.hasPressure()) FloatArray(n) else null
+        val tilt = if (batch.hasTilt()) FloatArray(n) else null
+        val orientation = if (batch.hasOrientation()) FloatArray(n) else null
+        val input = StrokeInput()
+        var t0 = 0L
+        for (i in 0 until n) {
+            batch.populate(i, input)
+            if (i == 0) t0 = input.elapsedTimeMillis
+            x[i] = input.x
+            y[i] = input.y
+            tMs[i] = (input.elapsedTimeMillis - t0).toFloat()
+            pressure?.set(i, input.pressure)
+            tilt?.set(i, input.tiltRadians * RAD_TO_DEG)
+            orientation?.set(i, input.orientationRadians * RAD_TO_DEG)
+        }
+        return StrokeInputs(x, y, tMs, pressure, tilt, orientation, InputTool.STYLUS)
+    }
+
+    private const val RAD_TO_DEG = (180.0 / PI).toFloat()
 }

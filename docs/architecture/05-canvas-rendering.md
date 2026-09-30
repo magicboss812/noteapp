@@ -59,6 +59,7 @@ Rendering details (A-018, core/render `template/`): `TemplatePresets` holds the 
 3. A `ViewTreeObserver.registerFrameCommitCallback` registered right after that invalidate fires once the frame drawing the stroke is submitted; then `removeFinishedStrokes(ids)`. (A `Choreographer` frame callback runs before that frame's draw pass, which is too early; A-005.)
 4. If tile paint fails or is pending (tile not yet rendered), the wet stroke stays until the tile containing it is drawn.
 Result: never a frame without the stroke, never a double-dark overlap longer than one frame.
+As built (A-023, feature:editor `DryHandoff`): step 2 re-renders the stale tiles under the stroke instead of painting incrementally; the wet copy leaves once `TileLayer.isDrawn` reports every current-bucket content tile under the stroke's on-screen part fresh. `CanvasController.commitStrokes` runs the command off the main thread. The wet layer is initialized eagerly once attached (lazy init on the first stroke sometimes never created the front-buffer surface after a cold start). Sections: `ink:commit` (main-thread conversion and hand-off of the command), `ink:handoff` (finished callback until removal).
 
 ## Canvas mode
 - For infinite pages. Free 2D pan and zoom; no clamping; tiles addressed in page space (negative indices allowed).

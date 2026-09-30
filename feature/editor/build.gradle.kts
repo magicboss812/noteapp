@@ -9,6 +9,8 @@ android {
 }
 
 dependencies {
+    // First on the test classpath: host libink.so, so Robolectric tests render committed strokes into tiles
+    testImplementation(libs.ink.nativeloader.jvm)
     implementation(projects.core.designsystem)
     implementation(projects.core.render)
     implementation(projects.core.ink)

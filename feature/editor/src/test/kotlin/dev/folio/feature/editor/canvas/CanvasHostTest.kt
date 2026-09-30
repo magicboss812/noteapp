@@ -17,8 +17,10 @@ import com.google.common.truth.Truth.assertThat
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
+import dev.folio.core.model.InkStroke
 import dev.folio.core.model.PageId
 import dev.folio.core.model.PageSpec
+import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.geometry.PointPt
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.toViewPx
@@ -50,9 +52,18 @@ private class FakeCanvasController(
     // Tiles render inline on the main thread, so a frame after the idle request shows them.
     override val renderDispatcher = Dispatchers.Unconfined
     val loadRequests = ArrayList<PageId>()
+    var accept = true
 
     override fun loadPages(ids: Collection<PageId>) {
         loadRequests += ids
+    }
+
+    override suspend fun commitStrokes(
+        pageId: PageId,
+        strokes: List<InkStroke>,
+    ): Boolean {
+        if (accept) document.value = AddObjects(pageId, strokes).execute(document.value).doc
+        return accept
     }
 }
 
@@ -65,11 +76,14 @@ class CanvasHostTest {
     private val controller = FakeCanvasController(pages = 20)
     private var host: CanvasHostView? = null
     private var wet: FakeWetSurface? = null
+    private val frameCommits = ArrayList<Runnable>()
 
     private fun show() {
         compose.setContent {
             CanvasHost(controller, Modifier.fillMaxSize(), onHost = { host = it }) { context ->
-                CanvasHostView(context, controller) { FakeWetSurface(it).also { surface -> wet = surface } }
+                CanvasHostView(context, controller, afterFrameCommit = { _, action -> frameCommits += action }) {
+                    FakeWetSurface(it).also { surface -> wet = surface }
+                }
             }
         }
         settle()
@@ -130,6 +144,52 @@ class CanvasHostTest {
         assertThat(wet?.calls).containsExactly("start 0", "add 0", "finish 0").inOrder()
         assertThat(wet?.lastSpec).isEqualTo(controller.activeBrush)
         assertThat(hostView().inkStats).isEqualTo(InkStats(started = 1, finished = 1, canceled = 0))
+    }
+
+    @Test
+    fun finishedStroke_committedToThePageUnderThePen_wetCopyRemovedAfterTheFrameShowingIt() {
+        show()
+        val page = ModelFixtures.page("p0").id
+        compose.runOnUiThread {
+            val view = hostView()
+            view.dispatchTouchEvent(event(ACTION_DOWN, 2000, 500f to 500f, toolType = TOOL_TYPE_STYLUS))
+            view.dispatchTouchEvent(event(ACTION_UP, 2100, 600f to 500f, toolType = TOOL_TYPE_STYLUS))
+        }
+        assertThat(wet?.lastPage).isEqualTo(page)
+
+        var key: Any? = null
+        compose.runOnUiThread { key = wet?.deliver(page, floatArrayOf(100f, 150f), floatArrayOf(100f, 100f)) }
+        val removedBeforeFrame = wet?.removed?.toList()
+        settle()
+        compose.runOnUiThread { frameCommits.forEach(Runnable::run) }
+
+        val objects =
+            controller.document.value.pageBodies[page]
+                ?.objects
+        assertThat(objects?.single()?.bounds?.left).isWithin(1f).of(100f)
+        assertThat(removedBeforeFrame).isEmpty()
+        assertThat(wet?.removed).containsExactly(key)
+        assertThat(hostView().handoffStats).isEqualTo(HandoffStats(committed = 1, pending = 0, removed = 1))
+        assertThat(hostView().tileStats.contentBytes).isGreaterThan(0L) // the tile under the stroke was rendered
+    }
+
+    @Test
+    fun finishedStroke_sessionRejects_wetCopyDropped() {
+        show()
+        controller.accept = false
+        val page = ModelFixtures.page("p0").id
+        compose.runOnUiThread {
+            val view = hostView()
+            view.dispatchTouchEvent(event(ACTION_DOWN, 2000, 500f to 500f, toolType = TOOL_TYPE_STYLUS))
+            view.dispatchTouchEvent(event(ACTION_UP, 2100, 600f to 500f, toolType = TOOL_TYPE_STYLUS))
+        }
+
+        var key: Any? = null
+        compose.runOnUiThread { key = wet?.deliver(page, floatArrayOf(100f, 150f), floatArrayOf(100f, 100f)) }
+        settle()
+
+        assertThat(wet?.removed).containsExactly(key)
+        assertThat(hostView().handoffStats.pending).isEqualTo(0)
     }
 
     @Test

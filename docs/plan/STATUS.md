@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P03
-next: P03-T07
+next: P03-T08
 updated: 2026-09-30
 
 ## Completed
@@ -10,13 +10,13 @@ updated: 2026-09-30
 - P02 done 2026-09-29 (tag p02-done): model + commands (200-command undo property test), folio.v1 codec (1000x120 inputs 709 KB), container + goldens, crash-safe packer (100 injected failures), recovery, Room index (500 docs 149 ms), repositories, sessions (LRU 30); REVIEW fixed 6 blocking findings; A-009..A-016; qa green.
 
 ## Current phase progress
-- P03: T01, T02, T03, T04, T05, T06
+- P03: T01, T02, T03, T04, T05, T06, T07
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck 2026-09-29: All files access was still granted before any grant, so the `[Checked]` mark did not revoke it. -> turn off Settings > Apps > Folio Debug > Permissions > All files access, then write "-> revoked" here (Claude reruns without grant-storage.sh first); or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else. [technically revoked, no app permissions yet to change (none at all), so there is no "All files access" permission]
 
 ## USER-CHECK (human verification; non-blocking)
-- (none)
+- P03-T07: install the debug app, `open lined:4` (or any doc) on the canvas route and write a page of notes quickly with the Focus Pen -> no flicker, gap or double (darker) line when lifting the pen; reopen after closing the app -> everything is still there, no "(conflict ...)" copies in Documents/Folio-Debug.
 
 ## Deferred (id: reason)
 - D-001 P00-T07: P11 `benchmark` build type needs its own DebugHooksModule (src/benchmark, bind NoOpDebugHooks).
@@ -31,8 +31,8 @@ updated: 2026-09-30
 - D-012 P03-T06: wet ink has no motion prediction yet (06#wet-ink, ADR-002); `androidx.input:input-motionprediction` is pre-release (1.0.0-rc01 on androidx main), so decide it with a decisions.md note and measure in P03-T10.
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P03-T06 done: core/ink `input/` (`InputRouter` + `StylusTarget`/`NavigationTarget`, palm rules, `StylusCapabilities`); editor `PenInput` starts strokes in page pt (strokeToView = page->px), `WetSurface`/`InkWetSurface` wrap InProgressStrokesView (tests use `FakeWetSurface`); `CanvasController.activeBrush`.
-- Finished wet strokes stay in InProgressStrokesView at screen position (they do not follow pan/zoom) until T07's dry handoff; `PenInput.pageIndex` is the stroke's page, `specOf(stroke.brush)` recovers the spec.
-- Device: 50 stylus-swipes -> 50 finished, 20 finger swipes -> 0 strokes + panned, `ink:onTouch` p95 0.64 ms. The first injected stylus swipe after launch is lost (do a throwaway stylus-tap); injected events report no caps (`state.canvas.stylus` all false), pencil ramp needs the real pen.
-- Debug `state.canvas.ink` {started, finished, canceled}; each `debugcmd.sh` call takes ~6 s.
-- Next: P03-T07 dry handoff and persistence.
+- P03-T07 done (a: storage conflict/recovery fix A-022; b: dry handoff A-023): editor `DryHandoff` (WetStroke -> `CanvasController.commitStrokes` off main -> tiles re-render -> `TileLayer.isDrawn` -> frame commit -> `WetSurface.remove`); `StrokeBuilder.inputsOf`; wet layer `eagerInit()` on attach.
+- Device: 20/20 strokes survive force-stop + relaunch, no conflict copies, 3 post-stroke screenshots clean, `ink:commit` p95 1.92 ms, `ink:handoff` p95 31 ms. Debug `state.canvas.handoff` {committed, pending, removed}.
+- Old conflict copies of perf/lined-2 and lined-3 remain in Folio-Debug (from the pre-fix runs); use a fresh doc (`open lined:5`, ...) for new device runs.
+- `ink:commit` has little headroom (p95 1.92 of 2 ms): conversion via JNI `populate` per input; revisit in P03-T10 if real pen strokes (457 Hz) push it over.
+- Next: P03-T08 erasers (one gesture = one command; `DryHandoff`/`commitStrokes` is the model for committing tool results).

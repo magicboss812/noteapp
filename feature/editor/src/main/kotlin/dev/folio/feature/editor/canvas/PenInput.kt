@@ -24,7 +24,8 @@ data class InkStats(
 /**
  * The pen tool on the stylus route (06-ink-input.md#wet-ink): a stylus down starts a wet stroke on the
  * page under the pen (the nearest page from a gap) in that page's points, so the finished stroke is
- * already in page space. Eraser-tool pointers are ignored until erasers exist (P03-T08).
+ * already in page space; the surface reports it finished with that page for the dry handoff.
+ * Eraser-tool pointers are ignored until erasers exist (P03-T08).
  * [onStrokeStart] runs first on every stroke (the host requests unbuffered dispatch).
  */
 @MainThread
@@ -57,12 +58,16 @@ internal class PenInput(
         if (eraser) return
         val index = event.findPointerIndex(pointerId)
         val page = if (index < 0) -1 else viewport.pageIndexAt(event.getY(index))
-        if (page < 0) return
+        val pageId =
+            viewport.layout
+                ?.pages
+                ?.getOrNull(page)
+                ?.id ?: return
         onStrokeStart(event)
         val scale = viewport.scale
         strokeToView.setScale(scale, scale)
         strokeToView.postTranslate(viewport.pageOriginViewX(page).toFloat(), viewport.pageOriginViewY(page).toFloat())
-        surface.start(event, pointerId, brush(), capabilities().tilt, strokeToView)
+        surface.start(event, pointerId, brush(), capabilities().tilt, strokeToView, pageId)
         pageIndex = page
         inking = true
         started++

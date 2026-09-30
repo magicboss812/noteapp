@@ -15,6 +15,7 @@ import dev.folio.core.model.Background
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
+import dev.folio.core.model.InkStroke
 import dev.folio.core.model.Orientation
 import dev.folio.core.model.PageId
 import dev.folio.core.model.PageSpec
@@ -36,6 +37,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -116,6 +118,7 @@ private class SessionCanvasController(
     val session: DocumentSession,
     density: Float,
     override val renderDispatcher: CoroutineDispatcher,
+    private val ioDispatcher: CoroutineDispatcher,
     private val scope: CoroutineScope,
 ) : CanvasController {
     override val document: StateFlow<Document> get() = session.document
@@ -136,6 +139,16 @@ private class SessionCanvasController(
             if (result is Outcome.Failure) FolioLog.w(DebugReply.TAG, "loadPages: ${result.message}")
         }
     }
+
+    override suspend fun commitStrokes(
+        pageId: PageId,
+        strokes: List<InkStroke>,
+    ): Boolean {
+        // Off the main thread: the session lock, the command and the autosave scheduling (ink:commit budget).
+        val result = withContext(ioDispatcher) { session.execute(AddObjects(pageId, strokes)) }
+        if (result is Outcome.Failure) FolioLog.w(DebugReply.TAG, "commitStrokes: ${result.message}")
+        return result is Outcome.Success
+    }
 }
 
 /**
@@ -151,6 +164,7 @@ internal class CanvasDebug(
     private val scope: CoroutineScope,
     private val density: Float,
     private val renderDispatcher: CoroutineDispatcher,
+    private val ioDispatcher: CoroutineDispatcher,
     private val onOpened: () -> Unit,
 ) {
     private val sessions: DocumentSessions get() = sessionsProvider()
@@ -277,6 +291,16 @@ internal class CanvasDebug(
                         },
                     )
                 }
+                host?.handoffStats?.let { h ->
+                    put(
+                        "handoff",
+                        buildJsonObject {
+                            put("committed", h.committed)
+                            put("pending", h.pending)
+                            put("removed", h.removed)
+                        },
+                    )
+                }
                 host?.stylusCapabilities?.let { caps ->
                     put("stylus", "pressure=${caps.pressure} tilt=${caps.tilt} orientation=${caps.orientation} hover=${caps.hover}")
                 }
@@ -312,7 +336,7 @@ internal class CanvasDebug(
             return
         }
         previous?.let { old -> scope.launch { sessions.close(old.session) } }
-        controller = SessionCanvasController(session, density, renderDispatcher, scope)
+        controller = SessionCanvasController(session, density, renderDispatcher, ioDispatcher, scope)
         onOpened()
     }
 

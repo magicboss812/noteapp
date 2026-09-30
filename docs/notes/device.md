@@ -31,11 +31,15 @@ P01-S7 probe (route `spike-stylus`, writes `Folio-Debug/probe/stylus.json`; `pul
 - Front-buffered wet ink works: InProgressStrokesView adds `SurfaceView[...](BLAST)` (z=1) above the app window on the first stroke and keeps it; `screencap` captures it (P01-S1).
 - Wet-ink main-thread cost `ink:onTouch` p95 0.28 ms; wet-to-dry handoff one frame (decisions.md ADR-002 evidence).
 - HWUI logs `E/HWUI [m2] set surface nullptr` about once per wet-ink frame; harmless noise.
+- Lazy wet-ink init on the first stroke sometimes (2 of 3 cold starts) never created that SurfaceView: strokes counted, never drawn, `onStrokesFinished` never fired, no log. `eagerInit()` after attach fixed it (5/5 + 4/4 cold starts, P03-T07). Healthy init logs `onSurfaceViewAttached` and loads `libgraphics-core.so`.
+- Dry handoff (P03-T07): `ink:commit` p95 1.92 ms (per finished-strokes callback; ink batches strokes finishing together), `ink:handoff` (stroke end to wet removal) p50 26 ms, p95 31 ms.
 - Synthetic `input stylus swipe` of 400 ms delivers 50 MotionEvents; gfxinfo flags ~80% of those frames "High input latency" (likely an artifact of injected event timestamps).
 
 ## Quirks
 - adb installs fail with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` unless Developer options > "Install via USB" is on (HyperOS may require a Mi account sign-in). Prompts on screen need a tap.
 - The separate test APK (`dev.folio.notes.debug.test`, instrumented tests) also needs "USB debugging (Security settings)" (Mi account sign-in); without it only the app APK installs. Both enabled 2026-09-27. Library modules with instrumented tests set `defaultConfig.testApplicationId = "dev.folio.notes.debug.test"` so no other package is ever installed (first: core:text, P01-S3b). On 2026-09-28 the test APK was refused again (`INSTALL_FAILED_USER_RESTRICTED`, security setting off) while the app APK installed; fallback: run probes from a debug route inside the app (P01-S5 `spike-pdf`).
+- Shared storage: a file replaced by rename reports its new mtime right after the write and its original mtime later, so never trust mtime alone to detect external changes (A-022, P03-T07).
+- `input.sh stylus-swipe`: about 1 in 25 swipes (mostly the first after a cold launch) never reaches the app; count ACTION_DOWNs or `state.canvas.ink.started`, not swipes sent.
 - `clear-data.sh` (`pm clear`) keeps the MANAGE_EXTERNAL_STORAGE appop (P02-T06); no wrapper revokes it, so the storage onboarding can only be seen on device after the user turns All files access off.
 - `pm uninstall` of a package that is not installed returns `DELETE_FAILED_INTERNAL_ERROR` (harmless).
 - Our process logs HyperOS framework noise at start (E/ `MI-PreRender`, `FramePredict`, `FrameInsert`); ignore when scanning logcat.

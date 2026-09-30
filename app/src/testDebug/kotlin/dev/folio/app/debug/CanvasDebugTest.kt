@@ -8,7 +8,9 @@ import org.junit.Test
 
 class CanvasDebugTest {
     private val canvas =
-        CanvasDebug({ error("unused") }, { error("unused") }, CoroutineScope(Dispatchers.Unconfined), 2.5f, Dispatchers.Unconfined) {}
+        CanvasDebug({
+            error("unused")
+        }, { error("unused") }, CoroutineScope(Dispatchers.Unconfined), 2.5f, Dispatchers.Unconfined, Dispatchers.Unconfined) {}
 
     @Test
     fun openTarget_parse_pathGeneratedAndInvalid() {

@@ -15,10 +15,12 @@ import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import android.widget.OverScroller
 import androidx.annotation.MainThread
+import dev.folio.core.common.FolioLog
 import dev.folio.core.common.PerfMonitor
 import dev.folio.core.ink.input.InputRouter
 import dev.folio.core.ink.input.StylusCapabilities
 import dev.folio.core.model.Document
+import dev.folio.core.model.InkStroke
 import dev.folio.core.model.PageId
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.render.DisplayModeHelper
@@ -34,6 +36,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
 
@@ -61,7 +64,8 @@ data class TileStats(
  * (androidx.ink's `InProgressStrokesView`). Touch, hover and scroll input goes through [InputRouter]:
  * the stylus to the pen ([PenInput]), fingers and the mouse to pan and zoom ([FingerGestures]). Pan and
  * zoom only move existing tiles; 100 ms after the viewport settles the host requests tiles at the new
- * bucket. While attached it requests the fastest display mode ([DisplayModeHelper]).
+ * bucket. While attached it requests the fastest display mode ([DisplayModeHelper]). Finished pen
+ * strokes go to the session through [DryHandoff]; their wet copies leave once the tiles show them.
  */
 @SuppressLint("ViewConstructor") // created in code by CanvasHost only
 @MainThread
@@ -69,10 +73,11 @@ data class TileStats(
 class CanvasHostView internal constructor(
     context: Context,
     private val controller: CanvasController,
+    afterFrameCommit: (View, Runnable) -> Unit = { view, action -> view.viewTreeObserver.registerFrameCommitCallback(action) },
     createWetSurface: (Context) -> WetSurface,
 ) : FrameLayout(context) {
     /** Host for [controller] with the androidx.ink wet-ink layer. */
-    constructor(context: Context, controller: CanvasController) : this(context, controller, { InkWetSurface(it) })
+    constructor(context: Context, controller: CanvasController) : this(context, controller, createWetSurface = { InkWetSurface(it) })
 
     private val viewport: Viewport get() = controller.viewport
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -117,6 +122,14 @@ class CanvasHostView internal constructor(
         )
     private val router: InputRouter =
         InputRouter(pen, gestures, largeTouchPx = InputRouter.LARGE_TOUCH_MM * resources.displayMetrics.xdpi / MM_PER_INCH)
+    private val handoff =
+        DryHandoff(
+            commit = ::commitStrokes,
+            isDrawn = ::isDrawn,
+            invalidate = ::invalidateLayers,
+            afterFrameCommit = { afterFrameCommit(this, it) },
+            removeWet = wet::remove,
+        )
 
     /** Slot for the Compose overlay (focused text, selection, lasso, ...), above committed content. */
     val overlay = FrameLayout(context)
@@ -126,6 +139,9 @@ class CanvasHostView internal constructor(
 
     /** Wet-ink counters. */
     val inkStats: InkStats get() = pen.stats
+
+    /** Dry handoff counters. */
+    val handoffStats: HandoffStats get() = HandoffStats(handoff.committedCount, handoff.pendingCount, handoff.removedCount)
 
     /** What the last stylus reported. */
     val stylusCapabilities: StylusCapabilities get() = router.capabilities
@@ -140,6 +156,7 @@ class CanvasHostView internal constructor(
         addView(content, LayoutParams(match))
         addView(overlay, LayoutParams(match))
         addView(wetLayer, LayoutParams(match))
+        wet.onFinished = handoff::onFinished
     }
 
     /** Current tile cache numbers. */
@@ -175,6 +192,7 @@ class CanvasHostView internal constructor(
         invalidateLayers()
         // Mid-gesture the idle timer requests later; otherwise refresh stale or newly loaded tiles now.
         if (SystemClock.uptimeMillis() - lastViewportChangeMs >= IDLE_MS && !isAnimating) requestTiles()
+        handoff.check()
     }
 
     /** Animates the zoom (times fit-width) [fromZoom] -> [toZoom] over [durationMs] around the view center. */
@@ -214,6 +232,7 @@ class CanvasHostView internal constructor(
         displayModes?.release()
         context.unregisterComponentCallbacks(memoryCallbacks)
         removeCallbacks(idleRequest)
+        handoff.clear()
         scope.coroutineContext.cancelChildren()
         backgroundTiles.clear()
         contentTiles.clear()
@@ -318,6 +337,7 @@ class CanvasHostView internal constructor(
         lastVisible = visible
         settleStartNs = if (backgroundTiles.isSettled && contentTiles.isSettled) 0L else PerfMonitor.clock.monotonicNs()
         if (contentTiles.pendingCount == 0) contentTiles.warmUp(visible)
+        handoff.check()
     }
 
     private fun onTileReady() {
@@ -328,6 +348,49 @@ class CanvasHostView internal constructor(
             settleStartNs = 0L
         }
         if (contentTiles.pendingCount == 0) contentTiles.warmUp(lastVisible)
+        handoff.check()
+    }
+
+    /** Hands [strokes] to the session; the synchronous part runs inside the `ink:commit` section. */
+    private fun commitStrokes(
+        page: PageId,
+        strokes: List<InkStroke>,
+        onRejected: () -> Unit,
+    ) {
+        scope.launch {
+            val accepted =
+                try {
+                    controller.commitStrokes(page, strokes)
+                } catch (e: IllegalStateException) {
+                    FolioLog.w(TAG, "commit failed: ${e.message}", e) // session closed under the view
+                    false
+                }
+            if (!accepted) onRejected()
+        }
+    }
+
+    /**
+     * True when [stroke] is in the shown document and every content tile under its on-screen part is
+     * fresh (or none of it is on screen), so the next content-layer frame draws it.
+     */
+    private fun isDrawn(
+        page: PageId,
+        stroke: InkStroke,
+    ): Boolean {
+        val doc = document ?: return false
+        val stack = viewport.layout ?: return false
+        val body = doc.pageBodies[page] ?: return doc.pageRef(page) == null
+        if (body.objects.none { it.id == stroke.id }) return false
+        val index = stack.indexOf(page)
+        val b = stroke.bounds
+        var drawn = true
+        viewport.forEachVisiblePage(width.toFloat(), height.toFloat()) { i, _, _, l, t, r, bottom ->
+            if (i == index) {
+                drawn =
+                    contentTiles.isDrawn(page.value, max(l, b.left), max(t, b.top), min(r, b.right), min(bottom, b.bottom), viewport.scale)
+            }
+        }
+        return drawn
     }
 
     private fun tileLayer(target: RenderTarget) =
@@ -354,6 +417,7 @@ class CanvasHostView internal constructor(
         const val SECTION_INK_TOUCH = "ink:onTouch"
 
         private const val MM_PER_INCH = 25.4f
+        private const val TAG = "CanvasHost"
 
         /** From the idle tile request until every visible tile of both layers is rendered. */
         const val SECTION_SETTLE = "render:settle"

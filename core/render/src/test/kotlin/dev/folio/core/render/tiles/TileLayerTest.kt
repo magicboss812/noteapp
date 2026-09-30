@@ -88,6 +88,30 @@ class TileLayerTest {
     }
 
     @Test
+    fun isDrawn_addedStroke_falseUntilTheTileUnderItIsRerendered() {
+        val layer = layer(RenderTarget.SCREEN_CONTENT)
+        val first = a4.withStrokes(stroke("s1", 100f, 100f))
+        layer.setPage(first.toRef(), first)
+        layer.request(listOf(visible(frame)), scale = 1f)
+        scope.testScheduler.advanceUntilIdle()
+        val s2 = stroke("s2", 550f, 600f)
+        val b = s2.bounds
+
+        val second = first.withStrokes(first.objects[0] as InkStroke, s2)
+        layer.setPage(second.toRef(), second)
+        val beforeRender = layer.isDrawn("p", b.left, b.top, b.right, b.bottom, scale = 1f)
+        layer.request(listOf(visible(frame)), scale = 1f)
+        val whileRendering = layer.isDrawn("p", b.left, b.top, b.right, b.bottom, scale = 1f)
+        scope.testScheduler.advanceUntilIdle()
+
+        assertThat(beforeRender).isFalse()
+        assertThat(whileRendering).isFalse()
+        assertThat(layer.isDrawn("p", b.left, b.top, b.right, b.bottom, scale = 1f)).isTrue()
+        assertThat(layer.isDrawn("p", b.left, b.top, b.right, b.bottom, scale = 2f)).isFalse() // other bucket: no tiles
+        assertThat(layer.isDrawn("p", 10f, 10f, 10f, 10f, scale = 2f)).isTrue() // empty rect
+    }
+
+    @Test
     fun request_newBucket_cancelsPendingRendersOfTheOldBucket() {
         val layer = layer(RenderTarget.SCREEN_BACKGROUND)
         layer.setPage(a4.toRef(), null)

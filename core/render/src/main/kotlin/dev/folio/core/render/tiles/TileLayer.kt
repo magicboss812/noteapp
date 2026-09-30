@@ -273,6 +273,32 @@ class TileLayer(
         if (missing > 0) drawFallbacks(canvas, entries, bucket, originXPx, originYPx, scale)
     }
 
+    /**
+     * True when every tile of [page] at [scale]'s bucket overlapping the page-space rect ([leftPt],
+     * [topPt], [rightPt], [bottomPt]) is cached and fresh, so the next [draw] shows the current content
+     * there (05-canvas-rendering.md#dry-handoff). An empty rect is trivially drawn.
+     */
+    @Suppress("LongParameterList") // same plain-number rect as draw
+    fun isDrawn(
+        page: String,
+        leftPt: Float,
+        topPt: Float,
+        rightPt: Float,
+        bottomPt: Float,
+        scale: Float,
+    ): Boolean {
+        val bucket = ZoomBuckets.indexFor(scale)
+        val area = TileGrid.rangeInto(TileRange(), leftPt, topPt, rightPt, bottomPt, bucket)
+        if (area.isEmpty) return true
+        for (ty in area.tyMin..area.tyMax) {
+            for (tx in area.txMin..area.txMax) {
+                val entry = cache[TileKey(page, bucket, tx, ty)] ?: return false
+                if (entry.stale) return false
+            }
+        }
+        return true
+    }
+
     /** Drops tiles that are not on screen and the idle bitmaps (onTrimMemory). */
     fun trimMemory() {
         cache.trimUnpinned()

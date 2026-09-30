@@ -44,7 +44,14 @@ internal class AppDebugHooks
     ) : DebugHooks {
         private val scope = CoroutineScope(SupervisorJob() + dispatchers.main)
         private val canvas: CanvasDebug =
-            CanvasDebug(sessions::get, documents::get, scope, Resources.getSystem().displayMetrics.density, dispatchers.render) {
+            CanvasDebug(
+                sessions::get,
+                documents::get,
+                scope,
+                Resources.getSystem().displayMetrics.density,
+                dispatchers.render,
+                dispatchers.io,
+            ) {
                 showRoute(DebugAppState.CANVAS, force = true)
                 state.navigate(DebugAppState.CANVAS)
             }
