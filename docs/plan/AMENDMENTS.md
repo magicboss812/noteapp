@@ -138,3 +138,8 @@ Format:
 - Reason: user check P03-T07 reported the template and strokes flickering or missing while moving and zooming, but not right after a restart. Pans outran the one-tile ring. Zoom-out showed never-rendered areas. One partial fallback bucket left holes. A cache full of old-bucket tiles stopped prefetch entirely. Measured after the fix: no blank tiles in a mid-pan screenshot at zoom 2, `render:settle` p95 119 ms.
 - Impact: 05-canvas-rendering.md#tiles; 12-performance.md#budgets (R-PERF-04 row); .claude/rules/rendering.md gesture line (edit denied in the headless run, D-016).
 
+## A-027 2026-09-30 P04-T01: Lucide 1.x names, four extra color tokens, fixed Fraunces opsz
+- Change: the icon set uses Lucide 1.49.0 names `house` (was home) and `trash` (was trash-2, same drawing) and adds `plus` and `menu`. Color tokens gain onAccent, accentInverse (snackbar action), pageBorder (the page border value from #elevation) and scrim (the sheet scrim values from #elevation). Fraunces pins opsz to each style's font size instead of "auto". core:designsystem ships `inter_var.ttf` under the same resource name as core:text.
+- Reason: `home.svg` and `trash-2.svg` no longer exist in Lucide 1.x. The snackbar sits on textPrimary, where accent has too little contrast, and the other values were already in the doc but had no token. Compose applies no automatic optical sizing to variable fonts. A shared resource name lets the APK merge keep one 876 KB copy while each module stays self-contained.
+- Impact: 11-design-system.md#colors, #typography, #icons; docs/notes/env.md Dependencies.
+

@@ -13,6 +13,10 @@ naming:
   FunctionNaming:
     ignoreAnnotated: ['Composable']
 
+Compose:
+  CompositionLocalAllowlist:
+    allowedCompositionLocals: ['LocalFolioTokens'] # the design system's single token local (FolioTheme)
+
 style:
   ReturnCount:
     excludeGuardClauses: true # `val x = y ?: return ...` guards at the top of IO functions

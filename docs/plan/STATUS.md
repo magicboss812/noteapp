@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P04
-next: P04-T01
+next: P04-T02
 updated: 2026-09-30
 
 ## Completed
@@ -11,7 +11,7 @@ updated: 2026-09-30
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
 
 ## Current phase progress
-- P04: (none)
+- P04: T01
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck P03-REVIEW (no grant-storage.sh, after `pm clear`): the app still reports All files access granted and shows the library. The toggle is not in the app's permission list: open Settings > Privacy (or Apps) > Special app access (Special permissions) > All files access > Folio Debug > off, then write "-> revoked" here; or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else.
@@ -37,8 +37,9 @@ updated: 2026-09-30
 - D-020 P03-REVIEW: pan-time `requestTiles` allocates lists/`RectPt`/`VisiblePage`/boxed `Pair` per tile and may log evictions; `DryHandoff.check` allocates and `isDrawn` scans all page objects per pending stroke. Reuse scratch objects, id-set lookup (P11 perf).
 - D-021 P03-REVIEW: `CanvasHostView` hardcodes `Dispatchers.Main.immediate` (inject via `CanvasController`) and has no accessibility description; fix in P04-T02 editor scaffold.
 - D-022 P03-REVIEW: an erase gesture right after a pen lift cannot erase strokes still in the dry handoff (snapshot = committed document); include pending strokes (P07 or P11).
+- D-023 P04-T01: dark destructive dialog button is white on danger #F87171 (low contrast); use a dark onDanger or a darker fill when the first real delete dialog lands (P05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P03 closed (tag p03-done). REVIEW: commits/erases run NonCancellable so a detach never drops finished strokes; detach removes pending wet copies; hover ring hides the system stylus pointer + `hoverEvents` in debug state (D-017, new USER-CHECK); qa green.
-- Reviewer ran without git diff (Bash denied in its session); it read the canvas/tile/handoff core by path. Its non-blocking findings are D-019..D-022.
-- Next: P04-T01 (design system foundation).
+- P04-T01 done: core:designsystem has tokens + `FolioTheme` (single `LocalFolioTokens`, detekt allowlist), Fraunces/Inter UI fonts, components (Buttons/Pills/Overlays/Cards.kt), catalog goldens light+dark.
+- `FolioIcons.kt` is generated: add a Lucide 1.49.0 SVG to tools/icongen/src/main/resources/lucide, run `./gradlew :tools:icongen:run` (A-027: house/trash names).
+- Next: P04-T02 (editor screen scaffold); also fix D-021 there.
