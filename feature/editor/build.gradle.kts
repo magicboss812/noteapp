@@ -1,6 +1,7 @@
 plugins {
     id("folio.android.library")
     id("folio.compose")
+    id("folio.hilt")
     id("folio.screenshot")
 }
 
@@ -16,7 +17,12 @@ dependencies {
     implementation(projects.core.ink)
     implementation(projects.core.model)
     implementation(projects.core.common)
+    implementation(projects.core.storage)
     implementation(libs.ink.authoring)
     implementation(libs.coroutines.android)
+    implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     testImplementation(projects.core.testing)
+    testImplementation(libs.room.runtime) // in-memory index of the real storage stack in EditorViewModelTest
 }

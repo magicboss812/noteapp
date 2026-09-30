@@ -38,6 +38,7 @@ import dev.folio.feature.editor.canvas.CanvasHostView
 import dev.folio.feature.editor.canvas.CanvasTool
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -126,6 +127,7 @@ private class SessionCanvasController(
 ) : CanvasController {
     override val document: StateFlow<Document> get() = session.document
     override val viewport = Viewport(density)
+    override val mainDispatcher = Dispatchers.Main.immediate
 
     // Middle ballpoint preset in ink black until the toolbar exists (P04).
     override val activeBrush =

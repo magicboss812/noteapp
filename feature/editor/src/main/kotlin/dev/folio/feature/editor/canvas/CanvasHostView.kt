@@ -38,7 +38,6 @@ import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.ViewportMode
 import dev.folio.core.render.viewport.ZoomBuckets
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
@@ -89,7 +88,7 @@ class CanvasHostView internal constructor(
     constructor(context: Context, controller: CanvasController) : this(context, controller, createWetSurface = { InkWetSurface(it) })
 
     private val viewport: Viewport get() = controller.viewport
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope = CoroutineScope(SupervisorJob() + controller.mainDispatcher)
     private val pool = BitmapPool()
     private val budgetPerLayer = tileBudgetBytes(context) / 2
     private val backgroundTiles = tileLayer(RenderTarget.SCREEN_BACKGROUND)
@@ -220,6 +219,8 @@ class CanvasHostView internal constructor(
         addView(hoverRing, LayoutParams(match))
         addView(wetLayer, LayoutParams(match))
         wet.onFinished = handoff::onFinished
+        contentDescription = CONTENT_DESCRIPTION
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
     }
 
     /** Current tile cache numbers. */
@@ -616,6 +617,7 @@ class CanvasHostView internal constructor(
         private const val MM_PER_INCH = 25.4f
         private const val MIN_HOVER_RING_DP = 3f
         private const val TAG = "CanvasHost"
+        private const val CONTENT_DESCRIPTION = "Note pages. Draw with the pen, pan and zoom with fingers."
 
         /** From the idle tile request until every visible tile of both layers is rendered. */
         const val SECTION_SETTLE = "render:settle"

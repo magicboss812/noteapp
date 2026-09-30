@@ -257,6 +257,29 @@ class DocumentSessionTest : RepositoryTestBase() {
             assertThat(session.canUndo.value).isFalse()
         }
 
+    @Test
+    fun release_thenOpenSamePath_packsAndReturnsFreshSession() =
+        runTest {
+            val ref = documents.create(spec("Release")).orThrow()
+            val sessions = sessions(backgroundScope)
+            val first = sessions.open(ref.path).orThrow()
+            first
+                .execute(
+                    UpdateMeta(
+                        first.document.value.meta
+                            .copy(title = "Released"),
+                    ),
+                ).orThrow()
+
+            sessions.release(first)
+            runCurrent()
+            val second = sessions.open(ref.path).orThrow()
+
+            assertThat(second).isNotSameInstanceAs(first)
+            assertThat(second.document.value.meta.title).isEqualTo("Released")
+            assertThat(readFile(ref).meta.title).isEqualTo("Released")
+        }
+
     private fun readFile(ref: DocumentRef): Document =
         FolioContainerReader.open(file(ref.path)).orThrow().use { DocumentCodec.readDocument(it, loadPages = true).orThrow() }
 

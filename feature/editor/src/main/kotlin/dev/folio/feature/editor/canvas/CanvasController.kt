@@ -21,7 +21,7 @@ enum class CanvasTool {
 }
 
 /**
- * The only API the canvas host sees (02-modules.md#editor-state); implemented by EditorSession (P04).
+ * The only API the canvas host sees (02-modules.md#editor-state); implemented by `EditorSession`.
  * Later tasks add `hitTest`, `currentTool()` and `requestRender(bounds)`.
  */
 interface CanvasController {
@@ -61,6 +61,9 @@ interface CanvasController {
 
     /** Where tiles render (`FolioDispatchers.render`, 2 threads). */
     val renderDispatcher: CoroutineDispatcher
+
+    /** The main thread, immediate where possible: the host's own coroutines (commits, erase, tile results) run here. */
+    val mainDispatcher: CoroutineDispatcher
 
     /** Asks the session to decode [ids] (visible pages and neighbors); [document] updates when they arrive. */
     fun loadPages(ids: Collection<PageId>)

@@ -61,13 +61,26 @@ class DocumentSessions(
             }.also { if (it is Outcome.Success) open[it.value.docId] = it.value }
         }
 
-    /** Final pack of [session], then forgets it. Not cancellable: leaving a screen must not skip the pack. */
+    /**
+     * Final pack of [session], then forgets it. Not cancellable: leaving a screen must not skip the pack.
+     * Holds the lock while packing, so an [open] of the same document waits and gets a fresh session.
+     */
     suspend fun close(session: DocumentSession): Outcome<PackResult> =
         withContext(NonCancellable) {
-            val result = session.close()
-            lock.withLock { open.remove(session.docId) }
-            result
+            lock.withLock {
+                val result = session.close()
+                open.remove(session.docId)
+                result
+            }
         }
+
+    /** [close] without waiting (a screen left for good, e.g. `ViewModel.onCleared`); failures are logged. */
+    fun release(session: DocumentSession) {
+        scope.launch {
+            val result = close(session)
+            if (result is Outcome.Failure) FolioLog.w(TAG, "close of ${session.path} failed: ${result.message}", result.cause)
+        }
+    }
 
     /** Packs every open session (app `onStop`). */
     suspend fun packAll() {

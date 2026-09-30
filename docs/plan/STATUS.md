@@ -40,6 +40,6 @@ updated: 2026-09-30
 - D-023 P04-T01: dark destructive dialog button is white on danger #F87171 (low contrast); use a dark onDanger or a darker fill when the first real delete dialog lands (P05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P04-T01 done: core:designsystem has tokens + `FolioTheme` (single `LocalFolioTokens`, detekt allowlist), Fraunces/Inter UI fonts, components (Buttons/Pills/Overlays/Cards.kt), catalog goldens light+dark.
+- P04-T02a done: feature:editor `EditorSession` (CanvasController over DocumentSession), `EditorViewModel` (assisted Hilt, releases on clear), `EditorRoute`/`EditorScreen` + toolbar row 1, goldens Editor_*; D-021 fixed (mainDispatcher, a11y); `DocumentSessions.release`.
 - `FolioIcons.kt` is generated: add a Lucide 1.49.0 SVG to tools/icongen/src/main/resources/lucide, run `./gradlew :tools:icongen:run` (A-027: house/trash names).
-- Next: P04-T02 (editor screen scaffold); also fix D-021 there.
+- Next: P04-T02b: app navigation (Library <-> EditorRoute, FolioTheme), debug `open` via the editor route (CanvasDebug drives EditorSession through `EditorCanvasListener`; its SessionCanvasController is a stopgap), library placeholder list, device check.
