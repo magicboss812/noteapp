@@ -5,9 +5,10 @@
 # until the announced reset time and resumes the SAME session of the task in progress.
 # Blocked items in STATUS.md do not stop the run; Claude records them and moves to the next task.
 # The run stops only when the phase (or task) is finished, a Blocked line carries [STOP], or sessions
-# repeatedly end without progress.
+# repeatedly end without progress. FOLIO_PHASES=N continues into the next phases after each REVIEW.
 #
 # Usage:  bash scripts/auto/run-loop.sh [phase|task]        (default: phase)
+#         FOLIO_PHASES=2 bash scripts/auto/run-loop.sh      (current phase, then the next one)
 # Ctrl+C stops the running Claude session (with its tools and subagents) and exits the script.
 # Resume after a crash, reboot or Ctrl+C: run the same command again. The run state in
 # .device/loop-logs/run.state brings back the interrupted task's session with its full context.
@@ -16,6 +17,8 @@
 #   FOLIO_MODE=rc        visible interactive session in this terminal + Remote Control
 #                        (session end is detected heuristically: see watch_session)
 #   FOLIO_EFFORT=high    effort level (low|medium|high|xhigh)
+#   FOLIO_PHASES=1       phase scope: run this many phases in a row (each REVIEW, tag, then the next phase
+#                        in fresh sessions). A stopped run resumed with the same value keeps its count.
 #   FOLIO_FEED=1         headless: 0 hides the live feed (only status lines and the final summary)
 #   FOLIO_FRESH=0        1 ignores run.state and starts the current task in a new session
 #   FOLIO_RESUME_SID=    resume this session id for the current task (overrides run.state)
@@ -50,8 +53,8 @@ limit_max_wait="${FOLIO_LIMIT_MAX_WAIT:-172800}"
 reset_buffer="${FOLIO_RESET_BUFFER:-90}"
 idle_done="${FOLIO_IDLE_DONE:-60}"
 idle_stuck="${FOLIO_IDLE_STUCK:-1200}"
+phases="${FOLIO_PHASES:-1}"
 probe_idle=300
-max_sessions=80
 # Read by every claude process this script starts (documented Claude Code variables).
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW="${FOLIO_COMPACT_WINDOW:-200000}"
 export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="${FOLIO_BG_WAIT_MS:-3600000}"
@@ -67,6 +70,9 @@ probe_out="$log_dir/.probe.txt"
 
 case "$scope" in phase|task) ;; *) echo "usage: run-loop.sh [phase|task]"; exit 2 ;; esac
 case "$mode" in headless|rc) ;; *) echo "FOLIO_MODE must be headless or rc"; exit 2 ;; esac
+case "$phases" in ''|*[!0-9]*|0) echo "FOLIO_PHASES must be a positive integer"; exit 2 ;; esac
+[ "$scope" = phase ] || phases=1
+max_sessions=$((80 * phases))
 command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 2; }
 
 say() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$loop_log"; }
@@ -82,8 +88,8 @@ stop_count() { stop_items | wc -l | tr -d ' '; }
 # ---------- run state (survives crashes and reboots) ----------
 state_get() { [ -f "$state_file" ] && sed -nE "s/^$1=(.*)$/\1/p" "$state_file" | head -n1; }
 save_state() {
-  printf 'scope=%s\nphase=%s\ntask=%s\nsid=%s\nstart_head=%s\nupdated=%s\n' \
-    "$scope" "$run_phase" "$cur_task" "$SID" "$start_head" "$(date '+%F %T')" > "$state_file"
+  printf 'scope=%s\nphase=%s\ntask=%s\nsid=%s\nstart_head=%s\nphases=%s\nphases_done=%s\nupdated=%s\n' \
+    "$scope" "$run_phase" "$cur_task" "$SID" "$start_head" "$phases" "$phases_done" "$(date '+%F %T')" > "$state_file"
   [ -n "$SID" ] && echo "$SID" > "$sid_file"
 }
 
@@ -100,6 +106,26 @@ goal_reached() {
   else
     [ -n "$(git tag -l "$phase_tag")" ] || [ "$(field phase)" != "$run_phase" ]
   fi
+}
+
+# FOLIO_PHASES > 1: after a phase closes, switch the goal to the phase STATUS.md names now.
+# Returns 1 when the run should end instead (count reached, plan DONE, or STATUS did not move on).
+phases_done=0; done_phases=""
+advance_phase() {
+  local new_phase
+  phases_done=$((phases_done + 1))
+  done_phases="${done_phases:+$done_phases }$run_phase"
+  [ "$phases_done" -lt "$phases" ] || return 1
+  [ "$(field next)" != "DONE" ] || return 1
+  if [ "$(stop_count)" -gt 0 ]; then say "Phase $run_phase done, but Blocked items marked [STOP] need you first."; return 1; fi
+  new_phase="$(field phase)"
+  if [ "$new_phase" = "$run_phase" ]; then
+    say "Phase $run_phase closed but STATUS.md still says phase: $run_phase; not starting another phase."
+    return 1
+  fi
+  say "Phase $run_phase done ($phases_done/$phases); continuing with $new_phase, next $(field next)."
+  run_phase="$new_phase"
+  phase_tag="$(printf '%s' "$run_phase" | tr 'A-Z' 'a-z')-done"
 }
 
 new_prompt() {   # $1 = task id or "PNN REVIEW"
@@ -321,15 +347,22 @@ fi
 # Pick up an interrupted run: same phase and same task -> resume its session (full context).
 SID=""; start_head="$(git rev-parse HEAD 2>/dev/null || echo none)"
 if [ "${FOLIO_FRESH:-0}" != "1" ] && [ "$(state_get phase)" = "$run_phase" ]; then
-  [ "$scope" = phase ] && [ "$(state_get scope)" = phase ] && start_head="$(state_get start_head)"
+  if [ "$scope" = phase ] && [ "$(state_get scope)" = phase ]; then
+    start_head="$(state_get start_head)"
+    [ "$(state_get phases)" = "$phases" ] && phases_done="$(state_get phases_done)"
+    case "$phases_done" in ''|*[!0-9]*) phases_done=0 ;; esac
+  fi
   [ "$(state_get task)" = "$start_next" ] && SID="$(state_get sid)"
 fi
 [ -n "${FOLIO_RESUME_SID:-}" ] && SID="$FOLIO_RESUME_SID"
 cur_task="$start_next"
+run_desc="scope=$scope ($run_phase, next $cur_task"
+[ "$phases" -gt 1 ] && run_desc="$run_desc, phase $((phases_done + 1))/$phases"
+run_desc="$run_desc) mode=$mode effort=$effort compact=$CLAUDE_CODE_AUTO_COMPACT_WINDOW"
 if [ -n "$SID" ]; then
-  say "Run start: scope=$scope ($run_phase, next $cur_task) mode=$mode effort=$effort compact=$CLAUDE_CODE_AUTO_COMPACT_WINDOW; resuming session $SID"
+  say "Run start: $run_desc; resuming session $SID"
 else
-  say "Run start: scope=$scope ($run_phase, next $cur_task) mode=$mode effort=$effort compact=$CLAUDE_CODE_AUTO_COMPACT_WINDOW"
+  say "Run start: $run_desc"
 fi
 
 RUN_TEXT=""; LAST_RESULT=""; no_progress=0; sessions=0
@@ -346,7 +379,11 @@ while :; do
   save_state
   sessions=$((sessions + 1))
 
-  if goal_reached; then break; fi
+  if goal_reached; then
+    advance_phase || break
+    no_progress=0
+    continue
+  fi
   if [ "$(stop_count)" -gt 0 ]; then say "Stopped: Blocked items marked [STOP] need you."; break; fi
 
   if [ -n "$(limit_text "$RUN_TEXT")" ]; then
@@ -372,10 +409,11 @@ done
 echo
 echo "================ Folio run summary ================"
 if goal_reached; then
-  echo "Result: goal reached ($scope $( [ "$scope" = phase ] && echo "$run_phase" || echo "$start_next" ))"
+  echo "Result: goal reached ($scope $( [ "$scope" = phase ] && echo "${done_phases:-$run_phase}" || echo "$start_next" ))"
   rm -f "$state_file"
 else
   echo "Result: stopped before the goal. Rerun the same command to continue where it stopped."
+  [ -n "$done_phases" ] && echo "Phases closed this run: $done_phases (now in $run_phase, $phases_done/$phases done)"
 fi
 echo "Now: phase $(field phase), next $(field next)"
 echo "Commits this run:"

@@ -47,7 +47,7 @@ Phase 0 runs interactively so you can watch the toolchain and device link come u
 
 ## Daily use
 - Interactive: run `claude` and say `Continue per CLAUDE.md`. The status snapshot is injected automatically.
-- Unattended: `bash scripts/auto/run-loop.sh` runs the current phase to its REVIEW and tag, each task in a fresh session (`task` as argument runs one task). On a usage limit it waits for the reset and resumes the same session. It stops when the phase is done, on a Blocked line marked `[STOP]`, or after three sessions without progress. Logs go to `.device/loop-logs/`.
+- Unattended: `bash scripts/auto/run-loop.sh` runs the current phase to its REVIEW and tag, each task in a fresh session (`task` as argument runs one task). `FOLIO_PHASES=2 bash scripts/auto/run-loop.sh` closes the current phase and then runs the next one the same way. On a usage limit it waits for the reset and resumes the same session. It stops when the phase is done, on a Blocked line marked `[STOP]`, or after three sessions without progress. Logs go to `.device/loop-logs/`.
   - Interrupted (reboot, crash, Ctrl+C, weekly limit)? Run the same command again: `.device/loop-logs/run.state` resumes the interrupted task's session with its context. `FOLIO_FRESH=1` starts that task in a new session instead.
 - Your jobs live in `docs/plan/STATUS.md`:
   - `## Blocked`: something only you can do (pair the tablet, accept a license, decide a trade-off). Claude skips past it and keeps working. Do it, then delete the line or write your answer under it; remove a `[STOP]` mark when you answer that line.
