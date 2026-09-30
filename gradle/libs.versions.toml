@@ -113,6 +113,8 @@ ink-brush = { module = "androidx.ink:ink-brush", version.ref = "ink" }
 ink-geometry = { module = "androidx.ink:ink-geometry", version.ref = "ink" }
 ink-rendering = { module = "androidx.ink:ink-rendering", version.ref = "ink" }
 ink-strokes = { module = "androidx.ink:ink-strokes", version.ref = "ink" }
+# Host (linux-x86_64) libink.so for JVM unit tests; must precede the Android loader on the test classpath
+ink-nativeloader-jvm = { module = "androidx.ink:ink-nativeloader-jvm", version.ref = "ink" }
 tracing-ktx = { module = "androidx.tracing:tracing-ktx", version.ref = "tracing" }
 wire-runtime = { module = "com.squareup.wire:wire-runtime", version.ref = "wire" }
 commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" }

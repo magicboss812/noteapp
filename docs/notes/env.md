@@ -43,6 +43,7 @@ Resolved 2026-09-27 (P00-T03) from maven-metadata.xml; all 83 catalog coordinate
 | DataStore Preferences | 1.2.1 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/datastore/datastore-preferences/maven-metadata.xml | settings |
 | WorkManager | 2.12.0 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/work/work-runtime-ktx/maven-metadata.xml | background packing/export |
 | androidx.ink (authoring, brush, geometry, rendering, strokes) | 1.1.0-alpha09 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/ink/ink-authoring/maven-metadata.xml | ink (ADR-002, newest 1.1.0 alpha) |
+| androidx.ink ink-nativeloader-jvm (test only) | 1.1.0-alpha09 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/ink/ink-nativeloader-jvm/maven-metadata.xml | host libink.so so core:ink Robolectric tests mesh real strokes (gotchas.md) |
 | tracing-ktx (unused, A-003) | 2.0.3 | Apache-2.0 | https://dl.google.com/android/maven2/androidx/tracing/tracing-ktx/maven-metadata.xml | kept for later modules; PerfMonitor uses platform Trace (A-003) |
 | Wire (runtime, gradle plugin) | 7.0.4 | Apache-2.0 | https://repo1.maven.org/maven2/com/squareup/wire/wire-runtime/maven-metadata.xml | protobuf .folio payloads |
 | commonmark (+ gfm-tables, gfm-strikethrough, task-list-items) | 0.30.0 | BSD-2-Clause | https://repo1.maven.org/maven2/org/commonmark/commonmark/maven-metadata.xml | Markdown parsing |

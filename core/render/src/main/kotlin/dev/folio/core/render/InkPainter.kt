@@ -7,6 +7,7 @@ import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.ink.strokes.Stroke
 import dev.folio.core.common.FolioLog
 import dev.folio.core.ink.StrokeBuilder
+import dev.folio.core.ink.brush.BrushTextures
 import dev.folio.core.model.InkStroke
 
 /** Paints committed ink strokes for [PageRenderer]. One instance per drawing thread. */
@@ -36,7 +37,7 @@ interface InkPainter {
 /** androidx.ink [CanvasStrokeRenderer] with meshes from [StrokeBuilder], cached per page snapshot. */
 class AndroidInkPainter : InkPainter {
     // Created on first use: background-only renderers (and JVM tests) never load the ink natives.
-    private val renderer by lazy(LazyThreadSafetyMode.NONE) { CanvasStrokeRenderer.create() }
+    private val renderer by lazy(LazyThreadSafetyMode.NONE) { CanvasStrokeRenderer.create(BrushTextures) }
 
     override fun draw(
         canvas: Canvas,

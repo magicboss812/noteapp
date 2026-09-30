@@ -107,3 +107,8 @@ Format:
 - Reason: a background tile of a blank page is pure paper and a content tile without objects is transparent, so rendering them wastes memory; at 3200x2136 one layer needs up to ~48 visible tiles, so a hard budget would evict tiles on screen.
 - Impact: 05-canvas-rendering.md#tiles, #page-renderer.
 
+## A-021 2026-09-30 P03-T05: brush catalog details
+- Change: the pressure curve is baked into each family as a piecewise-linear response (15 samples of `p^gamma`), with gamma snapped to steps of 0.05; families are cached per (kind, version, gamma, tilt). Stored specs with an unknown version render with the nearest known version (0 -> oldest, newer -> latest). Highlighter opacity is a paint color function, so the stored color stays opaque. Pencil grain is a procedural 64 px texture (`BrushTextures`, id versioned) that every renderer must receive. Pencil tilt maps 20..69 deg to width 100..250% and opacity 100..55%. `BrushCatalog.specOf(brush)` recovers the spec of a finished wet stroke. Screenshot goldens render real meshes on the JVM (ink-nativeloader-jvm) but without per-vertex opacity.
+- Reason: wet ink gets raw MotionEvents, so the curve cannot be applied to inputs; baking it into the family keeps wet and dry identical and stored pressure raw. Snapping bounds the cache (31 curves). Robolectric draws meshes as paths.
+- Impact: 06-ink-input.md#brushes.
+

@@ -35,7 +35,7 @@ Routing decisions are made on ACTION_DOWN per pointer and kept for the whole ges
 | MARKER | marker family | constant width, opaque, round tip |
 | HIGHLIGHTER | highlighter family, self-overlap discarded | chisel tip, 35% alpha, straight-line snap on hold |
 Width presets per kind (pt): ballpoint 0.6/0.9/1.3, fountain 0.8/1.2/1.8, pencil 0.8/1.2/2.0, marker 1.5/2.5/4.0, highlighter 8/12/18. Custom widths 0.3-30 pt.
-Pressure curve: `p' = p^gamma`, gamma 0.5-2.0 (settings). Brush families are built once and cached. A visual change to a brush means a new version; old strokes keep rendering with their stored version.
+Pressure curve: `p' = p^gamma`, gamma 0.5-2.0 in steps of 0.05 (settings), baked into the family's pressure behaviors so wet and dry ink agree and stored pressure stays raw. Brush families are built once per (kind, version, gamma, tilt) and cached. A visual change to a brush means a new version; old strokes keep rendering with their stored version (unknown versions: nearest known). Pencil tilt: 20..69 deg -> width 100..250%, opacity 100..55%. Textured families need `BrushTextures` in every renderer (A-021).
 
 ## Colors
 Default palette (editable per tool, persisted): ink black `#1A1A1A`, blue `#2563EB`, red `#DC2626`, green `#16A34A`, purple `#7C3AED`. Highlighter: yellow `#FDE047`, green `#86EFAC`, pink `#F9A8D4`, blue `#93C5FD`, orange `#FDBA74`. Custom colors via an HSV picker with hex input; up to 12 favorites per tool.
