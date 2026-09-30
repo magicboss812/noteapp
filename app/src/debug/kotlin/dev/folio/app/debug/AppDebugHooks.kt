@@ -80,6 +80,9 @@ internal class AppDebugHooks
                         "zoom-anim" to canvas::zoomAnim,
                         "scroll-page" to canvas::scrollPage,
                         "seed-strokes" to canvas::seedStrokes,
+                        "tool" to canvas::tool,
+                        "undo" to canvas::undo,
+                        "redo" to canvas::redo,
                     ),
             ) { visible -> setOverlayVisible(visible) }
 

@@ -16,4 +16,5 @@ dependencies {
     // First on the test classpath: its NativeLoader loads the host libink.so, so Robolectric tests mesh real strokes
     testImplementation(libs.ink.nativeloader.jvm)
     testImplementation(libs.ink.rendering)
+    testImplementation(projects.core.testing)
 }

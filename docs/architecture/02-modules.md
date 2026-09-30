@@ -69,7 +69,7 @@ Not allowed: networking libraries, analytics, crash reporters, Gson, RxJava, Web
 ## Editor state
 - `EditorSession` (one per pane) wraps a `DocumentSession` from core:storage and adds: active tool + tool options, selection, focused text block, viewport state, pane id.
 - `EditorViewModel` holds one or two sessions (split view) and exposes `EditorUiState` for chrome (toolbar, sheets, save state). Chrome never observes per-point state.
-- `CanvasController` (interface implemented by EditorSession) is the only API the canvas host sees: `commit(strokes)`, `hitTest`, `currentTool()`, `requestRender(bounds)`, `document`, `viewport`.
+- `CanvasController` (interface implemented by EditorSession) is the only API the canvas host sees: `commit(strokes)`, `hitTest`, `currentTool()`, `requestRender(bounds)`, `document`, `viewport`. As built so far: `commitStrokes`, `execute(command)` (erase gestures), `activeBrush`, `activeTool`, `eraserOptions`, `document`, `viewport`, `renderDispatcher`, `loadPages` (A-024).
 - Document mutations: only `session.execute(command)`. Undo/redo: `session.undo()/redo()`. Each pane has its own UndoManager.
 
 ## Packages

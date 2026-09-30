@@ -41,10 +41,11 @@ Pressure curve: `p' = p^gamma`, gamma 0.5-2.0 in steps of 0.05 (settings), baked
 Default palette (editable per tool, persisted): ink black `#1A1A1A`, blue `#2563EB`, red `#DC2626`, green `#16A34A`, purple `#7C3AED`. Highlighter: yellow `#FDE047`, green `#86EFAC`, pink `#F9A8D4`, blue `#93C5FD`, orange `#FDBA74`. Custom colors via an HSV picker with hex input; up to 12 favorites per tool.
 
 ## Erasers
-- STROKE mode: eraser path segments (radius = eraser size) tested against stroke geometry with androidx.ink geometry intersection; hits are removed. Shapes are hit-tested by their outline.
-- PARTIAL mode: for each hit stroke, input points within the eraser radius (measured to the stroke centerline, plus half the stroke width) are removed; remaining runs become new strokes with the same brush and z position. Runs with < 2 inputs or < 1 pt length are dropped. Implemented on `StrokeInputs`, so results are serializable (the experimental mesh eraser in ink 1.1.0-alpha is not used).
-- Options: size presets (4/10/24 pt), "highlighter only", "clear page" (confirmed, undoable).
-- The whole gesture becomes one `ReplaceObjects` command (one undo step). Preview: erased parts disappear live via a temporary mask on affected tiles.
+- STROKE mode: eraser path segments (radius = eraser size) tested against stroke geometry with androidx.ink geometry intersection (the segment's rectangle padded by the radius, as two triangles; see docs/notes/gotchas.md for why not a parallelogram); hits are removed. Shapes are hit-tested by their outline (P07).
+- PARTIAL mode: for each hit stroke, input points within the eraser radius (measured to the stroke centerline, plus half the stroke width) are removed, and a centerline segment the eraser crosses between two kept inputs is cut; remaining runs become new strokes with the same brush and z position. Runs with < 2 inputs or < 1 pt length are dropped. Implemented on `StrokeInputs`, so results are serializable (the experimental mesh eraser in ink 1.1.0-alpha is not used). Later moves of the same gesture erase from the fragments.
+- Options: size presets (4/10/24 pt, radius), "highlighter only", "clear page" (confirmed, undoable; toolbar, P04).
+- Routing: the pen's eraser end (TOOL_TYPE_ERASER) always erases; the stylus tip erases when the eraser tool is active. Eraser samples go to a worker coroutine on the render dispatcher (`EraseSession`, core:ink); nothing but queuing happens per MotionEvent.
+- The whole gesture becomes one command (one undo step): a `Batch` of one `ReplaceObjects` per touched stroke, so every stroke's fragments keep its z-index. Preview: the host shows the page body with the gesture's result applied (the same object instances the command produces), so affected tiles re-render live and do not change again when the committed document arrives.
 - Text, images, stickies, attachments are not erased (lasso + delete instead).
 
 ## Shapes

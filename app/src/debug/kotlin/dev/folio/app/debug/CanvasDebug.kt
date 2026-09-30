@@ -11,6 +11,7 @@ import dev.folio.core.common.Outcome
 import dev.folio.core.common.flatMap
 import dev.folio.core.ink.brush.BrushCatalog
 import dev.folio.core.ink.brush.BrushPresets
+import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.Background
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
@@ -23,6 +24,7 @@ import dev.folio.core.model.PaperSize
 import dev.folio.core.model.TemplateKind
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.Batch
+import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.RemoveObjects
 import dev.folio.core.render.template.TemplatePresets
 import dev.folio.core.render.viewport.Viewport
@@ -33,6 +35,7 @@ import dev.folio.core.storage.session.DocumentSessions
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasHost
 import dev.folio.feature.editor.canvas.CanvasHostView
+import dev.folio.feature.editor.canvas.CanvasTool
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
@@ -140,13 +143,18 @@ private class SessionCanvasController(
         }
     }
 
+    override var activeTool = CanvasTool.PEN
+    override var eraserOptions = EraserOptions.DEFAULT
+
     override suspend fun commitStrokes(
         pageId: PageId,
         strokes: List<InkStroke>,
-    ): Boolean {
+    ): Boolean = execute(AddObjects(pageId, strokes))
+
+    override suspend fun execute(command: EditCommand): Boolean {
         // Off the main thread: the session lock, the command and the autosave scheduling (ink:commit budget).
-        val result = withContext(ioDispatcher) { session.execute(AddObjects(pageId, strokes)) }
-        if (result is Outcome.Failure) FolioLog.w(DebugReply.TAG, "commitStrokes: ${result.message}")
+        val result = withContext(ioDispatcher) { session.execute(command) }
+        if (result is Outcome.Failure) FolioLog.w(DebugReply.TAG, "execute ${command::class.simpleName}: ${result.message}")
         return result is Outcome.Success
     }
 }
@@ -154,7 +162,8 @@ private class SessionCanvasController(
 /**
  * Debug commands for the canvas host (P03-T02, T04): `open <path>|blank:N` opens a document through
  * [DocumentSessions] and shows it on the `canvas` route; `zoom-anim` and `scroll-page` script the
- * viewport for frame stats; `seed-strokes n[,page]` replaces a page's objects with n synthetic strokes.
+ * viewport for frame stats; `seed-strokes n[,page]` replaces a page's objects with n synthetic strokes;
+ * `tool` switches pen and eraser (P03-T08), `undo` and `redo` step the session history.
  * Replaced by the P04 editor route and EditorSession.
  */
 @MainThread
@@ -247,6 +256,33 @@ internal class CanvasDebug(
         return DebugReply.ok(buildJsonObject { put("seeding", seed.count) })
     }
 
+    fun tool(arg: String?): DebugReply {
+        val setting =
+            ToolSetting.parse(arg) ?: return DebugReply.error("tool needs pen or eraser[,stroke|partial][,radiusPt][,hl]")
+        val current = controller ?: return DebugReply.error(NO_CANVAS)
+        current.activeTool = setting.tool
+        if (setting.tool == CanvasTool.ERASER) current.eraserOptions = setting.eraser // `tool pen` keeps them
+        return DebugReply.ok(json() ?: JsonObject(emptyMap()))
+    }
+
+    fun undo(arg: String?): DebugReply = history("undo", arg) { it.undo() }
+
+    fun redo(arg: String?): DebugReply = history("redo", arg) { it.redo() }
+
+    private fun history(
+        name: String,
+        arg: String?,
+        step: suspend (DocumentSession) -> Outcome<Unit>,
+    ): DebugReply {
+        if (!arg.isNullOrBlank()) return DebugReply.error("$name takes no argument")
+        val current = controller ?: return DebugReply.error(NO_CANVAS)
+        scope.launch {
+            val result = withContext(ioDispatcher) { step(current.session) }
+            FolioLog.i(DebugReply.TAG, "$name -> ${(result as? Outcome.Failure)?.message ?: "ok"}")
+        }
+        return DebugReply.ok(buildJsonObject { put(name, true) })
+    }
+
     /** The canvas screen for the open document, or null if none is open. */
     fun createView(context: Context): View? {
         val current = controller ?: return null
@@ -298,6 +334,20 @@ internal class CanvasDebug(
                             put("committed", h.committed)
                             put("pending", h.pending)
                             put("removed", h.removed)
+                        },
+                    )
+                }
+                put("tool", "${current.activeTool.name.lowercase()} ${current.eraserOptions}")
+                put("canUndo", current.session.canUndo.value)
+                put("canRedo", current.session.canRedo.value)
+                host?.eraseStats?.let { e ->
+                    put(
+                        "erase",
+                        buildJsonObject {
+                            put("gestures", e.gestures)
+                            put("committed", e.committed)
+                            put("strokes", e.strokes)
+                            put("discarded", e.discarded)
                         },
                     )
                 }

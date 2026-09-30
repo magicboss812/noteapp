@@ -1,12 +1,23 @@
 package dev.folio.feature.editor.canvas
 
+import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.PageId
+import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.render.viewport.Viewport
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.StateFlow
+
+/** What the stylus tip does on the canvas (the toolbar picks it, P04). */
+enum class CanvasTool {
+    /** Draws ink with [CanvasController.activeBrush]. */
+    PEN,
+
+    /** Erases with [CanvasController.eraserOptions]. */
+    ERASER,
+}
 
 /**
  * The only API the canvas host sees (02-modules.md#editor-state); implemented by EditorSession (P04).
@@ -23,8 +34,20 @@ interface CanvasController {
         strokes: List<InkStroke>,
     ): Boolean
 
+    /**
+     * Runs [command] as one undo step (an erase gesture); [document] shows the result afterwards. False if
+     * the session rejected it. Called on the main thread: implementations run the command off it.
+     */
+    suspend fun execute(command: EditCommand): Boolean
+
     /** Brush of the pen tool, read at every stylus down (tool state arrives with the toolbar, P04). */
     val activeBrush: BrushSpec
+
+    /** Tool of the stylus tip, read at every stylus down; the pen's eraser end always erases. */
+    val activeTool: CanvasTool
+
+    /** Eraser settings, read at every eraser down. */
+    val eraserOptions: EraserOptions
 
     /** The open document; the host lays out its pages and tiles the loaded page bodies. */
     val document: StateFlow<Document>

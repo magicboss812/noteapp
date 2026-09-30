@@ -17,10 +17,12 @@ import android.widget.OverScroller
 import androidx.annotation.MainThread
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.PerfMonitor
+import dev.folio.core.ink.erase.EraseResult
 import dev.folio.core.ink.input.InputRouter
 import dev.folio.core.ink.input.StylusCapabilities
 import dev.folio.core.model.Document
 import dev.folio.core.model.InkStroke
+import dev.folio.core.model.Page
 import dev.folio.core.model.PageId
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.render.DisplayModeHelper
@@ -62,7 +64,8 @@ data class TileStats(
  * The editor canvas (05-canvas-rendering.md#layers), hosted by an `AndroidView`. Children bottom to
  * top: [BackgroundTileLayer], [ContentTileLayer], an overlay slot for Compose, and the wet-ink layer
  * (androidx.ink's `InProgressStrokesView`). Touch, hover and scroll input goes through [InputRouter]:
- * the stylus to the pen ([PenInput]), fingers and the mouse to pan and zoom ([FingerGestures]). Pan and
+ * the stylus to the active tool ([StylusTools]: [PenInput] or [EraserInput]), fingers and the mouse to
+ * pan and zoom ([FingerGestures]). Erase gestures show as a preview page body until committed. Pan and
  * zoom only move existing tiles; 100 ms after the viewport settles the host requests tiles at the new
  * bucket. While attached it requests the fastest display mode ([DisplayModeHelper]). Finished pen
  * strokes go to the session through [DryHandoff]; their wet copies leave once the tiles show them.
@@ -111,6 +114,13 @@ class CanvasHostView internal constructor(
     private var settleStartNs = 0L
     private var lastVisible: List<VisiblePage> = emptyList()
 
+    // Erase gesture shown over the document; after the commit, until the document's body of its page changes.
+    private var erasePreview: EraseResult? = null
+    private var eraseCommittedOn: Page? = null
+    private var eraseCommitted = 0
+    private var erasedStrokes = 0
+    private var eraseRejected = 0
+
     private val wet = createWetSurface(context)
     private val pen: PenInput =
         PenInput(
@@ -120,8 +130,22 @@ class CanvasHostView internal constructor(
             capabilities = { router.capabilities },
             onStrokeStart = ::requestUnbufferedDispatch,
         )
+    private val eraser =
+        EraserInput(
+            controller.viewport,
+            body = { id -> document?.let { shownBody(it, id) } },
+            options = { controller.eraserOptions },
+            scope = scope,
+            worker = controller.renderDispatcher,
+            onPreview = ::showErasePreview,
+            onFinished = ::commitErase,
+        )
     private val router: InputRouter =
-        InputRouter(pen, gestures, largeTouchPx = InputRouter.LARGE_TOUCH_MM * resources.displayMetrics.xdpi / MM_PER_INCH)
+        InputRouter(
+            StylusTools(pen, eraser) { controller.activeTool },
+            gestures,
+            largeTouchPx = InputRouter.LARGE_TOUCH_MM * resources.displayMetrics.xdpi / MM_PER_INCH,
+        )
     private val handoff =
         DryHandoff(
             commit = ::commitStrokes,
@@ -142,6 +166,10 @@ class CanvasHostView internal constructor(
 
     /** Dry handoff counters. */
     val handoffStats: HandoffStats get() = HandoffStats(handoff.committedCount, handoff.pendingCount, handoff.removedCount)
+
+    /** Eraser counters. */
+    val eraseStats: EraseStats
+        get() = EraseStats(eraser.startedCount, eraseCommitted, erasedStrokes, eraser.canceledCount + eraseRejected)
 
     /** What the last stylus reported. */
     val stylusCapabilities: StylusCapabilities get() = router.capabilities
@@ -180,19 +208,82 @@ class CanvasHostView internal constructor(
         val previous = document
         if (previous === next) return
         document = next
+        val committedOn = eraseCommittedOn
+        if (committedOn != null && next.pageBodies[committedOn.id] !== committedOn) {
+            // The committed erase (or a later change) arrived: the document shows it now.
+            erasePreview = null
+            eraseCommittedOn = null
+        }
         if (previous?.pages != next.pages) layoutPages()
         val keep = HashSet<String>(next.pages.size * 2)
         for (ref in next.pages) {
             keep += ref.id.value
             backgroundTiles.setPage(ref, null)
-            contentTiles.setPage(ref, next.pageBodies[ref.id])
+            contentTiles.setPage(ref, shownBody(next, ref.id))
         }
         backgroundTiles.retainPages(keep)
         contentTiles.retainPages(keep)
+        refreshTiles()
+    }
+
+    private fun refreshTiles() {
         invalidateLayers()
         // Mid-gesture the idle timer requests later; otherwise refresh stale or newly loaded tiles now.
         if (SystemClock.uptimeMillis() - lastViewportChangeMs >= IDLE_MS && !isAnimating) requestTiles()
         handoff.check()
+    }
+
+    /** Body of page [id] as shown: the document's, with the erase preview applied. */
+    private fun shownBody(
+        doc: Document,
+        id: PageId,
+    ): Page? {
+        val body = doc.pageBodies[id] ?: return null
+        val preview = erasePreview ?: return body
+        return if (preview.pageId == id) preview.applyTo(body) else body
+    }
+
+    /** Shows [result] over the document (null: the document as is); tiles under the changes re-render. */
+    private fun showErasePreview(result: EraseResult?) {
+        val old = erasePreview
+        erasePreview = result
+        eraseCommittedOn = null
+        val doc = document ?: return
+        for (id in setOfNotNull(old?.pageId, result?.pageId)) {
+            val ref = doc.pageRef(id) ?: continue
+            contentTiles.setPage(ref, shownBody(doc, id))
+        }
+        refreshTiles()
+    }
+
+    /**
+     * Commits a finished erase gesture as one command. Its preview stays until the document's body of the
+     * page changes (the command's objects are the preview's, so the tiles do not change) or the session
+     * rejects it.
+     */
+    private fun commitErase(result: EraseResult) {
+        val base = document?.pageBodies?.get(result.pageId)
+        if (result.isEmpty || base == null) {
+            showErasePreview(null)
+            return
+        }
+        showErasePreview(result)
+        eraseCommittedOn = base
+        eraseCommitted++
+        erasedStrokes += result.replacements.size
+        scope.launch {
+            val accepted =
+                try {
+                    controller.execute(result.command())
+                } catch (e: IllegalStateException) {
+                    FolioLog.w(TAG, "erase failed: ${e.message}", e) // session closed under the view
+                    false
+                }
+            if (!accepted) {
+                eraseRejected++
+                if (erasePreview === result) showErasePreview(null)
+            }
+        }
     }
 
     /** Animates the zoom (times fit-width) [fromZoom] -> [toZoom] over [durationMs] around the view center. */
@@ -234,6 +325,8 @@ class CanvasHostView internal constructor(
         removeCallbacks(idleRequest)
         handoff.clear()
         scope.coroutineContext.cancelChildren()
+        erasePreview = null
+        eraseCommittedOn = null
         backgroundTiles.clear()
         contentTiles.clear()
         pool.clear()

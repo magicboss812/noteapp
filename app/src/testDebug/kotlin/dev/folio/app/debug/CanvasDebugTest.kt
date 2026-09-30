@@ -1,7 +1,10 @@
 package dev.folio.app.debug
 
 import com.google.common.truth.Truth.assertThat
+import dev.folio.core.ink.erase.EraserMode
+import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.TemplateKind
+import dev.folio.feature.editor.canvas.CanvasTool
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Test
@@ -52,6 +55,18 @@ class CanvasDebugTest {
         assertThat(SeedStrokes.parse("5001")).isNull()
         assertThat(SeedStrokes.parse("10,0")).isNull()
         assertThat(SeedStrokes.parse(null)).isNull()
+    }
+
+    @Test
+    fun toolSetting_parse_penOrEraserWithOptions() {
+        assertThat(ToolSetting.parse("pen")).isEqualTo(ToolSetting(CanvasTool.PEN))
+        assertThat(ToolSetting.parse("eraser")).isEqualTo(ToolSetting(CanvasTool.ERASER, EraserOptions.DEFAULT))
+        assertThat(ToolSetting.parse("eraser,partial,24,hl"))
+            .isEqualTo(ToolSetting(CanvasTool.ERASER, EraserOptions(EraserMode.PARTIAL, 24f, highlighterOnly = true)))
+        assertThat(ToolSetting.parse("eraser,0")).isNull()
+        assertThat(ToolSetting.parse("eraser,wide")).isNull()
+        assertThat(ToolSetting.parse("pen,4")).isNull()
+        assertThat(ToolSetting.parse(null)).isNull()
     }
 
     @Test

@@ -25,7 +25,7 @@ data class InkStats(
  * The pen tool on the stylus route (06-ink-input.md#wet-ink): a stylus down starts a wet stroke on the
  * page under the pen (the nearest page from a gap) in that page's points, so the finished stroke is
  * already in page space; the surface reports it finished with that page for the dry handoff.
- * Eraser-tool pointers are ignored until erasers exist (P03-T08).
+ * Eraser-tool pointers are ignored ([StylusTools] routes them to [EraserInput]).
  * [onStrokeStart] runs first on every stroke (the host requests unbuffered dispatch).
  */
 @MainThread

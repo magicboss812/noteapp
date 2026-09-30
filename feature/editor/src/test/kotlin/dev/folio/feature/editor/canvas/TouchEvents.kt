@@ -30,7 +30,8 @@ internal object TouchEvents {
                 }
             }
         val fullAction = action or (actionIndex shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
-        val source = if (toolType == MotionEvent.TOOL_TYPE_STYLUS) InputDevice.SOURCE_STYLUS else InputDevice.SOURCE_TOUCHSCREEN
+        val stylus = toolType == MotionEvent.TOOL_TYPE_STYLUS || toolType == MotionEvent.TOOL_TYPE_ERASER
+        val source = if (stylus) InputDevice.SOURCE_STYLUS else InputDevice.SOURCE_TOUCHSCREEN
         return MotionEvent.obtain(0L, timeMs, fullAction, points.size, properties, coords, 0, 0, 1f, 1f, 0, 0, source, 0)
     }
 }
