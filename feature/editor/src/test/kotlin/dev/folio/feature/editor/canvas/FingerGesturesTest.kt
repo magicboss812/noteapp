@@ -1,10 +1,14 @@
 package dev.folio.feature.editor.canvas
 
+import android.view.InputDevice.SOURCE_MOUSE
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.MotionEvent.ACTION_DOWN
 import android.view.MotionEvent.ACTION_MOVE
 import android.view.MotionEvent.ACTION_POINTER_DOWN
 import android.view.MotionEvent.ACTION_POINTER_UP
 import android.view.MotionEvent.ACTION_UP
+import android.view.MotionEvent.TOOL_TYPE_MOUSE
 import android.view.MotionEvent.TOOL_TYPE_STYLUS
 import android.widget.OverScroller
 import androidx.test.core.app.ApplicationProvider
@@ -106,6 +110,56 @@ class FingerGesturesTest {
         gestures.onTouchEvent(event(ACTION_DOWN, 100, 1000f to 1500f))
 
         assertThat(gestures.isFlinging).isFalse()
+    }
+
+    @Test
+    fun cancelNavigation_midSwipe_stopsPanWithoutFling() {
+        gestures.onTouchEvent(event(ACTION_DOWN, 0, 1000f to 2500f))
+        for (i in 1..3) gestures.onTouchEvent(event(ACTION_MOVE, i * 10L, 1000f to 2500f - i * 100f))
+        val canceledAt = viewport.offsetYPx
+
+        gestures.cancelNavigation()
+        gestures.onTouchEvent(event(ACTION_MOVE, 40, 1000f to 1500f))
+        gestures.onTouchEvent(event(ACTION_UP, 50, 1000f to 1500f))
+
+        assertThat(viewport.offsetYPx).isEqualTo(canceledAt)
+        assertThat(gestures.isFlinging).isFalse()
+    }
+
+    @Test
+    fun drag_mouse_pans() {
+        gestures.onTouchEvent(event(ACTION_DOWN, 0, 1000f to 1500f, toolType = TOOL_TYPE_MOUSE))
+        gestures.onTouchEvent(event(ACTION_MOVE, 100, 1000f to 1200f, toolType = TOOL_TYPE_MOUSE))
+
+        assertThat(viewport.offsetYPx).isWithin(1e-3).of(-300.0)
+    }
+
+    @Test
+    fun wheel_scrollsDown_ctrlWheelZoomsAtCursor() {
+        viewport.panBy(0f, -5000f)
+        val before = viewport.offsetYPx
+
+        gestures.onScroll(scroll(vScroll = -2f))
+        assertThat(viewport.offsetYPx).isWithin(1e-3).of(before - 2 * 64.0)
+
+        gestures.onScroll(scroll(vScroll = 1f, metaState = KeyEvent.META_CTRL_ON))
+        assertThat(viewport.zoom).isWithin(1e-4f).of(1.1f)
+    }
+
+    private fun scroll(
+        vScroll: Float,
+        metaState: Int = 0,
+    ): MotionEvent {
+        val properties = arrayOf(MotionEvent.PointerProperties().apply { toolType = TOOL_TYPE_MOUSE })
+        val coords =
+            arrayOf(
+                MotionEvent.PointerCoords().apply {
+                    x = 1000f
+                    y = 1500f
+                    setAxisValue(MotionEvent.AXIS_VSCROLL, vScroll)
+                },
+            )
+        return MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_SCROLL, 1, properties, coords, metaState, 0, 1f, 1f, 0, 0, SOURCE_MOUSE, 0)
     }
 
     /** Two fingers at 800/1200 spread to 600/1400 around (1000, 1600): span 400 -> 800. */

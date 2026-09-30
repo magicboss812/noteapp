@@ -14,6 +14,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.google.common.truth.Truth.assertThat
+import dev.folio.core.model.BrushKind
+import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
 import dev.folio.core.model.PageId
 import dev.folio.core.model.PageSpec
@@ -43,6 +45,7 @@ private class FakeCanvasController(
             .resources.displayMetrics.density
     override val document = MutableStateFlow<Document>(ModelFixtures.document(List(pages) { ModelFixtures.page("p$it") }))
     override val viewport = Viewport(density)
+    override val activeBrush = BrushSpec(BrushKind.BALLPOINT, 0xFF1A1A1A.toInt(), 0.9f, 1)
 
     // Tiles render inline on the main thread, so a frame after the idle request shows them.
     override val renderDispatcher = Dispatchers.Unconfined
@@ -61,9 +64,14 @@ class CanvasHostTest {
 
     private val controller = FakeCanvasController(pages = 20)
     private var host: CanvasHostView? = null
+    private var wet: FakeWetSurface? = null
 
     private fun show() {
-        compose.setContent { CanvasHost(controller, Modifier.fillMaxSize(), onHost = { host = it }) }
+        compose.setContent {
+            CanvasHost(controller, Modifier.fillMaxSize(), onHost = { host = it }) { context ->
+                CanvasHostView(context, controller) { FakeWetSurface(it).also { surface -> wet = surface } }
+            }
+        }
         settle()
     }
 
@@ -99,7 +107,7 @@ class CanvasHostTest {
     }
 
     @Test
-    fun canvasHost_fingerDrag_pansAndStylusDragDoesNot() {
+    fun canvasHost_fingerDragPans_stylusDragDrawsWetStrokeWithoutPanning() {
         show()
         val vp = controller.viewport
 
@@ -119,6 +127,26 @@ class CanvasHostTest {
 
         assertThat(panned).isWithin(1e-3).of(-500.0)
         assertThat(vp.offsetYPx).isEqualTo(panned)
+        assertThat(wet?.calls).containsExactly("start 0", "add 0", "finish 0").inOrder()
+        assertThat(wet?.lastSpec).isEqualTo(controller.activeBrush)
+        assertThat(hostView().inkStats).isEqualTo(InkStats(started = 1, finished = 1, canceled = 0))
+    }
+
+    @Test
+    fun canvasHost_fingerRightAfterStylus_isPalmAndDoesNotPan() {
+        show()
+        val vp = controller.viewport
+
+        compose.runOnUiThread {
+            val view = hostView()
+            view.dispatchTouchEvent(event(ACTION_DOWN, 2000, 500f to 1500f, toolType = TOOL_TYPE_STYLUS))
+            view.dispatchTouchEvent(event(ACTION_UP, 2100, 500f to 1400f, toolType = TOOL_TYPE_STYLUS))
+            view.dispatchTouchEvent(event(ACTION_DOWN, 2200, 500f to 1500f))
+            view.dispatchTouchEvent(event(ACTION_MOVE, 2300, 500f to 1000f))
+            view.dispatchTouchEvent(event(ACTION_UP, 2400, 500f to 1000f))
+        }
+
+        assertThat(vp.offsetYPx).isEqualTo(0.0)
     }
 
     @Test

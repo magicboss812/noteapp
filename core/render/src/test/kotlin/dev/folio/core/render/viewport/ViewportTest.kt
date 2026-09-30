@@ -272,6 +272,34 @@ class ViewportTest {
         assertThat(vp.toViewPx(PageId("p10"), PointPt(0f, 0f)).y).isWithin(0.05f).of(16f * DENSITY)
     }
 
+    @Test
+    fun pageIndexAt_cardsGapsAndEnds_picksCardUnderOrNearest() {
+        val vp = viewport(pages(5))
+        vp.zoomTo(0.2f, 0f, 0f)
+        val stack = requireNotNull(vp.layout)
+
+        fun yOf(yPt: Float) = vp.docToViewY(yPt).toFloat()
+        val bottom1 = stack.cardTopPt(1) + a4.heightPt
+
+        assertThat(vp.pageIndexAt(yOf(stack.cardTopPt(2) + 10f))).isEqualTo(2)
+        assertThat(vp.pageIndexAt(yOf(bottom1 + stack.gapPt * 0.25f))).isEqualTo(1)
+        assertThat(vp.pageIndexAt(yOf(bottom1 + stack.gapPt * 0.75f))).isEqualTo(2)
+        assertThat(vp.pageIndexAt(yOf(-100f))).isEqualTo(0)
+        assertThat(vp.pageIndexAt(yOf(stack.contentHeightPt + 100f))).isEqualTo(4)
+    }
+
+    @Test
+    fun pageOriginView_matchesToViewPx() {
+        val vp = viewport()
+        vp.zoomBy(2.5f, 100f, 2000f)
+        vp.panBy(0f, -50_000f)
+
+        val corner = vp.toViewPx(PageId("p30"), PointPt(0f, 0f))
+
+        assertThat(vp.pageOriginViewX(30).toFloat()).isWithin(0.01f).of(corner.x)
+        assertThat(vp.pageOriginViewY(30).toFloat()).isWithin(0.01f).of(corner.y)
+    }
+
     private companion object {
         const val DENSITY = 2.5f
         const val VIEW_W = 2136f

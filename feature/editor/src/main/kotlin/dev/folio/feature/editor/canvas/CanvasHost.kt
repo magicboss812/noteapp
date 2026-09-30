@@ -1,5 +1,6 @@
 package dev.folio.feature.editor.canvas
 
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,12 +20,21 @@ fun CanvasHost(
     controller: CanvasController,
     modifier: Modifier = Modifier,
     onHost: (CanvasHostView) -> Unit = {},
+) = CanvasHost(controller, modifier, onHost) { CanvasHostView(it, controller) }
+
+/** [CanvasHost] with a custom view factory (tests swap the wet-ink surface). */
+@Composable
+internal fun CanvasHost(
+    controller: CanvasController,
+    modifier: Modifier = Modifier,
+    onHost: (CanvasHostView) -> Unit = {},
+    createView: (Context) -> CanvasHostView,
 ) {
     key(controller) {
         var host by remember { mutableStateOf<CanvasHostView?>(null) }
         AndroidView(
             factory = { context ->
-                CanvasHostView(context, controller).also {
+                createView(context).also {
                     host = it
                     onHost(it)
                 }

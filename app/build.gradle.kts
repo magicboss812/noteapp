@@ -40,6 +40,7 @@ dependencies {
     // P01 probe screens kept for open USER-CHECKs (app/src/debug/.../spikes, STATUS D-002).
     debugImplementation(projects.core.model) // debug `open blank:N` builds a NewDocumentSpec (P03-T02)
     debugImplementation(projects.core.render)
+    debugImplementation(projects.core.ink) // debug canvas controller's pen brush (P03-T06)
     debugImplementation(projects.core.text)
     debugImplementation(libs.bundles.ink)
     testImplementation(projects.core.testing)

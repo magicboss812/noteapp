@@ -68,6 +68,8 @@ private fun Viewport.pageIndex(pageId: PageId): Int {
     return i
 }
 
-private fun Viewport.originXPt(index: Int): Float = if (mode is ViewportMode.Canvas) 0f else requireNotNull(layout).originXPt(index)
+/** Doc-space x of page [index]'s page-space origin (0 in canvas mode). */
+internal fun Viewport.originXPt(index: Int): Float = if (mode is ViewportMode.Canvas) 0f else requireNotNull(layout).originXPt(index)
 
-private fun Viewport.originYPt(index: Int): Float = if (mode is ViewportMode.Canvas) 0f else requireNotNull(layout).originYPt(index)
+/** Doc-space y of page [index]'s page-space origin (0 in canvas mode). */
+internal fun Viewport.originYPt(index: Int): Float = if (mode is ViewportMode.Canvas) 0f else requireNotNull(layout).originYPt(index)

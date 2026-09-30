@@ -9,7 +9,11 @@ import androidx.compose.ui.platform.ComposeView
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.common.flatMap
+import dev.folio.core.ink.brush.BrushCatalog
+import dev.folio.core.ink.brush.BrushPresets
 import dev.folio.core.model.Background
+import dev.folio.core.model.BrushKind
+import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
 import dev.folio.core.model.Orientation
 import dev.folio.core.model.PageId
@@ -116,6 +120,15 @@ private class SessionCanvasController(
 ) : CanvasController {
     override val document: StateFlow<Document> get() = session.document
     override val viewport = Viewport(density)
+
+    // Middle ballpoint preset in ink black until the toolbar exists (P04).
+    override val activeBrush =
+        BrushSpec(
+            BrushKind.BALLPOINT,
+            BrushPresets.PEN_PALETTE[0],
+            BrushPresets.widthsPt(BrushKind.BALLPOINT)[1],
+            BrushCatalog.DEFAULT.latestVersion,
+        )
 
     override fun loadPages(ids: Collection<PageId>) {
         scope.launch {
@@ -254,6 +267,19 @@ internal class CanvasDebug(
                     current.document.value.pageBodies.values
                         .sumOf { it.objects.size },
                 )
+                host?.inkStats?.let { ink ->
+                    put(
+                        "ink",
+                        buildJsonObject {
+                            put("started", ink.started)
+                            put("finished", ink.finished)
+                            put("canceled", ink.canceled)
+                        },
+                    )
+                }
+                host?.stylusCapabilities?.let { caps ->
+                    put("stylus", "pressure=${caps.pressure} tilt=${caps.tilt} orientation=${caps.orientation} hover=${caps.hover}")
+                }
                 host?.tileStats?.let { t ->
                     put(
                         "tiles",

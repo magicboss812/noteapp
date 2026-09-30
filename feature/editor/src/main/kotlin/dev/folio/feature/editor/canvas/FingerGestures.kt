@@ -1,25 +1,34 @@
 package dev.folio.feature.editor.canvas
 
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.widget.OverScroller
 import androidx.annotation.MainThread
+import dev.folio.core.ink.input.NavigationTarget
 import dev.folio.core.render.viewport.Viewport
 import kotlin.math.hypot
+import kotlin.math.pow
 
-/** Touch thresholds, px and px/s (from ViewConfiguration). */
+/** Touch thresholds, px and px/s (from ViewConfiguration); [scrollPx] per wheel step. */
 internal data class GestureConfig(
     val touchSlopPx: Float,
     val minFlingPxPerS: Float,
     val maxFlingPxPerS: Float,
-)
+    val scrollPx: Float = DEFAULT_SCROLL_PX,
+) {
+    private companion object {
+        const val DEFAULT_SCROLL_PX = 64f
+    }
+}
 
 /**
- * Finger pan and zoom on the [viewport] (06-ink-input.md#input-routing): one finger pans (after the
- * touch slop) and flings with an [OverScroller]; two fingers pinch-zoom around their midpoint and pan
- * with it. The routing decision is made on ACTION_DOWN: a gesture that starts with a non-finger pointer
- * is ignored until the next ACTION_DOWN, extra non-finger pointers and third fingers are ignored.
- * [onChanged] runs after every viewport change; [postFrame] schedules a fling step on the next frame.
+ * Finger and mouse pan and zoom on the [viewport] (06-ink-input.md#input-routing), fed by InputRouter:
+ * one finger (or a mouse drag) pans after the touch slop and flings with an [OverScroller]; two fingers
+ * pinch-zoom around their midpoint and pan with it; the wheel scrolls, Ctrl + wheel zooms at the cursor.
+ * A gesture that starts with another pointer type is ignored until the next ACTION_DOWN; extra non-finger
+ * pointers and third fingers are ignored. [onChanged] runs after every viewport change; [postFrame]
+ * schedules a fling step on the next frame.
  */
 @MainThread
 internal class FingerGestures(
@@ -28,7 +37,7 @@ internal class FingerGestures(
     private val config: GestureConfig,
     private val onChanged: () -> Unit,
     private val postFrame: (Runnable) -> Unit,
-) {
+) : NavigationTarget {
     private enum class Mode { NONE, IGNORED, PENDING, PAN, PINCH }
 
     private var mode = Mode.NONE
@@ -61,6 +70,30 @@ internal class FingerGestures(
         return mode != Mode.NONE && mode != Mode.IGNORED
     }
 
+    override fun onNavigationEvent(event: MotionEvent) {
+        onTouchEvent(event)
+    }
+
+    /** Ends the gesture where it is: no fling, later events ignored until the next ACTION_DOWN. */
+    override fun cancelNavigation() {
+        if (mode != Mode.NONE) mode = Mode.IGNORED
+    }
+
+    override fun onScroll(event: MotionEvent) {
+        val v = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+        val h = event.getAxisValue(MotionEvent.AXIS_HSCROLL)
+        stopFling()
+        if (event.metaState and KeyEvent.META_CTRL_ON != 0) {
+            if (v == 0f) return
+            viewport.zoomBy(WHEEL_ZOOM_STEP.pow(v), event.x, event.y)
+        } else {
+            if (v == 0f && h == 0f) return
+            // Wheel up (v > 0) shows content above: the content moves down.
+            viewport.panBy(-h * config.scrollPx, v * config.scrollPx)
+        }
+        onChanged()
+    }
+
     /** Stops a running fling (new touch, programmatic viewport change). */
     fun stopFling() {
         scroller.forceFinished(true)
@@ -76,7 +109,8 @@ internal class FingerGestures(
 
     private fun onDown(event: MotionEvent) {
         stopFling()
-        if (event.getToolType(0) != MotionEvent.TOOL_TYPE_FINGER) {
+        val tool = event.getToolType(0)
+        if (tool != MotionEvent.TOOL_TYPE_FINGER && tool != MotionEvent.TOOL_TYPE_MOUSE) {
             mode = Mode.IGNORED
             return
         }
@@ -212,5 +246,8 @@ internal class FingerGestures(
     private companion object {
         const val NO_POINTER = -1
         const val MS_PER_S = 1000
+
+        /** Zoom factor per Ctrl + wheel step. */
+        const val WHEEL_ZOOM_STEP = 1.1f
     }
 }

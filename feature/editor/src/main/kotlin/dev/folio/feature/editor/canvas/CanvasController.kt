@@ -1,5 +1,6 @@
 package dev.folio.feature.editor.canvas
 
+import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
 import dev.folio.core.model.PageId
 import dev.folio.core.render.viewport.Viewport
@@ -11,6 +12,9 @@ import kotlinx.coroutines.flow.StateFlow
  * Later tasks add `commit(strokes)`, `hitTest`, `currentTool()` and `requestRender(bounds)`.
  */
 interface CanvasController {
+    /** Brush of the pen tool, read at every stylus down (tool state arrives with the toolbar, P04). */
+    val activeBrush: BrushSpec
+
     /** The open document; the host lays out its pages and tiles the loaded page bodies. */
     val document: StateFlow<Document>
 

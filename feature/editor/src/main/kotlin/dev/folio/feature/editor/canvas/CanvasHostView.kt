@@ -8,14 +8,16 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.res.Configuration
 import android.os.SystemClock
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import android.widget.OverScroller
 import androidx.annotation.MainThread
-import androidx.ink.authoring.InProgressStrokesView
 import dev.folio.core.common.PerfMonitor
+import dev.folio.core.ink.input.InputRouter
+import dev.folio.core.ink.input.StylusCapabilities
 import dev.folio.core.model.Document
 import dev.folio.core.model.PageId
 import dev.folio.core.model.geometry.RectPt
@@ -55,22 +57,22 @@ data class TileStats(
 
 /**
  * The editor canvas (05-canvas-rendering.md#layers), hosted by an `AndroidView`. Children bottom to
- * top: [BackgroundTileLayer], [ContentTileLayer], an overlay slot for Compose, and androidx.ink's
- * [InProgressStrokesView]. All touch input arrives in [dispatchTouchEvent]; today only finger pan and
- * zoom ([FingerGestures]), stylus routing arrives with InputRouter (P03-T06). Pan and zoom only move
- * existing tiles; 100 ms after the viewport settles the host requests tiles at the new bucket. While
- * attached it requests the fastest display mode ([DisplayModeHelper]).
+ * top: [BackgroundTileLayer], [ContentTileLayer], an overlay slot for Compose, and the wet-ink layer
+ * (androidx.ink's `InProgressStrokesView`). Touch, hover and scroll input goes through [InputRouter]:
+ * the stylus to the pen ([PenInput]), fingers and the mouse to pan and zoom ([FingerGestures]). Pan and
+ * zoom only move existing tiles; 100 ms after the viewport settles the host requests tiles at the new
+ * bucket. While attached it requests the fastest display mode ([DisplayModeHelper]).
  */
 @SuppressLint("ViewConstructor") // created in code by CanvasHost only
 @MainThread
-@Suppress("TooManyFunctions") // view lifecycle, gestures, document updates and tile scheduling
+@Suppress("TooManyFunctions") // view lifecycle, input, document updates and tile scheduling
 class CanvasHostView internal constructor(
     context: Context,
     private val controller: CanvasController,
-    createWetLayer: (Context) -> View,
+    createWetSurface: (Context) -> WetSurface,
 ) : FrameLayout(context) {
     /** Host for [controller] with the androidx.ink wet-ink layer. */
-    constructor(context: Context, controller: CanvasController) : this(context, controller, ::InProgressStrokesView)
+    constructor(context: Context, controller: CanvasController) : this(context, controller, { InkWetSurface(it) })
 
     private val viewport: Viewport get() = controller.viewport
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -90,6 +92,7 @@ class CanvasHostView internal constructor(
                     config.scaledTouchSlop.toFloat(),
                     config.scaledMinimumFlingVelocity.toFloat(),
                     config.scaledMaximumFlingVelocity.toFloat(),
+                    config.scaledVerticalScrollFactor,
                 ),
                 onChanged = ::onViewportChanged,
                 postFrame = ::postOnAnimation,
@@ -103,11 +106,29 @@ class CanvasHostView internal constructor(
     private var settleStartNs = 0L
     private var lastVisible: List<VisiblePage> = emptyList()
 
+    private val wet = createWetSurface(context)
+    private val pen: PenInput =
+        PenInput(
+            controller.viewport,
+            wet,
+            brush = { controller.activeBrush },
+            capabilities = { router.capabilities },
+            onStrokeStart = ::requestUnbufferedDispatch,
+        )
+    private val router: InputRouter =
+        InputRouter(pen, gestures, largeTouchPx = InputRouter.LARGE_TOUCH_MM * resources.displayMetrics.xdpi / MM_PER_INCH)
+
     /** Slot for the Compose overlay (focused text, selection, lasso, ...), above committed content. */
     val overlay = FrameLayout(context)
 
     /** Wet ink layer, always on top. */
-    val wetLayer: View = createWetLayer(context)
+    val wetLayer: View get() = wet.view
+
+    /** Wet-ink counters. */
+    val inkStats: InkStats get() = pen.stats
+
+    /** What the last stylus reported. */
+    val stylusCapabilities: StylusCapabilities get() = router.capabilities
 
     /** Refresh rate requested on attach, Hz (null if no mode fits or not attached yet). */
     var requestedHz: Float? = null
@@ -211,13 +232,24 @@ class CanvasHostView internal constructor(
     }
 
     @SuppressLint("ClickableViewAccessibility") // no click semantics: fingers only pan and zoom (06-ink-input.md)
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean =
-        PerfMonitor.trace(SECTION_TOUCH) {
-            // HOT PATH: per MotionEvent; routing only.
-            if (event.actionMasked == MotionEvent.ACTION_DOWN) animator.cancel()
-            gestures.onTouchEvent(event)
-            true
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        // HOT PATH: per MotionEvent; routing and forwarding only.
+        val section = if (event.isFromSource(InputDevice.SOURCE_STYLUS)) SECTION_INK_TOUCH else SECTION_TOUCH
+        PerfMonitor.trace(section) {
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                animator.cancel()
+                gestures.stopFling()
+            }
+            router.onTouchEvent(event)
         }
+        return true
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        // HOT PATH: per hover event; children still see hover and scroll.
+        val routed = router.onGenericMotionEvent(event)
+        return super.dispatchGenericMotionEvent(event) || routed
+    }
 
     private fun layoutPages() {
         val current = document?.pages ?: return
@@ -315,8 +347,13 @@ class CanvasHostView internal constructor(
 
     /** PerfMonitor sections and timing. */
     companion object {
-        /** Time spent routing one MotionEvent. */
+        /** Time spent routing one finger or mouse MotionEvent. */
         const val SECTION_TOUCH = "canvas:touch"
+
+        /** Time spent routing and forwarding one stylus MotionEvent to wet ink (R-PERF-03). */
+        const val SECTION_INK_TOUCH = "ink:onTouch"
+
+        private const val MM_PER_INCH = 25.4f
 
         /** From the idle tile request until every visible tile of both layers is rendered. */
         const val SECTION_SETTLE = "render:settle"
