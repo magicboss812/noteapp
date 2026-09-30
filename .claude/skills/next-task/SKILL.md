@@ -16,7 +16,7 @@ description: Execute exactly one task from docs/plan/STATUS.md end to end (load 
 - Appending to `docs/plan/AMENDMENTS.md` or `docs/architecture/decisions.md`: Grep the last entry id, Read only the last ~30 lines (offset), then Edit after them.
 
 ## 3. Plan briefly
-- List files to create/modify and the tests you will add. If the change exceeds ~12 files or ~800 lines, split into sub-steps committed as `<task-id>a`, `b`, ... keeping the build green after each.
+- List files to create/modify and the tests you will add. If the change exceeds ~12 files or ~800 lines, split into sub-steps committed as `<task-id>a`, `b`, ... keeping the build green after each. Each sub-step commit also updates the STATUS Handoff (done so far, next sub-step): unattended sessions auto-compact at 200K tokens, and the Handoff is what survives that intact.
 
 ## 4. Implement
 - Rules for the files you touch load automatically; follow them.

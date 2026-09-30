@@ -23,6 +23,11 @@
 #   FOLIO_RESET_BUFFER=90    seconds added after the announced reset time
 #   FOLIO_IDLE_DONE=60       rc: quiet seconds after the task is done before closing the session
 #   FOLIO_IDLE_STUCK=1200    rc: quiet seconds without progress before closing and resuming
+#   FOLIO_COMPACT_WINDOW=200000  auto-compact a session once its context reaches this many tokens.
+#                        Opus with a 1M window otherwise compacts only near 967K, and every call re-sends
+#                        the whole context (P03-T04/T07 grew to 300K per call and cost 56-80% of a 5h window).
+#   FOLIO_BG_WAIT_MS=3600000     headless: how long the CLI waits for background subagents after the model's
+#                        last turn. The CLI default of 600000 killed device-tester runs mid-check (T04, T07).
 # Keeps the machine awake via systemd-inhibit when available (Linux).
 set -u
 cd "$(dirname "$0")/../.." || exit 1
@@ -46,6 +51,9 @@ idle_done="${FOLIO_IDLE_DONE:-60}"
 idle_stuck="${FOLIO_IDLE_STUCK:-1200}"
 probe_idle=300
 max_sessions=80
+# Read by every claude process this script starts (documented Claude Code variables).
+export CLAUDE_CODE_AUTO_COMPACT_WINDOW="${FOLIO_COMPACT_WINDOW:-200000}"
+export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="${FOLIO_BG_WAIT_MS:-3600000}"
 status_file="docs/plan/STATUS.md"
 log_dir="$PWD/.device/loop-logs"
 projects_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
@@ -279,9 +287,9 @@ fi
 [ -n "${FOLIO_RESUME_SID:-}" ] && SID="$FOLIO_RESUME_SID"
 cur_task="$start_next"
 if [ -n "$SID" ]; then
-  say "Run start: scope=$scope ($run_phase, next $cur_task) mode=$mode effort=$effort; resuming session $SID"
+  say "Run start: scope=$scope ($run_phase, next $cur_task) mode=$mode effort=$effort compact=$CLAUDE_CODE_AUTO_COMPACT_WINDOW; resuming session $SID"
 else
-  say "Run start: scope=$scope ($run_phase, next $cur_task) mode=$mode effort=$effort"
+  say "Run start: scope=$scope ($run_phase, next $cur_task) mode=$mode effort=$effort compact=$CLAUDE_CODE_AUTO_COMPACT_WINDOW"
 fi
 
 RUN_TEXT=""; LAST_RESULT=""; no_progress=0; sessions=0
