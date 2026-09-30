@@ -20,6 +20,7 @@ import dev.folio.core.common.PerfMonitor
 import dev.folio.core.ink.erase.EraseResult
 import dev.folio.core.ink.input.InputRouter
 import dev.folio.core.ink.input.StylusCapabilities
+import dev.folio.core.ink.input.StylusFeatures
 import dev.folio.core.model.Document
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.Page
@@ -62,10 +63,11 @@ data class TileStats(
 
 /**
  * The editor canvas (05-canvas-rendering.md#layers), hosted by an `AndroidView`. Children bottom to
- * top: [BackgroundTileLayer], [ContentTileLayer], an overlay slot for Compose, and the wet-ink layer
- * (androidx.ink's `InProgressStrokesView`). Touch, hover and scroll input goes through [InputRouter]:
- * the stylus to the active tool ([StylusTools]: [PenInput] or [EraserInput]), fingers and the mouse to
- * pan and zoom ([FingerGestures]). Erase gestures show as a preview page body until committed. Pan and
+ * top: [BackgroundTileLayer], [ContentTileLayer], an overlay slot for Compose, the hover ring
+ * ([HoverRingView]) and the wet-ink layer (androidx.ink's `InProgressStrokesView`). Touch, hover and
+ * scroll input goes through [InputRouter]: the stylus to the active tool ([StylusTools]: [PenInput] or
+ * [EraserInput]; a held stylus button erases if the stylus reports buttons), hover to [HoverCursor],
+ * fingers and the mouse to pan and zoom ([FingerGestures]). Erase gestures show as a preview page body until committed. Pan and
  * zoom only move existing tiles; 100 ms after the viewport settles the host requests tiles at the new
  * bucket. While attached it requests the fastest display mode ([DisplayModeHelper]). Finished pen
  * strokes go to the session through [DryHandoff]; their wet copies leave once the tiles show them.
@@ -140,11 +142,27 @@ class CanvasHostView internal constructor(
             onPreview = ::showErasePreview,
             onFinished = ::commitErase,
         )
+    private val tools =
+        StylusTools(
+            pen,
+            eraser,
+            buttonErases = { event -> StylusFeatures.buttonErases(event, router.capabilities, controller.stylusPreferences) },
+        ) { controller.activeTool }
+    private val hoverRing = HoverRingView(context)
+    private val hoverCursor =
+        HoverCursor(
+            hoverRing,
+            controller.viewport,
+            enabled = { StylusFeatures.hoverCursor(router.capabilities, controller.stylusPreferences) },
+            radiusPt = ::hoverRadiusPt,
+            minRadiusPx = MIN_HOVER_RING_DP * resources.displayMetrics.density,
+        )
     private val router: InputRouter =
         InputRouter(
-            StylusTools(pen, eraser) { controller.activeTool },
+            tools,
             gestures,
             largeTouchPx = InputRouter.LARGE_TOUCH_MM * resources.displayMetrics.xdpi / MM_PER_INCH,
+            hover = hoverCursor,
         )
     private val handoff =
         DryHandoff(
@@ -174,6 +192,9 @@ class CanvasHostView internal constructor(
     /** What the last stylus reported. */
     val stylusCapabilities: StylusCapabilities get() = router.capabilities
 
+    /** True while the hover cursor ring is visible. */
+    val isHoverRingShown: Boolean get() = hoverRing.isRingShown
+
     /** Refresh rate requested on attach, Hz (null if no mode fits or not attached yet). */
     var requestedHz: Float? = null
         private set
@@ -183,6 +204,7 @@ class CanvasHostView internal constructor(
         addView(background, match)
         addView(content, LayoutParams(match))
         addView(overlay, LayoutParams(match))
+        addView(hoverRing, LayoutParams(match))
         addView(wetLayer, LayoutParams(match))
         wet.onFinished = handoff::onFinished
     }
@@ -363,6 +385,13 @@ class CanvasHostView internal constructor(
         return super.dispatchGenericMotionEvent(event) || routed
     }
 
+    /** Radius of the mark the hovering pen would make, pt: the eraser's, or half the brush width. */
+    private fun hoverRadiusPt(event: MotionEvent): Float {
+        // HOT PATH: per hover event.
+        val eraserEnd = event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER
+        return if (tools.erases(event, eraserEnd)) controller.eraserOptions.radiusPt else controller.activeBrush.sizePt / 2f
+    }
+
     private fun layoutPages() {
         val current = document?.pages ?: return
         if (width == 0 || height == 0) return
@@ -510,6 +539,7 @@ class CanvasHostView internal constructor(
         const val SECTION_INK_TOUCH = "ink:onTouch"
 
         private const val MM_PER_INCH = 25.4f
+        private const val MIN_HOVER_RING_DP = 3f
         private const val TAG = "CanvasHost"
 
         /** From the idle tile request until every visible tile of both layers is rendered. */

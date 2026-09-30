@@ -131,14 +131,20 @@ class DebugCommandsTest {
     }
 
     @Test
-    fun route_spikeInk_navigatesAndNotifiesListener() {
+    fun route_spikeFonts_navigatesAndNotifiesListener() {
         val shown = mutableListOf<String>()
         state.onNavigate = { shown += it }
 
-        assertThat(commands.execute("route", "spike-ink").ok).isTrue()
+        assertThat(commands.execute("route", "spike-fonts").ok).isTrue()
 
-        assertThat(state.screen).isEqualTo("spike-ink")
-        assertThat(shown).containsExactly("spike-ink")
+        assertThat(state.screen).isEqualTo("spike-fonts")
+        assertThat(shown).containsExactly("spike-fonts")
+    }
+
+    @Test
+    fun route_removedSpikeInk_isUnknown() {
+        assertThat(commands.execute("route", "spike-ink").ok).isFalse()
+        assertThat(commands.execute("route", "spike-stylus").ok).isFalse()
     }
 
     @Test

@@ -127,3 +127,8 @@ Format:
 - Reason: a single `ReplaceObjects` puts all fragments at the lowest removed z-index, which reorders strokes that were not adjacent (the spec requires z position kept). A preview body needs no second paint path and makes the commit invisible (the tiles do not change again). ink 1.1.0-alpha09 reports false hits for rotated parallelograms (docs/notes/gotchas.md). Without the cut, a fast eraser crossing a sparsely sampled segment would leave the stroke whole.
 - Impact: 06-ink-input.md#erasers; 02-modules.md#editor-state.
 
+## A-025 2026-09-30 P03-T09: hover ring as a View, stylus gating, no tilt switch yet
+- Change: the hover cursor ring is a plain View (`HoverRingView`) between the Compose overlay slot and the wet-ink layer, fed by a `HoverTarget` on `InputRouter`, not part of the Compose overlay. Gating lives in `StylusFeatures` (core:ink) with `StylusPreferences` (hover ring, `PenButtonAction`) read through `CanvasController.stylusPreferences`; the button eraser is decided at stylus down like every routing decision. Settings rows come from `StylusFeatures.visibleSettings`. Tilt shading has no off switch yet (Deferred D-014).
+- Reason: hover arrives at about 457 Hz; Compose state per hover event would recompose per motion event, which CLAUDE.md forbids for pen input. Committed strokes apply tilt behaviors whenever stored inputs carry tilt, so an off switch that only changed wet ink would make wet and dry ink disagree.
+- Impact: 05-canvas-rendering.md#layers; 06-ink-input.md#stylus-capabilities; 10-editor-ui.md settings (P11-T01 reads `visibleSettings`).
+

@@ -256,6 +256,34 @@ class InputRouterTest {
         assertThat(router.onGenericMotionEvent(motion(ACTION_HOVER_MOVE, 1000, finger(0)))).isFalse()
     }
 
+    @Test
+    fun stylusHover_goesToHoverTarget_endsOnExitAndOnTouchDown() {
+        val hover = HoverRecorder()
+        val withHover = InputRouter(recorder, recorder, LARGE_PX, hover)
+
+        withHover.onGenericMotionEvent(motion(ACTION_HOVER_ENTER, 1000, pen(0, x = 10f)))
+        withHover.onGenericMotionEvent(motion(ACTION_HOVER_MOVE, 1010, pen(0, x = 20f)))
+        withHover.onGenericMotionEvent(motion(ACTION_HOVER_EXIT, 1020, pen(0, x = 20f)))
+        withHover.onGenericMotionEvent(motion(ACTION_HOVER_MOVE, 1030, pen(0, x = 30f)))
+        withHover.onTouchEvent(motion(ACTION_DOWN, 1040, pen(0, x = 30f)))
+        withHover.onGenericMotionEvent(motion(ACTION_HOVER_MOVE, 1050, finger(0)))
+
+        assertThat(hover.calls).containsExactly("hover 10", "hover 20", "end", "hover 30", "end").inOrder()
+        assertThat(recorder.calls).containsExactly("penDown 0")
+    }
+
+    private class HoverRecorder : HoverTarget {
+        val calls = ArrayList<String>()
+
+        override fun onHover(event: MotionEvent) {
+            calls += "hover ${event.x.toInt()}"
+        }
+
+        override fun onHoverEnd() {
+            calls += "end"
+        }
+    }
+
     private companion object {
         const val LARGE_PX = 200f
     }

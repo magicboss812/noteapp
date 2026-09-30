@@ -351,8 +351,13 @@ internal class CanvasDebug(
                         },
                     )
                 }
-                host?.stylusCapabilities?.let { caps ->
-                    put("stylus", "pressure=${caps.pressure} tilt=${caps.tilt} orientation=${caps.orientation} hover=${caps.hover}")
+                host?.let { h ->
+                    val caps = h.stylusCapabilities
+                    put(
+                        "stylus",
+                        "pressure=${caps.pressure} tilt=${caps.tilt} orientation=${caps.orientation} hover=${caps.hover} " +
+                            "button=${caps.primaryButton} hoverRing=${h.isHoverRingShown}",
+                    )
                 }
                 host?.tileStats?.let { t ->
                     put(

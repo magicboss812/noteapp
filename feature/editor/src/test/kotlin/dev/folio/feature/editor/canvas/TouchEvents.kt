@@ -12,6 +12,7 @@ internal object TouchEvents {
         toolType: Int = MotionEvent.TOOL_TYPE_FINGER,
         actionIndex: Int = 0,
         firstPointerId: Int = 0,
+        buttonState: Int = 0,
     ): MotionEvent {
         val properties =
             Array(points.size) { i ->
@@ -32,6 +33,6 @@ internal object TouchEvents {
         val fullAction = action or (actionIndex shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
         val stylus = toolType == MotionEvent.TOOL_TYPE_STYLUS || toolType == MotionEvent.TOOL_TYPE_ERASER
         val source = if (stylus) InputDevice.SOURCE_STYLUS else InputDevice.SOURCE_TOUCHSCREEN
-        return MotionEvent.obtain(0L, timeMs, fullAction, points.size, properties, coords, 0, 0, 1f, 1f, 0, 0, source, 0)
+        return MotionEvent.obtain(0L, timeMs, fullAction, points.size, properties, coords, 0, buttonState, 1f, 1f, 0, 0, source, 0)
     }
 }

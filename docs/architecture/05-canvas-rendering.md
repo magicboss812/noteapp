@@ -13,7 +13,7 @@
 `CanvasHostView` (FrameLayout, hosted by an `AndroidView`) stacks, bottom to top:
 1. **BackgroundTileLayer** (custom View): paper color, template, PDF raster. Separate cache: annotation edits never invalidate it.
 2. **ContentTileLayer** (custom View): committed objects (ink, shapes, text frames except the focused block, images, stickies, attachments) in z-order.
-3. **Overlay** (Compose via ComposeView): focused text field, selection box and handles, lasso path, shape preview, ruler, hover cursor, page labels.
+3. **Overlay** (Compose via ComposeView): focused text field, selection box and handles, lasso path, shape preview, ruler, page labels. Above it the hover cursor ring is a plain View (`HoverRingView`), since it moves with every hover event (A-025).
 4. **InProgressStrokesView** (androidx.ink): wet ink in the front buffer. Always on top.
 Compose chrome (toolbar, sheets) sits outside the host. The host receives only `CanvasController` (02-modules.md#editor-state).
 Outside-page surroundings: light theme `#E9ECF1`, dark theme `#0B0D11`. Pages get a 1 dp border and a soft shadow (11-design-system.md#elevation).

@@ -4,6 +4,7 @@ import android.graphics.Matrix
 import android.view.MotionEvent
 import androidx.annotation.MainThread
 import dev.folio.core.ink.input.StylusCapabilities
+import dev.folio.core.ink.input.StylusFeatures
 import dev.folio.core.ink.input.StylusTarget
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.render.viewport.Viewport
@@ -67,7 +68,7 @@ internal class PenInput(
         val scale = viewport.scale
         strokeToView.setScale(scale, scale)
         strokeToView.postTranslate(viewport.pageOriginViewX(page).toFloat(), viewport.pageOriginViewY(page).toFloat())
-        surface.start(event, pointerId, brush(), capabilities().tilt, strokeToView, pageId)
+        surface.start(event, pointerId, brush(), StylusFeatures.tiltShading(capabilities()), strokeToView, pageId)
         pageIndex = page
         inking = true
         started++

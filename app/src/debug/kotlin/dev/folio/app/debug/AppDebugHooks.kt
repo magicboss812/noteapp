@@ -11,11 +11,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import dagger.Lazy
 import dev.folio.app.DebugHooks
 import dev.folio.app.spikes.SpikeFontsView
-import dev.folio.app.spikes.SpikeInkView
-import dev.folio.app.spikes.SpikeStylusView
 import dev.folio.app.spikes.spikeFontsCommand
-import dev.folio.app.spikes.spikeInkCommand
-import dev.folio.app.spikes.spikeStylusCommand
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.storage.library.LibraryAccess
@@ -73,9 +69,7 @@ internal class AppDebugHooks
                 state,
                 extra =
                     mapOf(
-                        SpikeInkView.ROUTE to { arg -> spikeInkCommand(spike as? SpikeInkView, arg) },
                         SpikeFontsView.ROUTE to { arg -> spikeFontsCommand(spike as? SpikeFontsView, arg) },
-                        SpikeStylusView.ROUTE to { arg -> spikeStylusCommand(spike as? SpikeStylusView, arg) },
                         "open" to canvas::open,
                         "zoom-anim" to canvas::zoomAnim,
                         "scroll-page" to canvas::scrollPage,
@@ -120,9 +114,7 @@ internal class AppDebugHooks
             spike =
                 when (route) {
                     DebugAppState.CANVAS -> canvas.createView(host)
-                    SpikeInkView.ROUTE -> SpikeInkView(host)
                     SpikeFontsView.ROUTE -> SpikeFontsView(host, dispatchers)
-                    SpikeStylusView.ROUTE -> SpikeStylusView(host, dispatchers)
                     else -> null
                 }
             spikeRoute = route

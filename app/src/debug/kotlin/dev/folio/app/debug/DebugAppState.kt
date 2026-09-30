@@ -1,8 +1,6 @@
 package dev.folio.app.debug
 
 import dev.folio.app.spikes.SpikeFontsView
-import dev.folio.app.spikes.SpikeInkView
-import dev.folio.app.spikes.SpikeStylusView
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -32,8 +30,8 @@ internal class DebugAppState(
     val tool: String? = null
     val zoom: Float? get() = canvasZoom()
 
-    /** Routes the app can show today; `spike-*` routes are P01 probe screens (D-002). */
-    val knownRoutes: Set<String> = setOf(LIBRARY, CANVAS, SpikeInkView.ROUTE, SpikeFontsView.ROUTE, SpikeStylusView.ROUTE)
+    /** Routes the app can show today; `spike-fonts` is a P01 probe screen (D-002). */
+    val knownRoutes: Set<String> = setOf(LIBRARY, CANVAS, SpikeFontsView.ROUTE)
 
     /** Called after every successful [navigate] with the new route; the hooks show the screen. */
     var onNavigate: (String) -> Unit = {}

@@ -20,7 +20,7 @@ Filled by P00-T02, P01-S1, P01-S7 and later discoveries. Known from Xiaomi specs
 - Touch sample rate: not measured yet
 
 ## Stylus
-P01-S7 probe (route `spike-stylus`, writes `Folio-Debug/probe/stylus.json`; `pull.sh probe`). Automated part and physical Focus Pen session 2026-09-28 (user: hover very sharp, tilt good at all angles).
+P01-S7 probe (route `spike-stylus`, removed in P03-T09; debug `state` now reports `canvas.stylus` incl. `button` and `hoverRing`). Automated part and physical Focus Pen session 2026-09-28 (user: hover very sharp, tilt good at all angles).
 - Declared motion ranges (both `NVTCapacitivePenM80p` and `P81c`, source 0x5002, resolution 0.0): X 0..2135.9, Y 0..3199.9 (natural portrait), PRESSURE 0..1, ORIENTATION -pi..pi, DISTANCE 0..1, TILT 0..pi/2. P81c also declares LTRIGGER and BRAKE 0..1 on source 0x1000010 (joystick class; meaning unknown).
 - Real pen (487 contact + 733 hover events): pressure 0.0001..1.0; tilt 0..1.206 rad (69 deg max observed); orientation 0..pi; hover distance 0..1; sample rate 457 Hz (median 2.19 ms, up to 3 historical samples per event).
 - Pen buttons: no button state, no key code reached the app while hovering or touching (HyperOS consumes them). Treat buttons as unavailable.

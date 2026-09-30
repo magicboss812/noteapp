@@ -3,6 +3,7 @@ package dev.folio.feature.editor.canvas
 import android.content.Context
 import android.os.Looper
 import android.view.MotionEvent.ACTION_DOWN
+import android.view.MotionEvent.ACTION_HOVER_MOVE
 import android.view.MotionEvent.ACTION_MOVE
 import android.view.MotionEvent.ACTION_UP
 import android.view.MotionEvent.TOOL_TYPE_ERASER
@@ -16,6 +17,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.ink.erase.EraserOptions
+import dev.folio.core.ink.input.StylusPreferences
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
@@ -59,6 +61,7 @@ private class FakeCanvasController(
     override val renderDispatcher = Dispatchers.Unconfined
     override var activeTool = CanvasTool.PEN
     override var eraserOptions = EraserOptions.DEFAULT
+    override var stylusPreferences = StylusPreferences.DEFAULT
     val loadRequests = ArrayList<PageId>()
     var accept = true
 
@@ -254,6 +257,43 @@ class CanvasHostTest {
                 ?.objects,
         ).containsExactly(stroke)
         assertThat(hostView().eraseStats).isEqualTo(EraseStats(gestures = 1, committed = 1, strokes = 1, discarded = 1))
+    }
+
+    @Test
+    fun stylusHover_showsSizeRingUntilThePenTouches() {
+        show()
+        controller.activeTool = CanvasTool.ERASER
+        controller.eraserOptions = EraserOptions(radiusPt = 24f)
+
+        compose.runOnUiThread {
+            hostView().dispatchGenericMotionEvent(
+                event(ACTION_HOVER_MOVE, 2000, 600f to 500f, toolType = TOOL_TYPE_STYLUS),
+            )
+        }
+        compose.waitForIdle()
+        val shown = hostView().isHoverRingShown
+        compose.onRoot().captureRoboImage("src/test/screenshots/CanvasHost_hoverRingEraser.png")
+        compose.runOnUiThread {
+            hostView().dispatchTouchEvent(event(ACTION_DOWN, 2100, 600f to 500f, toolType = TOOL_TYPE_STYLUS))
+            hostView().dispatchTouchEvent(event(ACTION_UP, 2200, 600f to 500f, toolType = TOOL_TYPE_STYLUS))
+        }
+
+        assertThat(shown).isTrue()
+        assertThat(hostView().isHoverRingShown).isFalse()
+    }
+
+    @Test
+    fun stylusHover_preferenceOff_noRing() {
+        controller.stylusPreferences = StylusPreferences(hoverCursor = false)
+        show()
+
+        compose.runOnUiThread {
+            hostView().dispatchGenericMotionEvent(
+                event(ACTION_HOVER_MOVE, 2000, 600f to 500f, toolType = TOOL_TYPE_STYLUS),
+            )
+        }
+
+        assertThat(hostView().isHoverRingShown).isFalse()
     }
 
     /** Adds a 200 pt horizontal ballpoint stroke at y = 100 pt on [page]. */

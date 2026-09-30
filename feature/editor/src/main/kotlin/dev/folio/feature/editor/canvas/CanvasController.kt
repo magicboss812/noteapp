@@ -1,6 +1,7 @@
 package dev.folio.feature.editor.canvas
 
 import dev.folio.core.ink.erase.EraserOptions
+import dev.folio.core.ink.input.StylusPreferences
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
 import dev.folio.core.model.InkStroke
@@ -48,6 +49,9 @@ interface CanvasController {
 
     /** Eraser settings, read at every eraser down. */
     val eraserOptions: EraserOptions
+
+    /** Stylus choices (hover ring, pen button), read at every stylus down and hover event; settings arrive in P11-T01. */
+    val stylusPreferences: StylusPreferences get() = StylusPreferences.DEFAULT
 
     /** The open document; the host lays out its pages and tiles the loaded page bodies. */
     val document: StateFlow<Document>

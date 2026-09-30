@@ -43,6 +43,22 @@ interface NavigationTarget {
     fun onScroll(event: MotionEvent)
 }
 
+/** Receives the hovering stylus (hover cursor ring, 06-ink-input.md#stylus-capabilities). */
+interface HoverTarget {
+    /** The stylus hovers at pointer 0 of [event] (ACTION_HOVER_ENTER or ACTION_HOVER_MOVE). */
+    fun onHover(event: MotionEvent)
+
+    /** Hovering ended: ACTION_HOVER_EXIT, or the stylus touched down. */
+    fun onHoverEnd()
+
+    /** Ignores hover. */
+    object None : HoverTarget {
+        override fun onHover(event: MotionEvent) = Unit
+
+        override fun onHoverEnd() = Unit
+    }
+}
+
 /**
  * Routes every canvas MotionEvent (06-ink-input.md#input-routing, #palm-rejection). Decisions are made
  * when a pointer goes down and hold for its gesture:
@@ -52,7 +68,8 @@ interface NavigationTarget {
  *   gesture. A finger is refused while the stylus is down or was seen (touch or hover) within
  *   [PALM_QUIET_MS], when its touch major exceeds [largeTouchPx], or when it is FLAG_CANCELED; a refused
  *   gesture stays refused until all pointers are up. A large finger joining a gesture cancels it.
- * - Stylus hover within a finger gesture cancels it; ACTION_SCROLL goes to [navigation].
+ * - Stylus hover goes to [hover] (ended when the stylus touches down) and cancels a finger gesture;
+ *   ACTION_SCROLL goes to [navigation].
  * Fingers never reach [stylus]. Routing allocates nothing per event.
  */
 @MainThread
@@ -61,6 +78,7 @@ class InputRouter(
     private val navigation: NavigationTarget,
     /** Touch major above which a finger contact is a palm (40 mm on screen). */
     private val largeTouchPx: Float,
+    private val hover: HoverTarget = HoverTarget.None,
 ) {
     private var stylusId = NO_POINTER
     private var navigating = false
@@ -128,6 +146,7 @@ class InputRouter(
                 lastStylusMs = event.eventTime
                 refreshCapabilities(event, 0)
                 cancelNavigation()
+                if (event.actionMasked == MotionEvent.ACTION_HOVER_EXIT) hover.onHoverEnd() else hover.onHover(event)
                 true
             }
 
@@ -151,6 +170,7 @@ class InputRouter(
                 lastStylusMs = event.eventTime
                 if (stylusId != NO_POINTER) return
                 cancelNavigation()
+                hover.onHoverEnd()
                 refreshCapabilities(event, index)
                 stylusId = event.getPointerId(index)
                 stylus.onStylusDown(event, stylusId, eraser = tool == MotionEvent.TOOL_TYPE_ERASER)
