@@ -80,8 +80,15 @@ internal class DryHandoff(
         }
     }
 
-    /** Forgets pending strokes (the wet layer goes away with the view). */
-    fun clear() = pending.clear()
+    /**
+     * Forgets pending strokes and removes their wet copies (view detached): their commits still run, and
+     * a reattached view draws them from the tiles, not twice.
+     */
+    fun clear() {
+        if (pending.isEmpty()) return
+        removeWet(pending.map { it.key })
+        pending.clear()
+    }
 
     private fun reject(entries: List<Pending>) {
         FolioLog.w(TAG, "commit of ${entries.size} strokes on ${entries[0].page.value} rejected; wet strokes dropped")

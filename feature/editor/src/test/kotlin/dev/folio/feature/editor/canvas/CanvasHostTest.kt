@@ -3,11 +3,14 @@ package dev.folio.feature.editor.canvas
 import android.content.Context
 import android.os.Looper
 import android.view.MotionEvent.ACTION_DOWN
+import android.view.MotionEvent.ACTION_HOVER_ENTER
 import android.view.MotionEvent.ACTION_HOVER_MOVE
 import android.view.MotionEvent.ACTION_MOVE
 import android.view.MotionEvent.ACTION_UP
 import android.view.MotionEvent.TOOL_TYPE_ERASER
 import android.view.MotionEvent.TOOL_TYPE_STYLUS
+import android.view.PointerIcon
+import android.view.ViewGroup
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -34,6 +37,7 @@ import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.toViewPx
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.feature.editor.canvas.TouchEvents.event
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
@@ -65,6 +69,9 @@ private class FakeCanvasController(
     val loadRequests = ArrayList<PageId>()
     var accept = true
 
+    /** When set, commits suspend until it completes (a session working off the main thread). */
+    var commitGate: CompletableDeferred<Unit>? = null
+
     val commands = ArrayList<EditCommand>()
 
     override suspend fun execute(command: EditCommand): Boolean {
@@ -81,6 +88,7 @@ private class FakeCanvasController(
         pageId: PageId,
         strokes: List<InkStroke>,
     ): Boolean {
+        commitGate?.await()
         if (accept) document.value = AddObjects(pageId, strokes).execute(document.value).doc
         return accept
     }
@@ -193,6 +201,31 @@ class CanvasHostTest {
     }
 
     @Test
+    fun finishedStroke_viewDetachedWhileCommitSuspends_strokeStillCommittedAndWetCopyRemoved() {
+        show()
+        val gate = CompletableDeferred<Unit>()
+        controller.commitGate = gate
+        val page = ModelFixtures.page("p0").id
+        var key: Any? = null
+        compose.runOnUiThread {
+            val view = hostView()
+            view.dispatchTouchEvent(event(ACTION_DOWN, 2000, 500f to 500f, toolType = TOOL_TYPE_STYLUS))
+            view.dispatchTouchEvent(event(ACTION_UP, 2100, 600f to 500f, toolType = TOOL_TYPE_STYLUS))
+            key = wet?.deliver(page, floatArrayOf(100f, 150f), floatArrayOf(100f, 100f))
+            // Leaving the editor right after the pen lifts: the view detaches before the session applied the commit.
+            (view.parent as ViewGroup).removeView(view)
+        }
+        gate.complete(Unit)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(
+            controller.document.value.pageBodies[page]
+                ?.objects,
+        ).hasSize(1)
+        assertThat(wet?.removed).containsExactly(key)
+    }
+
+    @Test
     fun finishedStroke_sessionRejects_wetCopyDropped() {
         show()
         controller.accept = false
@@ -280,6 +313,49 @@ class CanvasHostTest {
 
         assertThat(shown).isTrue()
         assertThat(hostView().isHoverRingShown).isFalse()
+    }
+
+    @Test
+    fun stylusHover_fromWindowRoot_reachesHostAndShowsRing() {
+        show()
+
+        // The window delivers hover at the root (ViewRootImpl -> dispatchPointerEvent ->
+        // dispatchGenericMotionEvent), through Compose's AndroidView holder, not straight into the host (D-017).
+        compose.runOnUiThread {
+            hostView().rootView.dispatchGenericMotionEvent(
+                event(ACTION_HOVER_ENTER, 1900, 600f to 500f, toolType = TOOL_TYPE_STYLUS),
+            )
+            hostView().rootView.dispatchGenericMotionEvent(
+                event(ACTION_HOVER_MOVE, 2000, 610f to 500f, toolType = TOOL_TYPE_STYLUS),
+            )
+        }
+        compose.waitForIdle()
+
+        assertThat(hostView().isHoverRingShown).isTrue()
+        assertThat(hostView().hoverEventCount).isEqualTo(2)
+    }
+
+    @Test
+    fun stylusHover_ringEnabled_hidesSystemPointerIcon() {
+        show()
+        val hover = event(ACTION_HOVER_MOVE, 2000, 600f to 500f, toolType = TOOL_TYPE_STYLUS)
+        compose.runOnUiThread { hostView().dispatchGenericMotionEvent(hover) }
+
+        val icon = hostView().onResolvePointerIcon(hover, 0)
+
+        assertThat(icon).isEqualTo(PointerIcon.getSystemIcon(hostView().context, PointerIcon.TYPE_NULL))
+    }
+
+    @Test
+    fun stylusHover_preferenceOff_keepsSystemPointerIcon() {
+        controller.stylusPreferences = StylusPreferences(hoverCursor = false)
+        show()
+        val hover = event(ACTION_HOVER_MOVE, 2000, 600f to 500f, toolType = TOOL_TYPE_STYLUS)
+        compose.runOnUiThread { hostView().dispatchGenericMotionEvent(hover) }
+
+        val icon = hostView().onResolvePointerIcon(hover, 0)
+
+        assertThat(icon).isNotEqualTo(PointerIcon.getSystemIcon(hostView().context, PointerIcon.TYPE_NULL))
     }
 
     @Test

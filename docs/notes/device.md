@@ -26,6 +26,7 @@ P01-S7 probe (route `spike-stylus`, removed in P03-T09; debug `state` now report
 - Pen buttons: no button state, no key code reached the app while hovering or touching (HyperOS consumes them). Treat buttons as unavailable.
 - Synthetic `input stylus swipe`/`stylus-tap`: tool type 2 (stylus), pressure 0..1, tilt/orientation/distance 0, no hover, no buttons, 250 Hz (median 4.0 ms between samples, 1 historical sample per event). Never use synthetic input to judge tilt, hover or buttons.
 - `StylusCapabilities` defaults: pressure, tilt, orientation, hover = yes; buttons = no (06-ink-input.md#stylus-capabilities); sampleRateHz = measured at runtime (expect about 450).
+- Hover ring (D-017, P03-REVIEW): the user saw no ring over the canvas although hover reaches it through Compose's AndroidView in Robolectric. The canvas now hides the system stylus pointer (`TYPE_NULL`) while the ring is on; `state.canvas.stylus` reports `hoverEvents` (0 = hover never reached the canvas).
 
 ## Rendering
 - Front-buffered wet ink works: InProgressStrokesView adds `SurfaceView[...](BLAST)` (z=1) above the app window on the first stroke and keeps it; `screencap` captures it (P01-S1).
@@ -40,7 +41,8 @@ P01-S7 probe (route `spike-stylus`, removed in P03-T09; debug `state` now report
 - The separate test APK (`dev.folio.notes.debug.test`, instrumented tests) also needs "USB debugging (Security settings)" (Mi account sign-in); without it only the app APK installs. Both enabled 2026-09-27. Library modules with instrumented tests set `defaultConfig.testApplicationId = "dev.folio.notes.debug.test"` so no other package is ever installed (first: core:text, P01-S3b). On 2026-09-28 the test APK was refused again (`INSTALL_FAILED_USER_RESTRICTED`, security setting off) while the app APK installed; fallback: run probes from a debug route inside the app (P01-S5 `spike-pdf`).
 - Shared storage: a file replaced by rename reports its new mtime right after the write and its original mtime later, so never trust mtime alone to detect external changes (A-022, P03-T07).
 - `input.sh stylus-swipe`: about 1 in 25 swipes (mostly the first after a cold launch) never reaches the app; count ACTION_DOWNs or `state.canvas.ink.started`, not swipes sent.
-- `clear-data.sh` (`pm clear`) keeps the MANAGE_EXTERNAL_STORAGE appop (P02-T06); no wrapper revokes it, so the storage onboarding can only be seen on device after the user turns All files access off.
+- `clear-data.sh` (`pm clear`) keeps the MANAGE_EXTERNAL_STORAGE appop (P02-T06); no wrapper revokes it, so the storage onboarding can only be seen on device after the user turns All files access off. Rechecked P03-REVIEW: still `granted:true` after `pm clear`. The toggle is not in the app's permission list; HyperOS lists it under special app access ("All files access").
+- `launch.sh --route canvas` shows the library until a document is open: run `debugcmd.sh open blank:1` first (P03-REVIEW).
 - `pm uninstall` of a package that is not installed returns `DELETE_FAILED_INTERNAL_ERROR` (harmless).
 - Our process logs HyperOS framework noise at start (E/ `MI-PreRender`, `FramePredict`, `FrameInsert`); ignore when scanning logcat.
 - System locale de_DE and system dark mode on (the P00 placeholder renders light; dark UI arrives in P11).

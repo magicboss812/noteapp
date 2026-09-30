@@ -10,6 +10,7 @@ import android.content.res.Configuration
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
+import android.view.PointerIcon
 import android.view.View
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
@@ -38,9 +39,11 @@ import dev.folio.core.render.viewport.ViewportMode
 import dev.folio.core.render.viewport.ZoomBuckets
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
 
@@ -199,6 +202,12 @@ class CanvasHostView internal constructor(
     /** True while the hover cursor ring is visible. */
     val isHoverRingShown: Boolean get() = hoverRing.isRingShown
 
+    /** Hover events that reached this view (debug `state`: tells "no hover arrives" from "ring not seen"). */
+    var hoverEventCount = 0
+        private set
+
+    private val noPointerIcon = PointerIcon.getSystemIcon(context, PointerIcon.TYPE_NULL)
+
     /** Refresh rate requested on attach, Hz (null if no mode fits or not attached yet). */
     var requestedHz: Float? = null
         private set
@@ -301,7 +310,7 @@ class CanvasHostView internal constructor(
         scope.launch {
             val accepted =
                 try {
-                    controller.execute(result.command())
+                    withContext(NonCancellable) { controller.execute(result.command()) } // survives a detach
                 } catch (e: IllegalStateException) {
                     FolioLog.w(TAG, "erase failed: ${e.message}", e) // session closed under the view
                     false
@@ -386,9 +395,28 @@ class CanvasHostView internal constructor(
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         // HOT PATH: per hover event; children still see hover and scroll.
+        if (event.isFromSource(InputDevice.SOURCE_CLASS_POINTER) && event.isHover()) hoverEventCount++
         val routed = router.onGenericMotionEvent(event)
         return super.dispatchGenericMotionEvent(event) || routed
     }
+
+    /** While the ring is the hover cursor, the system stylus pointer (HyperOS draws a dot) is hidden (D-017). */
+    override fun onResolvePointerIcon(
+        event: MotionEvent,
+        pointerIndex: Int,
+    ): PointerIcon? {
+        // HOT PATH: per hover event; the icon is created once.
+        val tool = event.getToolType(pointerIndex)
+        val stylus = tool == MotionEvent.TOOL_TYPE_STYLUS || tool == MotionEvent.TOOL_TYPE_ERASER
+        if (stylus && StylusFeatures.hoverCursor(router.capabilities, controller.stylusPreferences)) return noPointerIcon
+        return super.onResolvePointerIcon(event, pointerIndex)
+    }
+
+    private fun MotionEvent.isHover(): Boolean =
+        when (actionMasked) {
+            MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_HOVER_EXIT -> true
+            else -> false
+        }
 
     /** Radius of the mark the hovering pen would make, pt: the eraser's, or half the brush width. */
     private fun hoverRadiusPt(event: MotionEvent): Float {
@@ -528,7 +556,8 @@ class CanvasHostView internal constructor(
         scope.launch {
             val accepted =
                 try {
-                    controller.commitStrokes(page, strokes)
+                    // A detach (leaving the editor) must not drop strokes the pen already finished.
+                    withContext(NonCancellable) { controller.commitStrokes(page, strokes) }
                 } catch (e: IllegalStateException) {
                     FolioLog.w(TAG, "commit failed: ${e.message}", e) // session closed under the view
                     false

@@ -356,7 +356,7 @@ internal class CanvasDebug(
                     put(
                         "stylus",
                         "pressure=${caps.pressure} tilt=${caps.tilt} orientation=${caps.orientation} hover=${caps.hover} " +
-                            "button=${caps.primaryButton} hoverRing=${h.isHoverRingShown}",
+                            "button=${caps.primaryButton} hoverRing=${h.isHoverRingShown} hoverEvents=${h.hoverEventCount}",
                     )
                 }
                 host?.tileStats?.let { t ->
