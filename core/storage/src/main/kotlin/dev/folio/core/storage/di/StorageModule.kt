@@ -127,8 +127,18 @@ internal abstract class StorageModule {
             clock: Clock,
             dispatchers: FolioDispatchers,
             app: ManifestApp,
+            recovery: Recovery,
         ): DocumentSessions =
-            DocumentSessions(store, packer, scanner, clock, dispatchers, CoroutineScope(SupervisorJob() + dispatchers.io + LogErrors), app)
+            DocumentSessions(
+                store,
+                packer,
+                scanner,
+                clock,
+                dispatchers,
+                CoroutineScope(SupervisorJob() + dispatchers.io + LogErrors),
+                app,
+                beforeFirstOpen = { recovery.runOnce() },
+            )
 
         private val LogErrors = CoroutineExceptionHandler { _, e -> FolioLog.e("DocumentSessions", "background task failed", e) }
 

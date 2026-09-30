@@ -23,7 +23,9 @@ import kotlinx.coroutines.withContext
 /**
  * Opens and tracks document sessions. One session per document (a second pane shows the same session
  * read-only). Packs every open session when the app goes to the background ([onAppStop], called by
- * :app from ProcessLifecycleOwner) and keeps the index current after packs.
+ * :app from ProcessLifecycleOwner) and keeps the index current after packs. [beforeFirstOpen] runs
+ * (blocking, io) before every open; production passes `Recovery.runOnce`, so start-up recovery has
+ * packed dirty copies before a session holds one (A-022).
  */
 class DocumentSessions(
     private val store: WorkingCopyStore,
@@ -34,6 +36,7 @@ class DocumentSessions(
     private val scope: CoroutineScope,
     private val app: ManifestApp,
     private val thumbnails: ThumbnailHook = ThumbnailHook { _, _ -> },
+    private val beforeFirstOpen: () -> Unit = {},
 ) {
     private val lock = Mutex()
     private val open = LinkedHashMap<DocId, DocumentSession>()
@@ -43,6 +46,7 @@ class DocumentSessions(
         lock.withLock {
             open.values.firstOrNull { it.path == path }?.let { return@withLock Outcome.Success(it) }
             withContext(dispatchers.io) {
+                beforeFirstOpen()
                 store.open(path).flatMap { copy ->
                     if (open.containsKey(copy.docId)) {
                         return@flatMap Outcome.Failure("document ${copy.docId.value} is already open from another path")

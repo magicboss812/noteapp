@@ -112,3 +112,8 @@ Format:
 - Reason: wet ink gets raw MotionEvents, so the curve cannot be applied to inputs; baking it into the family keeps wet and dry identical and stored pressure raw. Snapping bounds the cache (31 curves). Robolectric draws meshes as paths.
 - Impact: 06-ink-input.md#brushes.
 
+## A-022 2026-09-30 P03-T07: conflict check by content, recovery before the first open
+- Change: `base.json` records `sourceCrc32` (CRC-32 of the bytes the copy last packed). A source with the recorded size but another mtime counts as unchanged when its CRC-32 matches; open then records the mtime it reports now. `DocumentSessions` runs start-up recovery (`Recovery.runOnce`, now blocking concurrent callers until it finished) before every open.
+- Reason: on the Pad 7 shared storage a `.folio` replaced by rename reports its new mtime right after the write and its original mtime later, so every pack after a relaunch became a conflict copy and later strokes went into the copy. Separately, the library screen's recovery could pack a killed process's dirty copy while a session already held that copy, which also produced a conflict copy (device run, P03-T07).
+- Impact: 04-file-format.md#write-protocol, #conflicts; 03-document-model.md#sessions.
+

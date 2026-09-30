@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import java.util.concurrent.atomic.AtomicBoolean
 
 /** Something start-up recovery did that the UI reports once (04-file-format.md#crash-recovery). */
 sealed interface RecoveryEvent {
@@ -57,10 +56,20 @@ class Recovery(
     private val clock: Clock,
     private val events: RecoveryEvents,
 ) {
-    private val done = AtomicBoolean(false)
+    private val lock = Any()
+    private var done = false
 
-    /** [run] on the first call of the process only (the library entry calls it once access is granted). */
-    fun runOnce(): List<RecoveryEvent> = if (done.compareAndSet(false, true)) run() else emptyList()
+    /**
+     * [run] on the first call of the process only (the library entry once access is granted, and
+     * [dev.folio.core.storage.session.DocumentSessions] before its first open). Concurrent callers
+     * wait until that run has finished, so no session opens a copy recovery is still packing.
+     */
+    fun runOnce(): List<RecoveryEvent> =
+        synchronized(lock) {
+            if (done) return emptyList()
+            done = true
+            run()
+        }
 
     /** Packs dirty working copies; call before any document opens. Blocking: io dispatcher. */
     fun run(): List<RecoveryEvent> {

@@ -132,7 +132,7 @@ Flow style file `flows/<flowId>.json`: `{"fontFamily":"Inter","sizeRatio":0.5,"p
 - Ids from files are checked before use (A-016): doc, page and flow ids match `[A-Za-z0-9][A-Za-z0-9_-]{0,127}`, asset ids are lowercase SHA-256 hex; anything else is `Corrupt`. Page entries are limited to 16 MB.
 
 ## Write protocol
-1. Editing happens in the working copy `files/work/<docId>/` (same layout as the ZIP, unpacked) plus `base.json` (source path, source size + mtime, manifest modifiedMs at open, dirty entry names, lastPackMs).
+1. Editing happens in the working copy `files/work/<docId>/` (same layout as the ZIP, unpacked) plus `base.json` (source path, source size + mtime, manifest modifiedMs at open, dirty entry names, lastPackMs, CRC-32 of the last packed file).
 2. Entry autosave: changed pages/flows/manifest are written after 1 s idle as `<entry>.tmp` -> fsync -> rename.
 3. Pack triggers: editor close, app `onStop`, every 30 s while dirty, before export and share.
 4. Pack: write a temp file (`.<name>.folio.<random>.tmp`) in the target directory from the working copy (entry order as in "Container layout"), flush + fsync, rename over `<name>.folio`, fsync directory where supported, update `base.json`. Before the first pack of a working copy, the file as it was opened is copied to `files/backup/<docId>.folio` (one generation, A-012). After a conflict pack the working copy is bound to the conflict file.
@@ -144,5 +144,5 @@ Flow style file `flows/<flowId>.json`: `{"fontFamily":"Inter","sizeRatio":0.5,"p
 - Working copies of documents that no longer exist (deleted externally) are kept for 7 days from the first time they are reported and offered as "Recovered: <title>" in the library. A dirty copy whose file was moved follows the file when it is opened at its new path.
 
 ## Conflicts
-- Before packing, compare the source file's size + mtime with `base.json`. If the source changed externally (another app, USB copy) and the working copy is dirty: pack to `<title> (conflict YYYY-MM-DD HH-mm).folio` in the same folder, keep the external version untouched, notify the user.
+- Before packing, compare the source file's size + mtime with `base.json`; when only the mtime differs, compare the file's CRC-32 with `sourceCrc32` recorded at the last pack (shared storage may report a stale mtime after our own rename, A-022). If the source changed externally (another app, USB copy) and the working copy is dirty: pack to `<title> (conflict YYYY-MM-DD HH-mm).folio` in the same folder, keep the external version untouched, notify the user.
 - If the source changed externally and the working copy is clean: reload from the source on next open/resume.

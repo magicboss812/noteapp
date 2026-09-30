@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import dev.folio.core.common.Outcome
 import dev.folio.core.format.container.DocumentCodec
 import dev.folio.core.format.container.FolioContainerReader
+import dev.folio.core.format.container.FolioEntries
 import dev.folio.core.format.manifest.ManifestApp
 import dev.folio.core.model.Document
 import dev.folio.core.model.ObjectId
@@ -16,6 +17,8 @@ import dev.folio.core.storage.repo.DocumentRef
 import dev.folio.core.storage.repo.RepositoryTestBase
 import dev.folio.core.storage.work.PackResult
 import dev.folio.core.storage.work.Packer
+import dev.folio.core.storage.work.Recovery
+import dev.folio.core.storage.work.RecoveryEvents
 import dev.folio.core.storage.work.WorkingCopyStore
 import dev.folio.core.testing.ModelAssertions.assertPageEquivalent
 import dev.folio.core.testing.ModelFixtures
@@ -199,6 +202,44 @@ class DocumentSessionTest : RepositoryTestBase() {
                     .single()
                     .objects,
             ).hasSize(1)
+        }
+
+    // P03-T07 on the tablet: `open` raced the library screen's start-up recovery, which packed the
+    // killed process's dirty copy behind the session's back; the session's next pack became a conflict copy.
+    @Test
+    fun open_dirtyCopyLeftByAKilledProcess_recoversBeforeOpeningSoLaterPacksStayInTheSource() =
+        runTest {
+            val ref = documents.create(spec("Race")).orThrow()
+            val store = WorkingCopyStore(appFs, fs)
+            store
+                .open(ref.path)
+                .orThrow()
+                .writeEntries(mapOf(FolioEntries.SEARCH_TEXT to "crashed".toByteArray()))
+                .orThrow()
+            val recovery = Recovery(store, Packer(fs, appFs, clock), clock, RecoveryEvents())
+            val registry =
+                DocumentSessions(
+                    store,
+                    Packer(fs, appFs, clock),
+                    scanner,
+                    clock,
+                    dispatchers,
+                    backgroundScope,
+                    ManifestApp("Folio", "test"),
+                    beforeFirstOpen = recovery::runOnce,
+                )
+            val session = registry.open(ref.path).orThrow()
+            recovery.runOnce() // the library screen's call, after the open
+
+            session
+                .execute(
+                    UpdateMeta(
+                        session.document.value.meta
+                            .copy(title = "After"),
+                    ),
+                ).orThrow()
+
+            assertThat(session.pack().orThrow()).isEqualTo(PackResult.Packed(ref.path))
         }
 
     @Test

@@ -1,6 +1,7 @@
 package dev.folio.core.storage.work
 
 import dev.folio.core.common.FolioFs
+import dev.folio.core.common.FsEntry
 import dev.folio.core.common.Outcome
 import dev.folio.core.common.flatMap
 import dev.folio.core.format.FormatError
@@ -9,10 +10,13 @@ import dev.folio.core.model.DocId
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.InputStream
+import java.util.zip.CRC32
+import java.util.zip.CheckedInputStream
 
 /**
  * `base.json` of a working copy (04-file-format.md#write-protocol). [sourcePath] is relative to the
- * library root; size + mtime detect external changes (#conflicts).
+ * library root; size + mtime, then [sourceCrc32] when only the mtime differs, detect external changes
+ * (04-file-format.md#conflicts, A-022).
  */
 @Serializable
 data class BaseInfo(
@@ -26,7 +30,41 @@ data class BaseInfo(
     val backupDone: Boolean = false,
     /** When recovery first reported the source as missing; the copy is kept 7 days from then. */
     val orphanSinceMs: Long? = null,
-)
+    /** CRC-32 of the file bytes this copy last packed (null before the first pack). */
+    val sourceCrc32: Long? = null,
+) {
+    /**
+     * True if the library file with [stat] is still the version this base recorded: same size and
+     * mtime, or same size and same bytes as the last pack. Shared storage on the Pad 7 reports a
+     * replaced file's old mtime some time after the rename, so the mtime alone is not trusted.
+     */
+    internal fun matchesSource(
+        libraryFs: FolioFs,
+        stat: FsEntry,
+    ): Boolean {
+        if (stat.sizeBytes != sourceSize) return false
+        if (stat.modifiedMs == sourceMtimeMs) return true
+        val packed = sourceCrc32 ?: return false
+        return crc32Of(libraryFs, sourcePath) == packed
+    }
+}
+
+/** CRC-32 of the file at [path] in [fs], streamed; null if it cannot be read. Blocking IO. */
+internal fun crc32Of(
+    fs: FolioFs,
+    path: String,
+): Long? {
+    val input = (fs.openRead(path) as? Outcome.Success)?.value ?: return null
+    return input.use {
+        CheckedInputStream(it, CRC32()).use { checked ->
+            val buffer = ByteArray(CRC_BUFFER_BYTES)
+            while (checked.read(buffer) >= 0) Unit
+            checked.checksum.value
+        }
+    }
+}
+
+private const val CRC_BUFFER_BYTES = 64 * 1024
 
 /**
  * Unpacked document in app-private `work/<docId>/` (same layout as the ZIP) plus `base.json`.

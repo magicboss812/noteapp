@@ -73,6 +73,74 @@ class PackerTest {
         assertThat(copy.base.backupDone).isTrue()
     }
 
+    // Pad 7 shared storage: a file replaced by rename reports its new mtime right after the write and
+    // its original mtime later (P03-T07), so our own pack looked like an external change.
+    @Test
+    fun pack_sourceReportsStaleMtimeAfterOwnPack_packsIntoSourceAgain() {
+        val library = fs.sub("library")
+        val app = fs.sub("app")
+        val doc = WorkFixture.document()
+        WorkFixture.writeFolio(library, source, doc)
+        val file = File(fs.root, "library/$source")
+        val createdMs = file.lastModified()
+        val copy = WorkingCopyStore(app, library).open(source).orThrow()
+        val packer = Packer(library, app, clock)
+        val flow = doc.flows.keys.first()
+        copy.writeEntries(mapOf("flows/${flow.value}.md" to "# one".toByteArray())).orThrow()
+        assertThat(packer.pack(copy).orThrow()).isEqualTo(PackResult.Packed(source))
+        file.setLastModified(createdMs - 60_000L)
+
+        copy.writeEntries(mapOf("flows/${flow.value}.md" to "# two".toByteArray())).orThrow()
+
+        assertThat(packer.pack(copy).orThrow()).isEqualTo(PackResult.Packed(source))
+        assertThat(File(fs.root, "library/School").list()!!.toList()).containsExactly("Physics.folio")
+    }
+
+    @Test
+    fun pack_sameSizeOtherContentAndMtime_isStillAConflict() {
+        val library = fs.sub("library")
+        val app = fs.sub("app")
+        val doc = WorkFixture.document()
+        WorkFixture.writeFolio(library, source, doc)
+        val file = File(fs.root, "library/$source")
+        val copy = WorkingCopyStore(app, library).open(source).orThrow()
+        val packer = Packer(library, app, clock, ZoneOffset.UTC)
+        val flow = doc.flows.keys.first()
+        copy.writeEntries(mapOf("flows/${flow.value}.md" to "# one".toByteArray())).orThrow()
+        packer.pack(copy).orThrow()
+        val bytes = file.readBytes()
+        bytes[bytes.size / 2] = (bytes[bytes.size / 2] + 1).toByte() // external edit, same size
+        file.writeBytes(bytes)
+        file.setLastModified(copy.base.sourceMtimeMs - 60_000L)
+
+        copy.writeEntries(mapOf("flows/${flow.value}.md" to "# two".toByteArray())).orThrow()
+
+        assertThat(packer.pack(copy).orThrow()).isInstanceOf(PackResult.ConflictCopy::class.java)
+        assertThat(file.readBytes()).isEqualTo(bytes)
+    }
+
+    @Test
+    fun open_cleanCopyWhoseSourceReportsStaleMtime_reusesTheCopy() {
+        val library = fs.sub("library")
+        val app = fs.sub("app")
+        val doc = WorkFixture.document()
+        WorkFixture.writeFolio(library, source, doc)
+        val file = File(fs.root, "library/$source")
+        val store = WorkingCopyStore(app, library)
+        val copy = store.open(source).orThrow()
+        val flow = doc.flows.keys.first()
+        copy.writeEntries(mapOf("flows/${flow.value}.md" to "# one".toByteArray())).orThrow()
+        clock.advanceMs(1_000L)
+        Packer(library, app, clock).pack(copy).orThrow()
+        val packedAt = copy.base.lastPackMs
+        file.setLastModified(copy.base.sourceMtimeMs - 60_000L)
+
+        val reopened = store.open(source).orThrow()
+
+        assertThat(reopened.base.lastPackMs).isEqualTo(packedAt) // an unpack would start a fresh base
+        assertThat(reopened.base.sourceMtimeMs).isEqualTo(file.lastModified())
+    }
+
     @Test
     fun pack_clean_doesNothing() {
         val library = fs.sub("library")

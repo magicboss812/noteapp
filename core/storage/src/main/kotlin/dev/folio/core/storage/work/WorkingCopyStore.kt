@@ -26,8 +26,8 @@ class WorkingCopyStore(
 ) {
     /**
      * Working copy for the `.folio` at [sourcePath]:
-     * - a copy made from this file is reused if the file is unchanged (size + mtime) or the copy has
-     *   unsaved changes (the packer resolves those as a conflict);
+     * - a copy made from this file is reused if the file is unchanged ([BaseInfo.matchesSource]) or the
+     *   copy has unsaved changes (the packer resolves those as a conflict);
      * - a copy of the same docId made from another file that still exists means [sourcePath] is a manual
      *   duplicate: it gets a new docId first (manifest rewritten, 09-storage-library.md#index);
      * - a dirty copy whose file is gone follows the file to [sourcePath] (moved outside the app);
@@ -43,13 +43,23 @@ class WorkingCopyStore(
                 }
 
                 existing.base.sourcePath == sourcePath -> {
-                    val unchanged = existing.base.sourceSize == stat.sizeBytes && existing.base.sourceMtimeMs == stat.modifiedMs
-                    if (unchanged ||
-                        existing.isDirty
-                    ) {
-                        Outcome.Success(existing)
-                    } else {
-                        unpack(sourcePath, docId, stat.sizeBytes, stat.modifiedMs)
+                    when {
+                        existing.base.matchesSource(libraryFs, stat) -> {
+                            // Record the mtime the file reports now, so later checks skip the CRC.
+                            if (existing.base.sourceMtimeMs == stat.modifiedMs) {
+                                Outcome.Success(existing)
+                            } else {
+                                existing.updateBase(existing.base.copy(sourceMtimeMs = stat.modifiedMs)).map { existing }
+                            }
+                        }
+
+                        existing.isDirty -> {
+                            Outcome.Success(existing)
+                        }
+
+                        else -> {
+                            unpack(sourcePath, docId, stat.sizeBytes, stat.modifiedMs)
+                        }
                     }
                 }
 

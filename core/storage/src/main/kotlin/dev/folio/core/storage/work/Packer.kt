@@ -14,6 +14,8 @@ import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.zip.CRC32
+import java.util.zip.CheckedOutputStream
 
 /** Outcome of [Packer.pack]. */
 sealed interface PackResult {
@@ -55,10 +57,14 @@ class Packer(
         if (!copy.isDirty && !force) return Outcome.Success(PackResult.Clean)
         val base = copy.base
         val stat = libraryFs.stat(base.sourcePath) ?: return Outcome.Success(PackResult.SourceMissing)
-        val changedExternally = stat.sizeBytes != base.sourceSize || stat.modifiedMs != base.sourceMtimeMs
+        val changedExternally = !base.matchesSource(libraryFs, stat)
         val target = if (changedExternally) conflictPath(copy) else base.sourcePath
+        if (changedExternally) {
+            FolioLog.w(TAG, "${base.sourcePath} changed externally (${stat.sizeBytes} B, base ${base.sourceSize} B): packing to $target")
+        }
         if (!changedExternally && !base.backupDone) backup(copy)
-        return write(copy, target).flatMap {
+        val crc = CRC32()
+        return write(copy, target, crc).flatMap {
             val written = libraryFs.stat(target)
             copy
                 .updateBase(
@@ -69,6 +75,7 @@ class Packer(
                         dirtyEntries = emptySet(),
                         lastPackMs = clock.nowMs(),
                         backupDone = base.backupDone || !changedExternally,
+                        sourceCrc32 = crc.value,
                     ),
                 ).flatMap {
                     Outcome.Success(if (changedExternally) PackResult.ConflictCopy(target, base.sourcePath) else PackResult.Packed(target))
@@ -76,9 +83,11 @@ class Packer(
         }
     }
 
+    /** Writes [copy] to [target]; [crc] ends up holding the CRC-32 of the written bytes. */
     private fun write(
         copy: WorkingCopy,
         target: String,
+        crc: CRC32,
     ): Outcome<Unit> {
         val entries =
             copy.names().map { name ->
@@ -89,7 +98,10 @@ class Packer(
                     }
                 }
             }
-        return libraryFs.writeAtomic(target) { out -> FolioContainerWriter.write(out, entries) }
+        return libraryFs.writeAtomic(target) { out ->
+            crc.reset() // a retried write starts over
+            FolioContainerWriter.write(CheckedOutputStream(out, crc), entries)
+        }
     }
 
     // Best effort: a failed backup must not block saving the user's work.
