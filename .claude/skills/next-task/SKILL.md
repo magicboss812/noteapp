@@ -11,8 +11,10 @@ description: Execute exactly one task from docs/plan/STATUS.md end to end (load 
 - If the task depends on an unresolved Blocked item, do not wait: set `next:` to the following unblocked task (section 7), note the skip in Handoff, commit STATUS, and stop (headless) or continue with it (interactive).
 
 ## 2. Load minimal context
+- Cost model: every step re-sends the whole conversation (T10: 93 steps x ~94K = 8.8M tokens). An extra step costs the full context, and anything read early is paid again on every later step.
+- Batch: put independent Read/Grep/Glob/Bash calls in ONE turn as parallel tool calls (one step), never one per turn. Chain dependent shell work in one command with `&&` (no `cd`).
 - Read only the anchors in the task's `Read:` line (Grep the heading, Read that section).
-- Read the code you will change. Use narrow Glob/Grep. Never read whole directories "to get a feel".
+- Read the code you will change. Use narrow Glob/Grep. Never read whole directories "to get a feel". Files over ~300 lines: Grep the symbol, then Read with offset/limit. Do not re-read a file that is still in context and unchanged.
 - Appending to `docs/plan/AMENDMENTS.md` or `docs/architecture/decisions.md`: Grep the last entry id, Read only the last ~30 lines (offset), then Edit after them.
 
 ## 3. Plan briefly
@@ -23,9 +25,9 @@ description: Execute exactly one task from docs/plan/STATUS.md end to end (load 
 - Write tests alongside the code. For bugs: failing test first.
 
 ## 5. Verify
-- Headless Bash is denied (a wasted turn each) for: a `cd` prefix (the shell already sits in the repo root), `>`/`>>` redirects (also to /tmp), `for`/`while` loops, `sed -i`, `python3`, `xargs`, `rmdir`, `jar`. Run one plain command and pipe long output: `./gradlew qa --quiet --console=plain 2>&1 | tail -n 80`.
+- Headless Bash is denied (a wasted turn each) for: a `cd` prefix (the shell already sits in the repo root), absolute paths (`bash /home/.../scripts/device/x.sh`, `git -C <dir>`: write `bash scripts/device/x.sh`, `git status`), `>`/`>>` redirects (also to /tmp), `for`/`while`/`seq` loops (for N repeats chain the commands with `&&` in one call, or use a debug command such as `seed-strokes n`), `sed -i`, `python3`, `xargs`, `rmdir`, `jar`. Edits under `.claude/` are denied too: record the wanted change under STATUS Deferred instead of trying. Pipe long output: `... 2>&1 | tail -n 80`.
 - Run every command in the task's `Verify:` line.
-- Then for each touched module: `./gradlew :<m>:spotlessCheck :<m>:detekt :<m>:lintDebug :<m>:testDebugUnitTest` (JVM modules: `:<m>:test`, no lint).
+- Then format once and check all touched modules in ONE Gradle call: `./gradlew spotlessApply --quiet --console=plain 2>&1 | tail -n 20`, then `./gradlew :<a>:detekt :<a>:lintDebug :<a>:testDebugUnitTest :<b>:... --quiet --console=plain 2>&1 | tail -n 80` (JVM modules: `:<m>:test`, no lint). On failure re-run only the failing task.
 - `device:` items: call the `device-tester` subagent with task id, build command, and a numbered list of checks (action, expected result, budget). Use its report as evidence.
 - `user:` items: add to STATUS `USER-CHECK` as one line: `<task-id>: <what to open/do> -> <what good looks like>`. They do not block completion.
 - If a check fails: fix and re-run. After 3 focused attempts without progress: section 9.
