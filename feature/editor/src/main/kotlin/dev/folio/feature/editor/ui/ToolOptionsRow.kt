@@ -9,13 +9,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -26,6 +22,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import dev.folio.core.designsystem.component.ColorDot
 import dev.folio.core.designsystem.component.FolioIconButton
+import dev.folio.core.designsystem.component.PillDivider
 import dev.folio.core.designsystem.component.PillGroup
 import dev.folio.core.designsystem.component.PillOrientation
 import dev.folio.core.designsystem.component.SegmentedTabs
@@ -43,10 +40,9 @@ import dev.folio.feature.editor.state.ToolOptions
 import kotlinx.collections.immutable.persistentListOf
 
 private val OPTIONS_SLIDE = 8.dp
-private val DIVIDER_HEIGHT = 24.dp
 
-/** Row 2 pill height (10-editor-ui.md#screen-structure) plus its top gap: popovers open below it. */
-internal val POPOVER_TOP = 72.dp
+/** Row 2 pill (44 dp) plus the ~6 dp popover gap of DESIGN.md section 7: popovers open below (or beside) it. */
+internal val POPOVER_TOP = 50.dp
 
 /** Names of the three width presets. */
 internal val WIDTH_LABELS = listOf("Small", "Medium", "Large")
@@ -182,6 +178,7 @@ private fun EraserOptionsContent(
             contentDescription = "${WIDTH_LABELS[index]} eraser",
             selected = radiusPt == eraser.radiusPt,
             onClick = { onChange { it.copy(eraser = it.eraser.copy(radiusPt = radiusPt)) } },
+            ring = true,
         )
     }
     Divider(vertical)
@@ -234,16 +231,7 @@ private fun ColorDots(
 }
 
 @Composable
-private fun Divider(vertical: Boolean) {
-    val space = FolioTheme.space
-    val line =
-        if (vertical) {
-            Modifier.padding(vertical = space.s4).size(DIVIDER_HEIGHT, space.borderWidth)
-        } else {
-            Modifier.padding(horizontal = space.s4).size(space.borderWidth, DIVIDER_HEIGHT)
-        }
-    Box(line.background(FolioTheme.colors.border))
-}
+private fun Divider(vertical: Boolean) = PillDivider(vertical = vertical)
 
 private val BrushKind.icon
     get() =

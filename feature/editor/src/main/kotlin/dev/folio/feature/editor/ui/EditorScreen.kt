@@ -124,8 +124,9 @@ fun EditorScreen(
     val placement = drag.pending ?: stored
     val canvasPadding = canvasPadding(placement.mode)
     val gestures = rememberToolbarGestures(drag, placement, orientation, onPlaceToolbar)
-    Box(modifier.fillMaxSize().background(colors.background)) {
-        Box(Modifier.fillMaxSize().padding(canvasPadding).background(colors.canvasSurround), contentAlignment = Alignment.Center) {
+    // No app bar: the pills sit on bg.canvas like the pages (DESIGN.md section 8).
+    Box(modifier.fillMaxSize().background(colors.canvas)) {
+        Box(Modifier.fillMaxSize().padding(canvasPadding), contentAlignment = Alignment.Center) {
             when (state.status) {
                 EditorStatus.OPENING -> {
                     Unit
@@ -178,14 +179,15 @@ private fun rememberToolbarGestures(
     onPlaceToolbar: (ScreenOrientation, ToolbarPlacement) -> Unit,
 ): ToolbarGestures {
     val density = LocalDensity.current
-    val gripInset = with(density) { FolioTheme.space.s2.toPx() }
+    // The grip leads a horizontal pill, after its 4 dp end padding (PillGroup).
+    val gripInset = with(density) { FolioTheme.space.s4.toPx() }
     val edgePx = with(density) { EDGE_SNAP.toPx() }
     val current by rememberUpdatedState(placement)
     val place by rememberUpdatedState { p: ToolbarPlacement -> onPlaceToolbar(orientation, p) }
     return remember(drag, gripInset, edgePx) {
         ToolbarGestures(
             // The preview pill starts with its grip under the finger (the grip leads the pill, inside its padding).
-            startDocked = { gripInRoot -> drag.start(gripInRoot - drag.areaOrigin - Offset(gripInset, gripInset)) },
+            startDocked = { gripInRoot -> drag.start(gripInRoot - drag.areaOrigin - Offset(gripInset, 0f)) },
             startFloating = { _ -> drag.start(drag.topLeft(current).let { Offset(it.x.toFloat(), it.y.toFloat()) }) },
             move = drag::move,
             release = { drag.end(current, edgePx)?.let { if (it != current) place(it) } },
@@ -240,7 +242,7 @@ private fun EditorChrome(
                         )
                         options(
                             Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Horizontal)),
-                            Modifier.padding(horizontal = space.s16).padding(top = space.s8),
+                            Modifier.padding(horizontal = space.chromeInset),
                             false,
                         )
                     }
@@ -261,7 +263,11 @@ private fun EditorChrome(
                             )
                         }
                         val optionsRail: @Composable () -> Unit = {
-                            options(Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Vertical)), Modifier.padding(space.s8), true)
+                            options(
+                                Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Vertical)),
+                                Modifier.padding(vertical = space.chromeInset),
+                                true,
+                            )
                         }
                         // Row 1 is the outer rail, row 2 the inner one (10-editor-ui.md#toolbar-docking).
                         if (left) {

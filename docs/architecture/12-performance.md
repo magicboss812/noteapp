@@ -39,7 +39,7 @@ Rules: no blocking IO or layout of more than one block on main; hot paths alloca
 - `onTrimMemory(TRIM_MEMORY_UI_HIDDEN)` drops non-visible tiles and previews; `RUNNING_LOW` drops everything not visible.
 
 ## Startup
-- No work in `Application.onCreate` except Hilt and PerfMonitor. Index incremental scan starts after the first library frame. Fonts load lazily except Inter/Fraunces.
+- No work in `Application.onCreate` except Hilt and PerfMonitor. Index incremental scan starts after the first library frame. Fonts load lazily except Inter/Literata.
 - Baseline profile covering startup, library scroll, opening a note, drawing, and typing (P11).
 - R8 full mode in release; Compose stability configuration; no reflection-based serialization.
 

@@ -1,4 +1,4 @@
-// Values are the spacing, radius and shadow tables of 11-design-system.md.
+// Values are the spacing, size, radius and shadow tables of 11-design-system.md.
 @file:Suppress("MagicNumber")
 
 package dev.folio.core.designsystem.theme
@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 
-/** Spacing scale in dp (11-design-system.md#spacing-and-shapes); names carry the dp value. */
+/** Spacing scale and component sizes in dp (11-design-system.md#spacing-and-shapes); spacing names carry the dp value. */
 @Immutable
 data class FolioSpacing(
     val s2: Dp = 2.dp,
@@ -25,31 +25,48 @@ data class FolioSpacing(
     val s16: Dp = 16.dp,
     val s20: Dp = 20.dp,
     val s24: Dp = 24.dp,
+    val s28: Dp = 28.dp,
     val s32: Dp = 32.dp,
     val s40: Dp = 40.dp,
     val s48: Dp = 48.dp,
-    val screenPaddingLandscape: Dp = 24.dp,
-    val screenPaddingPortrait: Dp = 20.dp,
+    /** Edge distance and gap of floating chrome. */
+    val chromeInset: Dp = 8.dp,
     /** Minimum touch target for pen and finger. */
     val touchTarget: Dp = 44.dp,
-    /** Visual size of icon and tool buttons inside their touch target. */
-    val buttonVisual: Dp = 40.dp,
-    val iconToolbar: Dp = 22.dp,
+    /** Height (or rail width) of a toolbar pill. */
+    val toolbarPill: Dp = 44.dp,
+    /** Visual toolbar cell: the selected tool circle. */
+    val toolbarCell: Dp = 36.dp,
+    val iconToolbar: Dp = 24.dp,
     val iconMenu: Dp = 20.dp,
-    val iconChip: Dp = 18.dp,
+    val iconSmall: Dp = 16.dp,
+    val colorDot: Dp = 22.dp,
+    /** Selection dot under a width or color cell. */
+    val indicatorDot: Dp = 4.dp,
+    /** Toolbar divider thickness and length. */
+    val dividerWidth: Dp = 2.dp,
+    val dividerLength: Dp = 26.dp,
+    val popoverWidth: Dp = 340.dp,
+    val dialogWidth: Dp = 560.dp,
+    val closeChip: Dp = 24.dp,
     val borderWidth: Dp = 1.dp,
-    /** Selected card outline. */
+    /** Focus and selection outline. */
     val selectedBorderWidth: Dp = 2.dp,
 )
 
-/** Corner radii: xs 6, s 10 (chips), m 14 (toolbar pills), l 16 (cards), xl 24 (sheets), full. */
+/** Corner radii (11-design-system.md#spacing-and-shapes). */
 @Immutable
 data class FolioShapes(
-    val xs: Shape = RoundedCornerShape(6.dp),
-    val s: Shape = RoundedCornerShape(10.dp),
-    val m: Shape = RoundedCornerShape(14.dp),
-    val l: Shape = RoundedCornerShape(16.dp),
-    val xl: Shape = RoundedCornerShape(24.dp),
+    /** Pills, chips, buttons, bars: half the height. */
+    val stadium: Shape = RoundedCornerShape(50),
+    val card: Shape = RoundedCornerShape(16.dp),
+    val popover: Shape = RoundedCornerShape(18.dp),
+    val panel: Shape = RoundedCornerShape(24.dp),
+    val menu: Shape = RoundedCornerShape(12.dp),
+    val tile: Shape = RoundedCornerShape(10.dp),
+    val settings: Shape = RoundedCornerShape(8.dp),
+    val field: Shape = RoundedCornerShape(4.dp),
+    val checkbox: Shape = RoundedCornerShape(2.dp),
     /** Sheets: only the top corners are rounded. */
     val sheet: Shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
     val full: Shape = CircleShape,
@@ -66,11 +83,11 @@ data class FolioShadow(
 /** Shadow tokens (11-design-system.md#elevation). */
 @Immutable
 data class FolioElevation(
-    val card: FolioShadow = FolioShadow(1.dp, 3.dp, 0.04f),
-    val cardPressed: FolioShadow = FolioShadow(4.dp, 12.dp, 0.08f),
-    val floating: FolioShadow = FolioShadow(6.dp, 20.dp, 0.10f),
+    /** Popovers, menus, panels and dialogs, both themes. */
+    val popover: FolioShadow = FolioShadow(4.dp, 8.dp, 0.16f),
+    /** Toolbar pills, light theme only. */
+    val toolbar: FolioShadow = FolioShadow(2.dp, 4.dp, 0.10f),
     val page: FolioShadow = FolioShadow(2.dp, 8.dp, 0.06f),
-    val sheet: FolioShadow = FolioShadow((-4).dp, 24.dp, 0.12f),
 )
 
 /** Draws [shadow] behind the content in [shape]. */

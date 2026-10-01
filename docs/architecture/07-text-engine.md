@@ -27,7 +27,7 @@ Bundled (OFL, downloaded from github.com/google/fonts in P01-S3, licenses shippe
 | Serif | Source Serif 4, Lora, Merriweather, EB Garamond, Crimson Pro, Literata |
 | Mono | JetBrains Mono, IBM Plex Mono |
 | Handwriting | Caveat, Patrick Hand, Kalam, Architects Daughter, Shadows Into Light |
-Default text font: Inter. Custom fonts: import `.ttf/.otf` via the system file picker; copied to app storage and mirrored into the library folder `.fonts/` so other devices can install them; documents reference fonts by family name with fallback to Inter. UI fonts (Inter, Fraunces) live separately in core:designsystem.
+Default text font: Inter. Custom fonts: import `.ttf/.otf` via the system file picker; copied to app storage and mirrored into the library folder `.fonts/` so other devices can install them; documents reference fonts by family name with fallback to Inter. UI fonts (Inter, Literata) live separately in core:designsystem.
 
 ## Blocks
 A flow's Markdown is split into blocks. Block = the unit of parsing, layout caching, invalidation, and focused editing. Runtime block ids are stable within a session (not stored).

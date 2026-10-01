@@ -6,7 +6,7 @@ Routes: `onboarding` (storage permission), `library` (home), `editor/{docId}` (o
 Editor layout (landscape, toolbar docked top):
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
-│ [Home][Pages][Grid][+Page][⋯]   [Lasso Pen Highlighter Eraser Shape Text   │ row 1 (52 dp)
+│ [Home][Pages][Grid][+Page][⋯]   [Lasso Pen Highlighter Eraser Shape Text   │ row 1 (60 dp)
 │                                  Table Image Sticky Ruler Attach]  [Split] │
 │ [Undo][Redo]        [ contextual tool options pill ]                       │ row 2 (44 dp)
 ├───────────────────────────────────────────────────────────────────────────┤
@@ -18,7 +18,7 @@ Row 2 floats over the canvas (no opaque bar), exactly like the reference. Portra
 
 ## Toolbar
 - Row 1 left pill (document): Home (back to library with shared-element transition), Page panel (drawer), Page grid overview (full-screen), Add page (after current), More (rename, page settings, expand to infinite canvas, open beside, export, backlinks, document info).
-- Row 1 tools pill: Lasso, Pen, Highlighter, Eraser, Shape, Text, Table, Image, Sticky note, Ruler (toggle), Attachment. Selected tool = accentSoft background + accent icon. Tapping the selected pen again opens its options popover.
+- Row 1 tools pill: Lasso, Pen, Highlighter, Eraser, Shape, Text, Table, Image, Sticky note, Ruler (toggle), Attachment. Each pill is a 44 dp stadium; every cell is a 36 dp circle inside a 44 dp touch target (A-030). Selected tool = 36 dp accentContainerStrong circle with an onAccentContainerStrong icon. A divider separates the Lasso from the other tools. Tapping the selected pen again opens its options popover.
 - Row 1 right: Split view toggle.
 - Row 2 left pill: Undo, Redo (disabled state when unavailable; long-press Undo shows the last 5 actions by name).
 - Row 2 center pill: tool options (see Tool options).
@@ -38,7 +38,7 @@ Row 2 floats over the canvas (no opaque bar), exactly like the reference. Portra
 | Sticky | 5 colors |
 | Ruler | reset angle, hide |
 | Attachment | pick file |
-Color dot: 26 dp, selected ring 2 dp accent with 2 dp gap. Long-press a color or width preset to edit it. Custom colors: HSV square + hue bar + hex field + recent colors.
+Color dot: 22 dp with a 1 dp border; the selected color and width preset get a 4 dp accent dot below them, eraser sizes get a 2 dp accent ring instead (A-030). Groups are split by 2 x 26 dp dividers. Long-press a color or width preset to edit it. Custom colors: HSV square + hue bar + hex field + recent colors.
 
 ## Toolbar docking
 - Modes: TOP (default), LEFT, RIGHT, FLOATING. Left/right: rows become vertical rails (row 1 outer, row 2 inner); options open as a flyout next to the rail.

@@ -1,8 +1,8 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P04
-next: P04-T10
-updated: 2026-10-01
+next: P04-T05
+updated: 2026-10-02
 
 ## Completed
 - P00 done 2026-09-27 (tag p00-done): AGP 9.4.1/Kotlin 2.4.20/Gradle 9.8.0, compileSdk 37.2, minSdk 35 (device SDK 36); qa green; instrumented smoke 1/1 on Pad 7; cold launch 786 ms; A-001..A-004.
@@ -11,16 +11,16 @@ updated: 2026-10-01
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
 
 ## Current phase progress
-- P04: T01, T02, T03, T04
+- P04: T01, T02, T03, T04, T10
 
 ## Blocked (needs user; stops dependent tasks)
-- P04-T10 (design overhaul, runs before T05): needs `docs/design/notewise/DESIGN.md`. Connect the tablet, open Notewise once, run `bash scripts/auto/notewise-capture.sh` (Opus, one session per screen group, resumable), push, then delete this line.
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck P03-REVIEW (no grant-storage.sh, after `pm clear`): the app still reports All files access granted and shows the library. The toggle is not in the app's permission list: open Settings > Privacy (or Apps) > Special app access (Special permissions) > All files access > Folio Debug > off, then write "-> revoked" here; or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else. [revoked]
 
 ## USER-CHECK (human verification; non-blocking)
 - P03-REVIEW (D-017, your "no thin ring visible"): install the debug app, open a document, hold the Focus Pen just above the page -> a thin dark ring (light edge) follows the tip, at least pen-dot size; the system hover dot is gone over the canvas; the ring disappears when the pen touches or leaves. If still no ring, keep the app open and write "no ring": Claude reads `hoverEvents` from debug `state` (0 = hover never reaches the canvas). [Checked, ring is there]
 - P04-T03: open a note, try row 2 (pen kinds, widths, long-press a width or color, + add color, pen settings, eraser modes, clear page) -> controls respond, ink uses the choices, choices survive closing and reopening the app. [Checked, really good, pressure is considered, eraser modes there but eraser ring disappears when pressing, needs to be visible when erasing always, reopening the app keeps progress]
 - P04-T04: drag the toolbar grip (dots at the right end of row 1, or the bottom of a side rail) to the left and right edges and release it mid-canvas to float; double-tap the floating grip -> moves feel smooth, docks snap with a spring, the placement survives closing and reopening the app (separately per orientation). [Checked]
+- P04-T10: open the library placeholder and a note on the tablet -> toolbar, options row, popovers, colors and type read as Notewise; differences go to docs/plan/FEEDBACK.md.
 
 ## Deferred (id: reason)
 - D-001 P00-T07: P11 `benchmark` build type needs its own DebugHooksModule (src/benchmark, bind NoOpDebugHooks).
@@ -39,12 +39,12 @@ updated: 2026-10-01
 - D-019 P03-REVIEW: `TileLayer.launchRender` leaves a failed (non-cancel) render's key in `inFlight`/`waitingVisible` (never retried, uncaught); catch, clear the key, log, retry. Fix with a failing test before P08 (PDF rasters can throw).
 - D-020 P03-REVIEW: pan-time `requestTiles` allocates lists/`RectPt`/`VisiblePage`/boxed `Pair` per tile and may log evictions; `DryHandoff.check` allocates and `isDrawn` scans all page objects per pending stroke. Reuse scratch objects, id-set lookup (P11 perf).
 - D-022 P03-REVIEW: an erase gesture right after a pen lift cannot erase strokes still in the dry handoff (snapshot = committed document); include pending strokes (P07 or P11).
-- D-023 P04-T01: dark destructive dialog button is white on danger #F87171 (low contrast); use a dark onDanger or a darker fill when the first real delete dialog lands (P05).
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 - D-025 P04-T04: handedness is modeled and stored (`ToolbarDocks.withHandedness`, A-029) but has no toggle; add it to the settings Toolbar section (10-editor-ui.md#settings) when feature:settings is built.
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P04-T10 inserted before T05 (opus high): restyle T01..T04 from the measured Notewise design `docs/design/notewise/DESIGN.md`; waits on the user's capture run (Blocked [STOP]). Tools: scripts/design/nw.sh + DesignTool.java, spec docs/design/notewise/CAPTURE.md.
-- New docs/plan/FEEDBACK.md; next-task section 8 step 3 turns FEEDBACK + untargeted Deferred items into tasks at every REVIEW (D-018, D-009, D-020 ... at the P04 REVIEW).
-- After T10: T05 undo/redo + shortcuts. Row 1 / rails come from `EditorToolbarRow1` (vertical flag); popovers anchor via `PopoverAnchor` per dock mode. Tilt has no switch in pen settings (D-014).
+- P04-T10 done (A-030): Notewise tokens/components; build new UI from `docs/design/notewise/DESIGN.md` + 11-design-system.md (FolioButton, FolioPopover, CloseChip, PillDivider, NoteCard/FolderCard). TokensTest parses DESIGN.md: keep both in sync.
+- Known nit: FolderCard back page overlaps the folder name (catalog golden); fix with the P05 library cards.
+- FEEDBACK.md turns into tasks at every REVIEW (D-018, D-009, D-020 ... at the P04 REVIEW).
+- Next: T05 undo/redo + shortcuts. Row 1 / rails come from `EditorToolbarRow1` (vertical flag, 60 dp); popovers anchor via `PopoverAnchor`.
 - `FolioIcons.kt` is generated: add a Lucide 1.49.0 SVG to tools/icongen/src/main/resources/lucide, run `./gradlew :tools:icongen:run` (A-027).

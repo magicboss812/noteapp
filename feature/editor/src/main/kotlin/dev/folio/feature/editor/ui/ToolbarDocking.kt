@@ -178,7 +178,7 @@ internal fun ToolbarGrip(
             imageVector = FolioIcons.GripVertical,
             contentDescription = null,
             modifier = Modifier.size(space.iconToolbar).then(if (vertical) Modifier.rotate(RAIL_GRIP_ROTATION_DEG) else Modifier),
-            tint = FolioTheme.colors.textSecondary,
+            tint = FolioTheme.colors.iconToolbar,
         )
     }
 }
@@ -201,7 +201,7 @@ internal fun FloatingToolbar(
     modifier: Modifier = Modifier,
     options: @Composable () -> Unit = {},
 ) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(FolioTheme.space.s8)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(FolioTheme.space.chromeInset)) {
         PillGroup {
             grip()
             if (collapsed) {

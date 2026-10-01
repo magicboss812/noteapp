@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.dp
 
 // Helpers for the generated FolioIcons.kt (tools:icongen). Icons are drawn black and tinted by Icon().
 private const val VIEWBOX = 24f
-private const val STROKE_WIDTH = 1.75f
+private const val STROKE_WIDTH = 2f
 
 internal class LucidePath(
     val pathData: String,

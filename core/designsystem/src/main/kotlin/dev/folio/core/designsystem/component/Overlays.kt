@@ -1,6 +1,7 @@
 package dev.folio.core.designsystem.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,8 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import dev.folio.core.designsystem.theme.FolioTheme
@@ -33,11 +35,48 @@ import dev.folio.core.designsystem.theme.folioShadow
 private val SHEET_HANDLE_WIDTH = 36.dp
 private val SHEET_HANDLE_HEIGHT = 4.dp
 private val DIALOG_MIN_WIDTH = 280.dp
-private val DIALOG_MAX_WIDTH = 440.dp
 private val SNACKBAR_MAX_WIDTH = 560.dp
 private val SNACKBAR_MIN_HEIGHT = 48.dp
 
-/** Modal bottom sheet with the Folio surface, sheet radius, scrim and a serif title. */
+/**
+ * Popover card (pen settings, width editor, color picker, tool panels): `surface`, radius 18, 16 dp padding, popover
+ * shadow, centered title with a close chip when [onClose] is set (11-design-system.md#components).
+ */
+@Composable
+fun FolioPopover(
+    title: String,
+    modifier: Modifier = Modifier,
+    width: Dp = FolioTheme.space.popoverWidth,
+    onClose: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = FolioTheme.colors
+    val space = FolioTheme.space
+    val shape = FolioTheme.shapes.popover
+    Column(
+        modifier =
+            modifier
+                .width(width)
+                .folioShadow(FolioTheme.elevation.popover, shape, colors.shadow)
+                .background(colors.surface, shape)
+                .padding(start = space.s16, end = space.s16, bottom = space.s16),
+        verticalArrangement = Arrangement.spacedBy(space.s12),
+    ) {
+        Box(Modifier.fillMaxWidth().heightIn(min = space.touchTarget), contentAlignment = Alignment.Center) {
+            Text(
+                text = title,
+                style = FolioTheme.type.titleSmall,
+                color = colors.textPrimary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = space.touchTarget),
+            )
+            if (onClose != null) CloseChip(onClick = onClose, modifier = Modifier.align(Alignment.CenterEnd))
+        }
+        content()
+    }
+}
+
+/** Modal bottom sheet with the Folio surface, sheet radius, scrim and a headline title. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FolioSheet(
@@ -73,7 +112,7 @@ fun FolioSheetContent(
         modifier = modifier.fillMaxWidth().padding(start = space.s24, end = space.s24, bottom = space.s24),
         verticalArrangement = Arrangement.spacedBy(space.s16),
     ) {
-        Text(text = title, style = FolioTheme.type.displaySmall, color = FolioTheme.colors.textPrimary)
+        Text(text = title, style = FolioTheme.type.headline, color = FolioTheme.colors.textPrimary)
         content()
     }
 }
@@ -84,12 +123,12 @@ internal fun SheetHandle(modifier: Modifier = Modifier) {
         Box(
             Modifier
                 .size(SHEET_HANDLE_WIDTH, SHEET_HANDLE_HEIGHT)
-                .background(FolioTheme.colors.border, FolioTheme.shapes.full),
+                .background(FolioTheme.colors.divider, FolioTheme.shapes.full),
         )
     }
 }
 
-/** Confirmation dialog. [destructive] paints the confirm button in the danger color. */
+/** Confirmation dialog. [destructive] paints the confirm label in the danger color (no fill, D-023). */
 @Composable
 fun FolioDialog(
     title: String,
@@ -129,57 +168,39 @@ fun FolioDialogContent(
 ) {
     val colors = FolioTheme.colors
     val space = FolioTheme.space
-    val shape = FolioTheme.shapes.xl
+    val shape = FolioTheme.shapes.card
     Column(
         modifier =
             modifier
-                .widthIn(min = DIALOG_MIN_WIDTH, max = DIALOG_MAX_WIDTH)
-                .folioShadow(FolioTheme.elevation.floating, shape, colors.shadow)
-                .background(colors.surface, shape)
-                .padding(space.s24),
+                .widthIn(min = DIALOG_MIN_WIDTH, max = space.dialogWidth)
+                .folioShadow(FolioTheme.elevation.popover, shape, colors.shadow)
+                .background(colors.surfaceDialog, shape)
+                .padding(start = space.s24, end = space.s12, top = space.s24, bottom = space.s8),
         verticalArrangement = Arrangement.spacedBy(space.s12),
     ) {
-        Text(text = title, style = FolioTheme.type.titleMedium, color = colors.textPrimary)
-        if (text != null) Text(text = text, style = FolioTheme.type.body, color = colors.textSecondary)
+        Text(
+            text = title,
+            style = FolioTheme.type.title,
+            color = colors.textPrimary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(end = space.s12),
+        )
+        if (text != null) {
+            Text(text = text, style = FolioTheme.type.body, color = colors.textSecondary, modifier = Modifier.padding(end = space.s12))
+        }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = space.s8),
-            horizontalArrangement = Arrangement.spacedBy(space.s8, Alignment.End),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(space.s4, Alignment.End),
         ) {
-            if (dismissLabel != null) DialogButton(label = dismissLabel, onClick = onDismiss, filled = false)
-            DialogButton(
-                label = confirmLabel,
-                onClick = onConfirm,
-                filled = true,
-                fill = if (destructive) colors.danger else colors.accent,
-            )
+            if (dismissLabel != null) {
+                FolioButton(label = dismissLabel, onClick = onDismiss, style = FolioButtonStyle.Text, textColor = colors.textPrimary)
+            }
+            FolioButton(label = confirmLabel, onClick = onConfirm, style = FolioButtonStyle.Text, destructive = destructive)
         }
     }
 }
 
-@Composable
-private fun DialogButton(
-    label: String,
-    onClick: () -> Unit,
-    filled: Boolean,
-    fill: Color = Color.Unspecified,
-) {
-    val colors = FolioTheme.colors
-    val space = FolioTheme.space
-    Box(
-        modifier =
-            Modifier
-                .heightIn(min = space.touchTarget)
-                .clip(FolioTheme.shapes.full)
-                .background(if (filled) fill else Color.Transparent)
-                .clickable(role = Role.Button, onClick = onClick)
-                .padding(horizontal = space.s20),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = label, style = FolioTheme.type.label, color = if (filled) colors.onAccent else colors.textSecondary)
-    }
-}
-
-/** Inverted pill message with an optional action such as "Undo". */
+/** `surface` stadium message with a border and an optional accent action such as "Undo". */
 @Composable
 fun FolioSnackbar(
     message: String,
@@ -189,21 +210,22 @@ fun FolioSnackbar(
 ) {
     val colors = FolioTheme.colors
     val space = FolioTheme.space
-    val shape = FolioTheme.shapes.m
+    val shape = FolioTheme.shapes.stadium
     Row(
         modifier =
             modifier
                 .widthIn(max = SNACKBAR_MAX_WIDTH)
                 .heightIn(min = SNACKBAR_MIN_HEIGHT)
-                .folioShadow(FolioTheme.elevation.floating, shape, colors.shadow)
-                .background(colors.textPrimary, shape)
-                .padding(start = space.s16, end = space.s4),
+                .folioShadow(FolioTheme.elevation.popover, shape, colors.shadow)
+                .background(colors.surface, shape)
+                .border(space.borderWidth, colors.border, shape)
+                .padding(start = space.s20, end = space.s4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = message,
-            style = FolioTheme.type.body,
-            color = colors.surface,
+            style = FolioTheme.type.label,
+            color = colors.textPrimary,
             modifier = Modifier.weight(1f, fill = false).padding(vertical = space.s12),
         )
         if (actionLabel != null) {
@@ -212,15 +234,15 @@ fun FolioSnackbar(
                 modifier =
                     Modifier
                         .heightIn(min = space.touchTarget)
-                        .clip(FolioTheme.shapes.s)
+                        .clip(FolioTheme.shapes.stadium)
                         .clickable(role = Role.Button, onClick = onAction)
                         .padding(horizontal = space.s12),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = actionLabel, style = FolioTheme.type.label, color = colors.accentInverse)
+                Text(text = actionLabel, style = FolioTheme.type.bodyMedium, color = colors.accent)
             }
         } else {
-            Spacer(Modifier.width(space.s12))
+            Spacer(Modifier.width(space.s16))
         }
     }
 }

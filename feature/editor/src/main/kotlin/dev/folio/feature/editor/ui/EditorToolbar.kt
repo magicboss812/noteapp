@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.folio.core.designsystem.component.FolioIconButton
+import dev.folio.core.designsystem.component.PillDivider
 import dev.folio.core.designsystem.component.PillGroup
 import dev.folio.core.designsystem.component.PillOrientation
 import dev.folio.core.designsystem.component.ToolButton
@@ -35,8 +36,8 @@ import dev.folio.core.designsystem.icon.FolioIcons
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.feature.editor.state.EditorTool
 
-/** Row 1 height (10-editor-ui.md#screen-structure), also the width of the side rails. */
-internal val TOOLBAR_ROW1_HEIGHT = 52.dp
+/** Row 1 height: a 44 dp pill with 8 dp chrome insets (10-editor-ui.md#screen-structure), also the side rail width. */
+internal val TOOLBAR_ROW1_HEIGHT = 60.dp
 internal val SCROLL_FADE = 24.dp
 
 /**
@@ -57,7 +58,7 @@ internal fun EditorToolbarRow1(
     val space = FolioTheme.space
     val orientation = if (vertical) PillOrientation.Vertical else PillOrientation.Horizontal
     val content: @Composable (Modifier) -> Unit = { toolsModifier ->
-        PillGroup(orientation = orientation, floating = false) {
+        PillGroup(orientation = orientation) {
             FolioIconButton(FolioIcons.House, "Home", onHome)
             FolioIconButton(FolioIcons.PanelLeft, "Pages", onClick = {}, enabled = false)
             FolioIconButton(FolioIcons.LayoutGrid, "Page overview", onClick = {}, enabled = false)
@@ -73,7 +74,7 @@ internal fun EditorToolbarRow1(
                     Modifier.edgeFade(scroll, SCROLL_FADE).horizontalScroll(scroll)
                 }
             Box(scrolling) {
-                PillGroup(orientation = orientation, floating = false) { ToolsPill(tool, onSelectTool) }
+                PillGroup(orientation = orientation) { ToolsPill(tool, onSelectTool, vertical) }
             }
         }
         FolioIconButton(FolioIcons.Columns2, "Split view", onClick = {}, enabled = false)
@@ -81,23 +82,25 @@ internal fun EditorToolbarRow1(
     }
     if (vertical) {
         Column(
-            modifier = modifier.fillMaxHeight().width(TOOLBAR_ROW1_HEIGHT).padding(vertical = space.s12),
-            verticalArrangement = Arrangement.spacedBy(space.s8),
+            modifier = modifier.fillMaxHeight().width(TOOLBAR_ROW1_HEIGHT).padding(vertical = space.chromeInset),
+            verticalArrangement = Arrangement.spacedBy(space.chromeInset),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) { content(Modifier.weight(1f)) }
     } else {
         Row(
-            modifier = modifier.fillMaxWidth().height(TOOLBAR_ROW1_HEIGHT).padding(horizontal = space.s12),
-            horizontalArrangement = Arrangement.spacedBy(space.s8),
+            modifier = modifier.fillMaxWidth().height(TOOLBAR_ROW1_HEIGHT).padding(horizontal = space.chromeInset),
+            horizontalArrangement = Arrangement.spacedBy(space.chromeInset),
             verticalAlignment = Alignment.CenterVertically,
         ) { content(Modifier.weight(1f)) }
     }
 }
 
+/** Tools of row 1; the lasso sits apart behind a divider like the fixed Notewise lasso (DESIGN.md section 7). */
 @Composable
 internal fun ToolsPill(
     selected: EditorTool,
     onSelectTool: (EditorTool) -> Unit,
+    vertical: Boolean = false,
 ) {
     EditorTool.entries.forEach { tool ->
         if (tool == EditorTool.ATTACHMENT) {
@@ -111,6 +114,7 @@ internal fun ToolsPill(
             onClick = { onSelectTool(tool) },
             enabled = tool.available,
         )
+        if (tool == EditorTool.LASSO) PillDivider(vertical = vertical)
     }
 }
 

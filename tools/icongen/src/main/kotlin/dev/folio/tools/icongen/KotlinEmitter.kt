@@ -28,7 +28,7 @@ internal object KotlinEmitter {
             appendLine()
             appendLine("import androidx.compose.ui.graphics.vector.ImageVector")
             appendLine()
-            appendLine("/** Lucide icons as ImageVectors, stroke 1.75 with round caps and joins (11-design-system.md#icons). */")
+            appendLine("/** Lucide icons as ImageVectors, stroke 2 with round caps and joins (11-design-system.md#icons). */")
             appendLine("object FolioIcons {")
             val sorted = icons.sortedBy { it.lucideName }
             appendLine("    /** Every icon with its Lucide name (component catalog). */")

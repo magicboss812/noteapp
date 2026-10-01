@@ -1,8 +1,5 @@
 package dev.folio.feature.editor.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,9 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -23,23 +18,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.folio.core.designsystem.component.FolioDialog
+import dev.folio.core.designsystem.component.FolioPopover
 import dev.folio.core.designsystem.theme.FolioTheme
-import dev.folio.core.designsystem.theme.folioShadow
 import dev.folio.core.ink.brush.PressureCurve
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.ToolOptions
 import java.util.Locale
-
-private val POPOVER_WIDTH = 400.dp
 
 // Flyouts next to a side rail start level with the options rail (its top gap).
 private val POPOVER_RAIL_TOP = 8.dp
@@ -171,55 +163,15 @@ internal fun WidthEditorPopover(
     }
 }
 
-/** Card of an options popover: surface, floating shadow, title. */
+/** Card of an options popover ([FolioPopover]); taps on it never reach the close-on-tap layer behind it. */
 @Composable
 internal fun PopoverCard(
     title: String,
     modifier: Modifier = Modifier,
+    width: Dp = FolioTheme.space.popoverWidth,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val colors = FolioTheme.colors
-    val space = FolioTheme.space
-    val shape = FolioTheme.shapes.l
-    Column(
-        modifier =
-            modifier
-                .width(POPOVER_WIDTH)
-                .folioShadow(FolioTheme.elevation.floating, shape, colors.shadow)
-                .background(colors.surface, shape)
-                .then(if (colors.isDark) Modifier else Modifier.border(space.borderWidth, colors.border, shape))
-                // Taps on the card itself must not reach the close-on-tap layer behind it.
-                .pointerInput(Unit) { detectTapGestures {} }
-                .padding(space.s16),
-        verticalArrangement = Arrangement.spacedBy(space.s12),
-    ) {
-        Text(text = title, style = FolioTheme.type.titleMedium, color = colors.textPrimary)
-        content()
-    }
-}
-
-/** Text button of a popover; [filled] is the primary action. */
-@Composable
-internal fun PopoverButton(
-    label: String,
-    filled: Boolean = false,
-    textColor: Color = FolioTheme.colors.textSecondary,
-    onClick: () -> Unit,
-) {
-    val colors = FolioTheme.colors
-    val space = FolioTheme.space
-    Box(
-        modifier =
-            Modifier
-                .heightIn(min = space.touchTarget)
-                .clip(FolioTheme.shapes.full)
-                .background(if (filled) colors.accent else Color.Transparent)
-                .clickable(role = Role.Button, onClick = onClick)
-                .padding(horizontal = space.s16),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = label, style = FolioTheme.type.label, color = if (filled) colors.onAccent else textColor)
-    }
+    FolioPopover(title, modifier.pointerInput(Unit) { detectTapGestures {} }, width = width, content = content)
 }
 
 @Composable
@@ -260,7 +212,7 @@ private fun LabeledSlider(
                 SliderDefaults.colors(
                     thumbColor = colors.accent,
                     activeTrackColor = colors.accent,
-                    inactiveTrackColor = colors.border,
+                    inactiveTrackColor = colors.accentTrack,
                     activeTickColor = Color.Transparent,
                     inactiveTickColor = Color.Transparent,
                 ),

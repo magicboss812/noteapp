@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
@@ -36,34 +37,33 @@ import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.designsystem.theme.folioShadow
 import kotlinx.collections.immutable.ImmutableList
 
-private val DOT_SIZE = 24.dp
-private val DOT_RING_SIZE = 32.dp
-private val DOT_RING_WIDTH = 2.dp
-private val WIDTH_GLYPH_LENGTH = 18.dp
+private val WIDTH_GLYPH_LENGTH = 20.dp
 
 /** Layout direction of a [PillGroup]. */
 enum class PillOrientation { Horizontal, Vertical }
 
 /**
- * Rounded group of toolbar controls. Floating pills cast the floating shadow and carry a border in light mode only
- * (11-design-system.md#elevation).
+ * Toolbar pill: 44 dp stadium in `surfaceToolbar` with a 1 dp border; the toolbar shadow shows in the light theme only
+ * (11-design-system.md#components).
  */
 @Composable
 fun PillGroup(
     modifier: Modifier = Modifier,
     orientation: PillOrientation = PillOrientation.Horizontal,
-    floating: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val colors = FolioTheme.colors
     val space = FolioTheme.space
-    val shape = FolioTheme.shapes.m
+    val shape = FolioTheme.shapes.stadium
     val pill =
         modifier
-            .then(if (floating) Modifier.folioShadow(FolioTheme.elevation.floating, shape, colors.shadow) else Modifier)
-            .background(colors.surfaceMuted, shape)
-            .then(if (floating && !colors.isDark) Modifier.border(space.borderWidth, colors.border, shape) else Modifier)
-            .padding(space.s2)
+            .then(if (colors.isDark) Modifier else Modifier.folioShadow(FolioTheme.elevation.toolbar, shape, colors.shadow))
+            .background(colors.surfaceToolbar, shape)
+            .border(space.borderWidth, colors.border, shape)
+            .padding(
+                horizontal = if (orientation == PillOrientation.Horizontal) space.s4 else 0.dp,
+                vertical = if (orientation == PillOrientation.Vertical) space.s4 else 0.dp,
+            )
     // Movable so control state survives a dock change that flips the orientation (P04-T04).
     val controls = remember(content) { movableContentOf(content) }
     when (orientation) {
@@ -72,7 +72,31 @@ fun PillGroup(
     }
 }
 
-/** Ink color swatch with an accent ring when selected; [onLongClick] (edit the color) is optional. */
+/** 2 x 26 dp separator between control groups of a pill; [vertical] turns it for side rails. */
+@Composable
+fun PillDivider(
+    modifier: Modifier = Modifier,
+    vertical: Boolean = false,
+) {
+    val space = FolioTheme.space
+    val size =
+        if (vertical) {
+            Modifier.size(
+                space.dividerLength,
+                space.dividerWidth,
+            )
+        } else {
+            Modifier.size(space.dividerWidth, space.dividerLength)
+        }
+    Box(
+        modifier
+            .padding(horizontal = if (vertical) 0.dp else space.s4, vertical = if (vertical) space.s4 else 0.dp)
+            .then(size)
+            .background(FolioTheme.colors.divider, FolioTheme.shapes.stadium),
+    )
+}
+
+/** Ink color swatch: 22 dp dot with a 4 dp accent dot below when selected; [onLongClick] (edit the color) is optional. */
 @Composable
 fun ColorDot(
     color: Color,
@@ -83,23 +107,25 @@ fun ColorDot(
     onLongClick: (() -> Unit)? = null,
 ) {
     val colors = FolioTheme.colors
-    val ring by animateColorAsState(if (selected) colors.accent else Color.Transparent, FolioTheme.motion.fast(), label = "dotRing")
+    val space = FolioTheme.space
     val shape = FolioTheme.shapes.full
     Box(
         modifier =
             modifier
-                .size(FolioTheme.space.touchTarget)
-                .selectableOption(selected, DOT_RING_SIZE / 2, onClick, onLongClick)
+                .size(space.touchTarget)
+                .selectableOption(selected, space.toolbarCell / 2, onClick, onLongClick)
                 .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(DOT_RING_SIZE).border(DOT_RING_WIDTH, ring, shape), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(DOT_SIZE).background(color, shape).border(FolioTheme.space.borderWidth, colors.border, shape))
-        }
+        Box(Modifier.size(space.colorDot).background(color, shape).border(space.borderWidth, colors.border, shape))
+        SelectionDot(selected)
     }
 }
 
-/** Stroke width preset drawn as a horizontal line of [strokeWidth]; [onLongClick] (edit the preset) is optional. */
+/**
+ * Stroke width preset drawn as a bar of [strokeWidth]; selected shows a 4 dp accent dot below, or a 2 dp accent ring
+ * around the cell when [ring] (eraser sizes). [onLongClick] (edit the preset) is optional.
+ */
 @Composable
 fun WidthChip(
     strokeWidth: Dp,
@@ -107,29 +133,54 @@ fun WidthChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    ring: Boolean = false,
     onLongClick: (() -> Unit)? = null,
 ) {
     val colors = FolioTheme.colors
     val space = FolioTheme.space
-    val motion = FolioTheme.motion
-    val background by animateColorAsState(if (selected) colors.accentSoft else Color.Transparent, motion.fast(), label = "widthBg")
-    val line by animateColorAsState(if (selected) colors.accent else colors.textPrimary, motion.fast(), label = "widthLine")
+    val ringColor by animateColorAsState(
+        if (ring && selected) colors.accent else Color.Transparent,
+        FolioTheme.motion.fast(),
+        label = "widthRing",
+    )
+    val line = colors.iconToolbar
     Box(
         modifier =
             modifier
                 .size(space.touchTarget)
-                .selectableOption(selected, space.buttonVisual / 2, onClick, onLongClick)
+                .selectableOption(selected, space.toolbarCell / 2, onClick, onLongClick)
                 .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(space.buttonVisual).background(background, FolioTheme.shapes.s), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(space.toolbarCell).border(space.selectedBorderWidth, ringColor, FolioTheme.shapes.full),
+            contentAlignment = Alignment.Center,
+        ) {
             Canvas(Modifier.size(WIDTH_GLYPH_LENGTH, space.iconToolbar)) {
                 val y = size.height / 2
                 val inset = strokeWidth.toPx() / 2
                 drawLine(line, Offset(inset, y), Offset(size.width - inset, y), strokeWidth.toPx(), StrokeCap.Round)
             }
         }
+        if (!ring) SelectionDot(selected)
     }
+}
+
+// The 4 dp accent dot under a selected width or color cell.
+@Composable
+private fun BoxScope.SelectionDot(selected: Boolean) {
+    val dot by animateColorAsState(
+        if (selected) FolioTheme.colors.accent else Color.Transparent,
+        FolioTheme.motion.fast(),
+        label = "selectionDot",
+    )
+    Box(
+        Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = FolioTheme.space.s2)
+            .size(FolioTheme.space.indicatorDot)
+            .background(dot, FolioTheme.shapes.full),
+    )
 }
 
 // One option of a radio group with an unbounded ripple of [rippleRadius]; a long press needs combinedClickable.
@@ -158,8 +209,8 @@ private fun Modifier.selectableOption(
     }
 
 /**
- * Segmented chips (library tabs): the selected chip gets the accentSoft background and accent text. [vertical]
- * stacks them (side-docked toolbar rails).
+ * Segmented filter chips: 36 dp stadiums in a 44 dp target; the selected chip gets `accentContainer` and an accent
+ * label. [vertical] stacks them (side-docked toolbar rails).
  */
 @Composable
 fun SegmentedTabs(
@@ -191,19 +242,19 @@ private fun SegmentedTab(
     val colors = FolioTheme.colors
     val space = FolioTheme.space
     val motion = FolioTheme.motion
-    val background by animateColorAsState(if (selected) colors.accentSoft else Color.Transparent, motion.fast(), label = "tabBg")
+    val background by animateColorAsState(if (selected) colors.accentContainer else Color.Transparent, motion.fast(), label = "tabBg")
     val text by animateColorAsState(if (selected) colors.accent else colors.textSecondary, motion.fast(), label = "tabText")
     Box(
         modifier =
             Modifier
                 .height(space.touchTarget)
-                .padding(vertical = space.s2)
-                .clip(FolioTheme.shapes.s)
+                .padding(vertical = (space.touchTarget - space.toolbarCell) / 2)
+                .clip(FolioTheme.shapes.stadium)
                 .background(background)
                 .selectable(selected = selected, role = Role.Tab, onClick = onClick)
                 .padding(horizontal = space.s16),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = label, style = FolioTheme.type.label, color = text)
+        Text(text = label, style = FolioTheme.type.labelSmall, color = text)
     }
 }

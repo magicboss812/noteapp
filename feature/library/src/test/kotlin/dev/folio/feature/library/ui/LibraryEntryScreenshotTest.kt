@@ -1,10 +1,10 @@
 package dev.folio.feature.library.ui
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
+import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.storage.library.LibraryAccessState
 import dev.folio.feature.library.state.LibraryDocItem
 import kotlinx.collections.immutable.persistentListOf
@@ -25,7 +25,7 @@ class LibraryEntryScreenshotTest {
     @Test
     fun entry_needsPermission_showsOnboarding() {
         compose.setContent {
-            MaterialTheme {
+            FolioTheme(darkTheme = false) {
                 LibraryEntryScreen(
                     LibraryAccessState.NeedsPermission("Documents/Folio"),
                     onGrantAccess = {},
@@ -37,14 +37,18 @@ class LibraryEntryScreenshotTest {
 
     @Test
     fun entry_failed_showsMessage() {
-        compose.setContent { MaterialTheme { LibraryEntryScreen(LibraryAccessState.Failed("cannot create .trash"), onGrantAccess = {}) } }
+        compose.setContent {
+            FolioTheme(darkTheme = false) { LibraryEntryScreen(LibraryAccessState.Failed("cannot create .trash"), onGrantAccess = {}) }
+        }
         compose.onRoot().captureRoboImage("src/test/screenshots/LibraryEntry_failed.png")
     }
 
     @Test
     fun entry_ready_showsLibraryPlaceholder() {
         compose.setContent {
-            MaterialTheme { LibraryEntryScreen(LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio-Debug"), onGrantAccess = {}) }
+            FolioTheme(darkTheme = true) {
+                LibraryEntryScreen(LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio-Debug"), onGrantAccess = {})
+            }
         }
         compose.onRoot().captureRoboImage("src/test/screenshots/LibraryEntry_ready.png")
     }
@@ -57,7 +61,7 @@ class LibraryEntryScreenshotTest {
                 LibraryDocItem("Lecture notes.folio", "Lecture notes", "", 1),
             )
         compose.setContent {
-            MaterialTheme {
+            FolioTheme(darkTheme = false) {
                 LibraryEntryScreen(
                     LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio-Debug"),
                     onGrantAccess = {},

@@ -41,7 +41,7 @@ class ToolOptionsScreenshotTest {
     ) {
         compose.setContent {
             FolioTheme(darkTheme = dark) {
-                Box(Modifier.background(FolioTheme.colors.canvasSurround).padding(FolioTheme.space.s16)) { content() }
+                Box(Modifier.background(FolioTheme.colors.canvas).padding(FolioTheme.space.s16)) { content() }
             }
         }
     }

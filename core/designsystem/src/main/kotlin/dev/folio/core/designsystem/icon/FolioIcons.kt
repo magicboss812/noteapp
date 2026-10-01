@@ -7,7 +7,7 @@ package dev.folio.core.designsystem.icon
 
 import androidx.compose.ui.graphics.vector.ImageVector
 
-/** Lucide icons as ImageVectors, stroke 1.75 with round caps and joins (11-design-system.md#icons). */
+/** Lucide icons as ImageVectors, stroke 2 with round caps and joins (11-design-system.md#icons). */
 object FolioIcons {
     /** Every icon with its Lucide name (component catalog). */
     internal val all: List<Pair<String, ImageVector>>

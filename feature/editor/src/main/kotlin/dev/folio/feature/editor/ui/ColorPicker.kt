@@ -43,6 +43,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.folio.core.designsystem.component.ColorDot
+import dev.folio.core.designsystem.component.FolioButton
+import dev.folio.core.designsystem.component.FolioButtonStyle
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.ToolOptions
@@ -53,6 +55,9 @@ private val THUMB_SIZE = 18.dp
 private val THUMB_RING = 2.dp
 private val PREVIEW_SIZE = 32.dp
 private val HEX_FIELD_WIDTH = 96.dp
+
+// Wide enough for 8 recent color cells (8 x 44 dp) plus the popover padding.
+private val COLOR_PICKER_WIDTH = 384.dp
 
 // Endpoints of the HSV color space and the picker thumb's contrast rings: color math, not theme colors.
 private val SPACE_WHITE = Color.White
@@ -82,7 +87,7 @@ internal fun ColorPickerPopover(
         hsv = next
         hex = hexOf(next.toArgb())
     }
-    PopoverCard(if (index == null) "Add color" else "Edit color", modifier) {
+    PopoverCard(if (index == null) "Add color" else "Edit color", modifier, width = COLOR_PICKER_WIDTH) {
         SaturationValueSquare(hsv, pick)
         HueBar(hsv) { hueDeg -> pick(hsv.copy(hueDeg = hueDeg)) }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(space.s12)) {
@@ -108,18 +113,18 @@ internal fun ColorPickerPopover(
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (index != null && dots.colors.size > 1) {
-                PopoverButton("Remove", textColor = colors.danger) {
+                FolioButton("Remove", style = FolioButtonStyle.Text, destructive = true, onClick = {
                     onChange { it.withSwatches(popover.tool, it.swatches(popover.tool).remove(index)) }
                     onClose()
-                }
+                })
             }
             Spacer(Modifier.weight(1f))
-            PopoverButton("Cancel", onClick = onClose)
-            PopoverButton(if (index == null) "Add" else "Apply", filled = true) {
+            FolioButton("Cancel", style = FolioButtonStyle.Text, textColor = colors.textPrimary, onClick = onClose)
+            FolioButton(if (index == null) "Add" else "Apply", onClick = {
                 val argb = hsv.toArgb()
                 onChange { it.withPickedColor(popover.tool, index, argb) }
                 onClose()
-            }
+            })
         }
     }
 }
@@ -136,7 +141,7 @@ private fun SaturationValueSquare(
         Modifier
             .fillMaxWidth()
             .height(SQUARE_HEIGHT)
-            .clip(FolioTheme.shapes.s)
+            .clip(FolioTheme.shapes.tile)
             .semantics { contentDescription = "Saturation and brightness" }
             .pickPosition { x, y -> pick(current.copy(saturation = x, value = 1f - y)) },
     ) {
@@ -203,8 +208,8 @@ private fun HexField(
     val space = FolioTheme.space
     Row(
         Modifier
-            .heightIn(min = space.buttonVisual)
-            .border(space.borderWidth, colors.border, FolioTheme.shapes.s)
+            .heightIn(min = space.touchTarget)
+            .border(space.borderWidth, colors.border, FolioTheme.shapes.field)
             .padding(horizontal = space.s12),
         verticalAlignment = Alignment.CenterVertically,
     ) {

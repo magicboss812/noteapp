@@ -153,3 +153,8 @@ Format:
 - Reason: without a grip on the docked rows there is no way to undock; the options row is needed to change pen width or color while floating; a vertical rail cannot hold horizontal tabs.
 - Impact: 10-editor-ui.md#toolbar-docking.
 
+## A-030 2026-10-01 P04-T10: Notewise look for the design system and editor chrome
+- Change: tokens, type, shapes and components follow the measured `docs/design/notewise/DESIGN.md`. Colors are renamed and extended to its roles (canvasSurround -> canvas, accentSoft -> accentContainer/accentContainerStrong, plus library gradient, surfaceToolbar, iconToolbar, closeChip, accentTrack and others); light values marked "(~)" there are Folio picks. Literata replaces Fraunces for display and card titles; Lucide icons are emitted with stroke 2. Toolbar pills are 44 dp stadiums with a 1 dp border (shadow in light theme only), cells are 36 dp circles inside 44 dp targets, row 1 grows from 52 to 60 dp, color dots shrink to 22 dp with a 4 dp selection dot, eraser sizes use a ring. Popovers get a centered title and a close chip; dialogs use text buttons, and a destructive confirm is danger text without a fill (resolves D-023). The library placeholder uses the library gradient and FolioTheme type. Sticky notes and the TOP/LEFT/RIGHT/FLOAT docks stay (Folio features Notewise lacks).
+- Reason: the user chose Notewise as the visual reference after T01..T04; matching it now is cheaper than after the library and text screens exist.
+- Impact: 11-design-system.md (rewritten), 10-editor-ui.md#toolbar and #tool-options, 07-text-engine.md (Literata), 12-performance.md (font sizes), docs/notes/env.md (fonts).
+

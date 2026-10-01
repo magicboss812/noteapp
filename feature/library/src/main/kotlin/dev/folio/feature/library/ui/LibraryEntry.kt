@@ -4,8 +4,10 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,33 +21,34 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.folio.core.designsystem.component.FolioButton
+import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.storage.library.LibraryAccessState
 import dev.folio.feature.library.state.LibraryDocItem
 import dev.folio.feature.library.state.LibraryEntryViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
-// Placeholder layout constants until the design system tokens exist (P04-T01).
+// Placeholder layout until the library screens (P05): one centered column on the library background.
 private val CONTENT_MAX_WIDTH = 560.dp
-private val GAP = 24.dp
 private val ROW_MIN_HEIGHT = 56.dp
-private val ROW_PADDING = 8.dp
+
+// The library gradient reaches its last stop this far down (DESIGN.md bg.library, light top band).
+private val LIBRARY_BAND = 220.dp
 private const val HEADER_KEY = "header"
 
 /**
@@ -84,21 +87,42 @@ fun LibraryEntryScreen(
     documents: ImmutableList<LibraryDocItem> = persistentListOf(),
     onOpenDocument: (String) -> Unit = {},
 ) {
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    val colors = FolioTheme.colors
+    val bandPx = with(LocalDensity.current) { LIBRARY_BAND.toPx() }
+    val background = Brush.verticalGradient(listOf(colors.libraryTop, colors.libraryMid, colors.libraryBottom), endY = bandPx)
+    Box(modifier = modifier.fillMaxSize().background(colors.libraryBottom).background(background)) {
         when (state) {
-            LibraryAccessState.Checking -> Unit
-            is LibraryAccessState.NeedsPermission -> StorageOnboarding(state.folder, onGrantAccess)
-            is LibraryAccessState.Ready -> LibraryPlaceholder(state.rootPath, documents, onOpenDocument)
-            is LibraryAccessState.Failed -> CenteredColumn { Text(text = "The library folder cannot be used: ${state.message}") }
+            LibraryAccessState.Checking -> {
+                Unit
+            }
+
+            is LibraryAccessState.NeedsPermission -> {
+                StorageOnboarding(state.folder, onGrantAccess)
+            }
+
+            is LibraryAccessState.Ready -> {
+                LibraryPlaceholder(state.rootPath, documents, onOpenDocument)
+            }
+
+            is LibraryAccessState.Failed -> {
+                CenteredColumn {
+                    Text(
+                        text = "The library folder cannot be used: ${state.message}",
+                        style = FolioTheme.type.body,
+                        color = colors.textPrimary,
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun CenteredColumn(content: @Composable ColumnScope.() -> Unit) {
+    val gap = FolioTheme.space.s24
     Column(
-        modifier = Modifier.fillMaxSize().padding(GAP),
-        verticalArrangement = Arrangement.spacedBy(GAP, Alignment.CenterVertically),
+        modifier = Modifier.fillMaxSize().padding(gap),
+        verticalArrangement = Arrangement.spacedBy(gap, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
         content = content,
     )
@@ -109,17 +133,31 @@ private fun StorageOnboarding(
     folder: String,
     onGrantAccess: () -> Unit,
 ) {
+    val colors = FolioTheme.colors
     CenteredColumn {
-        Text(text = "Keep your notes as files", style = MaterialTheme.typography.headlineMedium)
+        Text(text = "Keep your notes as files", style = FolioTheme.type.display, color = colors.textPrimary)
         Text(
             text =
                 "Folio stores every notebook as a normal file in $folder, so you can copy it to a computer or back it up. " +
                     "Android needs you to allow access to all files once for this; Folio never goes online.",
-            style = MaterialTheme.typography.bodyLarge,
+            style = FolioTheme.type.body,
+            color = colors.textSecondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = CONTENT_MAX_WIDTH),
         )
-        Button(onClick = onGrantAccess) { Text("Allow file access") }
+        FolioButton("Allow file access", onClick = onGrantAccess)
+    }
+}
+
+@Composable
+private fun LibraryHeader(
+    rootPath: String,
+    modifier: Modifier = Modifier,
+    horizontalAlignment: Alignment.Horizontal = Alignment.Start,
+) {
+    Column(modifier, horizontalAlignment = horizontalAlignment) {
+        Text(text = "Library", style = FolioTheme.type.display, color = FolioTheme.colors.textPrimary)
+        Text(text = rootPath, style = FolioTheme.type.body, color = FolioTheme.colors.textSecondary)
     }
 }
 
@@ -130,22 +168,17 @@ private fun LibraryPlaceholder(
     onOpenDocument: (String) -> Unit,
 ) {
     if (documents.isEmpty()) {
-        CenteredColumn {
-            Text(text = "Library", style = MaterialTheme.typography.headlineMedium)
-            Text(text = rootPath, style = MaterialTheme.typography.bodyLarge)
-        }
+        CenteredColumn { LibraryHeader(rootPath, horizontalAlignment = Alignment.CenterHorizontally) }
         return
     }
+    val space = FolioTheme.space
     LazyColumn(
         modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
-        contentPadding = PaddingValues(GAP),
+        contentPadding = PaddingValues(space.s24),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         item(key = HEADER_KEY) {
-            Column(Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxWidth().padding(bottom = GAP)) {
-                Text(text = "Library", style = MaterialTheme.typography.headlineMedium)
-                Text(text = rootPath, style = MaterialTheme.typography.bodyLarge)
-            }
+            LibraryHeader(rootPath, Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxWidth().padding(bottom = space.s24))
         }
         items(documents, key = { it.path }) { doc -> DocumentRow(doc, onOpenDocument) }
     }
@@ -156,6 +189,7 @@ private fun DocumentRow(
     doc: LibraryDocItem,
     onOpenDocument: (String) -> Unit,
 ) {
+    val colors = FolioTheme.colors
     Column(
         modifier =
             Modifier
@@ -163,44 +197,40 @@ private fun DocumentRow(
                 .fillMaxWidth()
                 .heightIn(min = ROW_MIN_HEIGHT)
                 .clickable(onClickLabel = "Open") { onOpenDocument(doc.path) }
-                .padding(vertical = ROW_PADDING),
+                .padding(vertical = FolioTheme.space.s8),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(text = doc.title, style = MaterialTheme.typography.titleMedium)
+        Text(text = doc.title, style = FolioTheme.type.cardTitle, color = colors.textPrimary)
         val folder = doc.folder.ifEmpty { "Library" }
         val pages = if (doc.pageCount == 1) "1 page" else "${doc.pageCount} pages"
-        Text(
-            text = "$folder · $pages",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Text(text = "$folder · $pages", style = FolioTheme.type.caption, color = colors.textTertiary)
     }
 }
 
 @Preview(name = "onboarding light", widthDp = 1164, heightDp = 777)
 @Composable
 private fun OnboardingLightPreview() {
-    MaterialTheme { LibraryEntryScreen(LibraryAccessState.NeedsPermission("Documents/Folio"), onGrantAccess = {}) }
+    FolioTheme(darkTheme = false) { LibraryEntryScreen(LibraryAccessState.NeedsPermission("Documents/Folio"), onGrantAccess = {}) }
 }
 
 @Preview(name = "onboarding dark", widthDp = 1164, heightDp = 777, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun OnboardingDarkPreview() {
-    MaterialTheme(colorScheme = darkColorScheme()) {
-        LibraryEntryScreen(LibraryAccessState.NeedsPermission("Documents/Folio"), onGrantAccess = {})
-    }
+    FolioTheme(darkTheme = true) { LibraryEntryScreen(LibraryAccessState.NeedsPermission("Documents/Folio"), onGrantAccess = {}) }
 }
 
 @Preview(name = "library light", widthDp = 1164, heightDp = 777)
 @Composable
 private fun LibraryLightPreview() {
-    MaterialTheme { LibraryEntryScreen(LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio"), onGrantAccess = {}) }
+    FolioTheme(darkTheme = false) {
+        LibraryEntryScreen(LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio"), onGrantAccess = {})
+    }
 }
 
 @Preview(name = "library dark", widthDp = 1164, heightDp = 777, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun LibraryDarkPreview() {
-    MaterialTheme(colorScheme = darkColorScheme()) {
+    FolioTheme(darkTheme = true) {
         LibraryEntryScreen(LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio"), onGrantAccess = {})
     }
 }
