@@ -1,5 +1,6 @@
 # Visual references
 Two marketing screenshots of Notewise, provided by the user as the visual direction (R-UI-01). Use them for layout, density, and mood.
+The measured reference is `docs/design/notewise/DESIGN.md` (captured on the tablet, shots in `docs/design/notewise/shots/`, method in `CAPTURE.md`). Where both exist, DESIGN.md wins.
 
 ## editor-tools-reference.png
 Take:

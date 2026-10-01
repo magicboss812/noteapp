@@ -70,7 +70,8 @@ Native Android hybrid note app (pen ink + grid-snapped Markdown text) for one de
 | Performance numbers | `docs/notes/perf.md` (budgets: `12-performance.md`) |
 | Longer gotchas | `docs/notes/gotchas.md` |
 | Coding rules | `.claude/rules/*.md` (load automatically by path) |
-| Visual direction | `docs/design/reference/*.png` + `11-design-system.md` |
+| Visual direction | `docs/design/notewise/DESIGN.md` (measured), `docs/design/reference/`, `11-design-system.md` |
+| User feedback intake | `docs/plan/FEEDBACK.md` (-> tasks at every REVIEW) |
 
 ## Definition of done (every task)
 - All `Accept:` items verified; touched modules pass spotless, detekt, lint, unit tests. Full `./gradlew qa` at phase end.

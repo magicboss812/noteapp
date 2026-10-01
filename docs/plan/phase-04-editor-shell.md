@@ -44,6 +44,23 @@ Accept:
 - [ ] user: "Drag the toolbar to each side and float it. Does it feel smooth and stay where you left it after reopening?"
 Verify: screenshots + device-tester smoke
 
+### P04-T10 Design overhaul from the Notewise capture
+Model: opus high
+Implements: R-UI-01
+Read: docs/design/notewise/DESIGN.md (all), 11-design-system.md (all), docs/design/reference/README.md
+Files: docs/architecture/11-design-system.md, core/designsystem/**, feature/editor/**/ui/**, feature/library/** (placeholder)
+Do: runs before T05 so T05..T09 and P05 build on the new look (user request 2026-10-01).
+1. Needs `docs/design/notewise/DESIGN.md` (user runs `scripts/auto/notewise-capture.sh`). Missing: keep the STATUS Blocked line with `[STOP]`, stop.
+2. Rewrite 11-design-system.md from DESIGN.md: Notewise values (colors, type, spacing, radii, elevation, icon size/stroke, component specs) are adopted directly. Folio keeps its name, copy, Lucide icons (matched to Notewise size and stroke), its tool set (10-editor-ui.md) and leaves out AI, Shared, account and cloud UI. AMENDMENTS entry.
+3. core:designsystem: tokens (light + dark), typography, shapes, components (toolbar pills, segmented tabs, chips, color dots, popovers, sheets, dialogs incl. D-023 contrast, cards, snackbar).
+4. Restyle what T01..T04 built: editor row 1, row 2 / options row, side rails, floating pill, popovers, library placeholder.
+5. Context: work from DESIGN.md numbers. View at most 4 images from `docs/design/notewise/shots/`, only to settle a value DESIGN.md leaves open. Sub-commits P04-T10a (doc + tokens), b (components + editor chrome), c (goldens) as needed.
+Accept:
+- [ ] unit: token table test (every DESIGN.md color/size token used by Folio equals its token value)
+- [ ] screenshot: designsystem and editor goldens re-recorded; commit body pairs each golden with its Notewise shot
+- [ ] user: open the library placeholder and a note on the tablet -> toolbar, options row, popovers, colors and type read as Notewise; differences go to docs/plan/FEEDBACK.md
+Verify: `./gradlew :core:designsystem:testDebugUnitTest :feature:editor:testDebugUnitTest verifyRoborazziDebug`
+
 ### P04-T05 Undo/redo and shortcut foundation
 Model: sonnet high
 Implements: R-FILE-05, R-UI-05

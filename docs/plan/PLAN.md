@@ -22,7 +22,7 @@
 | P10 | phase-10-infinite-split.md | Infinite canvas conversion and mode, split view panes | Both work on device |
 | P11 | phase-11-polish.md | Settings, dark UI, motion pass, shortcuts, baseline profile, release build, hardening | All budgets met; USER-CHECK list empty |
 
-Deferred scope: `BACKLOG.md`. Spec changes: `AMENDMENTS.md`.
+Deferred scope: `BACKLOG.md`. Spec changes: `AMENDMENTS.md`. User feedback: `FEEDBACK.md` (turned into tasks at every REVIEW; `[now]` entries at the next session).
 
 ## Task block format
 ```
@@ -67,7 +67,7 @@ updated: YYYY-MM-DD
 ## Handoff (<= 5 lines, overwritten each session)
 - ...
 ```
-Rules: Blocked items do not stop the unattended run; only a line ending in `[STOP]` does (next-task skill section 7). A user answers a Blocked item by writing under it or deleting it, and removes `[STOP]` when answering; USER-CHECK lines get `-> ok` or `-> fail: ...` appended by the user. At session start, process answered items first (fail -> create a fix task note in Handoff and fix before continuing).
+Rules: Blocked items do not stop the unattended run; only a line ending in `[STOP]` does (next-task skill section 7). A user answers a Blocked item by writing under it or deleting it, and removes `[STOP]` when answering; USER-CHECK lines get `-> ok` or `-> fail: ...` appended by the user. At session start, process answered items first (fail -> create a fix task note in Handoff and fix before continuing). Deferred items name the task that will do them (`-> PNN-TNN`); the REVIEW intake (next-task section 8) gives every other one a task.
 
 ## Kit manifest (verified in the bootstrap session)
 - CLAUDE.md, README.md, BOOTSTRAP_PROMPT.md, .gitignore, .gitattributes
@@ -76,7 +76,7 @@ Rules: Blocked items do not stop the unattended run; only a line ending in `[STO
 - .claude/rules/: kotlin.md, architecture-boundaries.md, gradle.md, compose-ui.md, ink-and-input.md, rendering.md, text-engine.md, file-format-storage.md, pdf.md, testing.md, memory-files.md, docs.md
 - .claude/skills/: next-task, device-test, spike, maintain-memory (each SKILL.md)
 - .claude/agents/: reviewer.md, device-tester.md
-- scripts/env/doctor.sh, scripts/auto/run-loop.sh
+- scripts/env/doctor.sh, scripts/auto/run-loop.sh, scripts/auto/notewise-capture.sh, scripts/design/ (nw.sh, DesignTool.java)
 - scripts/device/: _common.sh, connect.sh, info.sh, install.sh, launch.sh, stop.sh, clear-data.sh, grant-storage.sh, screenshot.sh, input.sh, logcat.sh, gfxinfo.sh, diag.sh, debugcmd.sh, push-fixture.sh, pull.sh, wipe-debug-library.sh, instrumented.sh
 - docs/architecture/: 00-overview.md .. 12-performance.md, decisions.md
 - docs/plan/: PLAN.md, STATUS.md, AMENDMENTS.md, BACKLOG.md, phase-00 .. phase-11
