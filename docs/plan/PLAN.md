@@ -27,6 +27,7 @@ Deferred scope: `BACKLOG.md`. Spec changes: `AMENDMENTS.md`.
 ## Task block format
 ```
 ### PNN-TNN Title
+Model: sonnet|opus high|xhigh   (run-loop.sh model + effort for this task; no line = opus high; REVIEW = opus high)
 Implements: R-IDs from 01-requirements.md
 Read: file.md#anchor, ...
 Files: main paths (guidance, not a limit)
