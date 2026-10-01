@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P04
-next: P04-T05
+next: P04-T06
 updated: 2026-10-02
 
 ## Completed
@@ -11,10 +11,11 @@ updated: 2026-10-02
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
 
 ## Current phase progress
-- P04: T01, T02, T03, T04, T10
+- P04: T01, T02, T03, T04, T10, T05 (device check pending)
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck P03-REVIEW (no grant-storage.sh, after `pm clear`): the app still reports All files access granted and shows the library. The toggle is not in the app's permission list: open Settings > Privacy (or Apps) > Special app access (Special permissions) > All files access > Folio Debug > off, then write "-> revoked" here; or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else. [revoked]
+- P04-T05 device check not run (no tablet: connect.sh found 0 devices): connect the Pad 7 (Wireless debugging on, unlocked), then have device-tester run: Ctrl+Z undoes the last stroke (`input.sh combo CTRL_LEFT Z`), Ctrl+Y redoes, Alt+3 eraser / Alt+1 pen, Ctrl+/ help sheet + Esc, PageDown/PageUp, Ctrl+= / Ctrl+0 zoom. Blocks nothing else.
 
 ## USER-CHECK (human verification; non-blocking)
 - P03-REVIEW (D-017, your "no thin ring visible"): install the debug app, open a document, hold the Focus Pen just above the page -> a thin dark ring (light edge) follows the tip, at least pen-dot size; the system hover dot is gone over the canvas; the ring disappears when the pen touches or leaves. If still no ring, keep the app open and write "no ring": Claude reads `hoverEvents` from debug `state` (0 = hover never reaches the canvas). [Checked, ring is there]
@@ -41,10 +42,11 @@ updated: 2026-10-02
 - D-022 P03-REVIEW: an erase gesture right after a pen lift cannot erase strokes still in the dry handoff (snapshot = committed document); include pending strokes (P07 or P11).
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 - D-025 P04-T04: handedness is modeled and stored (`ToolbarDocks.withHandedness`, A-029) but has no toggle; add it to the settings Toolbar section (10-editor-ui.md#settings) when feature:settings is built.
+- D-026 P04-T05: Alt+9 (Ruler toggle) is not bound and the help sheet lacks later groups (text, selection, Ctrl+N/O/F/W/S/\); each feature task adds its group to `ShortcutRegistry.DEFAULT_GROUPS` (P05, P06, P07, P10).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P04-T10 done (A-030): Notewise tokens/components; build new UI from `docs/design/notewise/DESIGN.md` + 11-design-system.md (FolioButton, FolioPopover, CloseChip, PillDivider, NoteCard/FolderCard). TokensTest parses DESIGN.md: keep both in sync.
+- P04-T05 code done and committed (unit, detekt, lint, Roborazzi green); only its device check is open (Blocked, tablet was not connected).
+- Shortcuts: `ShortcutRegistry` (state/) is the single key table; `EditorViewModel.onKey` performs actions; canvas actions go via `CanvasController.viewCommands` to `CanvasHostView.perform`. Row 2 = `ToolRow2` (undo pill + options).
+- Next: T06 page management. Build UI from `docs/design/notewise/DESIGN.md` + 11-design-system.md; TokensTest parses DESIGN.md.
 - Known nit: FolderCard back page overlaps the folder name (catalog golden); fix with the P05 library cards.
-- FEEDBACK.md turns into tasks at every REVIEW (D-018, D-009, D-020 ... at the P04 REVIEW).
-- Next: T05 undo/redo + shortcuts. Row 1 / rails come from `EditorToolbarRow1` (vertical flag, 60 dp); popovers anchor via `PopoverAnchor`.
-- `FolioIcons.kt` is generated: add a Lucide 1.49.0 SVG to tools/icongen/src/main/resources/lucide, run `./gradlew :tools:icongen:run` (A-027).
+- FEEDBACK.md turns into tasks at every REVIEW. `FolioIcons.kt` is generated (A-027): `./gradlew :tools:icongen:run`.

@@ -1,5 +1,6 @@
 package dev.folio.feature.editor.state
 
+import android.view.KeyEvent
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
@@ -26,12 +27,17 @@ import dev.folio.core.testing.FakeClock
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.testing.TempDirFolioFs
 import dev.folio.core.testing.TestDispatchersRule
+import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasTool
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -188,6 +194,84 @@ class EditorViewModelTest {
                     .getValue(page)
                     .objects,
             ).hasSize(1)
+        }
+
+    @Test
+    fun keys_ctrlZ_undoesAndCtrlShiftZ_redoes_stateFollows() =
+        editorTest {
+            val vm = viewModel(createDoc("Keys"))
+            val session = vm.opened()
+            val page =
+                session.document.value.pages[0]
+                    .id
+            session.documentSession.loadPages(listOf(page))
+            session.execute(AddObjects(page, listOf(ModelFixtures.randomObject(Random(5)))))
+            vm.awaitState { it.canUndo }
+            val objects = {
+                session.document.value.pageBodies
+                    .getValue(page)
+                    .objects
+            }
+
+            assertThat(vm.onKey(KeyEvent.KEYCODE_Z, ctrl = true, shift = false, alt = false)).isTrue()
+            vm.awaitState { it.canRedo && !it.canUndo }
+            assertThat(objects()).isEmpty()
+
+            assertThat(vm.onKey(KeyEvent.KEYCODE_Y, ctrl = true, shift = false, alt = false)).isTrue()
+            vm.awaitState { it.canUndo && !it.canRedo }
+            assertThat(objects()).hasSize(1)
+        }
+
+    @Test
+    fun keys_altDigitSelectsTool_unboundKeyIsNotConsumed() =
+        editorTest {
+            val vm = viewModel(createDoc("Alt"))
+            vm.opened()
+
+            assertThat(vm.onKey(KeyEvent.KEYCODE_3, ctrl = false, shift = false, alt = true)).isTrue()
+            assertThat(vm.awaitState { it.tool == EditorTool.ERASER }.tool).isEqualTo(EditorTool.ERASER)
+            assertThat(vm.onKey(KeyEvent.KEYCODE_A, ctrl = false, shift = false, alt = false)).isFalse()
+        }
+
+    @Test
+    fun keys_escapeClosesHelpThenPopover_thenIsNotConsumed() =
+        editorTest {
+            val vm = viewModel(createDoc("Esc"))
+            vm.opened()
+            vm.showPopover(OptionsPopover.PenSettings)
+            assertThat(vm.onKey(KeyEvent.KEYCODE_SLASH, ctrl = true, shift = false, alt = false)).isTrue()
+            assertThat(vm.awaitState { it.showHelp }.popover).isEqualTo(OptionsPopover.PenSettings)
+
+            assertThat(vm.onKey(KeyEvent.KEYCODE_ESCAPE, ctrl = false, shift = false, alt = false)).isTrue()
+            assertThat(vm.awaitState { !it.showHelp }.popover).isEqualTo(OptionsPopover.PenSettings)
+            assertThat(vm.onKey(KeyEvent.KEYCODE_ESCAPE, ctrl = false, shift = false, alt = false)).isTrue()
+            assertThat(vm.awaitState { it.popover == null }.showHelp).isFalse()
+            assertThat(vm.onKey(KeyEvent.KEYCODE_ESCAPE, ctrl = false, shift = false, alt = false)).isFalse()
+        }
+
+    @Test
+    fun keys_zoomAndPageKeys_reachTheCanvasAsCommands() =
+        editorTest {
+            val vm = viewModel(createDoc("Canvas"))
+            val session = vm.opened()
+            // Subscribed before the first key: commands sent while no host collects are dropped.
+            val received = async(start = CoroutineStart.UNDISPATCHED) { session.viewCommands.take(3).toList() }
+
+            vm.onKey(KeyEvent.KEYCODE_EQUALS, ctrl = true, shift = false, alt = false)
+            vm.onKey(KeyEvent.KEYCODE_PAGE_DOWN, ctrl = false, shift = false, alt = false)
+            vm.onKey(KeyEvent.KEYCODE_MOVE_END, ctrl = true, shift = false, alt = false)
+
+            assertThat(received.await())
+                .containsExactly(CanvasCommand.ZOOM_IN, CanvasCommand.NEXT_PAGE, CanvasCommand.LAST_PAGE)
+                .inOrder()
+        }
+
+    @Test
+    fun keys_beforeTheDocumentIsOpen_areNotConsumed() =
+        editorTest {
+            val vm = viewModel("missing.folio")
+
+            assertThat(vm.onKey(KeyEvent.KEYCODE_Z, ctrl = true, shift = false, alt = false)).isFalse()
         }
 
     @Test

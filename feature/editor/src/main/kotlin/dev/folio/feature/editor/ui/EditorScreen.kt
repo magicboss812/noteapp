@@ -3,6 +3,7 @@ package dev.folio.feature.editor.ui
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -29,8 +31,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
@@ -51,6 +61,8 @@ import dev.folio.feature.editor.state.EditorUiState
 import dev.folio.feature.editor.state.EditorViewModel
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.ScreenOrientation
+import dev.folio.feature.editor.state.ShortcutGroup
+import dev.folio.feature.editor.state.ShortcutRegistry
 import dev.folio.feature.editor.state.ToolOptions
 import dev.folio.feature.editor.state.ToolbarPlacement
 
@@ -76,6 +88,10 @@ fun EditorRoute(
         onPopover = viewModel::showPopover,
         onClearPage = viewModel::clearCurrentPage,
         onPlaceToolbar = viewModel::placeToolbar,
+        onUndo = viewModel::undo,
+        onRedo = viewModel::redo,
+        onHelp = viewModel::showHelp,
+        onKey = viewModel::onKey,
     ) { canvasModifier ->
         session?.let { EditorCanvas(it, canvasListener, canvasModifier) }
     }
@@ -107,6 +123,11 @@ fun EditorScreen(
     onPopover: (OptionsPopover?) -> Unit = {},
     onClearPage: () -> Unit = {},
     onPlaceToolbar: (ScreenOrientation, ToolbarPlacement) -> Unit = { _, _ -> },
+    onUndo: () -> Unit = {},
+    onRedo: () -> Unit = {},
+    onHelp: (Boolean) -> Unit = {},
+    onKey: (keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean) -> Boolean = { _, _, _, _ -> false },
+    shortcutGroups: List<ShortcutGroup> = ShortcutRegistry.DEFAULT_GROUPS,
     canvas: @Composable (Modifier) -> Unit,
 ) {
     val colors = FolioTheme.colors
@@ -124,8 +145,21 @@ fun EditorScreen(
     val placement = drag.pending ?: stored
     val canvasPadding = canvasPadding(placement.mode)
     val gestures = rememberToolbarGestures(drag, placement, orientation, onPlaceToolbar)
+    // Hardware keys reach the registry from the screen root; it holds focus while no popover or field does.
+    val keyFocus = remember { FocusRequester() }
+    val ready = state.status == EditorStatus.READY
+    LaunchedEffect(ready, state.popover == null) { if (ready && state.popover == null) keyFocus.requestFocus() }
     // No app bar: the pills sit on bg.canvas like the pages (DESIGN.md section 8).
-    Box(modifier.fillMaxSize().background(colors.canvas)) {
+    Box(
+        modifier
+            .onKeyEvent { event ->
+                event.type == KeyEventType.KeyDown &&
+                    onKey(event.nativeKeyEvent.keyCode, event.isCtrlPressed, event.isShiftPressed, event.isAltPressed)
+            }.focusRequester(keyFocus)
+            .focusable()
+            .fillMaxSize()
+            .background(colors.canvas),
+    ) {
         Box(Modifier.fillMaxSize().padding(canvasPadding), contentAlignment = Alignment.Center) {
             when (state.status) {
                 EditorStatus.OPENING -> {
@@ -147,7 +181,7 @@ fun EditorScreen(
                 }
             }
         }
-        EditorChrome(state, placement, drag, gestures, onBack, onSelectTool, onOptionsChange, onPopover)
+        EditorChrome(state, placement, drag, gestures, onBack, onSelectTool, onOptionsChange, onPopover, onUndo, onRedo)
         if (state.status == EditorStatus.READY) {
             OptionsPopoverLayer(
                 state.popover,
@@ -158,6 +192,7 @@ fun EditorScreen(
                 modifier = Modifier.padding(canvasPadding),
                 anchor = placement.mode.popoverAnchor,
             )
+            if (state.showHelp) ShortcutHelp(shortcutGroups, onClose = { onHelp(false) })
         }
     }
 }
@@ -206,6 +241,8 @@ private fun EditorChrome(
     onSelectTool: (EditorTool) -> Unit,
     onOptionsChange: ((ToolOptions) -> ToolOptions) -> Unit,
     onPopover: (OptionsPopover?) -> Unit,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
 ) {
     val space = FolioTheme.space
     val motion = FolioTheme.motion
@@ -213,10 +250,9 @@ private fun EditorChrome(
     val mode = placement.mode
     val ready = state.status == EditorStatus.READY
     val dragging by remember(drag) { derivedStateOf { drag.offset != null } }
-    val options: @Composable (Modifier, Modifier, Boolean) -> Unit = { rowModifier, pillModifier, vertical ->
-        if (ready) {
-            ToolOptionsRow(state.tool, state.options, onOptionsChange, onPopover, rowModifier, pillModifier, vertical)
-        }
+    // Row 2: the undo pill and the options pill, spread across the top, stacked on a rail, or side by side when floating.
+    val options: @Composable (Modifier, Modifier, Row2Layout) -> Unit = { rowModifier, pillModifier, layout ->
+        if (ready) ToolRow2(state, onOptionsChange, onPopover, onUndo, onRedo, layout, rowModifier, pillModifier)
     }
     val dockedGrip: @Composable (Boolean) -> Unit = { vertical ->
         ToolbarGrip(gestures.startDocked, gestures.move, gestures.release, vertical = vertical)
@@ -243,7 +279,7 @@ private fun EditorChrome(
                         options(
                             Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Horizontal)),
                             Modifier.padding(horizontal = space.chromeInset),
-                            false,
+                            Row2Layout.SPREAD,
                         )
                     }
                 }
@@ -265,8 +301,8 @@ private fun EditorChrome(
                         val optionsRail: @Composable () -> Unit = {
                             options(
                                 Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Vertical)),
-                                Modifier.padding(vertical = space.chromeInset),
-                                true,
+                                Modifier.padding(bottom = space.chromeInset),
+                                Row2Layout.RAIL,
                             )
                         }
                         // Row 1 is the outer rail, row 2 the inner one (10-editor-ui.md#toolbar-docking).
@@ -291,7 +327,7 @@ private fun EditorChrome(
                                 ToolbarGrip(gestures.startFloating, gestures.move, gestures.release, onDoubleTap = gestures.toggleCollapsed)
                             },
                             modifier = Modifier.offset { drag.topLeft(placement) }.floatingPill(drag),
-                            options = { options(Modifier, Modifier, false) },
+                            options = { options(Modifier, Modifier, Row2Layout.ROW) },
                         )
                     }
                 }
@@ -313,6 +349,51 @@ private fun EditorChrome(
                     grip = { ToolbarGrip(onDragStart = {}, onDrag = {}, onDragEnd = {}) },
                     modifier = Modifier.offset { drag.topLeft(placement) }.floatingPill(drag),
                 )
+            }
+        }
+    }
+}
+
+// How row 2 lays out the undo pill and the options pill (see ToolRow2).
+private enum class Row2Layout { SPREAD, RAIL, ROW }
+
+// Row 2: the undo pill and the options pill, spread across the top, stacked on a rail, or side by side when floating.
+@Composable
+private fun ToolRow2(
+    state: EditorUiState,
+    onOptionsChange: OptionsChange,
+    onPopover: (OptionsPopover?) -> Unit,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
+    layout: Row2Layout,
+    rowModifier: Modifier = Modifier,
+    pillModifier: Modifier = Modifier,
+) {
+    val inset = FolioTheme.space.chromeInset
+    val vertical = layout == Row2Layout.RAIL
+    val history: @Composable (Modifier) -> Unit = { UndoRedoPill(state.canUndo, state.canRedo, onUndo, onRedo, it, vertical) }
+    val tools: @Composable (Modifier) -> Unit = {
+        ToolOptionsRow(state.tool, state.options, onOptionsChange, onPopover, it, pillModifier, vertical)
+    }
+    when (layout) {
+        Row2Layout.SPREAD -> {
+            Box(rowModifier.fillMaxWidth()) {
+                history(Modifier.align(Alignment.CenterStart).padding(horizontal = inset))
+                tools(Modifier.align(Alignment.TopCenter))
+            }
+        }
+
+        Row2Layout.RAIL -> {
+            Column(rowModifier) {
+                history(Modifier.padding(top = inset))
+                tools(Modifier)
+            }
+        }
+
+        Row2Layout.ROW -> {
+            Row(rowModifier, horizontalArrangement = Arrangement.spacedBy(inset)) {
+                history(Modifier)
+                tools(Modifier)
             }
         }
     }

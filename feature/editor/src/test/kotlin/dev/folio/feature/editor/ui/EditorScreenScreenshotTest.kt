@@ -80,6 +80,27 @@ class EditorScreenScreenshotTest {
 
     @Test
     @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeUndoAvailableHelpOpen_shortcutSheetOverCanvas() {
+        val controller = FakeCanvasController(pages = 2)
+        compose.setContent {
+            FolioTheme {
+                EditorScreen(
+                    EditorUiState(EditorStatus.READY, canUndo = true, showHelp = true),
+                    onBack = {},
+                    onSelectTool = {},
+                ) {
+                    CanvasHost(controller, it)
+                }
+            }
+        }
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(CanvasHostView.IDLE_MS * 2))
+        compose.waitForIdle()
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_shortcutHelp.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
     fun editor_landscapeDockedLeft_railsBesideCanvas() {
         showReady(placement = ToolbarPlacement(DockMode.LEFT))
         compose.onRoot().captureRoboImage("src/test/screenshots/Editor_dockLeft_landscape.png")

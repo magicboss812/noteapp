@@ -55,6 +55,22 @@ internal typealias OptionsChange = ((ToolOptions) -> ToolOptions) -> Unit
 internal val EditorTool.hasOptions: Boolean
     get() = this == EditorTool.PEN || this == EditorTool.HIGHLIGHTER || this == EditorTool.ERASER
 
+/** Row 2 left pill: undo and redo, disabled while there is no step (10-editor-ui.md#toolbar). */
+@Composable
+internal fun UndoRedoPill(
+    canUndo: Boolean,
+    canRedo: Boolean,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
+    modifier: Modifier = Modifier,
+    vertical: Boolean = false,
+) {
+    PillGroup(modifier, orientation = if (vertical) PillOrientation.Vertical else PillOrientation.Horizontal) {
+        FolioIconButton(FolioIcons.Undo2, "Undo", onUndo, enabled = canUndo)
+        FolioIconButton(FolioIcons.Redo2, "Redo", onRedo, enabled = canRedo)
+    }
+}
+
 /**
  * Toolbar row 2 (10-editor-ui.md#tool-options): the options pill of [tool], floating over the canvas. It
  * scrolls with fade edges when it does not fit. Long-press a width or color to edit it. [vertical] lays it

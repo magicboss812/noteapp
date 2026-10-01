@@ -40,6 +40,10 @@ data class EditorUiState(
     val tool: EditorTool = EditorTool.PEN,
     val options: ToolOptions = ToolOptions(),
     val popover: OptionsPopover? = null,
+    val canUndo: Boolean = false,
+    val canRedo: Boolean = false,
+    /** Whether the shortcut help sheet is open. */
+    val showHelp: Boolean = false,
     /** Toolbar placement per orientation (10-editor-ui.md#toolbar-docking); known before the document opens. */
     val docks: ToolbarDocks = ToolbarDocks(),
 )
@@ -82,6 +86,8 @@ class EditorViewModel
         private val toolOptions: ToolOptionsStore,
         private val toolbarDocks: ToolbarDockStore,
     ) : ViewModel() {
+        private val shortcuts = ShortcutRegistry()
+
         /** Creates the ViewModel of one editor destination. */
         @AssistedFactory
         interface Factory {
@@ -95,6 +101,7 @@ class EditorViewModel
         private val mutableSession = MutableStateFlow<EditorSession?>(null)
         private val failure = MutableStateFlow<String?>(null)
         private val mutablePopover = MutableStateFlow<OptionsPopover?>(null)
+        private val mutableHelp = MutableStateFlow(false)
         private val docks = MutableStateFlow(ToolbarDocks())
 
         // Stored one at a time in order; conflated, so only the latest of quick changes is written.
@@ -117,8 +124,15 @@ class EditorViewModel
                         }
 
                         else -> {
-                            combine(session.tool, session.options, mutablePopover) { tool, options, popover ->
-                                EditorUiState(EditorStatus.READY, null, tool, options, popover)
+                            val history = combine(session.canUndo, session.canRedo, ::Pair)
+                            combine(
+                                session.tool,
+                                session.options,
+                                mutablePopover,
+                                history,
+                                mutableHelp,
+                            ) { tool, options, popover, h, help ->
+                                EditorUiState(EditorStatus.READY, null, tool, options, popover, h.first, h.second, help)
                             }
                         }
                     }
@@ -183,6 +197,85 @@ class EditorViewModel
             placement: ToolbarPlacement,
         ) {
             dockSaves.trySend(docks.updateAndGet { it.with(orientation, placement) })
+        }
+
+        /** Undoes the last step (toolbar button). */
+        fun undo() {
+            val session = mutableSession.value ?: return
+            viewModelScope.launch { session.undo() }
+        }
+
+        /** Redoes the last undone step (toolbar button). */
+        fun redo() {
+            val session = mutableSession.value ?: return
+            viewModelScope.launch { session.redo() }
+        }
+
+        /** Opens or closes the shortcut help sheet. */
+        fun showHelp(show: Boolean) {
+            mutableHelp.value = show
+        }
+
+        /**
+         * Runs the shortcut for a key press; false if no shortcut is bound (or nothing to do for Esc), so
+         * the key goes on to whoever else wants it. Needs the document open.
+         */
+        fun onKey(
+            keyCode: Int,
+            ctrl: Boolean,
+            shift: Boolean,
+            alt: Boolean,
+        ): Boolean {
+            val session = mutableSession.value ?: return false
+            val action = shortcuts.actionFor(keyCode, ctrl, shift, alt) ?: return false
+            return perform(session, action)
+        }
+
+        private fun perform(
+            session: EditorSession,
+            action: EditorAction,
+        ): Boolean {
+            when (action) {
+                EditorAction.Undo -> {
+                    undo()
+                }
+
+                EditorAction.Redo -> {
+                    redo()
+                }
+
+                is EditorAction.SelectTool -> {
+                    selectTool(action.tool)
+                }
+
+                is EditorAction.Canvas -> {
+                    session.sendCanvasCommand(action.command)
+                }
+
+                EditorAction.ToggleHelp -> {
+                    mutableHelp.value = !mutableHelp.value
+                }
+
+                EditorAction.Escape -> {
+                    // Closes one layer per press: help first, then a popover.
+                    return when {
+                        mutableHelp.value -> {
+                            mutableHelp.value = false
+                            true
+                        }
+
+                        mutablePopover.value != null -> {
+                            mutablePopover.value = null
+                            true
+                        }
+
+                        else -> {
+                            false
+                        }
+                    }
+                }
+            }
+            return true
         }
 
         /** Removes the ink (or only the highlighter ink) of the current page as one undo step. */

@@ -37,6 +37,7 @@ import dev.folio.core.render.tiles.VisiblePage
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.ViewportMode
 import dev.folio.core.render.viewport.ZoomBuckets
+import dev.folio.core.render.viewport.pageIndexAt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
@@ -345,6 +346,38 @@ class CanvasHostView internal constructor(
         animator.scrollToPage(index, durationMs)
     }
 
+    /** Runs a viewport [command] (keyboard shortcuts); page commands apply to the page stack only. */
+    internal fun perform(command: CanvasCommand) {
+        val stack = viewport.layout ?: return
+        val zoom = viewport.zoom
+        when (command) {
+            CanvasCommand.ZOOM_IN -> {
+                animateZoom(zoom, zoom * KEY_ZOOM_STEP, KEY_ANIMATION_MS)
+            }
+
+            CanvasCommand.ZOOM_OUT -> {
+                animateZoom(zoom, zoom / KEY_ZOOM_STEP, KEY_ANIMATION_MS)
+            }
+
+            CanvasCommand.FIT_WIDTH -> {
+                animateZoom(zoom, 1f, KEY_ANIMATION_MS)
+            }
+
+            else -> {
+                if (viewport.mode !is ViewportMode.Stack || stack.size == 0) return
+                val current = viewport.pageIndexAt(viewport.viewHeightPx / 2f).coerceIn(0, stack.size - 1)
+                val target =
+                    when (command) {
+                        CanvasCommand.PREVIOUS_PAGE -> current - 1
+                        CanvasCommand.NEXT_PAGE -> current + 1
+                        CanvasCommand.FIRST_PAGE -> 0
+                        else -> stack.size - 1
+                    }
+                scrollToPage(target.coerceIn(0, stack.size - 1), KEY_ANIMATION_MS)
+            }
+        }
+    }
+
     /** True while a fling or a scripted animation moves the viewport. */
     val isAnimating: Boolean get() = gestures.isFlinging || animator.isRunning
 
@@ -642,6 +675,10 @@ class CanvasHostView internal constructor(
         }
 
         private const val DEFAULT_LARGE_MEMORY_MB = 512
+
+        // Keyboard zoom and page jumps: one step zooms by 25%, animated over 150 ms.
+        private const val KEY_ZOOM_STEP = 1.25f
+        private const val KEY_ANIMATION_MS = 150L
     }
 }
 

@@ -9,7 +9,9 @@ import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.render.viewport.Viewport
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
 
 /** What the stylus tip does on the canvas (the toolbar picks it, P04). */
 enum class CanvasTool {
@@ -18,6 +20,17 @@ enum class CanvasTool {
 
     /** Erases with [CanvasController.eraserOptions]. */
     ERASER,
+}
+
+/** Viewport actions the editor asks of the canvas host (keyboard shortcuts, later page navigation UI). */
+enum class CanvasCommand {
+    ZOOM_IN,
+    ZOOM_OUT,
+    FIT_WIDTH,
+    PREVIOUS_PAGE,
+    NEXT_PAGE,
+    FIRST_PAGE,
+    LAST_PAGE,
 }
 
 /**
@@ -64,6 +77,9 @@ interface CanvasController {
 
     /** The main thread, immediate where possible: the host's own coroutines (commits, erase, tile results) run here. */
     val mainDispatcher: CoroutineDispatcher
+
+    /** Viewport actions for the host to run; commands sent while no host collects are dropped. */
+    val viewCommands: Flow<CanvasCommand> get() = emptyFlow()
 
     /** Asks the session to decode [ids] (visible pages and neighbors); [document] updates when they arrive. */
     fun loadPages(ids: Collection<PageId>)

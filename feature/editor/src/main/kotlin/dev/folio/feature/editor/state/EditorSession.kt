@@ -17,11 +17,14 @@ import dev.folio.core.model.edit.RemoveObjects
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.pageIndexAt
 import dev.folio.core.storage.session.DocumentSession
+import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainCoroutineDispatcher
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -67,6 +70,15 @@ class EditorSession(
     override val activeTool: CanvasTool get() = mutableTool.value.canvasTool ?: CanvasTool.PEN
 
     override val eraserOptions: EraserOptions get() = mutableOptions.value.eraser
+
+    private val canvasCommands = MutableSharedFlow<CanvasCommand>(extraBufferCapacity = COMMAND_BUFFER)
+
+    override val viewCommands: Flow<CanvasCommand> get() = canvasCommands
+
+    /** Asks the canvas host to run [command]; dropped while no host is attached. */
+    fun sendCanvasCommand(command: CanvasCommand) {
+        canvasCommands.tryEmit(command)
+    }
 
     /** Whether undo has a step (chrome state). */
     val canUndo: StateFlow<Boolean> get() = documentSession.canUndo
@@ -152,6 +164,7 @@ class EditorSession(
 
     private companion object {
         const val TAG = "EditorSession"
+        const val COMMAND_BUFFER = 16
         val BRUSH_VERSION = BrushCatalog.DEFAULT.latestVersion
     }
 }

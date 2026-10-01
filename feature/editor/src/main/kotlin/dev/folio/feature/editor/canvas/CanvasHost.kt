@@ -46,5 +46,9 @@ internal fun CanvasHost(
             if (view == null) return@LaunchedEffect
             controller.document.collect { view.setDocument(it) }
         }
+        LaunchedEffect(view) {
+            if (view == null) return@LaunchedEffect
+            controller.viewCommands.collect { view.perform(it) }
+        }
     }
 }
