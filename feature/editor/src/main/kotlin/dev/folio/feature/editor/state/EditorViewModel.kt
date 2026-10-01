@@ -13,6 +13,7 @@ import dev.folio.core.common.Outcome
 import dev.folio.core.storage.session.DocumentSessions
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 
 /** Lifecycle of the editor's document. */
@@ -38,6 +40,8 @@ data class EditorUiState(
     val tool: EditorTool = EditorTool.PEN,
     val options: ToolOptions = ToolOptions(),
     val popover: OptionsPopover? = null,
+    /** Toolbar placement per orientation (10-editor-ui.md#toolbar-docking); known before the document opens. */
+    val docks: ToolbarDocks = ToolbarDocks(),
 )
 
 /** Popover or dialog opened from the tool options row (10-editor-ui.md#tool-options). */
@@ -76,6 +80,7 @@ class EditorViewModel
         private val sessions: DocumentSessions,
         private val dispatchers: FolioDispatchers,
         private val toolOptions: ToolOptionsStore,
+        private val toolbarDocks: ToolbarDockStore,
     ) : ViewModel() {
         /** Creates the ViewModel of one editor destination. */
         @AssistedFactory
@@ -90,6 +95,10 @@ class EditorViewModel
         private val mutableSession = MutableStateFlow<EditorSession?>(null)
         private val failure = MutableStateFlow<String?>(null)
         private val mutablePopover = MutableStateFlow<OptionsPopover?>(null)
+        private val docks = MutableStateFlow(ToolbarDocks())
+
+        // Stored one at a time in order; conflated, so only the latest of quick changes is written.
+        private val dockSaves = Channel<ToolbarDocks>(Channel.CONFLATED)
 
         /** The open pane, null while opening or after a failure; the canvas host binds to it. */
         val session: StateFlow<EditorSession?> = mutableSession.asStateFlow()
@@ -113,9 +122,16 @@ class EditorViewModel
                             }
                         }
                     }
-                }.stateIn(viewModelScope, SharingStarted.Eagerly, EditorUiState())
+                }.combine(docks) { state, docks -> state.copy(docks = docks) }
+                .stateIn(viewModelScope, SharingStarted.Eagerly, EditorUiState())
 
         init {
+            viewModelScope.launch {
+                // Only replaces the defaults: a dock change made before the read finished wins.
+                val stored = toolbarDocks.docks.first()
+                docks.compareAndSet(ToolbarDocks(), stored)
+            }
+            viewModelScope.launch { for (changed in dockSaves) toolbarDocks.save(changed) }
             viewModelScope.launch {
                 // Read while the document opens; defaults if nothing is stored.
                 val stored = async { toolOptions.options.first() }
@@ -159,6 +175,14 @@ class EditorViewModel
         /** Opens [popover] over the options row, or closes it (null). */
         fun showPopover(popover: OptionsPopover?) {
             mutablePopover.value = popover
+        }
+
+        /** Moves the toolbar of [orientation] to [placement] and stores it. */
+        fun placeToolbar(
+            orientation: ScreenOrientation,
+            placement: ToolbarPlacement,
+        ) {
+            dockSaves.trySend(docks.updateAndGet { it.with(orientation, placement) })
         }
 
         /** Removes the ink (or only the highlighter ink) of the current page as one undo step. */

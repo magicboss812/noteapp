@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P04
-next: P04-T04
+next: P04-T05
 updated: 2026-10-01
 
 ## Completed
@@ -11,7 +11,7 @@ updated: 2026-10-01
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
 
 ## Current phase progress
-- P04: T01, T02, T03
+- P04: T01, T02, T03, T04
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck P03-REVIEW (no grant-storage.sh, after `pm clear`): the app still reports All files access granted and shows the library. The toggle is not in the app's permission list: open Settings > Privacy (or Apps) > Special app access (Special permissions) > All files access > Folio Debug > off, then write "-> revoked" here; or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else.
@@ -19,6 +19,7 @@ updated: 2026-10-01
 ## USER-CHECK (human verification; non-blocking)
 - P03-REVIEW (D-017, your "no thin ring visible"): install the debug app, open a document, hold the Focus Pen just above the page -> a thin dark ring (light edge) follows the tip, at least pen-dot size; the system hover dot is gone over the canvas; the ring disappears when the pen touches or leaves. If still no ring, keep the app open and write "no ring": Claude reads `hoverEvents` from debug `state` (0 = hover never reaches the canvas).
 - P04-T03: open a note, try row 2 (pen kinds, widths, long-press a width or color, + add color, pen settings, eraser modes, clear page) -> controls respond, ink uses the choices, choices survive closing and reopening the app.
+- P04-T04: drag the toolbar grip (dots at the right end of row 1, or the bottom of a side rail) to the left and right edges and release it mid-canvas to float; double-tap the floating grip -> moves feel smooth, docks snap with a spring, the placement survives closing and reopening the app (separately per orientation).
 
 ## Deferred (id: reason)
 - D-001 P00-T07: P11 `benchmark` build type needs its own DebugHooksModule (src/benchmark, bind NoOpDebugHooks).
@@ -39,8 +40,9 @@ updated: 2026-10-01
 - D-022 P03-REVIEW: an erase gesture right after a pen lift cannot erase strokes still in the dry handoff (snapshot = committed document); include pending strokes (P07 or P11).
 - D-023 P04-T01: dark destructive dialog button is white on danger #F87171 (low contrast); use a dark onDanger or a darker fill when the first real delete dialog lands (P05).
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
+- D-025 P04-T04: handedness is modeled and stored (`ToolbarDocks.withHandedness`, A-029) but has no toggle; add it to the settings Toolbar section (10-editor-ui.md#settings) when feature:settings is built.
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P04-T03 done: tool options model + DataStore persistence (T03a, feature:editor/state `ToolOptions`, `ToolOptionsStore`); row 2 UI (T03b) in feature:editor/ui: `ToolOptionsRow` (pill over the canvas, TopCenter), `OptionsPopovers` (layer, pen settings, width editor, clear-page dialog), `ColorPicker`, `OptionsMath` (HSV, hex, log width scale).
-- Next: P04-T04 toolbar docking. Row 2 sits in EditorScreen's READY Box; popovers open at `POPOVER_TOP` below it, so docking must move both. Tilt has no switch in pen settings (D-014).
+- P04-T04 done: docking model `state/ToolbarDock.kt` (DockMode, ToolbarPlacement fractions, DockSnap edge snap), `ToolbarDockStore` (DataStore JSON, per orientation), `EditorViewModel.placeToolbar`; UI `ui/ToolbarDocking.kt` (grip, ToolbarDrag, FloatingToolbar, dock transition) + `EditorChrome` in EditorScreen (A-029).
+- Next: P04-T05 undo/redo + shortcuts. Row 1 / rails come from `EditorToolbarRow1` (vertical flag); popovers anchor via `PopoverAnchor` per dock mode. Tilt has no switch in pen settings (D-014).
 - `FolioIcons.kt` is generated: add a Lucide 1.49.0 SVG to tools/icongen/src/main/resources/lucide, run `./gradlew :tools:icongen:run` (A-027).

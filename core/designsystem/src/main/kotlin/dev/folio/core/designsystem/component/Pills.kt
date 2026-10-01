@@ -157,19 +157,28 @@ private fun Modifier.selectableOption(
         ).semantics { this.selected = selected }
     }
 
-/** Segmented chips (library tabs): the selected chip gets the accentSoft background and accent text. */
+/**
+ * Segmented chips (library tabs): the selected chip gets the accentSoft background and accent text. [vertical]
+ * stacks them (side-docked toolbar rails).
+ */
 @Composable
 fun SegmentedTabs(
     tabs: ImmutableList<String>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    vertical: Boolean = false,
 ) {
     val space = FolioTheme.space
-    Row(modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(space.s4)) {
+    val chips: @Composable () -> Unit = {
         tabs.forEachIndexed { index, label ->
             SegmentedTab(label = label, selected = index == selectedIndex, onClick = { onSelect(index) })
         }
+    }
+    if (vertical) {
+        Column(modifier.selectableGroup(), horizontalAlignment = Alignment.CenterHorizontally) { chips() }
+    } else {
+        Row(modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(space.s4)) { chips() }
     }
 }
 

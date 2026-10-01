@@ -5,16 +5,19 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import dev.folio.core.designsystem.component.ColorDot
 import dev.folio.core.designsystem.component.FolioIconButton
 import dev.folio.core.designsystem.component.PillGroup
+import dev.folio.core.designsystem.component.PillOrientation
 import dev.folio.core.designsystem.component.SegmentedTabs
 import dev.folio.core.designsystem.component.ToolButton
 import dev.folio.core.designsystem.component.WidthChip
@@ -57,7 +61,9 @@ internal val EditorTool.hasOptions: Boolean
 
 /**
  * Toolbar row 2 (10-editor-ui.md#tool-options): the options pill of [tool], floating over the canvas. It
- * scrolls horizontally with fade edges when it does not fit. Long-press a width or color to edit it.
+ * scrolls with fade edges when it does not fit. Long-press a width or color to edit it. [vertical] lays it
+ * out as the inner rail of a side-docked toolbar (10-editor-ui.md#toolbar-docking). [pillModifier] places
+ * the pill itself, so the space around it stays free for canvas touches.
  */
 @Composable
 internal fun ToolOptionsRow(
@@ -66,34 +72,44 @@ internal fun ToolOptionsRow(
     onChange: OptionsChange,
     onPopover: (OptionsPopover?) -> Unit,
     modifier: Modifier = Modifier,
+    pillModifier: Modifier = Modifier,
+    vertical: Boolean = false,
 ) {
     val motion = FolioTheme.motion
-    val space = FolioTheme.space
     val slidePx = with(LocalDensity.current) { OPTIONS_SLIDE.roundToPx() }
     AnimatedContent(
         targetState = tool,
         modifier = modifier,
         transitionSpec = {
-            (
-                (fadeIn(motion.standard()) + slideInHorizontally(motion.standard()) { slidePx }) togetherWith
-                    (fadeOut(motion.standard()) + slideOutHorizontally(motion.standard()) { -slidePx })
-            ).using(SizeTransform(clip = false))
+            val enter =
+                if (vertical) slideInVertically(motion.standard()) { slidePx } else slideInHorizontally(motion.standard()) { slidePx }
+            val exit =
+                if (vertical) slideOutVertically(motion.standard()) { -slidePx } else slideOutHorizontally(motion.standard()) { -slidePx }
+            ((fadeIn(motion.standard()) + enter) togetherWith (fadeOut(motion.standard()) + exit)).using(SizeTransform(clip = false))
         },
-        contentAlignment = Alignment.TopCenter,
+        contentAlignment = if (vertical) Alignment.TopStart else Alignment.TopCenter,
         label = "optionsRow",
     ) { shown ->
         if (shown.hasOptions) {
             // The scroll clips inside the pill, so the floating shadow stays whole and only the pill takes touches.
-            PillGroup(Modifier.padding(horizontal = space.s16).padding(top = space.s8)) {
+            val orientation = if (vertical) PillOrientation.Vertical else PillOrientation.Horizontal
+            PillGroup(pillModifier, orientation = orientation) {
                 val scroll = rememberScrollState()
-                Row(
-                    Modifier.horizontalFade(scroll, SCROLL_FADE).horizontalScroll(scroll),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                val content: @Composable () -> Unit = {
                     when (shown) {
-                        EditorTool.PEN -> PenOptionsContent(options, onChange, onPopover)
-                        EditorTool.HIGHLIGHTER -> HighlighterOptionsContent(options, onChange, onPopover)
-                        else -> EraserOptionsContent(options.eraser, onChange, onPopover)
+                        EditorTool.PEN -> PenOptionsContent(options, onChange, onPopover, vertical)
+                        EditorTool.HIGHLIGHTER -> HighlighterOptionsContent(options, onChange, onPopover, vertical)
+                        else -> EraserOptionsContent(options.eraser, onChange, onPopover, vertical)
+                    }
+                }
+                if (vertical) {
+                    Column(
+                        Modifier.edgeFade(scroll, SCROLL_FADE, vertical = true).verticalScroll(scroll),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) { content() }
+                } else {
+                    Row(Modifier.edgeFade(scroll, SCROLL_FADE).horizontalScroll(scroll), verticalAlignment = Alignment.CenterVertically) {
+                        content()
                     }
                 }
             }
@@ -101,11 +117,13 @@ internal fun ToolOptionsRow(
     }
 }
 
+@Suppress("MultipleEmitters") // Pill items for the caller's Row or Column, which differ by dock mode.
 @Composable
-private fun RowScope.PenOptionsContent(
+private fun PenOptionsContent(
     options: ToolOptions,
     onChange: OptionsChange,
     onPopover: (OptionsPopover?) -> Unit,
+    vertical: Boolean,
 ) {
     val pen = options.pen
     PEN_KINDS.forEach { kind ->
@@ -116,23 +134,25 @@ private fun RowScope.PenOptionsContent(
             onClick = { onChange { it.copy(pen = it.pen.copy(kind = kind)) } },
         )
     }
-    Divider()
+    Divider(vertical)
     WidthPresetChips(EditorTool.PEN, options, onChange, onPopover)
-    Divider()
+    Divider(vertical)
     ColorDots(EditorTool.PEN, options, onChange, onPopover)
     FolioIconButton(FolioIcons.SlidersHorizontal, "Pen settings", onClick = { onPopover(OptionsPopover.PenSettings) })
 }
 
+@Suppress("MultipleEmitters") // Pill items for the caller's Row or Column, which differ by dock mode.
 @Composable
-private fun RowScope.HighlighterOptionsContent(
+private fun HighlighterOptionsContent(
     options: ToolOptions,
     onChange: OptionsChange,
     onPopover: (OptionsPopover?) -> Unit,
+    vertical: Boolean,
 ) {
     WidthPresetChips(EditorTool.HIGHLIGHTER, options, onChange, onPopover)
-    Divider()
+    Divider(vertical)
     ColorDots(EditorTool.HIGHLIGHTER, options, onChange, onPopover)
-    Divider()
+    Divider(vertical)
     ToolButton(
         icon = FolioIcons.Minus,
         contentDescription = "Always straight",
@@ -141,18 +161,21 @@ private fun RowScope.HighlighterOptionsContent(
     )
 }
 
+@Suppress("MultipleEmitters") // Pill items for the caller's Row or Column, which differ by dock mode.
 @Composable
-private fun RowScope.EraserOptionsContent(
+private fun EraserOptionsContent(
     eraser: EraserOptions,
     onChange: OptionsChange,
     onPopover: (OptionsPopover?) -> Unit,
+    vertical: Boolean,
 ) {
     SegmentedTabs(
         tabs = ERASER_MODES,
         selectedIndex = eraser.mode.ordinal,
         onSelect = { index -> onChange { it.copy(eraser = it.eraser.copy(mode = EraserMode.entries[index])) } },
+        vertical = vertical,
     )
-    Divider()
+    Divider(vertical)
     EraserOptions.SIZES_PT.forEachIndexed { index, radiusPt ->
         WidthChip(
             strokeWidth = WidthScale.glyph(radiusPt, EraserOptions.SIZES_PT[1]),
@@ -161,7 +184,7 @@ private fun RowScope.EraserOptionsContent(
             onClick = { onChange { it.copy(eraser = it.eraser.copy(radiusPt = radiusPt)) } },
         )
     }
-    Divider()
+    Divider(vertical)
     ToolButton(
         icon = FolioIcons.Highlighter,
         contentDescription = "Erase highlighter only",
@@ -172,7 +195,7 @@ private fun RowScope.EraserOptionsContent(
 }
 
 @Composable
-private fun RowScope.WidthPresetChips(
+private fun WidthPresetChips(
     tool: EditorTool,
     options: ToolOptions,
     onChange: OptionsChange,
@@ -191,7 +214,7 @@ private fun RowScope.WidthPresetChips(
 }
 
 @Composable
-private fun RowScope.ColorDots(
+private fun ColorDots(
     tool: EditorTool,
     options: ToolOptions,
     onChange: OptionsChange,
@@ -211,14 +234,15 @@ private fun RowScope.ColorDots(
 }
 
 @Composable
-private fun Divider() {
+private fun Divider(vertical: Boolean) {
     val space = FolioTheme.space
-    Box(
-        Modifier
-            .padding(horizontal = space.s4)
-            .size(space.borderWidth, DIVIDER_HEIGHT)
-            .background(FolioTheme.colors.border),
-    )
+    val line =
+        if (vertical) {
+            Modifier.padding(vertical = space.s4).size(DIVIDER_HEIGHT, space.borderWidth)
+        } else {
+            Modifier.padding(horizontal = space.s4).size(space.borderWidth, DIVIDER_HEIGHT)
+        }
+    Box(line.background(FolioTheme.colors.border))
 }
 
 private val BrushKind.icon

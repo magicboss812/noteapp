@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,11 +41,28 @@ import java.util.Locale
 
 private val POPOVER_WIDTH = 400.dp
 
+// Flyouts next to a side rail start level with the options rail (its top gap).
+private val POPOVER_RAIL_TOP = 8.dp
+
 // Slider stops between the pressure curve ends (0.05 apart).
 private val GAMMA_STEPS = ((PressureCurve.MAX_GAMMA - PressureCurve.MIN_GAMMA) * PressureCurve.GAMMA_STEPS_PER_UNIT).toInt() - 1
 
 /**
- * Popovers of the options row (10-editor-ui.md#tool-options) below row 2; a tap outside closes them and
+ * Where options popovers open: below row 2 when docked top, as a flyout next to the options rail when
+ * docked to a side, in the canvas center when floating (10-editor-ui.md#toolbar-docking).
+ */
+internal enum class PopoverAnchor(
+    val alignment: Alignment,
+    val padding: PaddingValues,
+) {
+    BelowRow(Alignment.TopCenter, PaddingValues(top = POPOVER_TOP)),
+    RightOfRail(Alignment.TopStart, PaddingValues(start = POPOVER_TOP, top = POPOVER_RAIL_TOP)),
+    LeftOfRail(Alignment.TopEnd, PaddingValues(end = POPOVER_TOP, top = POPOVER_RAIL_TOP)),
+    Center(Alignment.Center, PaddingValues()),
+}
+
+/**
+ * Popovers of the options row (10-editor-ui.md#tool-options) at [anchor]; a tap outside closes them and
  * the canvas takes no input meanwhile. "Clear page" asks in a dialog.
  */
 @Composable
@@ -55,6 +73,7 @@ internal fun OptionsPopoverLayer(
     onPopover: (OptionsPopover?) -> Unit,
     onClearPage: () -> Unit,
     modifier: Modifier = Modifier,
+    anchor: PopoverAnchor = PopoverAnchor.BelowRow,
 ) {
     val close by rememberUpdatedState { onPopover(null) }
     when (popover) {
@@ -84,9 +103,9 @@ internal fun OptionsPopoverLayer(
         else -> {
             Box(
                 modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { close() } },
-                contentAlignment = Alignment.TopCenter,
+                contentAlignment = anchor.alignment,
             ) {
-                val card = Modifier.padding(top = POPOVER_TOP)
+                val card = Modifier.padding(anchor.padding)
                 when (popover) {
                     OptionsPopover.PenSettings -> {
                         PenSettingsPopover(options, onChange, card)

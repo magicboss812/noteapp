@@ -50,7 +50,11 @@ class ToolOptionsScreenshotTest {
         tool: EditorTool,
         options: ToolOptions = ToolOptions(),
         dark: Boolean = false,
-    ) = show(dark) { ToolOptionsRow(tool, options, onChange = {}, onPopover = {}) }
+    ) = show(dark) {
+        val space = FolioTheme.space
+        ToolOptionsRow(tool, options, onChange = {
+        }, onPopover = {}, pillModifier = Modifier.padding(horizontal = space.s16).padding(top = space.s8))
+    }
 
     @Test
     fun row_penDefaults_kindsWidthsColorsAddSettings() {

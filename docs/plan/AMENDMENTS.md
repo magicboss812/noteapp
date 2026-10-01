@@ -148,3 +148,8 @@ Format:
 - Reason: the debug commands must drive the same EditorSession the user sees, and "navigation from the library placeholder" needs something to tap.
 - Impact: docs/notes/device.md quirks; P05-T01 replaces the placeholder list.
 
+## A-029 2026-10-01 P04-T04: toolbar grip, floating pill carries the options row, vertical segmented tabs
+- Change: every dock mode is moved with a grip on row 1 (the spec only named the floating grip). A docked toolbar being dragged dims while a preview pill follows the finger. The floating pill shows grip + tools and keeps the tool options row below it (the doc pill and Home are hidden; system back leaves). Collapsed, the pill keeps its grip next to the current tool. Handedness is read as "which side side-docking means" and moves side-docked placements on change; the toggle itself waits for the settings screen (D-025). There is no bottom dock. `SegmentedTabs` (core:designsystem) gains a `vertical` layout for the eraser modes on the options rail.
+- Reason: without a grip on the docked rows there is no way to undock; the options row is needed to change pen width or color while floating; a vertical rail cannot hold horizontal tabs.
+- Impact: 10-editor-ui.md#toolbar-docking.
+

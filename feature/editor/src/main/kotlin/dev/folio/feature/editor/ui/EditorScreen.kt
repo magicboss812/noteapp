@@ -1,13 +1,20 @@
 package dev.folio.feature.editor.ui
 
 import android.content.res.Configuration
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -15,23 +22,37 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.feature.editor.canvas.CanvasHost
+import dev.folio.feature.editor.state.DockMode
 import dev.folio.feature.editor.state.EditorSession
 import dev.folio.feature.editor.state.EditorStatus
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.EditorUiState
 import dev.folio.feature.editor.state.EditorViewModel
 import dev.folio.feature.editor.state.OptionsPopover
+import dev.folio.feature.editor.state.ScreenOrientation
 import dev.folio.feature.editor.state.ToolOptions
+import dev.folio.feature.editor.state.ToolbarPlacement
 
 /** Editor destination for the document at library path [docPath]; [onBack] returns to the library. */
 @Composable
@@ -54,6 +75,7 @@ fun EditorRoute(
         onOptionsChange = viewModel::updateOptions,
         onPopover = viewModel::showPopover,
         onClearPage = viewModel::clearCurrentPage,
+        onPlaceToolbar = viewModel::placeToolbar,
     ) { canvasModifier ->
         session?.let { EditorCanvas(it, canvasListener, canvasModifier) }
     }
@@ -70,8 +92,10 @@ private fun EditorCanvas(
 }
 
 /**
- * Stateless editor screen (10-editor-ui.md#screen-structure): toolbar row 1 above the [canvas] slot,
- * which is only composed once the document is open; the tool options row and its popovers float over it.
+ * Stateless editor screen (10-editor-ui.md#screen-structure): the toolbar docked at the placement stored for
+ * the current orientation (10-editor-ui.md#toolbar-docking) around the [canvas] slot, which is only
+ * composed once the document is open; the tool options row and its popovers float over it. The canvas
+ * keeps its place in the composition across dock changes, so its view is never recreated.
  */
 @Composable
 fun EditorScreen(
@@ -82,18 +106,26 @@ fun EditorScreen(
     onOptionsChange: ((ToolOptions) -> ToolOptions) -> Unit = {},
     onPopover: (OptionsPopover?) -> Unit = {},
     onClearPage: () -> Unit = {},
+    onPlaceToolbar: (ScreenOrientation, ToolbarPlacement) -> Unit = { _, _ -> },
     canvas: @Composable (Modifier) -> Unit,
 ) {
     val colors = FolioTheme.colors
-    val sideInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
-    Column(modifier.fillMaxSize().background(colors.background)) {
-        EditorToolbarRow1(
-            tool = state.tool,
-            onHome = onBack,
-            onSelectTool = onSelectTool,
-            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
-        )
-        Box(Modifier.weight(1f).fillMaxWidth().background(colors.canvasSurround), contentAlignment = Alignment.Center) {
+    val orientation =
+        if (LocalConfiguration.current.orientation ==
+            Configuration.ORIENTATION_PORTRAIT
+        ) {
+            ScreenOrientation.PORTRAIT
+        } else {
+            ScreenOrientation.LANDSCAPE
+        }
+    val stored = state.docks.placement(orientation)
+    val drag = remember { ToolbarDrag() }
+    LaunchedEffect(stored) { drag.pending = null }
+    val placement = drag.pending ?: stored
+    val canvasPadding = canvasPadding(placement.mode)
+    val gestures = rememberToolbarGestures(drag, placement, orientation, onPlaceToolbar)
+    Box(modifier.fillMaxSize().background(colors.background)) {
+        Box(Modifier.fillMaxSize().padding(canvasPadding).background(colors.canvasSurround), contentAlignment = Alignment.Center) {
             when (state.status) {
                 EditorStatus.OPENING -> {
                     Unit
@@ -101,14 +133,6 @@ fun EditorScreen(
 
                 EditorStatus.READY -> {
                     canvas(Modifier.fillMaxSize())
-                    ToolOptionsRow(
-                        tool = state.tool,
-                        options = state.options,
-                        onChange = onOptionsChange,
-                        onPopover = onPopover,
-                        modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(sideInsets),
-                    )
-                    OptionsPopoverLayer(state.popover, state.options, onOptionsChange, onPopover, onClearPage)
                 }
 
                 EditorStatus.FAILED -> {
@@ -122,7 +146,185 @@ fun EditorScreen(
                 }
             }
         }
+        EditorChrome(state, placement, drag, gestures, onBack, onSelectTool, onOptionsChange, onPopover)
+        if (state.status == EditorStatus.READY) {
+            OptionsPopoverLayer(
+                state.popover,
+                state.options,
+                onOptionsChange,
+                onPopover,
+                onClearPage,
+                modifier = Modifier.padding(canvasPadding),
+                anchor = placement.mode.popoverAnchor,
+            )
+        }
     }
+}
+
+/** Grip callbacks of the toolbar in one orientation. */
+private class ToolbarGestures(
+    val startDocked: (gripInRoot: Offset) -> Unit,
+    val startFloating: (Offset) -> Unit,
+    val move: (Offset) -> Unit,
+    val release: () -> Unit,
+    val toggleCollapsed: () -> Unit,
+)
+
+@Composable
+private fun rememberToolbarGestures(
+    drag: ToolbarDrag,
+    placement: ToolbarPlacement,
+    orientation: ScreenOrientation,
+    onPlaceToolbar: (ScreenOrientation, ToolbarPlacement) -> Unit,
+): ToolbarGestures {
+    val density = LocalDensity.current
+    val gripInset = with(density) { FolioTheme.space.s2.toPx() }
+    val edgePx = with(density) { EDGE_SNAP.toPx() }
+    val current by rememberUpdatedState(placement)
+    val place by rememberUpdatedState { p: ToolbarPlacement -> onPlaceToolbar(orientation, p) }
+    return remember(drag, gripInset, edgePx) {
+        ToolbarGestures(
+            // The preview pill starts with its grip under the finger (the grip leads the pill, inside its padding).
+            startDocked = { gripInRoot -> drag.start(gripInRoot - drag.areaOrigin - Offset(gripInset, gripInset)) },
+            startFloating = { _ -> drag.start(drag.topLeft(current).let { Offset(it.x.toFloat(), it.y.toFloat()) }) },
+            move = drag::move,
+            release = { drag.end(current, edgePx)?.let { if (it != current) place(it) } },
+            toggleCollapsed = { place(current.copy(collapsed = !current.collapsed)) },
+        )
+    }
+}
+
+@Composable
+private fun EditorChrome(
+    state: EditorUiState,
+    placement: ToolbarPlacement,
+    drag: ToolbarDrag,
+    gestures: ToolbarGestures,
+    onBack: () -> Unit,
+    onSelectTool: (EditorTool) -> Unit,
+    onOptionsChange: ((ToolOptions) -> ToolOptions) -> Unit,
+    onPopover: (OptionsPopover?) -> Unit,
+) {
+    val space = FolioTheme.space
+    val motion = FolioTheme.motion
+    val slidePx = dockSlidePx()
+    val mode = placement.mode
+    val ready = state.status == EditorStatus.READY
+    val dragging by remember(drag) { derivedStateOf { drag.offset != null } }
+    val options: @Composable (Modifier, Modifier, Boolean) -> Unit = { rowModifier, pillModifier, vertical ->
+        if (ready) {
+            ToolOptionsRow(state.tool, state.options, onOptionsChange, onPopover, rowModifier, pillModifier, vertical)
+        }
+    }
+    val dockedGrip: @Composable (Boolean) -> Unit = { vertical ->
+        ToolbarGrip(gestures.startDocked, gestures.move, gestures.release, vertical = vertical)
+    }
+    val safe = WindowInsets.safeDrawing
+    // One root: the docked chrome, then the floating area above it.
+    Box(Modifier.fillMaxSize()) {
+        AnimatedContent(
+            targetState = mode,
+            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (dragging && mode != DockMode.FLOATING) DRAG_DIM else 1f },
+            transitionSpec = { dockTransition(motion, slidePx) },
+            label = "toolbarDock",
+        ) { shown ->
+            when (shown) {
+                DockMode.TOP -> {
+                    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        EditorToolbarRow1(
+                            tool = state.tool,
+                            onHome = onBack,
+                            onSelectTool = onSelectTool,
+                            modifier = Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+                            grip = { dockedGrip(false) },
+                        )
+                        options(
+                            Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Horizontal)),
+                            Modifier.padding(horizontal = space.s16).padding(top = space.s8),
+                            false,
+                        )
+                    }
+                }
+
+                DockMode.LEFT, DockMode.RIGHT -> {
+                    val left = shown == DockMode.LEFT
+                    val outer = if (left) WindowInsetsSides.Start else WindowInsetsSides.End
+                    Row(Modifier.fillMaxSize(), horizontalArrangement = if (left) Arrangement.Start else Arrangement.End) {
+                        val rail: @Composable () -> Unit = {
+                            EditorToolbarRow1(
+                                tool = state.tool,
+                                onHome = onBack,
+                                onSelectTool = onSelectTool,
+                                modifier = Modifier.windowInsetsPadding(safe.only(outer + WindowInsetsSides.Vertical)),
+                                vertical = true,
+                                grip = { dockedGrip(true) },
+                            )
+                        }
+                        val optionsRail: @Composable () -> Unit = {
+                            options(Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Vertical)), Modifier.padding(space.s8), true)
+                        }
+                        // Row 1 is the outer rail, row 2 the inner one (10-editor-ui.md#toolbar-docking).
+                        if (left) {
+                            rail()
+                            optionsRail()
+                        } else {
+                            optionsRail()
+                            rail()
+                        }
+                    }
+                }
+
+                DockMode.FLOATING -> {
+                    Box(Modifier.fillMaxSize().windowInsetsPadding(safe)) {
+                        FloatingToolbar(
+                            tool = state.tool,
+                            collapsed = placement.collapsed,
+                            onSelectTool = onSelectTool,
+                            onExpand = gestures.toggleCollapsed,
+                            grip = {
+                                ToolbarGrip(gestures.startFloating, gestures.move, gestures.release, onDoubleTap = gestures.toggleCollapsed)
+                            },
+                            modifier = Modifier.offset { drag.topLeft(placement) }.floatingPill(drag),
+                            options = { options(Modifier, Modifier, false) },
+                        )
+                    }
+                }
+            }
+        }
+        // The area the floating pill moves in; while a docked toolbar is dragged, a preview pill follows the finger.
+        Box(
+            Modifier.fillMaxSize().windowInsetsPadding(safe).onGloballyPositioned {
+                drag.areaOrigin = it.positionInRoot()
+                drag.areaSize = it.size
+            },
+        ) {
+            if (dragging && mode != DockMode.FLOATING) {
+                FloatingToolbar(
+                    tool = state.tool,
+                    collapsed = false,
+                    onSelectTool = {},
+                    onExpand = {},
+                    grip = { ToolbarGrip(onDragStart = {}, onDrag = {}, onDragEnd = {}) },
+                    modifier = Modifier.offset { drag.topLeft(placement) }.floatingPill(drag),
+                )
+            }
+        }
+    }
+}
+
+// Docked toolbar opacity while its preview pill is dragged.
+private const val DRAG_DIM = 0.4f
+
+/** Canvas area for a toolbar docked at [mode]: below row 1, beside a side rail, or the whole window. */
+@Composable
+private fun canvasPadding(mode: DockMode): PaddingValues {
+    val insets = WindowInsets.safeDrawing.asPaddingValues()
+    val direction = LocalLayoutDirection.current
+    return PaddingValues(
+        start = if (mode == DockMode.LEFT) insets.calculateStartPadding(direction) + TOOLBAR_ROW1_HEIGHT else 0.dp,
+        top = insets.calculateTopPadding() + if (mode == DockMode.TOP) TOOLBAR_ROW1_HEIGHT else 0.dp,
+        end = if (mode == DockMode.RIGHT) insets.calculateEndPadding(direction) + TOOLBAR_ROW1_HEIGHT else 0.dp,
+    )
 }
 
 @Composable

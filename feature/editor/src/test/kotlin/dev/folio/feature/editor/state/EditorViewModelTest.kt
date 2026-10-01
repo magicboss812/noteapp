@@ -100,7 +100,11 @@ class EditorViewModelTest {
     private fun viewModel(path: String): EditorViewModel =
         ViewModelProvider.create(
             store,
-            viewModelFactory { initializer { EditorViewModel(path, DENSITY, sessions, main.dispatchers, ToolOptionsStore(settings)) } },
+            viewModelFactory {
+                initializer {
+                    EditorViewModel(path, DENSITY, sessions, main.dispatchers, ToolOptionsStore(settings), ToolbarDockStore(settings))
+                }
+            },
         )[path, EditorViewModel::class]
 
     /** Waits for the open, which finishes on Room's thread. */
@@ -254,6 +258,26 @@ class EditorViewModelTest {
                     .getValue(page)
                     .objects,
             ).containsExactly(pen)
+        }
+
+    @Test
+    fun placeToolbar_perOrientation_inStateStoredAndRestoredOnReopen() =
+        editorTest {
+            val path = createDoc("Dock")
+            val first = viewModel(path)
+            first.opened()
+            val floating = ToolbarPlacement(DockMode.FLOATING, floatX = 0.25f, floatY = 0.5f, collapsed = true)
+
+            first.placeToolbar(ScreenOrientation.PORTRAIT, ToolbarPlacement(DockMode.LEFT))
+            first.placeToolbar(ScreenOrientation.LANDSCAPE, floating)
+
+            val expected = ToolbarDocks(landscape = floating, portrait = ToolbarPlacement(DockMode.LEFT))
+            assertThat(first.awaitState { it.docks == expected }.status).isEqualTo(EditorStatus.READY)
+            assertThat(ToolbarDockStore.decode(settings.raw(ToolbarDockStore.KEY)!!)).isEqualTo(expected)
+
+            store.clear()
+            awaitReleases()
+            assertThat(viewModel(path).awaitState { it.status == EditorStatus.READY }.docks).isEqualTo(expected)
         }
 
     @Test

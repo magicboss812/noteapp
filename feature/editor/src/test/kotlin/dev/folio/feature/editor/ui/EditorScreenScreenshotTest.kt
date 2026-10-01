@@ -9,10 +9,13 @@ import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.feature.editor.canvas.CanvasHost
 import dev.folio.feature.editor.canvas.CanvasHostView
 import dev.folio.feature.editor.canvas.FakeCanvasController
+import dev.folio.feature.editor.state.DockMode
 import dev.folio.feature.editor.state.EditorStatus
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.EditorUiState
 import dev.folio.feature.editor.state.OptionsPopover
+import dev.folio.feature.editor.state.ToolbarDocks
+import dev.folio.feature.editor.state.ToolbarPlacement
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,11 +35,18 @@ class EditorScreenScreenshotTest {
     private fun showReady(
         tool: EditorTool = EditorTool.PEN,
         popover: OptionsPopover? = null,
+        placement: ToolbarPlacement = ToolbarPlacement(),
+        dark: Boolean = false,
     ) {
         val controller = FakeCanvasController(pages = 2)
+        val docks = ToolbarDocks(landscape = placement, portrait = placement)
         compose.setContent {
-            FolioTheme(darkTheme = false) {
-                EditorScreen(EditorUiState(EditorStatus.READY, tool = tool, popover = popover), onBack = {}, onSelectTool = {}) {
+            FolioTheme(darkTheme = dark) {
+                EditorScreen(
+                    EditorUiState(EditorStatus.READY, tool = tool, popover = popover, docks = docks),
+                    onBack = {},
+                    onSelectTool = {},
+                ) {
                     CanvasHost(controller, it)
                 }
             }
@@ -66,6 +76,62 @@ class EditorScreenScreenshotTest {
     fun editor_landscapeHighlighterColorPickerOpen_popoverBelowOptionsRow() {
         showReady(EditorTool.HIGHLIGHTER, OptionsPopover.ColorPicker(EditorTool.HIGHLIGHTER, 0))
         compose.onRoot().captureRoboImage("src/test/screenshots/Editor_colorPickerOpen.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeDockedLeft_railsBesideCanvas() {
+        showReady(placement = ToolbarPlacement(DockMode.LEFT))
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_dockLeft_landscape.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_PORTRAIT)
+    fun editor_portraitDockedLeftEraser_verticalModeTabs() {
+        showReady(EditorTool.ERASER, placement = ToolbarPlacement(DockMode.LEFT))
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_dockLeft_portrait.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeDockedRightHighlighterDark_railsMirrored() {
+        showReady(EditorTool.HIGHLIGHTER, placement = ToolbarPlacement(DockMode.RIGHT), dark = true)
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_dockRight_landscape.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_PORTRAIT)
+    fun editor_portraitDockedRight_railsMirrored() {
+        showReady(placement = ToolbarPlacement(DockMode.RIGHT))
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_dockRight_portrait.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeDockedLeftPenSettings_flyoutBesideOptionsRail() {
+        showReady(popover = OptionsPopover.PenSettings, placement = ToolbarPlacement(DockMode.LEFT))
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_dockLeft_flyout.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeFloating_pillWithOptionsAtStoredPosition() {
+        showReady(placement = ToolbarPlacement(DockMode.FLOATING, floatX = 0.3f, floatY = 0.4f))
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_floating_landscape.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_PORTRAIT)
+    fun editor_portraitFloating_pillWithOptionsAtStoredPosition() {
+        showReady(EditorTool.ERASER, placement = ToolbarPlacement(DockMode.FLOATING, floatX = 0.5f, floatY = 0.8f))
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_floating_portrait.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeFloatingCollapsed_currentToolOnly() {
+        showReady(placement = ToolbarPlacement(DockMode.FLOATING, floatX = 1f, floatY = 0.5f, collapsed = true))
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_floating_collapsed.png")
     }
 
     @Test

@@ -45,6 +45,10 @@ Color dot: 26 dp, selected ring 2 dp accent with 2 dp gap. Long-press a color or
 - Floating: a compact pill (tools only + a grip handle); drag anywhere; releasing within 48 dp of an edge snaps (spring) to that dock mode; double-tap grip collapses to a single "current tool" button.
 - Handedness (settings): left-handed default dock = RIGHT for side docking, popovers open toward the canvas center.
 - Persisted per orientation (DataStore). Dock changes animate with FolioMotion spring.
+- Grip (A-029): a 44 dp "Move toolbar" grip ends row 1 (top dock: right end; side rails: bottom) and leads the floating pill. Dragging a docked toolbar dims it to 40% while a floating preview pill follows the finger; the release decides the mode. There is no bottom dock: releases near the bottom edge float.
+- Floating pill (A-029): grip + tools pill; the tool options row hangs below it (no Home: system back leaves the editor). Collapsed, it shows the grip and the current tool; tapping the tool expands it. Its position is stored as fractions of the free window area, so it stays on screen across sizes.
+- Side rails: the options rail sits between the tools rail and the canvas; popovers open as flyouts next to it (top-aligned with the rails). Top dock: below row 2, centered. Floating: centered on the canvas.
+- Handedness picks which side "side docking" means (right-handed: LEFT, left-handed: RIGHT); switching hands moves side-docked placements to the other side. The settings toggle lands with the settings screen (D-025).
 
 ## Text tool
 - Pen tap with Text tool inside a page body zone: caret at the nearest line/offset of the body flow (creates the body flow if none; blank lines are filled so the caret lands on the tapped line).
