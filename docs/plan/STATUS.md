@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P04
-next: P04-T09
+next: P04 REVIEW
 updated: 2026-10-02
 
 ## Completed
@@ -11,14 +11,14 @@ updated: 2026-10-02
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
 
 ## Current phase progress
-- P04: T01, T02, T03, T04, T10, T05 (device check pending), T06 (device check pending), T07 (device check pending), T08 (device check pending)
+- P04: T01, T02, T03, T04, T10, T05 (device check pending), T06 (device check pending), T07 (device check pending), T08 (device check pending), T09 (device check pending)
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck P03-REVIEW (no grant-storage.sh, after `pm clear`): the app still reports All files access granted and shows the library. The toggle is not in the app's permission list: open Settings > Privacy (or Apps) > Special app access (Special permissions) > All files access > Folio Debug > off, then write "-> revoked" here; or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else. [revoked]
 - P04-T05 device check not run (no tablet: connect.sh found 0 devices): connect the Pad 7 (Wireless debugging on, unlocked), then have device-tester run: Ctrl+Z undoes the last stroke (`input.sh combo CTRL_LEFT Z`), Ctrl+Y redoes, Alt+3 eraser / Alt+1 pen, Ctrl+/ help sheet + Esc, PageDown/PageUp, Ctrl+= / Ctrl+0 zoom. Blocks nothing else.
 - P04-T06 device check not run (same: 0 devices): device-tester opens a 4+ page note, `debugcmd.sh reorder-page 2,1`, reads `pageOrder` in `state`, reopens the doc and checks the order held; smoke: panel, overview, add, duplicate, delete + Ctrl+Z, settings sheet apply. Blocks nothing else.
 - P04-T07 device check not run (0 devices): device-tester taps "New note" on the library, edits the title (or keeps it), taps Create; the editor opens and the `.folio` appears in Folio-Debug (`scripts/device` file listing); reopen the sheet and check the last choices are the defaults. Blocks nothing else.
-
+- P04-T09 device check not run (0 devices): connect the Pad 7, then `bash scripts/device/instrumented.sh :feature:editor` (device-tester): StylusEditingTest 2/2 (5 strokes, undo 2, redo 1, reopen = 4; eraser sweep + undo). Test APK install may need HyperOS "USB debugging (Security settings)". Blocks nothing else.
 - P04-T08 device check not run (0 devices): device-tester draws strokes, `stop.sh` before the 30 s pack, relaunches: library shows "Recovered unsaved changes." and the note has every stroke; save dot bottom-left is green when idle. Blocks nothing else.
 
 ## USER-CHECK (human verification; non-blocking)
@@ -54,7 +54,6 @@ updated: 2026-10-02
 - D-028 P04-T08: stored thumbs (`thumbs/<page>.webp`, cover) are written 2 s after edits (ThumbnailGenerator) but the page panel still renders live and the library does not read the cover yet (P05); thumbs pending when the editor closes within 2 s are skipped.
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P04-T08 code done (storage/editor/library tests, detekt, lint, Roborazzi, assembleDebug green); T05-T08 device checks open (Blocked, no tablet).
-- Save state: `DocumentSession.saveState` (EntryAutosaver.state + `packFinished`), `SaveIndicator` (editor bottom-left), `EditorViewModel.retrySave`; recovery: `LibraryEntryViewModel.recoveryNotice` + snackbar; thumbs: `ThumbnailGenerator` (D-028).
-- Next: T09 (editor instrumented tests; device-only, will block if no tablet, then P04 REVIEW). Known nit: FolderCard back page overlaps the folder name (P05).
+- P04-T09 code done: `feature/editor/src/androidTest/.../StylusEditingTest` (real wet ink + storage on a temp library, A-031); compiles, detekt/lint/unit green; never run on a device (T05-T09 device checks Blocked, no tablet).
+- Next: P04 REVIEW (reviewer on `p03-done..HEAD`, skip qa; device checks do not stop it). Known nit: FolderCard back page overlaps the folder name (P05).
 - FEEDBACK.md turns into tasks at every REVIEW. `FolioIcons.kt` is generated (A-027): `./gradlew :tools:icongen:run`.

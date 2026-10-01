@@ -13,7 +13,7 @@
 | `core:render` | Android library | Viewport, PageStackLayout, TemplateRenderer, tile caches, BitmapPool, PageRenderer, DisplayModeHelper |
 | `core:pdf` | Android library | PdfRasterizer, PDF import, PdfExporter strategies, PNG export |
 | `core:designsystem` | Android library | Tokens, FolioTheme, UI fonts, FolioIcons (generated), shared components |
-| `core:testing` | JVM (A-002) | Fakes, rules, builders, fixtures helpers (testImplementation only) |
+| `core:testing` | JVM (A-002) | Fakes, rules, builders, fixtures helpers (test and androidTest only, A-031) |
 | `feature:library` | Android library | Onboarding, library home, folders, tags, search, bin, new-note entry |
 | `feature:editor` | Android library | EditorRoute/ViewModel, EditorSession wiring, CanvasHostView, toolbar, tools, text editing overlay, page panel, split view, export sheet |
 | `feature:settings` | Android library | Settings screens |
@@ -30,7 +30,7 @@ core:storage -> core:format, core:model, core:common
 core:ink, core:text -> core:model, core:common
 core:format -> core:model -> core:common
 core:designsystem -> core:common
-core:testing -> core:model, core:common   (A-002; consumed via testImplementation only)
+core:testing -> core:model, core:common   (A-002; consumed via testImplementation and androidTestImplementation only, A-031)
 ```
 Enforced by the root task `verifyModuleGraph` (part of `qa`).
 

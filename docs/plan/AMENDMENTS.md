@@ -158,3 +158,8 @@ Format:
 - Reason: the user chose Notewise as the visual reference after T01..T04; matching it now is cheaper than after the library and text screens exist.
 - Impact: 11-design-system.md (rewritten), 10-editor-ui.md#toolbar and #tool-options, 07-text-engine.md (Literata), 12-performance.md (font sizes), docs/notes/env.md (fonts).
 
+## A-031 2026-10-02 P04-T09: core:testing also feeds androidTest source sets
+- Change: `core:testing` is consumed via `testImplementation` and `androidTestImplementation` (instrumented editor tests reuse `TempDirFolioFs`, `FakeClock`, `ModelFixtures`). It stays out of every main source set.
+- Reason: the editor instrumented test runs the real storage stack on a temp library inside the test app and needs the same fixtures as the Robolectric tests.
+- Impact: 02-modules.md (core:testing rows), architecture-boundaries rule wording.
+

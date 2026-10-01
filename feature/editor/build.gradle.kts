@@ -27,4 +27,8 @@ dependencies {
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     testImplementation(projects.core.testing)
     testImplementation(libs.room.runtime) // in-memory index of the real storage stack in EditorViewModelTest
+    androidTestImplementation(libs.bundles.android.test)
+    androidTestImplementation(libs.compose.ui.test.manifest) // ComponentActivity for the compose rule (test APK only)
+    androidTestImplementation(projects.core.testing)
+    androidTestImplementation(libs.room.runtime) // in-memory index under the real storage stack
 }
