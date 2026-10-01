@@ -65,3 +65,5 @@ Read all `notes/G*.md`; view at most 3 previews in `shots/` and only to settle a
 8. Screen layouts: library, editor (toolbar placements), panels; 9. Motion observed
 10. Shot index: file -> one line
 Numbers come from the notes; mark any value taken from a single uncertain measurement with `(~)`.
+
+Don't forget to mention, that each component is part of Notewise. Because Notewise is slightly different in some ways, it doesn't have a paid button/subscriptions, sticky notes, a recorder, a zoom panel and a tape brush. There are still some more and DESIGN.md may include all components, but this should be a reminder before the rest of design.md for tasks that will regard the design system
