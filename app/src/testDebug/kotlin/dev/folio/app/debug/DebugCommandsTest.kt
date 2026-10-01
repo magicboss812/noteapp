@@ -142,9 +142,30 @@ class DebugCommandsTest {
     }
 
     @Test
-    fun route_removedSpikeInk_isUnknown() {
+    fun route_library_removesOverlay() {
+        commands.execute("route", "spike-fonts")
+
+        assertThat(commands.execute("route", "library").ok).isTrue()
+
+        assertThat(state.overlay).isNull()
+        assertThat(state.screen).isEqualTo("library")
+    }
+
+    @Test
+    fun state_editorShown_reportsEditorScreenAndDoc() {
+        val editing = DebugAppState(editorShown = { true }, openDocPath = { "perf/lined-5.folio" })
+
+        val json = DebugCommands(editing) { }.execute("state", null).json
+
+        assertThat(json.getValue("screen").jsonPrimitive.content).isEqualTo("editor")
+        assertThat(json.getValue("doc").jsonPrimitive.content).isEqualTo("perf/lined-5.folio")
+    }
+
+    @Test
+    fun route_removedSpikeInkAndCanvas_areUnknown() {
         assertThat(commands.execute("route", "spike-ink").ok).isFalse()
         assertThat(commands.execute("route", "spike-stylus").ok).isFalse()
+        assertThat(commands.execute("route", "canvas").ok).isFalse()
     }
 
     @Test

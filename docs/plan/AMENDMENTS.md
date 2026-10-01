@@ -143,3 +143,8 @@ Format:
 - Reason: `home.svg` and `trash-2.svg` no longer exist in Lucide 1.x. The snackbar sits on textPrimary, where accent has too little contrast, and the other values were already in the doc but had no token. Compose applies no automatic optical sizing to variable fonts. A shared resource name lets the APK merge keep one 876 KB copy while each module stays self-contained.
 - Impact: 11-design-system.md#colors, #typography, #icons; docs/notes/env.md Dependencies.
 
+## A-028 2026-10-01 P04-T02: debug canvas route replaced by the editor, library placeholder lists documents
+- Change: the debug `canvas` route and its stopgap controller are gone. `open` makes sure the document exists, then navigates to the editor route; `state` reports route `editor`, and `route library` pops the navigator back (the editor ViewModel is cleared and the document packed). `DebugHooks` exposes an `EditorCanvasListener` and receives the `AppNavigator` in `attach`. Until the P05 library exists, the library placeholder lists every indexed document (title, folder, page count; tap opens it).
+- Reason: the debug commands must drive the same EditorSession the user sees, and "navigation from the library placeholder" needs something to tap.
+- Impact: docs/notes/device.md quirks; P05-T01 replaces the placeholder list.
+

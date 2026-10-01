@@ -1,30 +1,16 @@
 package dev.folio.app.debug
 
-import android.content.Context
-import android.view.View
 import androidx.annotation.MainThread
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.ComposeView
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.common.flatMap
-import dev.folio.core.ink.brush.BrushCatalog
-import dev.folio.core.ink.brush.BrushPresets
-import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.Background
-import dev.folio.core.model.BrushKind
-import dev.folio.core.model.BrushSpec
-import dev.folio.core.model.Document
-import dev.folio.core.model.InkStroke
 import dev.folio.core.model.Orientation
-import dev.folio.core.model.PageId
 import dev.folio.core.model.PageSpec
 import dev.folio.core.model.PaperSize
 import dev.folio.core.model.TemplateKind
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.Batch
-import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.RemoveObjects
 import dev.folio.core.render.template.TemplatePresets
 import dev.folio.core.render.viewport.Viewport
@@ -32,16 +18,13 @@ import dev.folio.core.storage.repo.DocumentRepository
 import dev.folio.core.storage.repo.NewDocumentSpec
 import dev.folio.core.storage.session.DocumentSession
 import dev.folio.core.storage.session.DocumentSessions
-import dev.folio.feature.editor.canvas.CanvasController
-import dev.folio.feature.editor.canvas.CanvasHost
 import dev.folio.feature.editor.canvas.CanvasHostView
 import dev.folio.feature.editor.canvas.CanvasTool
-import kotlinx.coroutines.CoroutineDispatcher
+import dev.folio.feature.editor.state.EditorSession
+import dev.folio.feature.editor.state.EditorTool
+import dev.folio.feature.editor.ui.EditorCanvasListener
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -117,79 +100,46 @@ internal data class ScrollPage(
     }
 }
 
-/** Until EditorSession exists (P04) a document session plus a viewport stands in for the controller. */
-private class SessionCanvasController(
-    val session: DocumentSession,
-    density: Float,
-    override val renderDispatcher: CoroutineDispatcher,
-    private val ioDispatcher: CoroutineDispatcher,
-    private val scope: CoroutineScope,
-) : CanvasController {
-    override val document: StateFlow<Document> get() = session.document
-    override val viewport = Viewport(density)
-    override val mainDispatcher = Dispatchers.Main.immediate
-
-    // Middle ballpoint preset in ink black until the toolbar exists (P04).
-    override val activeBrush =
-        BrushSpec(
-            BrushKind.BALLPOINT,
-            BrushPresets.PEN_PALETTE[0],
-            BrushPresets.widthsPt(BrushKind.BALLPOINT)[1],
-            BrushCatalog.DEFAULT.latestVersion,
-        )
-
-    override fun loadPages(ids: Collection<PageId>) {
-        scope.launch {
-            val result = session.loadPages(ids)
-            if (result is Outcome.Failure) FolioLog.w(DebugReply.TAG, "loadPages: ${result.message}")
-        }
-    }
-
-    override var activeTool = CanvasTool.PEN
-    override var eraserOptions = EraserOptions.DEFAULT
-
-    override suspend fun commitStrokes(
-        pageId: PageId,
-        strokes: List<InkStroke>,
-    ): Boolean = execute(AddObjects(pageId, strokes))
-
-    override suspend fun execute(command: EditCommand): Boolean {
-        // Off the main thread: the session lock, the command and the autosave scheduling (ink:commit budget).
-        val result = withContext(ioDispatcher) { session.execute(command) }
-        if (result is Outcome.Failure) FolioLog.w(DebugReply.TAG, "execute ${command::class.simpleName}: ${result.message}")
-        return result is Outcome.Success
-    }
-}
-
 /**
- * Debug commands for the canvas host (P03-T02, T04): `open <path>|blank:N` opens a document through
- * [DocumentSessions] and shows it on the `canvas` route; `zoom-anim` and `scroll-page` script the
- * viewport for frame stats; `seed-strokes n[,page]` replaces a page's objects with n synthetic strokes;
- * `tool` switches pen and eraser (P03-T08), `undo` and `redo` step the session history.
- * Replaced by the P04 editor route and EditorSession.
+ * Debug commands for the editor canvas (P03-T02..T08, P04-T02): `open <path>|<template>:N` makes sure
+ * the document exists (generating it if needed), then [onOpen] navigates to its editor; `zoom-anim` and
+ * `scroll-page` script the viewport for frame stats; `seed-strokes n[,page]` replaces a page's objects
+ * with n synthetic strokes; `tool` switches pen and eraser, `undo` and `redo` step the history. All act on
+ * the editor canvas on screen, which this class observes as the editor's [EditorCanvasListener].
  */
 @MainThread
 internal class CanvasDebug(
     private val sessionsProvider: () -> DocumentSessions,
     private val documentsProvider: () -> DocumentRepository,
     private val scope: CoroutineScope,
-    private val density: Float,
-    private val renderDispatcher: CoroutineDispatcher,
-    private val ioDispatcher: CoroutineDispatcher,
-    private val onOpened: () -> Unit,
-) {
+    private val onOpen: (String) -> Unit,
+) : EditorCanvasListener {
     private val sessions: DocumentSessions get() = sessionsProvider()
     private val documents: DocumentRepository get() = documentsProvider()
-    private var controller: SessionCanvasController? = null
+    private var session: EditorSession? = null
     private var host: CanvasHostView? = null
     private var opening: String? = null
     private var lastError: String? = null
 
-    /** Library path of the open document. */
-    val openDoc: String? get() = controller?.session?.path
+    /** Library path of the document on screen. */
+    val openDoc: String? get() = session?.documentSession?.path
 
     /** Zoom of the laid-out canvas. */
-    val zoom: Float? get() = controller?.viewport?.takeIf { it.layout != null }?.zoom
+    val zoom: Float? get() = session?.viewport?.takeIf { it.layout != null }?.zoom
+
+    override fun shown(
+        session: EditorSession,
+        host: CanvasHostView,
+    ) {
+        this.session = session
+        this.host = host
+    }
+
+    override fun gone(session: EditorSession) {
+        if (this.session !== session) return
+        this.session = null
+        host = null
+    }
 
     fun open(arg: String?): DebugReply {
         val target =
@@ -202,10 +152,11 @@ internal class CanvasDebug(
         opening = path
         lastError = null
         scope.launch {
+            // The editor's ViewModel opens the same path and gets this (cached) session.
             val result = sessions.open(path).orCreate(target)
             opening = null
             when (result) {
-                is Outcome.Success -> show(result.value)
+                is Outcome.Success -> onOpen(result.value.path)
                 is Outcome.Failure -> lastError = "${result.message}: ${result.cause}"
             }
             FolioLog.i(DebugReply.TAG, "open $path -> ${lastError ?: "ok"}")
@@ -224,7 +175,7 @@ internal class CanvasDebug(
     fun scrollPage(arg: String?): DebugReply {
         val scroll = ScrollPage.parse(arg) ?: return DebugReply.error("scroll-page needs n[,ms] with n >= 1")
         val view = host ?: return DebugReply.error(NO_CANVAS)
-        val count = controller?.viewport?.layout?.size ?: 0
+        val count = session?.viewport?.layout?.size ?: 0
         if (scroll.page > count) return DebugReply.error("page ${scroll.page} > $count pages")
         view.scrollToPage(scroll.page - 1, scroll.durationMs)
         return DebugReply.ok(json() ?: JsonObject(emptyMap()))
@@ -232,13 +183,13 @@ internal class CanvasDebug(
 
     fun seedStrokes(arg: String?): DebugReply {
         val seed = SeedStrokes.parse(arg) ?: return DebugReply.error("seed-strokes needs n[,page] with n in 1..${SeedStrokes.MAX_COUNT}")
-        val current = controller ?: return DebugReply.error(NO_CANVAS)
+        val current = session?.documentSession ?: return DebugReply.error(NO_CANVAS)
         val ref =
             current.document.value.pages
                 .getOrNull(seed.page - 1) ?: return DebugReply.error("no page ${seed.page}")
         val strokes = SyntheticStrokes.generate(seed.count, ref.spec.widthPt, ref.spec.heightPt)
         scope.launch {
-            val loaded = current.session.loadPages(listOf(ref.id))
+            val loaded = current.loadPages(listOf(ref.id))
             val existing =
                 current.document.value.pageBodies[ref.id]
                     ?.objects
@@ -248,7 +199,7 @@ internal class CanvasDebug(
                 if (loaded is Outcome.Failure) {
                     loaded
                 } else {
-                    current.session.execute(Batch(listOf(RemoveObjects(ref.id, existing), AddObjects(ref.id, strokes))))
+                    current.execute(Batch(listOf(RemoveObjects(ref.id, existing), AddObjects(ref.id, strokes))))
                 }
             FolioLog.i(
                 DebugReply.TAG,
@@ -261,8 +212,8 @@ internal class CanvasDebug(
     fun tool(arg: String?): DebugReply {
         val setting =
             ToolSetting.parse(arg) ?: return DebugReply.error("tool needs pen or eraser[,stroke|partial][,radiusPt][,hl]")
-        val current = controller ?: return DebugReply.error(NO_CANVAS)
-        current.activeTool = setting.tool
+        val current = session ?: return DebugReply.error(NO_CANVAS)
+        current.selectTool(if (setting.tool == CanvasTool.ERASER) EditorTool.ERASER else EditorTool.PEN)
         if (setting.tool == CanvasTool.ERASER) current.eraserOptions = setting.eraser // `tool pen` keeps them
         return DebugReply.ok(json() ?: JsonObject(emptyMap()))
     }
@@ -274,108 +225,94 @@ internal class CanvasDebug(
     private fun history(
         name: String,
         arg: String?,
-        step: suspend (DocumentSession) -> Outcome<Unit>,
+        step: suspend (EditorSession) -> Boolean,
     ): DebugReply {
         if (!arg.isNullOrBlank()) return DebugReply.error("$name takes no argument")
-        val current = controller ?: return DebugReply.error(NO_CANVAS)
+        val current = session ?: return DebugReply.error(NO_CANVAS)
         scope.launch {
-            val result = withContext(ioDispatcher) { step(current.session) }
-            FolioLog.i(DebugReply.TAG, "$name -> ${(result as? Outcome.Failure)?.message ?: "ok"}")
+            val ok = step(current)
+            FolioLog.i(DebugReply.TAG, "$name -> ${if (ok) "ok" else "failed"}")
         }
         return DebugReply.ok(buildJsonObject { put(name, true) })
     }
 
-    /** The canvas screen for the open document, or null if none is open. */
-    fun createView(context: Context): View? {
-        val current = controller ?: return null
-        return ComposeView(context).apply {
-            setContent { CanvasHost(current, Modifier.fillMaxSize(), onHost = { host = it }) }
-        }
-    }
-
-    /** The canvas screen was removed. */
-    fun onViewGone() {
-        host = null
-    }
-
-    /** Canvas facts for `state`; null when nothing is open or opening. */
+    /** Canvas facts for `state`; null when nothing is shown, opening or failed. */
     fun json(): JsonObject? {
-        val current = controller
+        val current = session
         if (current == null && opening == null && lastError == null) return null
         return buildJsonObject {
             opening?.let { put("opening", it) }
             lastError?.let { put("error", it) }
-            if (current != null) {
-                val vp = current.viewport
-                put("pages", current.document.value.pages.size)
-                put("zoom", vp.zoom)
-                put("offsetYPx", vp.offsetYPx)
-                put("visibleView", host != null)
-                put("animating", host?.isAnimating)
-                put("requestedHz", host?.requestedHz)
-                put("activeHz", host?.display?.refreshRate)
-                put(
-                    "objects",
-                    current.document.value.pageBodies.values
-                        .sumOf { it.objects.size },
-                )
-                host?.inkStats?.let { ink ->
-                    put(
-                        "ink",
-                        buildJsonObject {
-                            put("started", ink.started)
-                            put("finished", ink.finished)
-                            put("canceled", ink.canceled)
-                        },
-                    )
-                }
-                host?.handoffStats?.let { h ->
-                    put(
-                        "handoff",
-                        buildJsonObject {
-                            put("committed", h.committed)
-                            put("pending", h.pending)
-                            put("removed", h.removed)
-                        },
-                    )
-                }
-                put("tool", "${current.activeTool.name.lowercase()} ${current.eraserOptions}")
-                put("canUndo", current.session.canUndo.value)
-                put("canRedo", current.session.canRedo.value)
-                host?.eraseStats?.let { e ->
-                    put(
-                        "erase",
-                        buildJsonObject {
-                            put("gestures", e.gestures)
-                            put("committed", e.committed)
-                            put("strokes", e.strokes)
-                            put("discarded", e.discarded)
-                        },
-                    )
-                }
-                host?.let { h ->
-                    val caps = h.stylusCapabilities
-                    put(
-                        "stylus",
-                        "pressure=${caps.pressure} tilt=${caps.tilt} orientation=${caps.orientation} hover=${caps.hover} " +
-                            "button=${caps.primaryButton} hoverRing=${h.isHoverRingShown} hoverEvents=${h.hoverEventCount}",
-                    )
-                }
-                host?.tileStats?.let { t ->
-                    put(
-                        "tiles",
-                        buildJsonObject {
-                            put("budgetMiBPerLayer", t.budgetBytesPerLayer / MIB)
-                            put("background", t.backgroundTiles)
-                            put("backgroundMiB", t.backgroundBytes / MIB)
-                            put("content", t.contentTiles)
-                            put("contentMiB", t.contentBytes / MIB)
-                            put("pending", t.pending)
-                            put("evictions", t.evictions)
-                        },
-                    )
-                }
-            }
+            if (current != null) putCanvas(current)
+        }
+    }
+
+    private fun kotlinx.serialization.json.JsonObjectBuilder.putCanvas(current: EditorSession) {
+        val vp = current.viewport
+        val doc = current.document.value
+        put("pages", doc.pages.size)
+        put("zoom", vp.zoom)
+        put("offsetYPx", vp.offsetYPx)
+        put("visibleView", host != null)
+        put("animating", host?.isAnimating)
+        put("requestedHz", host?.requestedHz)
+        put("activeHz", host?.display?.refreshRate)
+        put("objects", doc.pageBodies.values.sumOf { it.objects.size })
+        host?.inkStats?.let { ink ->
+            put(
+                "ink",
+                buildJsonObject {
+                    put("started", ink.started)
+                    put("finished", ink.finished)
+                    put("canceled", ink.canceled)
+                },
+            )
+        }
+        host?.handoffStats?.let { h ->
+            put(
+                "handoff",
+                buildJsonObject {
+                    put("committed", h.committed)
+                    put("pending", h.pending)
+                    put("removed", h.removed)
+                },
+            )
+        }
+        put("tool", "${current.tool.value.name.lowercase()} ${current.activeTool.name.lowercase()} ${current.eraserOptions}")
+        put("canUndo", current.canUndo.value)
+        put("canRedo", current.canRedo.value)
+        host?.eraseStats?.let { e ->
+            put(
+                "erase",
+                buildJsonObject {
+                    put("gestures", e.gestures)
+                    put("committed", e.committed)
+                    put("strokes", e.strokes)
+                    put("discarded", e.discarded)
+                },
+            )
+        }
+        host?.let { h ->
+            val caps = h.stylusCapabilities
+            put(
+                "stylus",
+                "pressure=${caps.pressure} tilt=${caps.tilt} orientation=${caps.orientation} hover=${caps.hover} " +
+                    "button=${caps.primaryButton} hoverRing=${h.isHoverRingShown} hoverEvents=${h.hoverEventCount}",
+            )
+        }
+        host?.tileStats?.let { t ->
+            put(
+                "tiles",
+                buildJsonObject {
+                    put("budgetMiBPerLayer", t.budgetBytesPerLayer / MIB)
+                    put("background", t.backgroundTiles)
+                    put("backgroundMiB", t.backgroundBytes / MIB)
+                    put("content", t.contentTiles)
+                    put("contentMiB", t.contentBytes / MIB)
+                    put("pending", t.pending)
+                    put("evictions", t.evictions)
+                },
+            )
         }
     }
 
@@ -386,19 +323,8 @@ internal class CanvasDebug(
         return documents.create(spec).flatMap { sessions.open(it.path) }
     }
 
-    private fun show(session: DocumentSession) {
-        val previous = controller
-        if (previous?.session === session) {
-            onOpened()
-            return
-        }
-        previous?.let { old -> scope.launch { sessions.close(old.session) } }
-        controller = SessionCanvasController(session, density, renderDispatcher, ioDispatcher, scope)
-        onOpened()
-    }
-
     private companion object {
-        const val NO_CANVAS = "no canvas shown; run open first"
+        const val NO_CANVAS = "no editor canvas shown; run open first"
         const val WHITE = 0xFFFFFFFF.toInt()
         const val MIB = 1024L * 1024L
         val A4 = PageSpec.Fixed(PaperSize.A4, Orientation.PORTRAIT)

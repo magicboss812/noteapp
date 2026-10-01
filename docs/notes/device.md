@@ -42,7 +42,7 @@ P01-S7 probe (route `spike-stylus`, removed in P03-T09; debug `state` now report
 - Shared storage: a file replaced by rename reports its new mtime right after the write and its original mtime later, so never trust mtime alone to detect external changes (A-022, P03-T07).
 - `input.sh stylus-swipe`: about 1 in 25 swipes (mostly the first after a cold launch) never reaches the app; count ACTION_DOWNs or `state.canvas.ink.started`, not swipes sent.
 - `clear-data.sh` (`pm clear`) keeps the MANAGE_EXTERNAL_STORAGE appop (P02-T06); no wrapper revokes it, so the storage onboarding can only be seen on device after the user turns All files access off. Rechecked P03-REVIEW: still `granted:true` after `pm clear`. The toggle is not in the app's permission list; HyperOS lists it under special app access ("All files access").
-- `launch.sh --route canvas` shows the library until a document is open: run `debugcmd.sh open blank:1` first (P03-REVIEW).
+- There is no `canvas` route since P04-T02: `debugcmd.sh open blank:1` (or a tap in the library list) navigates to the editor; `debugcmd.sh route library` pops back, which releases (packs) the document.
 - `pm uninstall` of a package that is not installed returns `DELETE_FAILED_INTERNAL_ERROR` (harmless).
 - Our process logs HyperOS framework noise at start (E/ `MI-PreRender`, `FramePredict`, `FrameInsert`); ignore when scanning logcat.
 - System locale de_DE and system dark mode on (the P00 placeholder renders light; dark UI arrives in P11).

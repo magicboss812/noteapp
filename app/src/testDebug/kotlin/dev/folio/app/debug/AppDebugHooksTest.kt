@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dev.folio.app.di.AppModule
+import dev.folio.app.nav.AppNavigator
+import dev.folio.app.nav.AppRoute
 import dev.folio.core.common.FolioLog
 import dev.folio.core.storage.library.LibraryAccess
 import dev.folio.core.storage.library.LibraryRoot
@@ -68,7 +70,7 @@ class AppDebugHooksTest {
     @Test
     fun activityDestroyed_overlayOn_leavesNoPendingOverlayWork() {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
-        hooks.attach(controller.get())
+        hooks.attach(controller.get(), AppNavigator())
         hooks.handleIntent(debugIntent(cmd = "overlay", arg = "on", nonce = "1"))
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
 
@@ -76,6 +78,22 @@ class AppDebugHooksTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(3))
 
         assertThat(shadowOf(Looper.getMainLooper()).nextScheduledTaskTime).isEqualTo(Duration.ZERO)
+    }
+
+    @Test
+    fun routeLibrary_editorOpen_popsToLibraryAndStateFollowsNavigator() {
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
+        val navigator = AppNavigator()
+        hooks.attach(controller.get(), navigator)
+        navigator.openEditor("perf/lined-5.folio")
+        hooks.handleIntent(debugIntent(cmd = "state", arg = "_", nonce = "1"))
+
+        hooks.handleIntent(debugIntent(cmd = "route", arg = "library", nonce = "2"))
+
+        assertThat(lines[0]).contains("\"route\":\"editor\"")
+        assertThat(lines[1]).contains("\"route\":\"library\"")
+        assertThat(navigator.current).isEqualTo(AppRoute.Library)
+        controller.pause().stop().destroy()
     }
 
     private fun debugIntent(

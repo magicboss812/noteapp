@@ -1,7 +1,6 @@
 package dev.folio.app.debug
 
 import android.content.Intent
-import android.content.res.Resources
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
@@ -10,6 +9,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import dagger.Lazy
 import dev.folio.app.DebugHooks
+import dev.folio.app.nav.AppNavigator
+import dev.folio.app.nav.AppRoute
 import dev.folio.app.spikes.SpikeFontsView
 import dev.folio.app.spikes.spikeFontsCommand
 import dev.folio.core.common.FolioDispatchers
@@ -17,6 +18,7 @@ import dev.folio.core.common.FolioLog
 import dev.folio.core.storage.library.LibraryAccess
 import dev.folio.core.storage.repo.DocumentRepository
 import dev.folio.core.storage.session.DocumentSessions
+import dev.folio.feature.editor.ui.EditorCanvasListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.JsonObject
@@ -27,7 +29,10 @@ import kotlinx.serialization.json.putJsonArray
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Debug build [DebugHooks]: runs debug commands from intents and hosts the frame-time overlay. */
+/**
+ * Debug build [DebugHooks]: runs debug commands from intents, hosts the frame-time overlay and observes
+ * the editor canvas for the canvas commands.
+ */
 @MainThread
 @Singleton
 internal class AppDebugHooks
@@ -39,22 +44,17 @@ internal class AppDebugHooks
         documents: Lazy<DocumentRepository>,
     ) : DebugHooks {
         private val scope = CoroutineScope(SupervisorJob() + dispatchers.main)
+        private var navigator: AppNavigator? = null
         private val canvas: CanvasDebug =
-            CanvasDebug(
-                sessions::get,
-                documents::get,
-                scope,
-                Resources.getSystem().displayMetrics.density,
-                dispatchers.render,
-                dispatchers.io,
-            ) {
-                showRoute(DebugAppState.CANVAS, force = true)
-                state.navigate(DebugAppState.CANVAS)
+            CanvasDebug(sessions::get, documents::get, scope) { path ->
+                if (state.overlay != null) state.navigate(DebugAppState.LIBRARY) // the editor must not be covered
+                navigator?.openEditor(path)
             }
         private val state =
             DebugAppState(
                 library = ::libraryJson,
                 baseScreen = { if (libraryAccess.isGranted()) DebugAppState.LIBRARY else ONBOARDING },
+                editorShown = { navigator?.current is AppRoute.Editor },
                 openDocPath = { canvas.openDoc },
                 canvasZoom = { canvas.zoom },
                 canvas = { canvas.json() },
@@ -63,7 +63,8 @@ internal class AppDebugHooks
         private var overlay: FrameTimeOverlay? = null
         private var overlayVisible = false
         private var spike: View? = null // the shown spike screen, if any
-        private var spikeRoute: String? = null
+
+        override val editorCanvas: EditorCanvasListener get() = canvas
         private val commands =
             DebugCommands(
                 state,
@@ -80,13 +81,17 @@ internal class AppDebugHooks
                     ),
             ) { visible -> setOverlayVisible(visible) }
 
-        override fun attach(activity: ComponentActivity) {
+        override fun attach(
+            activity: ComponentActivity,
+            navigator: AppNavigator,
+        ) {
             val created = FrameTimeOverlay(activity).also { it.install() }
             this.activity = activity
+            this.navigator = navigator
             overlay = created
             spike = null
             created.setVisible(overlayVisible)
-            showRoute(state.route) // a recreated activity shows the current route again
+            state.overlay?.let { showRoute(it) } // a recreated activity shows the spike screen again
             activity.lifecycle.addObserver(
                 LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_DESTROY) {
@@ -95,29 +100,18 @@ internal class AppDebugHooks
                         if (this.activity === activity) {
                             this.activity = null
                             spike = null
-                            canvas.onViewGone()
                         }
                     }
                 },
             )
         }
 
-        // Spike and canvas screens cover the library entry content until P04 navigation exists (spikes: D-002).
-        private fun showRoute(
-            route: String,
-            force: Boolean = false,
-        ) {
+        // `library` pops the navigator to the library; spike screens cover the app content (D-002).
+        private fun showRoute(route: String) {
+            if (route == DebugAppState.LIBRARY) navigator?.toLibrary()
             val host = activity ?: return
-            if (spike != null && spikeRoute == route && !force) return
             spike?.let { (it.parent as? ViewGroup)?.removeView(it) }
-            if (spikeRoute == DebugAppState.CANVAS) canvas.onViewGone()
-            spike =
-                when (route) {
-                    DebugAppState.CANVAS -> canvas.createView(host)
-                    SpikeFontsView.ROUTE -> SpikeFontsView(host, dispatchers)
-                    else -> null
-                }
-            spikeRoute = route
+            spike = if (route == SpikeFontsView.ROUTE) SpikeFontsView(host, dispatchers) else null
             spike?.let {
                 host.addContentView(it, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
                 overlay?.bringToFront()

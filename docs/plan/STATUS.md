@@ -1,8 +1,8 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P04
-next: P04-T02
-updated: 2026-09-30
+next: P04-T03
+updated: 2026-10-01
 
 ## Completed
 - P00 done 2026-09-27 (tag p00-done): AGP 9.4.1/Kotlin 2.4.20/Gradle 9.8.0, compileSdk 37.2, minSdk 35 (device SDK 36); qa green; instrumented smoke 1/1 on Pad 7; cold launch 786 ms; A-001..A-004.
@@ -11,7 +11,7 @@ updated: 2026-09-30
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
 
 ## Current phase progress
-- P04: T01
+- P04: T01, T02
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck P03-REVIEW (no grant-storage.sh, after `pm clear`): the app still reports All files access granted and shows the library. The toggle is not in the app's permission list: open Settings > Privacy (or Apps) > Special app access (Special permissions) > All files access > Folio Debug > off, then write "-> revoked" here; or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else.
@@ -35,11 +35,11 @@ updated: 2026-09-30
 - D-018 P03-T10 (user note): dry strokes look slightly blocky when zoomed in; raise mesh/tile detail or make it a setting (P11).
 - D-019 P03-REVIEW: `TileLayer.launchRender` leaves a failed (non-cancel) render's key in `inFlight`/`waitingVisible` (never retried, uncaught); catch, clear the key, log, retry. Fix with a failing test before P08 (PDF rasters can throw).
 - D-020 P03-REVIEW: pan-time `requestTiles` allocates lists/`RectPt`/`VisiblePage`/boxed `Pair` per tile and may log evictions; `DryHandoff.check` allocates and `isDrawn` scans all page objects per pending stroke. Reuse scratch objects, id-set lookup (P11 perf).
-- D-021 P03-REVIEW: `CanvasHostView` hardcodes `Dispatchers.Main.immediate` (inject via `CanvasController`) and has no accessibility description; fix in P04-T02 editor scaffold.
 - D-022 P03-REVIEW: an erase gesture right after a pen lift cannot erase strokes still in the dry handoff (snapshot = committed document); include pending strokes (P07 or P11).
 - D-023 P04-T01: dark destructive dialog button is white on danger #F87171 (low contrast); use a dark onDanger or a darker fill when the first real delete dialog lands (P05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P04-T02a done: feature:editor `EditorSession` (CanvasController over DocumentSession), `EditorViewModel` (assisted Hilt, releases on clear), `EditorRoute`/`EditorScreen` + toolbar row 1, goldens Editor_*; D-021 fixed (mainDispatcher, a11y); `DocumentSessions.release`.
-- `FolioIcons.kt` is generated: add a Lucide 1.49.0 SVG to tools/icongen/src/main/resources/lucide, run `./gradlew :tools:icongen:run` (A-027: house/trash names).
-- Next: P04-T02b: app navigation (Library <-> EditorRoute, FolioTheme), debug `open` via the editor route (CanvasDebug drives EditorSession through `EditorCanvasListener`; its SessionCanvasController is a stopgap), library placeholder list, device check.
+- P04-T02 done: Nav3 `AppNavigator`/`FolioNavHost` in app/nav (Library <-> EditorRoute, per-entry ViewModelStore releases the doc on pop); debug `open` navigates to the editor and CanvasDebug observes it via `EditorCanvasListener` (A-028); library placeholder lists docs.
+- Device: open lined:5, draw, back (route library or KEYCODE_BACK), reopen -> strokes kept. The device library shows 7 rows titled "lined-3" (old perf files, distinct paths); harmless, P05 list shows names properly.
+- `FolioIcons.kt` is generated: add a Lucide 1.49.0 SVG to tools/icongen/src/main/resources/lucide, run `./gradlew :tools:icongen:run` (A-027).
+- Next: P04-T03 tool options row (EditorSession.tool/eraserOptions, EditorToolbar in feature:editor/ui).

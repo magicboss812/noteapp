@@ -4,12 +4,21 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -27,16 +36,29 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.folio.core.storage.library.LibraryAccessState
+import dev.folio.feature.library.state.LibraryDocItem
 import dev.folio.feature.library.state.LibraryEntryViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 
 // Placeholder layout constants until the design system tokens exist (P04-T01).
 private val CONTENT_MAX_WIDTH = 560.dp
 private val GAP = 24.dp
+private val ROW_MIN_HEIGHT = 56.dp
+private val ROW_PADDING = 8.dp
+private const val HEADER_KEY = "header"
 
-/** Library entry: onboarding while all-files access is missing, else the library (placeholder until P05). */
+/**
+ * Library entry: onboarding while all-files access is missing, else the library (placeholder until P05);
+ * [onOpenDocument] opens a document by library path.
+ */
 @Composable
-fun LibraryEntryRoute(viewModel: LibraryEntryViewModel = hiltViewModel()) {
+fun LibraryEntryRoute(
+    onOpenDocument: (String) -> Unit,
+    viewModel: LibraryEntryViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val documents by viewModel.documents.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LifecycleResumeEffect(Unit) {
         viewModel.refresh()
@@ -48,6 +70,8 @@ fun LibraryEntryRoute(viewModel: LibraryEntryViewModel = hiltViewModel()) {
             val uri = Uri.parse("package:${context.packageName}")
             context.startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, uri))
         },
+        documents = documents,
+        onOpenDocument = onOpenDocument,
     )
 }
 
@@ -57,12 +81,14 @@ fun LibraryEntryScreen(
     state: LibraryAccessState,
     onGrantAccess: () -> Unit,
     modifier: Modifier = Modifier,
+    documents: ImmutableList<LibraryDocItem> = persistentListOf(),
+    onOpenDocument: (String) -> Unit = {},
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when (state) {
             LibraryAccessState.Checking -> Unit
             is LibraryAccessState.NeedsPermission -> StorageOnboarding(state.folder, onGrantAccess)
-            is LibraryAccessState.Ready -> LibraryPlaceholder(state.rootPath)
+            is LibraryAccessState.Ready -> LibraryPlaceholder(state.rootPath, documents, onOpenDocument)
             is LibraryAccessState.Failed -> CenteredColumn { Text(text = "The library folder cannot be used: ${state.message}") }
         }
     }
@@ -98,10 +124,56 @@ private fun StorageOnboarding(
 }
 
 @Composable
-private fun LibraryPlaceholder(rootPath: String) {
-    CenteredColumn {
-        Text(text = "Library", style = MaterialTheme.typography.headlineMedium)
-        Text(text = rootPath, style = MaterialTheme.typography.bodyLarge)
+private fun LibraryPlaceholder(
+    rootPath: String,
+    documents: ImmutableList<LibraryDocItem>,
+    onOpenDocument: (String) -> Unit,
+) {
+    if (documents.isEmpty()) {
+        CenteredColumn {
+            Text(text = "Library", style = MaterialTheme.typography.headlineMedium)
+            Text(text = rootPath, style = MaterialTheme.typography.bodyLarge)
+        }
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+        contentPadding = PaddingValues(GAP),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        item(key = HEADER_KEY) {
+            Column(Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxWidth().padding(bottom = GAP)) {
+                Text(text = "Library", style = MaterialTheme.typography.headlineMedium)
+                Text(text = rootPath, style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+        items(documents, key = { it.path }) { doc -> DocumentRow(doc, onOpenDocument) }
+    }
+}
+
+@Composable
+private fun DocumentRow(
+    doc: LibraryDocItem,
+    onOpenDocument: (String) -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .widthIn(max = CONTENT_MAX_WIDTH)
+                .fillMaxWidth()
+                .heightIn(min = ROW_MIN_HEIGHT)
+                .clickable(onClickLabel = "Open") { onOpenDocument(doc.path) }
+                .padding(vertical = ROW_PADDING),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(text = doc.title, style = MaterialTheme.typography.titleMedium)
+        val folder = doc.folder.ifEmpty { "Library" }
+        val pages = if (doc.pageCount == 1) "1 page" else "${doc.pageCount} pages"
+        Text(
+            text = "$folder · $pages",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

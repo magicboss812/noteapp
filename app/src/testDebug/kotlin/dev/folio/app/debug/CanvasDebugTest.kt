@@ -10,10 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import org.junit.Test
 
 class CanvasDebugTest {
-    private val canvas =
-        CanvasDebug({
-            error("unused")
-        }, { error("unused") }, CoroutineScope(Dispatchers.Unconfined), 2.5f, Dispatchers.Unconfined, Dispatchers.Unconfined) {}
+    private val canvas = CanvasDebug({ error("unused") }, { error("unused") }, CoroutineScope(Dispatchers.Unconfined)) {}
 
     @Test
     fun openTarget_parse_pathGeneratedAndInvalid() {
@@ -84,6 +81,8 @@ class CanvasDebugTest {
         assertThat(canvas.zoomAnim("1,3,800").ok).isFalse()
         assertThat(canvas.scrollPage("3").ok).isFalse()
         assertThat(canvas.seedStrokes("10").ok).isFalse()
+        assertThat(canvas.tool("eraser").ok).isFalse()
+        assertThat(canvas.undo(null).ok).isFalse()
         assertThat(canvas.open("blank:0").ok).isFalse()
         assertThat(canvas.json()).isNull()
     }

@@ -6,6 +6,8 @@ import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import dev.folio.core.storage.library.LibraryAccessState
+import dev.folio.feature.library.state.LibraryDocItem
+import kotlinx.collections.immutable.persistentListOf
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,5 +47,24 @@ class LibraryEntryScreenshotTest {
             MaterialTheme { LibraryEntryScreen(LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio-Debug"), onGrantAccess = {}) }
         }
         compose.onRoot().captureRoboImage("src/test/screenshots/LibraryEntry_ready.png")
+    }
+
+    @Test
+    fun entry_readyWithDocuments_listsThem() {
+        val docs =
+            persistentListOf(
+                LibraryDocItem("perf/lined-5.folio", "lined-5", "perf", 5),
+                LibraryDocItem("Lecture notes.folio", "Lecture notes", "", 1),
+            )
+        compose.setContent {
+            MaterialTheme {
+                LibraryEntryScreen(
+                    LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio-Debug"),
+                    onGrantAccess = {},
+                    documents = docs,
+                )
+            }
+        }
+        compose.onRoot().captureRoboImage("src/test/screenshots/LibraryEntry_readyDocuments.png")
     }
 }
