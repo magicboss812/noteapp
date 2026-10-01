@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P04
-next: P04-T05
+next: P04-T10
 updated: 2026-10-01
 
 ## Completed
@@ -14,6 +14,7 @@ updated: 2026-10-01
 - P04: T01, T02, T03, T04
 
 ## Blocked (needs user; stops dependent tasks)
+- P04-T10 (design overhaul, runs before T05): needs `docs/design/notewise/DESIGN.md`. Connect the tablet, open Notewise once, run `bash scripts/auto/notewise-capture.sh` (Opus, one session per screen group, resumable), push, then delete this line. [STOP]
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck P03-REVIEW (no grant-storage.sh, after `pm clear`): the app still reports All files access granted and shows the library. The toggle is not in the app's permission list: open Settings > Privacy (or Apps) > Special app access (Special permissions) > All files access > Folio Debug > off, then write "-> revoked" here; or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else.
 
 ## USER-CHECK (human verification; non-blocking)
@@ -43,6 +44,7 @@ updated: 2026-10-01
 - D-025 P04-T04: handedness is modeled and stored (`ToolbarDocks.withHandedness`, A-029) but has no toggle; add it to the settings Toolbar section (10-editor-ui.md#settings) when feature:settings is built.
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P04-T04 done: docking model `state/ToolbarDock.kt` (DockMode, ToolbarPlacement fractions, DockSnap edge snap), `ToolbarDockStore` (DataStore JSON, per orientation), `EditorViewModel.placeToolbar`; UI `ui/ToolbarDocking.kt` (grip, ToolbarDrag, FloatingToolbar, dock transition) + `EditorChrome` in EditorScreen (A-029).
-- Next: P04-T05 undo/redo + shortcuts. Row 1 / rails come from `EditorToolbarRow1` (vertical flag); popovers anchor via `PopoverAnchor` per dock mode. Tilt has no switch in pen settings (D-014).
+- P04-T10 inserted before T05 (opus high): restyle T01..T04 from the measured Notewise design `docs/design/notewise/DESIGN.md`; waits on the user's capture run (Blocked [STOP]). Tools: scripts/design/nw.sh + DesignTool.java, spec docs/design/notewise/CAPTURE.md.
+- New docs/plan/FEEDBACK.md; next-task section 8 step 3 turns FEEDBACK + untargeted Deferred items into tasks at every REVIEW (D-018, D-009, D-020 ... at the P04 REVIEW).
+- After T10: T05 undo/redo + shortcuts. Row 1 / rails come from `EditorToolbarRow1` (vertical flag); popovers anchor via `PopoverAnchor` per dock mode. Tilt has no switch in pen settings (D-014).
 - `FolioIcons.kt` is generated: add a Lucide 1.49.0 SVG to tools/icongen/src/main/resources/lucide, run `./gradlew :tools:icongen:run` (A-027).

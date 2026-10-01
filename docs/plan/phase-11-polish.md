@@ -1,6 +1,6 @@
 # P11 Polish and hardening
 Goal: settings, dark UI, motion pass, complete shortcuts, baseline profile, release build, robustness, final performance audit.
-Exit: all budgets met in the release build; USER-CHECK list empty; tag `p11-done` and `v1.0.0`.
+Exit: all budgets met in the release build; USER-CHECK list empty; FEEDBACK `Open` and STATUS `Deferred` empty (each converted to a task and done, or accepted by the user); tag `p11-done` and `v1.0.0`.
 
 ### P11-T01 Settings
 Model: sonnet high
@@ -67,4 +67,5 @@ Do: full perf table in perf.md (release/benchmark build); accessibility pass (Ta
 Accept:
 - [ ] all budgets met or accepted by the user (USER-CHECK)
 - [ ] USER-CHECK list empty
+- [ ] FEEDBACK `Open` and STATUS `Deferred` empty: each item done, or accepted by the user as is (USER-CHECK)
 Verify: device-tester + `./gradlew qa`
