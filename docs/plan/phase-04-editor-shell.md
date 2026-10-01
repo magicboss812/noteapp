@@ -45,7 +45,7 @@ Accept:
 Verify: screenshots + device-tester smoke
 
 ### P04-T10 Design overhaul from the Notewise capture
-Model: opus high
+Model: opus medium
 Implements: R-UI-01
 Read: docs/design/notewise/DESIGN.md (all), 11-design-system.md (all), docs/design/reference/README.md
 Files: docs/architecture/11-design-system.md, core/designsystem/**, feature/editor/**/ui/**, feature/library/** (placeholder)
