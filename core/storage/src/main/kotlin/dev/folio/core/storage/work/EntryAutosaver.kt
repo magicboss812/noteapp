@@ -4,10 +4,14 @@ import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.common.flatMap
 import dev.folio.core.common.outcomeOf
+import dev.folio.core.storage.session.SaveState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -27,13 +31,21 @@ class EntryAutosaver(
     private val lock = Mutex()
     private val pending = LinkedHashMap<String, () -> ByteArray?>()
     private var timer: Job? = null
+    private val mutableState = MutableStateFlow(SaveState.Saved)
+
+    /** Saved when nothing waits, Saving while changes wait or are written, Error after a failed write. */
+    val state: StateFlow<SaveState> = mutableState.asStateFlow()
 
     /** Marks [name] changed; restarts the idle timer. */
     fun schedule(
         name: String,
         provider: () -> ByteArray?,
     ) {
-        synchronized(pending) { pending[name] = provider }
+        // Same lock as the state update in flush: a flush finishing now cannot report Saved over this change.
+        synchronized(pending) {
+            pending[name] = provider
+            mutableState.value = SaveState.Saving
+        }
         timer?.cancel()
         timer =
             scope.launch {
@@ -55,10 +67,27 @@ class EntryAutosaver(
             if (result is Outcome.Failure) {
                 FolioLog.w(TAG, "autosave failed: ${result.message}", result.cause)
                 // Keep the entries so the next flush retries them (newer providers win).
-                synchronized(pending) { batch.forEach { (k, v) -> pending.putIfAbsent(k, v) } }
+                synchronized(pending) {
+                    batch.forEach { (k, v) -> pending.putIfAbsent(k, v) }
+                    mutableState.value = SaveState.Error
+                }
+            } else {
+                synchronized(pending) { if (pending.isEmpty()) mutableState.value = SaveState.Saved }
             }
             result
         }
+
+    /** Reports the outcome of a pack: a failure shows as [SaveState.Error], a success clears it unless changes wait. */
+    fun packFinished(success: Boolean) {
+        synchronized(pending) {
+            mutableState.value =
+                when {
+                    !success -> SaveState.Error
+                    pending.isEmpty() -> SaveState.Saved
+                    else -> SaveState.Saving
+                }
+        }
+    }
 
     /** True while changes wait for the timer. */
     val hasPending: Boolean get() = synchronized(pending) { pending.isNotEmpty() }

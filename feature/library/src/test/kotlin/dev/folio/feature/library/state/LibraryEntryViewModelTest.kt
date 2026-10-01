@@ -51,13 +51,14 @@ class LibraryEntryViewModelTest {
     private lateinit var scanner: LibraryScanner
     private lateinit var documents: DocumentRepository
     private lateinit var vm: LibraryEntryViewModel
+    private val recoveryEvents = RecoveryEvents()
 
     @Before
     fun setUp() {
         root = File(tmp.root, "Folio-Debug")
         library = LibraryRoot(root)
         val appFs = JavaFileFolioFs(tmp.newFolder("app"))
-        val recovery = Recovery(WorkingCopyStore(appFs, library.fs), Packer(library.fs, appFs, clock), clock, RecoveryEvents())
+        val recovery = Recovery(WorkingCopyStore(appFs, library.fs), Packer(library.fs, appFs, clock), clock, recoveryEvents)
         db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), IndexDb::class.java).build()
         scanner = LibraryScanner(library.fs, db, clock, dispatchers.dispatchers)
         documents = DocumentRepository(library.fs, scanner, db.dao(), clock, dispatchers.dispatchers, ManifestApp("Folio", "test"))
@@ -66,6 +67,7 @@ class LibraryEntryViewModelTest {
             LibraryEntryViewModel(
                 LibraryAccess({ granted }, library),
                 recovery,
+                recoveryEvents,
                 dispatchers.dispatchers,
                 Lazy { scanner },
                 Lazy { repository },

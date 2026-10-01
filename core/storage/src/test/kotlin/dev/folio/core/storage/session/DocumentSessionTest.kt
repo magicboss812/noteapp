@@ -280,6 +280,49 @@ class DocumentSessionTest : RepositoryTestBase() {
             assertThat(readFile(ref).meta.title).isEqualTo("Released")
         }
 
+    @Test
+    fun saveState_savingAfterEditThenSavedOnceWritten() =
+        runTest {
+            val ref = documents.create(spec("State")).orThrow()
+            val session = sessions(backgroundScope).open(ref.path).orThrow()
+            val page =
+                session.document.value.pages
+                    .single()
+                    .id
+            assertThat(session.saveState.value).isEqualTo(SaveState.Saved)
+
+            session.execute(AddObjects(page, listOf(ModelFixtures.randomStroke(random, ObjectId("s"))))).orThrow()
+            runCurrent()
+            assertThat(session.saveState.value).isEqualTo(SaveState.Saving)
+
+            session.save().orThrow()
+            runCurrent()
+            assertThat(session.saveState.value).isEqualTo(SaveState.Saved)
+        }
+
+    @Test
+    fun writeThumbnails_reachTheFileAtPack() =
+        runTest {
+            val ref = documents.create(spec("Thumbs")).orThrow()
+            val registry = sessions(backgroundScope)
+            val session = registry.open(ref.path).orThrow()
+            val page =
+                session.document.value.pages
+                    .single()
+                    .id
+
+            session
+                .writeThumbnails(
+                    mapOf(FolioEntries.COVER to byteArrayOf(1, 2, 3), FolioEntries.pageThumb(page) to byteArrayOf(4)),
+                ).orThrow()
+            registry.close(session).orThrow()
+
+            FolioContainerReader.open(file(ref.path)).orThrow().use { reader ->
+                assertThat(reader.names()).containsAtLeast(FolioEntries.COVER, FolioEntries.pageThumb(page))
+                assertThat(reader.read(FolioEntries.COVER, 100).orThrow()).isEqualTo(byteArrayOf(1, 2, 3))
+            }
+        }
+
     private fun readFile(ref: DocumentRef): Document =
         FolioContainerReader.open(file(ref.path)).orThrow().use { DocumentCodec.readDocument(it, loadPages = true).orThrow() }
 

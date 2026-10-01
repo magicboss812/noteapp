@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P04
-next: P04-T08
+next: P04-T09
 updated: 2026-10-02
 
 ## Completed
@@ -11,13 +11,15 @@ updated: 2026-10-02
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
 
 ## Current phase progress
-- P04: T01, T02, T03, T04, T10, T05 (device check pending), T06 (device check pending), T07 (device check pending)
+- P04: T01, T02, T03, T04, T10, T05 (device check pending), T06 (device check pending), T07 (device check pending), T08 (device check pending)
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck P03-REVIEW (no grant-storage.sh, after `pm clear`): the app still reports All files access granted and shows the library. The toggle is not in the app's permission list: open Settings > Privacy (or Apps) > Special app access (Special permissions) > All files access > Folio Debug > off, then write "-> revoked" here; or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else. [revoked]
 - P04-T05 device check not run (no tablet: connect.sh found 0 devices): connect the Pad 7 (Wireless debugging on, unlocked), then have device-tester run: Ctrl+Z undoes the last stroke (`input.sh combo CTRL_LEFT Z`), Ctrl+Y redoes, Alt+3 eraser / Alt+1 pen, Ctrl+/ help sheet + Esc, PageDown/PageUp, Ctrl+= / Ctrl+0 zoom. Blocks nothing else.
 - P04-T06 device check not run (same: 0 devices): device-tester opens a 4+ page note, `debugcmd.sh reorder-page 2,1`, reads `pageOrder` in `state`, reopens the doc and checks the order held; smoke: panel, overview, add, duplicate, delete + Ctrl+Z, settings sheet apply. Blocks nothing else.
 - P04-T07 device check not run (0 devices): device-tester taps "New note" on the library, edits the title (or keeps it), taps Create; the editor opens and the `.folio` appears in Folio-Debug (`scripts/device` file listing); reopen the sheet and check the last choices are the defaults. Blocks nothing else.
+
+- P04-T08 device check not run (0 devices): device-tester draws strokes, `stop.sh` before the 30 s pack, relaunches: library shows "Recovered unsaved changes." and the note has every stroke; save dot bottom-left is green when idle. Blocks nothing else.
 
 ## USER-CHECK (human verification; non-blocking)
 - P03-REVIEW (D-017, your "no thin ring visible"): install the debug app, open a document, hold the Focus Pen just above the page -> a thin dark ring (light edge) follows the tip, at least pen-dot size; the system hover dot is gone over the canvas; the ring disappears when the pen touches or leaves. If still no ring, keep the app open and write "no ring": Claude reads `hoverEvents` from debug `state` (0 = hover never reaches the canvas). [Checked, ring is there]
@@ -26,6 +28,7 @@ updated: 2026-10-02
 - P04-T10: open the library placeholder and a note on the tablet -> toolbar, options row, popovers, colors and type read as Notewise; differences go to docs/plan/FEEDBACK.md.
 - P04-T06: toolbar Pages (drawer), Overview (grid) and Add page buttons; long-press and drag a panel row to reorder; row menu, page settings -> panels and sheet read well, order survives reopening.
 - P04-T07: library "New note" -> sheet with title, paper size/orientation, fixed/infinite, template gallery previews, spacing, paper color; Create opens the note; the next sheet starts with your last choices.
+- P04-T08: draw, then watch the small dot at the editor's bottom-left (green idle, orange while saving); force-quit mid-edit and reopen -> "Recovered unsaved changes." snackbar on the library.
 
 ## Deferred (id: reason)
 - D-001 P00-T07: P11 `benchmark` build type needs its own DebugHooksModule (src/benchmark, bind NoOpDebugHooks).
@@ -48,10 +51,10 @@ updated: 2026-10-02
 - D-025 P04-T04: handedness is modeled and stored (`ToolbarDocks.withHandedness`, A-029) but has no toggle; add it to the settings Toolbar section (10-editor-ui.md#settings) when feature:settings is built.
 - D-026 P04-T05: Alt+9 (Ruler toggle) is not bound and the help sheet lacks later groups (text, selection, Ctrl+N/O/F/W/S/\); each feature task adds its group to `ShortcutRegistry.DEFAULT_GROUPS` (P05, P06, P07, P10).
 - D-027 P04-T06: duplicates drop text frames and sticky notes until P06 flow cloning; thumbnails load through the session LRU (30) and can evict canvas pages in long docs; toolbar "More" menu, expand-to-infinite, move-to-another-document not built; floating toolbar has no page buttons (docked only); delete refuses the last page.
+- D-028 P04-T08: stored thumbs (`thumbs/<page>.webp`, cover) are written 2 s after edits (ThumbnailGenerator) but the page panel still renders live and the library does not read the cover yet (P05); thumbs pending when the editor closes within 2 s are skipped.
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P04-T07 code done (unit, detekt, lint, Roborazzi, assembleDebug green); T05/T06/T07 device checks open (Blocked, tablet not connected).
-- New note: feature:library `NewNoteForm`/`NewNoteDefaultsStore`/`NewNoteViewModel` (state/), `NewNoteSheet` (ui/); "New note" button on the placeholder library creates in the root until P05 adds folders (pass the current folder to `create`).
-- Next: T08 (autosave indicator, recovery, thumbnails). Build UI from `docs/design/notewise/DESIGN.md` + 11-design-system.md.
-- Known nit: FolderCard back page overlaps the folder name (catalog golden); fix with the P05 library cards.
+- P04-T08 code done (storage/editor/library tests, detekt, lint, Roborazzi, assembleDebug green); T05-T08 device checks open (Blocked, no tablet).
+- Save state: `DocumentSession.saveState` (EntryAutosaver.state + `packFinished`), `SaveIndicator` (editor bottom-left), `EditorViewModel.retrySave`; recovery: `LibraryEntryViewModel.recoveryNotice` + snackbar; thumbs: `ThumbnailGenerator` (D-028).
+- Next: T09 (editor instrumented tests; device-only, will block if no tablet, then P04 REVIEW). Known nit: FolderCard back page overlaps the folder name (P05).
 - FEEDBACK.md turns into tasks at every REVIEW. `FolioIcons.kt` is generated (A-027): `./gradlew :tools:icongen:run`.

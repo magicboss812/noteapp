@@ -3,6 +3,7 @@ package dev.folio.core.storage.work
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.common.Outcome
 import dev.folio.core.format.container.DocumentCodec
+import dev.folio.core.storage.session.SaveState
 import dev.folio.core.storage.work.WorkFixture.orThrow
 import dev.folio.core.testing.TempDirFolioFs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -124,5 +125,37 @@ class WorkingCopyTest {
             saver.schedule("pages/p.pb") { null }
             saver.flush()
             assertThat(writes.single()).containsExactly("pages/p.pb", null)
+        }
+
+    @Test
+    fun entryAutosaver_failedWrite_errorStateThenRetrySaves() =
+        runTest {
+            var failing = true
+            val saver =
+                EntryAutosaver(backgroundScope, StandardTestDispatcher(testScheduler)) {
+                    if (failing) Outcome.Failure("disk full") else Outcome.Success(Unit)
+                }
+            assertThat(saver.state.value).isEqualTo(SaveState.Saved)
+
+            saver.schedule("flows/f.md") { byteArrayOf(1) }
+            assertThat(saver.state.value).isEqualTo(SaveState.Saving)
+            assertThat(saver.flush()).isInstanceOf(Outcome.Failure::class.java)
+            assertThat(saver.state.value).isEqualTo(SaveState.Error)
+            assertThat(saver.hasPending).isTrue()
+
+            failing = false
+            assertThat(saver.flush()).isInstanceOf(Outcome.Success::class.java)
+            assertThat(saver.state.value).isEqualTo(SaveState.Saved)
+        }
+
+    @Test
+    fun entryAutosaver_packFailureShowsErrorUntilNextPackSucceeds() =
+        runTest {
+            val saver = EntryAutosaver(backgroundScope, StandardTestDispatcher(testScheduler)) { Outcome.Success(Unit) }
+
+            saver.packFinished(success = false)
+            assertThat(saver.state.value).isEqualTo(SaveState.Error)
+            saver.packFinished(success = true)
+            assertThat(saver.state.value).isEqualTo(SaveState.Saved)
         }
 }

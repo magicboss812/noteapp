@@ -75,6 +75,9 @@ class DocumentSession internal constructor(
     private var closed = false
     private val autosaver = EntryAutosaver(scope, dispatchers.io, autosaveDebounceMs, ::writeEntries)
 
+    /** Whether edits are on disk: [SaveState.Error] after a failed autosave or pack until a retry succeeds. */
+    val saveState: StateFlow<SaveState> get() = autosaver.state
+
     /** The document; page bodies present in `pageBodies` are the decoded ones. */
     val document: StateFlow<Document> = state.asStateFlow()
 
@@ -121,8 +124,18 @@ class DocumentSession internal constructor(
         val saved = autosaver.flush()
         if (saved is Outcome.Failure) return saved
         val result = withContext(dispatchers.io) { synchronized(copyLock) { packer.pack(copy) } }
+        autosaver.packFinished(result is Outcome.Success)
         if (result is Outcome.Success) onPacked(result.value)
         return result
+    }
+
+    /**
+     * Writes generated thumbnail entries ([FolioEntries.COVER], [FolioEntries.pageThumb]) to the working
+     * copy; they reach the `.folio` with the next pack. Dropped silently after [close].
+     */
+    suspend fun writeThumbnails(thumbs: Map<String, ByteArray>): Outcome<Unit> {
+        if (closed || thumbs.isEmpty()) return Outcome.Success(Unit)
+        return withContext(dispatchers.io) { synchronized(copyLock) { copy.writeEntries(thumbs) } }
     }
 
     /** Final pack; the session cannot be used afterwards. */
@@ -198,6 +211,7 @@ class DocumentSession internal constructor(
             synchronized(pinned) { pinned[id] = ++pinGeneration }
             autosaver.schedule(FolioEntries.page(id)) { pageBytes(id) }
         }
+        removedPages.forEach { id -> autosaver.schedule(FolioEntries.pageThumb(id)) { null } }
         scheduleFlows(before, after)
         autosaver.schedule(FolioEntries.MANIFEST) { manifestBytes() }
         autosaver.schedule(FolioEntries.SEARCH_TEXT) { DocumentEntries.searchText(state.value).encodeToByteArray() }

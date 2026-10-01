@@ -21,9 +21,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -37,6 +40,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.folio.core.designsystem.component.FolioButton
+import dev.folio.core.designsystem.component.FolioSnackbarHost
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.storage.library.LibraryAccessState
 import dev.folio.feature.library.state.LibraryDocItem
@@ -74,6 +78,15 @@ fun LibraryEntryRoute(
     val documents by viewModel.documents.collectAsStateWithLifecycle()
     val newNote by newNoteViewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val notice by viewModel.recoveryNotice.collectAsStateWithLifecycle()
+    val snackbars = remember { SnackbarHostState() }
+    // One-time recovery report (04-file-format.md#crash-recovery); forgotten once it was on screen.
+    LaunchedEffect(notice) {
+        notice?.let {
+            snackbars.showSnackbar(it)
+            viewModel.recoveryNoticeShown()
+        }
+    }
     LifecycleResumeEffect(Unit) {
         viewModel.refresh()
         onPauseOrDispose {}
@@ -88,6 +101,10 @@ fun LibraryEntryRoute(
             documents = documents,
             onOpenDocument = onOpenDocument,
             onNewNote = newNoteViewModel::show,
+        )
+        FolioSnackbarHost(
+            snackbars,
+            Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(FolioTheme.space.s16),
         )
         (newNote as? NewNoteState.Editing)?.let { editing ->
             NewNoteSheet(

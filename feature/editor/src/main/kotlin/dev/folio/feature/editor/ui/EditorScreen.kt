@@ -116,6 +116,7 @@ fun EditorRoute(
                 onCloseSettings = { viewModel.showPageSettings(null) },
             ),
         pageThumbnail = { page, thumbModifier -> session?.let { SessionPageThumbnail(it, page, thumbModifier) } },
+        onRetrySave = viewModel::retrySave,
     ) { canvasModifier ->
         session?.let { EditorCanvas(it, canvasListener, canvasModifier) }
     }
@@ -155,6 +156,7 @@ fun EditorScreen(
     pageChrome: PageChrome = PageChrome(),
     pageActions: PageActions = PageActions(),
     pageThumbnail: PageThumbnail = { page, thumbModifier -> PaperThumbnail(page, thumbModifier) },
+    onRetrySave: () -> Unit = {},
     canvas: @Composable (Modifier) -> Unit,
 ) {
     val colors = FolioTheme.colors
@@ -221,6 +223,14 @@ fun EditorScreen(
                 anchor = placement.mode.popoverAnchor,
             )
             if (state.showHelp) ShortcutHelp(shortcutGroups, onClose = { onHelp(false) })
+            SaveIndicator(
+                state.saveState,
+                onRetrySave,
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(FolioTheme.space.s12),
+            )
         }
     }
 }

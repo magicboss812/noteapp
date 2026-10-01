@@ -13,6 +13,7 @@ import dev.folio.core.storage.library.LibraryAccessState
 import dev.folio.core.storage.repo.DocumentFilter
 import dev.folio.core.storage.repo.LibraryRepository
 import dev.folio.core.storage.work.Recovery
+import dev.folio.core.storage.work.RecoveryEvents
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -20,10 +21,13 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -51,6 +55,7 @@ class LibraryEntryViewModel
     constructor(
         private val access: LibraryAccess,
         private val recovery: Recovery,
+        private val recoveryEvents: RecoveryEvents,
         private val dispatchers: FolioDispatchers,
         // Lazy: the index is only built once the library folder is usable.
         private val scanner: Lazy<LibraryScanner>,
@@ -65,6 +70,17 @@ class LibraryEntryViewModel
 
         /** Indexed documents, newest first; empty until the library is ready. */
         val documents: StateFlow<ImmutableList<LibraryDocItem>> = mutableDocuments.asStateFlow()
+
+        /** Snackbar text for what start-up recovery did, null when nothing is pending. */
+        val recoveryNotice: StateFlow<String?> =
+            recoveryEvents.pending
+                .map(::recoveryMessage)
+                .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+        /** The notice was shown: forgets the events it reported. */
+        fun recoveryNoticeShown() {
+            recoveryEvents.pending.value.forEach(recoveryEvents::consume)
+        }
 
         /** Re-checks the permission (and prepares the root once granted), then rescans the library. */
         fun refresh() {

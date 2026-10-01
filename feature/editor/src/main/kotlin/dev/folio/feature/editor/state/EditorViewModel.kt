@@ -13,6 +13,7 @@ import dev.folio.core.common.Outcome
 import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.PageOps
 import dev.folio.core.storage.session.DocumentSessions
+import dev.folio.core.storage.session.SaveState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Lifecycle of the editor's document. */
 enum class EditorStatus { OPENING, READY, FAILED }
@@ -52,6 +54,8 @@ data class EditorUiState(
     val docks: ToolbarDocks = ToolbarDocks(),
     /** Page list, the open page surface and the settings sheet target. */
     val pages: PagesUi = PagesUi(),
+    /** Whether edits are on disk (the save dot). */
+    val saveState: SaveState = SaveState.Saved,
 )
 
 /** Popover or dialog opened from the tool options row (10-editor-ui.md#tool-options). */
@@ -134,7 +138,7 @@ class EditorViewModel
                         }
 
                         else -> {
-                            val history = combine(session.canUndo, session.canRedo, ::Pair)
+                            val history = combine(session.canUndo, session.canRedo, session.documentSession.saveState, ::Triple)
                             val pages =
                                 combine(
                                     session.document.map { it.pages }.distinctUntilChanged(),
@@ -145,7 +149,18 @@ class EditorViewModel
                                 )
                             val overlays = combine(mutablePopover, mutableHelp, pages, ::Triple)
                             combine(session.tool, session.options, history, overlays) { tool, options, h, (popover, help, pagesUi) ->
-                                EditorUiState(EditorStatus.READY, null, tool, options, popover, h.first, h.second, help, pages = pagesUi)
+                                EditorUiState(
+                                    EditorStatus.READY,
+                                    null,
+                                    tool,
+                                    options,
+                                    popover,
+                                    h.first,
+                                    h.second,
+                                    help,
+                                    pages = pagesUi,
+                                    saveState = h.third,
+                                )
                             }
                         }
                     }
@@ -167,6 +182,7 @@ class EditorViewModel
                         val initial = stored.await()
                         val session = EditorSession(result.value, density, dispatchers, viewModelScope, initial)
                         mutableSession.value = session
+                        ThumbnailGenerator(result.value, dispatchers, viewModelScope).start()
                         // The session is the only writer while open; conflated so a slider drag stores its last value.
                         // Skips the loaded instance itself, not the first emission: an edit can land before this collects.
                         session.options
@@ -218,6 +234,15 @@ class EditorViewModel
         fun undo() {
             val session = mutableSession.value ?: return
             viewModelScope.launch { session.undo() }
+        }
+
+        /** Writes pending edits and packs the document again after a failed save (the error dot). */
+        fun retrySave() {
+            val session = mutableSession.value ?: return
+            viewModelScope.launch {
+                val result = withContext(dispatchers.io) { session.documentSession.pack() }
+                if (result is Outcome.Failure) FolioLog.w(TAG, "retry save: ${result.message}", result.cause)
+            }
         }
 
         /** Redoes the last undone step (toolbar button). */
