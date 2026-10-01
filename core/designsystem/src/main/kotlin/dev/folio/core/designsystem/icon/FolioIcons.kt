@@ -15,6 +15,8 @@ object FolioIcons {
             listOf(
                 "arrow-down-wide-narrow" to ArrowDownWideNarrow,
                 "bold" to Bold,
+                "brush" to Brush,
+                "brush-cleaning" to BrushCleaning,
                 "camera" to Camera,
                 "check" to Check,
                 "chevron-down" to ChevronDown,
@@ -59,6 +61,7 @@ object FolioIcons {
                 "paperclip" to Paperclip,
                 "pen" to Pen,
                 "pen-line" to PenLine,
+                "pen-tool" to PenTool,
                 "pencil" to Pencil,
                 "plus" to Plus,
                 "quote" to Quote,
@@ -101,6 +104,30 @@ object FolioIcons {
         lucideIcon(
             "Bold",
             stroke("M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"),
+        )
+    }
+
+    /** Lucide `brush`. */
+    val Brush: ImageVector by lazy {
+        lucideIcon(
+            "Brush",
+            stroke("m11 10 3 3"),
+            stroke("M6.5 21A3.5 3.5 0 1 0 3 17.5a2.62 2.62 0 0 1-.708 1.792A1 1 0 0 0 3 21z"),
+            stroke("M9.969 17.031 21.378 5.624a1 1 0 0 0-3.002-3.002L6.967 14.031"),
+        )
+    }
+
+    /** Lucide `brush-cleaning`. */
+    val BrushCleaning: ImageVector by lazy {
+        lucideIcon(
+            "BrushCleaning",
+            stroke("m16 22-1-4"),
+            stroke(
+                "M19 14a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2h-3a1 1 0 0 1-1-1V4a2 2 0 0 0-4 0v5a1 1 0 0 1-1 1H6a2 2 0 0 0-2",
+                "2v1a1 1 0 0 0 1 1",
+            ),
+            stroke("M19 14H5l-1.973 6.767A1 1 0 0 0 4 22h16a1 1 0 0 0 .973-1.233z"),
+            stroke("m8 22 1-4"),
         )
     }
 
@@ -570,6 +597,23 @@ object FolioIcons {
                 "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622",
                 "l4.353-1.32a2 2 0 0 0 .83-.497z",
             ),
+        )
+    }
+
+    /** Lucide `pen-tool`. */
+    val PenTool: ImageVector by lazy {
+        lucideIcon(
+            "PenTool",
+            stroke(
+                "M15.707 21.293a1 1 0 0 1-1.414 0l-1.586-1.586a1 1 0 0 1 0-1.414l5.586-5.586a1 1 0 0 1 1.414 0l1.586",
+                "1.586a1 1 0 0 1 0 1.414z",
+            ),
+            stroke(
+                "m18 13-1.375-6.874a1 1 0 0 0-.746-.776L3.235 2.028a1 1 0 0 0-1.207 1.207L5.35 15.879a1 1 0 0 0",
+                ".776.746L13 18",
+            ),
+            stroke("m2.3 2.3 7.286 7.286"),
+            stroke("M9 11A2 2 0 1 0 13 11A2 2 0 1 0 9 11Z"),
         )
     }
 

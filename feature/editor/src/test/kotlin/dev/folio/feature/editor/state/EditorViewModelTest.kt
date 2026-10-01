@@ -10,6 +10,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.common.Outcome
 import dev.folio.core.format.manifest.ManifestApp
+import dev.folio.core.ink.brush.BrushPresets
+import dev.folio.core.ink.erase.EraserMode
+import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.storage.index.IndexDb
@@ -51,6 +54,7 @@ class EditorViewModelTest {
     private val clock = FakeClock()
     private val app = ManifestApp("Folio", "test")
     private val store = ViewModelStore()
+    private val settings = FakeSettingsStore()
     private val sessionScope by lazy { CoroutineScope(SupervisorJob() + main.testDispatcher) }
     private lateinit var db: IndexDb
     private lateinit var documents: DocumentRepository
@@ -96,7 +100,7 @@ class EditorViewModelTest {
     private fun viewModel(path: String): EditorViewModel =
         ViewModelProvider.create(
             store,
-            viewModelFactory { initializer { EditorViewModel(path, DENSITY, sessions, main.dispatchers) } },
+            viewModelFactory { initializer { EditorViewModel(path, DENSITY, sessions, main.dispatchers, ToolOptionsStore(settings)) } },
         )[path, EditorViewModel::class]
 
     /** Waits for the open, which finishes on Room's thread. */
@@ -180,6 +184,76 @@ class EditorViewModelTest {
                     .getValue(page)
                     .objects,
             ).hasSize(1)
+        }
+
+    @Test
+    fun updateOptions_nextBrushUsesThem_storedAndRestoredOnReopen() =
+        editorTest {
+            val path = createDoc("Options")
+            val vm = viewModel(path)
+            val session = vm.opened()
+
+            vm.updateOptions { it.copy(pen = it.pen.copy(kind = BrushKind.FOUNTAIN, swatches = it.pen.swatches.select(2))) }
+            vm.updateOptions { it.copy(eraser = EraserOptions(EraserMode.PARTIAL)) }
+
+            assertThat(session.activeBrush.kind).isEqualTo(BrushKind.FOUNTAIN)
+            assertThat(session.activeBrush.argb).isEqualTo(BrushPresets.PEN_PALETTE[2])
+            assertThat(session.eraserOptions.mode).isEqualTo(EraserMode.PARTIAL)
+            assertThat(vm.awaitState { it.options.pen.kind == BrushKind.FOUNTAIN }.options).isEqualTo(session.options.value)
+
+            store.clear()
+            awaitReleases()
+            val reopened = viewModel(path).opened()
+
+            assertThat(reopened.options.value).isEqualTo(session.options.value)
+            assertThat(reopened.activeBrush).isEqualTo(session.activeBrush)
+        }
+
+    @Test
+    fun selectTool_selectedPenAgain_opensPenSettings_otherToolCloses() =
+        editorTest {
+            val vm = viewModel(createDoc("Popover"))
+            vm.opened()
+
+            vm.selectTool(EditorTool.PEN)
+            assertThat(vm.awaitState { it.popover != null }.popover).isEqualTo(OptionsPopover.PenSettings)
+
+            vm.selectTool(EditorTool.ERASER)
+            assertThat(vm.awaitState { it.tool == EditorTool.ERASER }.popover).isNull()
+        }
+
+    @Test
+    fun clearPage_removesInkAsOneUndoStep_highlighterOnlySparesPens() =
+        editorTest {
+            val session = viewModel(createDoc("Clear")).opened()
+            val page =
+                session.document.value.pages[0]
+                    .id
+            val random = Random(6)
+            val pen = ModelFixtures.randomStroke(random).let { it.copy(brush = it.brush.copy(kind = BrushKind.BALLPOINT)) }
+            val marker = ModelFixtures.randomStroke(random).let { it.copy(brush = it.brush.copy(kind = BrushKind.HIGHLIGHTER)) }
+            session.commitStrokes(page, listOf(pen, marker))
+
+            assertThat(session.clearPage(page, highlighterOnly = true)).isTrue()
+            assertThat(
+                session.document.value.pageBodies
+                    .getValue(page)
+                    .objects,
+            ).containsExactly(pen)
+            assertThat(session.clearPage(page, highlighterOnly = true)).isFalse()
+
+            assertThat(session.clearPage(page, highlighterOnly = false)).isTrue()
+            assertThat(
+                session.document.value.pageBodies
+                    .getValue(page)
+                    .objects,
+            ).isEmpty()
+            assertThat(session.undo()).isTrue()
+            assertThat(
+                session.document.value.pageBodies
+                    .getValue(page)
+                    .objects,
+            ).containsExactly(pen)
         }
 
     @Test

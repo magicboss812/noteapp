@@ -24,6 +24,8 @@ import dev.folio.core.storage.library.StoragePermission
 import dev.folio.core.storage.repo.DocumentRepository
 import dev.folio.core.storage.repo.LibraryRepository
 import dev.folio.core.storage.session.DocumentSessions
+import dev.folio.core.storage.settings.DataStoreSettingsStore
+import dev.folio.core.storage.settings.SettingsStore
 import dev.folio.core.storage.work.Packer
 import dev.folio.core.storage.work.Recovery
 import dev.folio.core.storage.work.RecoveryEvents
@@ -45,6 +47,9 @@ annotation class AppFiles
 internal abstract class StorageModule {
     @Binds
     abstract fun storagePermission(impl: AndroidStoragePermission): StoragePermission
+
+    @Binds
+    abstract fun settingsStore(impl: DataStoreSettingsStore): SettingsStore
 
     internal companion object {
         @Provides

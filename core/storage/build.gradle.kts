@@ -14,6 +14,7 @@ dependencies {
     implementation(projects.core.model)
     implementation(projects.core.common)
     implementation(libs.serialization.json)
+    implementation(libs.datastore.preferences)
     testImplementation(projects.core.testing)
     testImplementation(libs.bundles.robolectric)
 }

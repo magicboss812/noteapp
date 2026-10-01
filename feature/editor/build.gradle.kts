@@ -3,6 +3,7 @@ plugins {
     id("folio.compose")
     id("folio.hilt")
     id("folio.screenshot")
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -20,6 +21,7 @@ dependencies {
     implementation(projects.core.storage)
     implementation(libs.ink.authoring)
     implementation(libs.coroutines.android)
+    implementation(libs.serialization.json) // stored tool options
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)

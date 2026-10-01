@@ -1,10 +1,10 @@
 package dev.folio.feature.editor.state
 
+import androidx.annotation.MainThread
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.ink.brush.BrushCatalog
-import dev.folio.core.ink.brush.BrushPresets
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
@@ -13,7 +13,9 @@ import dev.folio.core.model.InkStroke
 import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.EditCommand
+import dev.folio.core.model.edit.RemoveObjects
 import dev.folio.core.render.viewport.Viewport
+import dev.folio.core.render.viewport.pageIndexAt
 import dev.folio.core.storage.session.DocumentSession
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
@@ -37,11 +39,16 @@ class EditorSession(
     density: Float,
     private val dispatchers: FolioDispatchers,
     private val scope: CoroutineScope,
+    initialOptions: ToolOptions = ToolOptions(),
 ) : CanvasController {
     private val mutableTool = MutableStateFlow(EditorTool.PEN)
+    private val mutableOptions = MutableStateFlow(initialOptions)
 
     /** The selected toolbar tool (chrome state; the canvas reads [activeTool] at stylus down). */
     val tool: StateFlow<EditorTool> = mutableTool.asStateFlow()
+
+    /** Last options of every tool (chrome state; the canvas reads [activeBrush] and [eraserOptions]). */
+    val options: StateFlow<ToolOptions> = mutableOptions.asStateFlow()
 
     override val document: StateFlow<Document> get() = documentSession.document
     override val viewport = Viewport(density)
@@ -49,9 +56,9 @@ class EditorSession(
     override val mainDispatcher: CoroutineDispatcher =
         (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
 
-    // Middle width presets in the first palette color until the options row edits them (P04-T03).
-    private val penBrush = preset(BrushKind.BALLPOINT)
-    private val highlighterBrush = preset(BrushKind.HIGHLIGHTER)
+    // Built once per options change, not per stylus down.
+    private var penBrush = initialOptions.pen.brush(BRUSH_VERSION)
+    private var highlighterBrush = initialOptions.highlighter.brush(BRUSH_VERSION)
 
     override val activeBrush: BrushSpec
         get() = if (mutableTool.value == EditorTool.HIGHLIGHTER) highlighterBrush else penBrush
@@ -59,7 +66,7 @@ class EditorSession(
     // Unbuilt tools never become active (selectTool refuses them); PEN is the safe fallback.
     override val activeTool: CanvasTool get() = mutableTool.value.canvasTool ?: CanvasTool.PEN
 
-    override var eraserOptions: EraserOptions = EraserOptions.DEFAULT
+    override val eraserOptions: EraserOptions get() = mutableOptions.value.eraser
 
     /** Whether undo has a step (chrome state). */
     val canUndo: StateFlow<Boolean> get() = documentSession.canUndo
@@ -72,6 +79,44 @@ class EditorSession(
         if (!tool.available) return false
         mutableTool.value = tool
         return true
+    }
+
+    /** Applies [change] to the tool options; the next stroke uses them. */
+    @MainThread
+    fun updateOptions(change: (ToolOptions) -> ToolOptions) {
+        val next = change(mutableOptions.value)
+        penBrush = next.pen.brush(BRUSH_VERSION)
+        highlighterBrush = next.highlighter.brush(BRUSH_VERSION)
+        mutableOptions.value = next
+    }
+
+    /**
+     * Id of the page the pane is on: the page at the vertical center of the view (the canvas page in
+     * canvas mode); null before the first layout.
+     */
+    fun currentPageId(): PageId? {
+        val index = viewport.pageIndexAt(viewport.viewHeightPx / 2f)
+        return document.value.pages
+            .getOrNull(index)
+            ?.id
+    }
+
+    /**
+     * Removes the ink of page [pageId] as one undo step (eraser "clear page"); with [highlighterOnly] only
+     * highlighter strokes. False if there was nothing to remove or the command failed.
+     */
+    suspend fun clearPage(
+        pageId: PageId,
+        highlighterOnly: Boolean,
+    ): Boolean {
+        val loaded = withContext(dispatchers.io) { documentSession.loadPages(listOf(pageId)) }
+        if (loaded is Outcome.Failure) return false
+        val body = document.value.pageBodies[pageId] ?: return false
+        val ids =
+            body.objects
+                .filter { it is InkStroke && (!highlighterOnly || it.brush.kind == BrushKind.HIGHLIGHTER) }
+                .map { it.id }
+        return ids.isNotEmpty() && execute(RemoveObjects(pageId, ids))
     }
 
     override fun loadPages(ids: Collection<PageId>) {
@@ -107,8 +152,6 @@ class EditorSession(
 
     private companion object {
         const val TAG = "EditorSession"
-
-        fun preset(kind: BrushKind) =
-            BrushSpec(kind, BrushPresets.palette(kind)[0], BrushPresets.widthsPt(kind)[1], BrushCatalog.DEFAULT.latestVersion)
+        val BRUSH_VERSION = BrushCatalog.DEFAULT.latestVersion
     }
 }
