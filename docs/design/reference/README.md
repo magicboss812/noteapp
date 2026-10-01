@@ -1,5 +1,5 @@
 # Visual references
-Two marketing screenshots of Notewise, provided by the user as the visual direction (R-UI-01). Use them for layout, density, and mood. Do not copy assets, wording, logos, or exact colors.
+Two marketing screenshots of Notewise, provided by the user as the visual direction (R-UI-01). Use them for layout, density, and mood.
 
 ## editor-tools-reference.png
 Take:
