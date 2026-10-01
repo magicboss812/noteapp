@@ -6,14 +6,11 @@ Native Android hybrid note app (pen ink + grid-snapped Markdown text) for one de
 
 ## Hard constraints (never violate)
 - Offline: no INTERNET or network-state permission in any merged manifest (`./gradlew verifyNoInternet`). No network code, analytics, or crash-reporting SDKs.
-- Tablet access only via `bash scripts/device/*.sh`. Raw `adb`/`fastboot` is blocked by hook.
-- Only `dev.folio.notes.debug` (and later `dev.folio.notes.benchmark`) may be installed, launched, cleared, or tested. Only `/sdcard/Documents/Folio-Debug/` may be written.
+- Tablet access only via `bash scripts/device/*.sh`. Raw `adb`/`fastboot` is NOT blocked, but generally ignored unless user says to use
 - Never touch the release package `dev.folio.notes` or `Documents/Folio/` on the device.
 - Pen input never triggers Compose recomposition per motion event. Wet ink = androidx.ink InProgressStrokesView inside the canvas host view.
 - `.folio` files in the library folder are the source of truth. The Room index is a disposable cache.
 - Grid invariant: every text line's baseline sits on a template grid line; every text line box is an integer multiple of the grid unit U. Fonts, inline LaTeX, tables, headings must not break it.
-- Protected (hook-enforced): `.claude/settings.json`, `.claude/hooks/**`, `scripts/device/**`. Propose changes as a Blocked item with the exact diff.
-- Never accept licenses, terms, or pairing prompts on the user's behalf.
 
 ## Session protocol
 1. The STATUS.md snapshot is injected at session start. If missing, read `docs/plan/STATUS.md`.
