@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -70,7 +72,7 @@ fun PillGroup(
     }
 }
 
-/** Ink color swatch with an accent ring when selected. */
+/** Ink color swatch with an accent ring when selected; [onLongClick] (edit the color) is optional. */
 @Composable
 fun ColorDot(
     color: Color,
@@ -78,6 +80,7 @@ fun ColorDot(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val colors = FolioTheme.colors
     val ring by animateColorAsState(if (selected) colors.accent else Color.Transparent, FolioTheme.motion.fast(), label = "dotRing")
@@ -86,13 +89,8 @@ fun ColorDot(
         modifier =
             modifier
                 .size(FolioTheme.space.touchTarget)
-                .selectable(
-                    selected = selected,
-                    interactionSource = null,
-                    indication = ripple(bounded = false, radius = DOT_RING_SIZE / 2),
-                    role = Role.RadioButton,
-                    onClick = onClick,
-                ).semantics { this.contentDescription = contentDescription },
+                .selectableOption(selected, DOT_RING_SIZE / 2, onClick, onLongClick)
+                .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.size(DOT_RING_SIZE).border(DOT_RING_WIDTH, ring, shape), contentAlignment = Alignment.Center) {
@@ -101,7 +99,7 @@ fun ColorDot(
     }
 }
 
-/** Stroke width preset drawn as a horizontal line of [strokeWidth]. */
+/** Stroke width preset drawn as a horizontal line of [strokeWidth]; [onLongClick] (edit the preset) is optional. */
 @Composable
 fun WidthChip(
     strokeWidth: Dp,
@@ -109,6 +107,7 @@ fun WidthChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val colors = FolioTheme.colors
     val space = FolioTheme.space
@@ -119,13 +118,8 @@ fun WidthChip(
         modifier =
             modifier
                 .size(space.touchTarget)
-                .selectable(
-                    selected = selected,
-                    interactionSource = null,
-                    indication = ripple(bounded = false, radius = space.buttonVisual / 2),
-                    role = Role.RadioButton,
-                    onClick = onClick,
-                ).semantics { this.contentDescription = contentDescription },
+                .selectableOption(selected, space.buttonVisual / 2, onClick, onLongClick)
+                .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.size(space.buttonVisual).background(background, FolioTheme.shapes.s), contentAlignment = Alignment.Center) {
@@ -137,6 +131,31 @@ fun WidthChip(
         }
     }
 }
+
+// One option of a radio group with an unbounded ripple of [rippleRadius]; a long press needs combinedClickable.
+private fun Modifier.selectableOption(
+    selected: Boolean,
+    rippleRadius: Dp,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+): Modifier =
+    if (onLongClick == null) {
+        selectable(
+            selected = selected,
+            interactionSource = null,
+            indication = ripple(bounded = false, radius = rippleRadius),
+            role = Role.RadioButton,
+            onClick = onClick,
+        )
+    } else {
+        combinedClickable(
+            interactionSource = null,
+            indication = ripple(bounded = false, radius = rippleRadius),
+            role = Role.RadioButton,
+            onLongClick = onLongClick,
+            onClick = onClick,
+        ).semantics { this.selected = selected }
+    }
 
 /** Segmented chips (library tabs): the selected chip gets the accentSoft background and accent text. */
 @Composable

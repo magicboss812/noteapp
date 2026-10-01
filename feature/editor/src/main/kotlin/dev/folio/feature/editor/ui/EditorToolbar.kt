@@ -32,7 +32,7 @@ import dev.folio.feature.editor.state.EditorTool
 
 /** Row 1 height (10-editor-ui.md#screen-structure). */
 internal val TOOLBAR_ROW1_HEIGHT = 52.dp
-private val SCROLL_FADE = 24.dp
+internal val SCROLL_FADE = 24.dp
 
 /**
  * Toolbar row 1 (10-editor-ui.md#toolbar): document pill, tools pill, split view toggle. The tools pill
@@ -121,7 +121,7 @@ private val EditorTool.label: String
 
 // Fades the content out toward an edge that has more content beyond it. Black and transparent are
 // alpha masks here (DstIn keeps the content where the mask is opaque), not visible colors.
-private fun Modifier.horizontalFade(
+internal fun Modifier.horizontalFade(
     state: ScrollState,
     width: Dp,
 ): Modifier =

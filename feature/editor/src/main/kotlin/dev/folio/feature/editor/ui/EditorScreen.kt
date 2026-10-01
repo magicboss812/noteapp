@@ -30,6 +30,8 @@ import dev.folio.feature.editor.state.EditorStatus
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.EditorUiState
 import dev.folio.feature.editor.state.EditorViewModel
+import dev.folio.feature.editor.state.OptionsPopover
+import dev.folio.feature.editor.state.ToolOptions
 
 /** Editor destination for the document at library path [docPath]; [onBack] returns to the library. */
 @Composable
@@ -44,7 +46,15 @@ fun EditorRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
-    EditorScreen(state, onBack, viewModel::selectTool, modifier) { canvasModifier ->
+    EditorScreen(
+        state = state,
+        onBack = onBack,
+        onSelectTool = viewModel::selectTool,
+        modifier = modifier,
+        onOptionsChange = viewModel::updateOptions,
+        onPopover = viewModel::showPopover,
+        onClearPage = viewModel::clearCurrentPage,
+    ) { canvasModifier ->
         session?.let { EditorCanvas(it, canvasListener, canvasModifier) }
     }
 }
@@ -61,7 +71,7 @@ private fun EditorCanvas(
 
 /**
  * Stateless editor screen (10-editor-ui.md#screen-structure): toolbar row 1 above the [canvas] slot,
- * which is only composed once the document is open.
+ * which is only composed once the document is open; the tool options row and its popovers float over it.
  */
 @Composable
 fun EditorScreen(
@@ -69,9 +79,13 @@ fun EditorScreen(
     onBack: () -> Unit,
     onSelectTool: (EditorTool) -> Unit,
     modifier: Modifier = Modifier,
+    onOptionsChange: ((ToolOptions) -> ToolOptions) -> Unit = {},
+    onPopover: (OptionsPopover?) -> Unit = {},
+    onClearPage: () -> Unit = {},
     canvas: @Composable (Modifier) -> Unit,
 ) {
     val colors = FolioTheme.colors
+    val sideInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
     Column(modifier.fillMaxSize().background(colors.background)) {
         EditorToolbarRow1(
             tool = state.tool,
@@ -87,6 +101,14 @@ fun EditorScreen(
 
                 EditorStatus.READY -> {
                     canvas(Modifier.fillMaxSize())
+                    ToolOptionsRow(
+                        tool = state.tool,
+                        options = state.options,
+                        onChange = onOptionsChange,
+                        onPopover = onPopover,
+                        modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(sideInsets),
+                    )
+                    OptionsPopoverLayer(state.popover, state.options, onOptionsChange, onPopover, onClearPage)
                 }
 
                 EditorStatus.FAILED -> {

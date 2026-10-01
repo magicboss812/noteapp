@@ -12,6 +12,7 @@ import dev.folio.feature.editor.canvas.FakeCanvasController
 import dev.folio.feature.editor.state.EditorStatus
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.EditorUiState
+import dev.folio.feature.editor.state.OptionsPopover
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,11 +29,14 @@ class EditorScreenScreenshotTest {
     @get:Rule
     val compose = createComposeRule()
 
-    private fun showReady(tool: EditorTool = EditorTool.PEN) {
+    private fun showReady(
+        tool: EditorTool = EditorTool.PEN,
+        popover: OptionsPopover? = null,
+    ) {
         val controller = FakeCanvasController(pages = 2)
         compose.setContent {
             FolioTheme(darkTheme = false) {
-                EditorScreen(EditorUiState(EditorStatus.READY, tool = tool), onBack = {}, onSelectTool = {}) {
+                EditorScreen(EditorUiState(EditorStatus.READY, tool = tool, popover = popover), onBack = {}, onSelectTool = {}) {
                     CanvasHost(controller, it)
                 }
             }
@@ -55,6 +59,13 @@ class EditorScreenScreenshotTest {
     fun editor_portraitLinedA4_toolsPillScrollsWithFade() {
         showReady(EditorTool.HIGHLIGHTER)
         compose.onRoot().captureRoboImage("src/test/screenshots/Editor_portrait.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeHighlighterColorPickerOpen_popoverBelowOptionsRow() {
+        showReady(EditorTool.HIGHLIGHTER, OptionsPopover.ColorPicker(EditorTool.HIGHLIGHTER, 0))
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_colorPickerOpen.png")
     }
 
     @Test

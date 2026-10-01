@@ -158,6 +158,45 @@ data class ToolOptions(
     fun withRecentColor(argb: Int): ToolOptions =
         copy(recentColors = (listOf(argb) + recentColors.filter { it != argb }).take(MAX_RECENT_COLORS).toImmutableList())
 
+    /** Color dots of [tool]: the highlighter's own, the pen's for every other tool. */
+    fun swatches(tool: EditorTool): Swatches = if (tool == EditorTool.HIGHLIGHTER) highlighter.swatches else pen.swatches
+
+    /** Replaces the color dots of [tool] (see [swatches]). */
+    fun withSwatches(
+        tool: EditorTool,
+        swatches: Swatches,
+    ): ToolOptions =
+        if (tool == EditorTool.HIGHLIGHTER) {
+            copy(highlighter = highlighter.copy(swatches = swatches))
+        } else {
+            copy(pen = pen.copy(swatches = swatches))
+        }
+
+    /** Color picker result for [tool]: dot [index] becomes [argb] (null or a stale index: added); [argb] becomes recent. */
+    fun withPickedColor(
+        tool: EditorTool,
+        index: Int?,
+        argb: Int,
+    ): ToolOptions {
+        val dots = swatches(tool)
+        val next = if (index != null && index in dots.colors.indices) dots.replace(index, argb) else dots.add(argb)
+        return withSwatches(tool, next).withRecentColor(argb)
+    }
+
+    /** Width presets of [tool]: the highlighter's, else those of the selected pen kind. */
+    fun widths(tool: EditorTool): WidthPresets = if (tool == EditorTool.HIGHLIGHTER) highlighter.widths else pen.kindWidths
+
+    /** Replaces the width presets of [tool] (see [widths]). */
+    fun withWidths(
+        tool: EditorTool,
+        presets: WidthPresets,
+    ): ToolOptions =
+        if (tool == EditorTool.HIGHLIGHTER) {
+            copy(highlighter = highlighter.copy(widths = presets))
+        } else {
+            copy(pen = pen.withKindWidths(presets))
+        }
+
     /** Limits. */
     companion object {
         /** Recent colors the picker shows. */

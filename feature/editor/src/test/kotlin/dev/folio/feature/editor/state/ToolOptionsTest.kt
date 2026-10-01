@@ -81,6 +81,45 @@ class ToolOptionsTest {
         assertThat(options.recentColors).containsExactly(5, 10, 9, 8, 7, 6, 4, 3).inOrder()
     }
 
+    @Test
+    fun perTool_highlighterHasOwnDotsAndWidths_penEditsSelectedKind() {
+        val options = ToolOptions(pen = PenOptions(kind = BrushKind.PENCIL))
+
+        val edited =
+            options
+                .withSwatches(EditorTool.HIGHLIGHTER, options.swatches(EditorTool.HIGHLIGHTER).add(CUSTOM))
+                .withWidths(EditorTool.PEN, options.widths(EditorTool.PEN).set(0, 5f))
+
+        assertThat(edited.highlighter.swatches.argb).isEqualTo(CUSTOM)
+        assertThat(edited.pen.swatches).isEqualTo(options.pen.swatches)
+        assertThat(
+            edited.pen.widths
+                .getValue(BrushKind.PENCIL)
+                .widthsPt[0],
+        ).isEqualTo(5f)
+        assertThat(edited.pen.widths.getValue(BrushKind.BALLPOINT)).isEqualTo(options.pen.widths.getValue(BrushKind.BALLPOINT))
+        assertThat(edited.widths(EditorTool.HIGHLIGHTER)).isEqualTo(options.highlighter.widths)
+    }
+
+    @Test
+    fun pickedColor_editsDotOrAdds_staleIndexAdds_becomesRecent() {
+        val options = ToolOptions()
+
+        val edited = options.withPickedColor(EditorTool.PEN, 2, CUSTOM)
+        val added = options.withPickedColor(EditorTool.HIGHLIGHTER, null, CUSTOM)
+        val stale = options.withPickedColor(EditorTool.PEN, 9, CUSTOM)
+
+        assertThat(edited.pen.swatches.colors).hasSize(5)
+        assertThat(edited.pen.swatches.colors[2]).isEqualTo(CUSTOM)
+        assertThat(edited.pen.swatches.selected).isEqualTo(2)
+        assertThat(
+            added.highlighter.swatches.colors
+                .last(),
+        ).isEqualTo(CUSTOM)
+        assertThat(stale.pen.swatches.colors).hasSize(6)
+        assertThat(edited.recentColors).containsExactly(CUSTOM)
+    }
+
     private companion object {
         const val CUSTOM = 0xFF123456.toInt()
     }
