@@ -6,12 +6,21 @@ Every component below is a Notewise component, recorded as a visual reference. F
 Notewise-only, never rebuild in Folio: paid/upgrade buttons, subscriptions, upsell banners and cards, sign-in, Notewise AI (sparkle buttons, AI settings), cloud sharing ("Shared" tab, Share tile), sticky notes (tool, row, panel, palette), recorder (mic), zoom panel, tape/washi brush, emoji/stickers, web capture tool, document scan, laser pointer, handwriting-to-text, lock note / passwords, Notewise file import/export, quick switch panel, outline and bookmarks filters, "infinity" badge.
 Folio has (style them from here): library, folders, tags, favorites, bin, search, pens/highlighter/eraser/lasso/shapes/ruler, text, images (gallery + camera), tables inside Markdown text, templates, page sizes, paper colors, export PDF/PNG/.folio, split view, settings, light/dark theme. Toolbar docking top/left/right/float is Folio's own (R-UI-02; Notewise only has Top/Bottom): keep the behavior, apply the pill styling.
 
+Visual references: five screenshots are embedded where words describe a layout poorly (library look, editor chrome, tool panel, lasso selection, selection mode). **Do not open screenshots by default.** The tables and bullets in this file are the spec and win over any pixel impression. Read an image (Read tool on `shots/<name>.jpg`) only when the text leaves a concrete visual question open, and then only the one shot that answers it, never several at once; the rest of `shots/` is indexed in section 10 for the same on-demand use. The captured UI is German: Startseite = Home, Papierkorb = Bin, Umbenennen = Rename, Farbe = Color, Dicke = Thickness, Größe = Size, Vorlage = Template, Löschen = Delete. Captions give **Look at** (what to copy) and, where the shot shows Notewise-only items from the list above, **Ignore**.
+
 ## 1. Principles
 - Dark-first chrome around light paper: near-black backdrops, one cool gray surface tone for every floating layer, a single soft blue accent (#6B99F0 dark / #4B85E0 light).
 - Everything floats: the editor has no app bar; tools live in separate 44 dp stadium pills with a 1 dp border. Library and settings are calm and spacious.
 - Selection is always blue and quiet: a dark-blue fill circle, a 4 dp blue dot, a 2 dp blue ring, or blue label + trailing check. No row tints.
 - Character comes from three details: serif display/card titles (greeting, card names) against Roboto-like sans everywhere else, a blue-slate gradient band with a faint dot grid at the top of the library, and saturated folder-colored cards with fine grain.
 - Medium density: 36 dp toolbar cells, 42 dp menu rows, 44-48 dp setting rows, generous 16-24 dp insets. Destructive actions use soft salmon text, never red fills.
+
+| Library (dark) | Editor (dark) |
+|---|---|
+| ![G1-home: dark library with sidebar, serif greeting, folder cards](shots/G1-home.jpg) | ![G3-editor-pen: dark editor with floating pill toolbar](shots/G3-editor-pen.jpg) |
+
+- G1-home. Look at: blue-slate gradient band with dot grid fading to near-black, serif greeting against sans subtitle, saturated grained folder cards with a translucent pocket, one blue accent (selected nav pill, selected chip, FAB). Ignore: Notewise AI and Entdecken nav rows, "Freigegeben" chip, infinity badge in the search capsule.
+- G3-editor-pen. Look at: no app bar, pages on `bg.canvas`, separate stadium pills (nav, edit, mode, page/zoom, toolbox), row 2 centered over row 1, selected tool as dark-blue circle, 4 dp accent dots under the selected width and color. Ignore: sticky, emoji, table-scan, recorder, sparkle and AI tools in row 1, the blue AI button in the top-right pill.
 
 ## 2. Color tokens
 | Token | Dark | Light | Use |
@@ -93,8 +102,18 @@ All sans = Roboto-like; serif = Literata / Source Serif-like (best guess). Sizes
 - Toolbar row 2 (tool options): 8 dp above row 1; per tool: mode/line type | widths | colors | details (sliders icon). Selected width/color = 4 dp accent dot 4 dp below the cell; eraser sizes = 2 dp accent ring; lasso modes = accent icon tint only. Width glyphs: bars of growing thickness (~3/5/8 dp). Color dots ~20-22 dp.
 - Editor top pills: nav pill 188 dp (home, overview, add page, search, ...), edit pill (undo, redo, finger mode) 8 dp below; right pill (mode, more). Active mode = 36 dp circle #4E5058 (light #EDEDEE). Bottom-left info pill 127x43 dp: page fraction (current over rule over total, total #8F9196) | zoom %.
 - On-canvas bar (lasso actions, text context): 40 dp stadium, `surface.bar`, 1 dp `border`, 20 dp glyphs at 32 dp spacing, 8 dp above/below the target; delete icon in `danger`. Lasso: 1 dp `canvas.selection` box, 8 dp white corner handles with 1.5 dp blue ring, 20 dp rotate icon outside the bottom-right corner; no dimming.
+
+![G4-lasso-selection: lasso box, handles and on-canvas action bar](shots/G4-lasso-selection.jpg)
+
+*G4-lasso-selection. Look at: 1 dp blue box with small white round handles, rotate icon outside the bottom-right corner, 40 dp stadium action bar 8 dp above the box with the delete icon in salmon, row 2 reduced to mode icons (active mode = accent tint, no circle). Ignore: the text-recognition (sparkle) button in the bar and the extra row 2 buttons beyond the two lasso modes and the details button.*
+
 - Popover (color, width): anchored ~6 dp above row 2, centered on the tapped item; `surface`, radius 18 dp, padding 16 dp. Opened by tapping the already-selected item; tap outside only closes. Color popover 335x104 dp: title row (+, edit list icons) and 36 dp dot cells; selected dot = 26.5 dp fill inside a 32 dp ring #46484F; rainbow custom dot after a divider. Width popover 340x160 dp: 3 preset cards 97x72 dp (1 dp border, preview dot 2.5/5/9 dp, label) + slider row.
 - Tool settings panel: 340 dp wide, up to full height, no scrim, anchored near the details button. Title row 48 dp (centered title + 24 dp close chip), preview 250x90 dp, kind cards 97x60 dp (selected: 2 dp accent border, `accent.tile` fill, accent icon+label), slider block, divider, 44 dp setting rows (switch / value capsule / dropdown), color section last. Destructive text button in `danger` (e.g. clear page).
+
+![G4-pen-settings: pen settings panel](shots/G4-pen-settings.jpg)
+
+*G4-pen-settings. Look at: centered title with close chip, stroke preview, three kind cards (selected = 2 dp accent border, `accent.tile` fill, accent icon and label), thickness slider block, divider, 44 dp rows with switch or value capsule, color section last. Rows are examples: build only the ones Folio has (hold-to-draw-shape maps to the shape recognizer; scribble-to-erase and circle-to-lasso are not planned).*
+
 - Slider (M3 expressive): active track accent, inactive `accent.track` (or #4E5052), track 6 dp (popover) to 16 dp (dialog), thumb = 4 dp wide accent bar (16-44 dp tall) with ~6 dp gaps, stop dot at the end; "-" / "+" buttons and a value capsule 64x32 dp.
 - Switch (M3): 52x32 dp. On: accent track, 22-24 dp thumb `onAccent` (light: white). Off: track #474D5B (light #DEE6F1), 2 dp outline #92939D (light #73747D), 14-16 dp thumb in outline color.
 - Segmented buttons: (a) outlined M3 segments 44x34 dp, 1 dp #91929C outline, selected `accent.containerStrong` + white icon; (b) chip pairs 32 dp, radius 6-8 dp, 8 dp apart, selected #254B70 + leading check + label #BDD1EA, unselected #242C39.
@@ -114,6 +133,11 @@ All sans = Roboto-like; serif = Literata / Source Serif-like (best guess). Sizes
 - Search: entry = 48 dp capsule top right (#202225 fill, 1 dp border, light: white + shadow). Overlay full screen `bg.overlay`: 72 dp top bar (back, borderless 18 sp query field, clear), 1 dp divider, thin progress bar while searching, live results in 2 columns, rows 95 dp (50 dp thumbnail radius 4 dp, title 18 sp, context 14 sp medium, snippet 14 sp starting with "..."), `search.highlight` on matches, section header 16 sp medium.
 - Multi-select bar: floating stadium 557x69 dp, 28 dp above the bottom, centered on content, `surface.multiBar`, 1 dp `border`; equal buttons with 24 dp icon over 14 sp medium label (Cancel, Select all, Delete, Move, Export). No count label.
 - Info banner (bin): full content width, 47-52 dp, radius 6-8 dp, fill #1F1F21, body text left at 16 dp, text button right ("Empty bin").
+
+![G2-multiselect: selection mode with floating action bar](shots/G2-multiselect.jpg)
+
+*G2-multiselect. Look at: breadcrumb replaces the chips, selected-mode toggle as a blue-tinted circle, "..." replaced by a ring (selected = accent fill with dark check), serif titles wrapping to 2 lines with ellipsis, floating stadium action bar with icon over label. Ignore: the Notewise AI and Entdecken nav rows.*
+
 - Grouped list card: `surface.group`, radius 12 dp, 16 dp inset, 60 dp rows (40 dp thumbnail radius 4 dp, 16 sp title, trailing "..."), 1 dp dividers inset from the title. Reorder list: 44 dp tiles `surface.inset` radius 10-12 dp, 8 dp gaps, icon 24 dp, label, eye toggle, 6-dot grip.
 - Settings: app bar 64 dp (back left, centered title 20 sp); section cards with headline title, 48 dp rows (55 dp with subtitle), right-side dropdown value + chevron-down 20 dp, navigation rows chevron-right, switch rows with 13 sp subtitle.
 - Empty state: 250-300 dp illustration centered (white line art, dark gray fills, accent spot colors), caption 15-18 sp `text.secondary` 15-16 dp below; no button.
@@ -134,6 +158,7 @@ All sans = Roboto-like; serif = Literata / Source Serif-like (best guess). Sizes
 - Menus and popovers open without scrim; one outside tap only dismisses. Bin delete reflows the grid with no visible animation. No other timings were measurable.
 
 ## 10. Shot index (shots/)
+Embedded above: G1-home, G3-editor-pen, G4-pen-settings, G4-lasso-selection, G2-multiselect. Every other shot is on-demand only: open one when the text above cannot answer a specific visual question (for example the exact arrangement of a widget); do not browse or load several at once.
 - G1-home.jpg: dark library, sidebar expanded, folder cards, chips, FAB
 - G1-home-collapsed.jpg: sidebar as 80 dp rail, 5-column grid
 - G1-home-list.jpg: list view, 2 columns of rows
