@@ -10,6 +10,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
+import dev.folio.core.model.PageId
+import dev.folio.core.model.edit.PageOps
 import dev.folio.core.storage.session.DocumentSessions
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -20,10 +22,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
@@ -46,6 +50,8 @@ data class EditorUiState(
     val showHelp: Boolean = false,
     /** Toolbar placement per orientation (10-editor-ui.md#toolbar-docking); known before the document opens. */
     val docks: ToolbarDocks = ToolbarDocks(),
+    /** Page list, the open page surface and the settings sheet target. */
+    val pages: PagesUi = PagesUi(),
 )
 
 /** Popover or dialog opened from the tool options row (10-editor-ui.md#tool-options). */
@@ -75,6 +81,7 @@ sealed interface OptionsPopover {
  * P10); leaving the screen for good releases the session, which packs the document.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("TooManyFunctions") // one intent method per chrome action (tools, options, docks, history, pages, keys)
 @HiltViewModel(assistedFactory = EditorViewModel.Factory::class)
 class EditorViewModel
     @AssistedInject
@@ -102,6 +109,9 @@ class EditorViewModel
         private val failure = MutableStateFlow<String?>(null)
         private val mutablePopover = MutableStateFlow<OptionsPopover?>(null)
         private val mutableHelp = MutableStateFlow(false)
+        private val mutableSurface = MutableStateFlow(PageSurface.NONE)
+        private val mutableCurrentPage = MutableStateFlow<PageId?>(null)
+        private val mutableSettingsPage = MutableStateFlow<PageId?>(null)
         private val docks = MutableStateFlow(ToolbarDocks())
 
         // Stored one at a time in order; conflated, so only the latest of quick changes is written.
@@ -125,14 +135,17 @@ class EditorViewModel
 
                         else -> {
                             val history = combine(session.canUndo, session.canRedo, ::Pair)
-                            combine(
-                                session.tool,
-                                session.options,
-                                mutablePopover,
-                                history,
-                                mutableHelp,
-                            ) { tool, options, popover, h, help ->
-                                EditorUiState(EditorStatus.READY, null, tool, options, popover, h.first, h.second, help)
+                            val pages =
+                                combine(
+                                    session.document.map { it.pages }.distinctUntilChanged(),
+                                    mutableSurface,
+                                    mutableCurrentPage,
+                                    mutableSettingsPage,
+                                    ::PagesUi,
+                                )
+                            val overlays = combine(mutablePopover, mutableHelp, pages, ::Triple)
+                            combine(session.tool, session.options, history, overlays) { tool, options, h, (popover, help, pagesUi) ->
+                                EditorUiState(EditorStatus.READY, null, tool, options, popover, h.first, h.second, help, pages = pagesUi)
                             }
                         }
                     }
@@ -176,8 +189,10 @@ class EditorViewModel
             if (tool == session.tool.value && tool == EditorTool.PEN) {
                 // Tapping the selected pen again opens its settings (10-editor-ui.md#toolbar).
                 mutablePopover.value = OptionsPopover.PenSettings
-            } else if (session.selectTool(tool)) {
+            } else if (tool.available) {
+                // Closed before the tool changes, so no state shows the new tool under the old popover.
                 mutablePopover.value = null
+                session.selectTool(tool)
             }
         }
 
@@ -214,6 +229,77 @@ class EditorViewModel
         /** Opens or closes the shortcut help sheet. */
         fun showHelp(show: Boolean) {
             mutableHelp.value = show
+        }
+
+        /** Opens the page panel or the overview ([PageSurface.NONE] closes it); it highlights the page the pane is on. */
+        fun showPages(surface: PageSurface) {
+            val session = mutableSession.value ?: return
+            if (surface != PageSurface.NONE) mutableCurrentPage.value = session.currentPageId()
+            mutableSurface.value = surface
+        }
+
+        /** Scrolls to page [id]; the overview closes (the panel stays for the next jump). */
+        fun goToPage(id: PageId) {
+            val session = mutableSession.value ?: return
+            session.goToPage(id)
+            mutableCurrentPage.value = id
+            if (mutableSurface.value == PageSurface.OVERVIEW) mutableSurface.value = PageSurface.NONE
+        }
+
+        /** Adds an empty page after the current page and shows it (toolbar "Add page"). */
+        fun addPage() {
+            val session = mutableSession.value ?: return
+            val anchor =
+                session.currentPageId() ?: session.document.value.pages
+                    .lastOrNull()
+                    ?.id ?: return
+            insertPage(anchor, PageOps.Side.AFTER)
+        }
+
+        /** Adds an empty page [side] of [anchor] and shows it. */
+        fun insertPage(
+            anchor: PageId,
+            side: PageOps.Side,
+        ) {
+            val session = mutableSession.value ?: return
+            viewModelScope.launch { session.addPage(anchor, side)?.let { mutableCurrentPage.value = it } }
+        }
+
+        /** Copies [ids] after the last of them (one undo step). */
+        fun duplicatePages(ids: Collection<PageId>) {
+            val session = mutableSession.value ?: return
+            viewModelScope.launch { session.duplicatePages(ids) }
+        }
+
+        /** Deletes [ids] (one undo step; the last page cannot be deleted). */
+        fun deletePages(ids: Collection<PageId>) {
+            val session = mutableSession.value ?: return
+            viewModelScope.launch { session.deletePages(ids) }
+        }
+
+        /** Moves page [id] to position [toIndex] (panel drag). */
+        fun movePage(
+            id: PageId,
+            toIndex: Int,
+        ) {
+            val session = mutableSession.value ?: return
+            viewModelScope.launch { session.movePage(id, toIndex) }
+        }
+
+        /** Opens the settings sheet of page [id], or closes it (null). */
+        fun showPageSettings(id: PageId?) {
+            mutableSettingsPage.value = id
+        }
+
+        /** Applies [settings], edited for the sheet's page, to [applyTo] and closes the sheet. */
+        fun applyPageSettings(
+            settings: PageSettings,
+            applyTo: ApplyTo,
+        ) {
+            val session = mutableSession.value ?: return
+            val page = mutableSettingsPage.value ?: return
+            mutableSettingsPage.value = null
+            viewModelScope.launch { session.applyPageSettings(settings, page, applyTo) }
         }
 
         /**
@@ -257,10 +343,20 @@ class EditorViewModel
                 }
 
                 EditorAction.Escape -> {
-                    // Closes one layer per press: help first, then a popover.
+                    // Closes one layer per press: help, the page settings sheet, a page surface, then a popover.
                     return when {
                         mutableHelp.value -> {
                             mutableHelp.value = false
+                            true
+                        }
+
+                        mutableSettingsPage.value != null -> {
+                            mutableSettingsPage.value = null
+                            true
+                        }
+
+                        mutableSurface.value != PageSurface.NONE -> {
+                            mutableSurface.value = PageSurface.NONE
                             true
                         }
 

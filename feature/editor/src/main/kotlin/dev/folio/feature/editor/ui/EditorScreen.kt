@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
@@ -60,6 +62,9 @@ import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.EditorUiState
 import dev.folio.feature.editor.state.EditorViewModel
 import dev.folio.feature.editor.state.OptionsPopover
+import dev.folio.feature.editor.state.PageSettings
+import dev.folio.feature.editor.state.PageSurface
+import dev.folio.feature.editor.state.PagesUi
 import dev.folio.feature.editor.state.ScreenOrientation
 import dev.folio.feature.editor.state.ShortcutGroup
 import dev.folio.feature.editor.state.ShortcutRegistry
@@ -92,6 +97,25 @@ fun EditorRoute(
         onRedo = viewModel::redo,
         onHelp = viewModel::showHelp,
         onKey = viewModel::onKey,
+        pageChrome =
+            PageChrome(
+                onPanel = { viewModel.showPages(PageSurface.PANEL) },
+                onOverview = { viewModel.showPages(PageSurface.OVERVIEW) },
+                onAdd = viewModel::addPage,
+            ),
+        pageActions =
+            PageActions(
+                onGo = viewModel::goToPage,
+                onDuplicate = viewModel::duplicatePages,
+                onDelete = viewModel::deletePages,
+                onInsert = viewModel::insertPage,
+                onSettings = viewModel::showPageSettings,
+                onMove = viewModel::movePage,
+                onCloseSurface = { viewModel.showPages(PageSurface.NONE) },
+                onApplySettings = viewModel::applyPageSettings,
+                onCloseSettings = { viewModel.showPageSettings(null) },
+            ),
+        pageThumbnail = { page, thumbModifier -> session?.let { SessionPageThumbnail(it, page, thumbModifier) } },
     ) { canvasModifier ->
         session?.let { EditorCanvas(it, canvasListener, canvasModifier) }
     }
@@ -128,6 +152,9 @@ fun EditorScreen(
     onHelp: (Boolean) -> Unit = {},
     onKey: (keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean) -> Boolean = { _, _, _, _ -> false },
     shortcutGroups: List<ShortcutGroup> = ShortcutRegistry.DEFAULT_GROUPS,
+    pageChrome: PageChrome = PageChrome(),
+    pageActions: PageActions = PageActions(),
+    pageThumbnail: PageThumbnail = { page, thumbModifier -> PaperThumbnail(page, thumbModifier) },
     canvas: @Composable (Modifier) -> Unit,
 ) {
     val colors = FolioTheme.colors
@@ -181,8 +208,9 @@ fun EditorScreen(
                 }
             }
         }
-        EditorChrome(state, placement, drag, gestures, onBack, onSelectTool, onOptionsChange, onPopover, onUndo, onRedo)
+        EditorChrome(state, placement, drag, gestures, onBack, onSelectTool, onOptionsChange, onPopover, onUndo, onRedo, pageChrome)
         if (state.status == EditorStatus.READY) {
+            PageSurfaces(state.pages, pageThumbnail, pageActions, Modifier.padding(canvasPadding))
             OptionsPopoverLayer(
                 state.popover,
                 state.options,
@@ -194,6 +222,47 @@ fun EditorScreen(
             )
             if (state.showHelp) ShortcutHelp(shortcutGroups, onClose = { onHelp(false) })
         }
+    }
+}
+
+// The page panel, the overview and the settings sheet over the canvas (10-editor-ui.md#pages).
+@Composable
+private fun PageSurfaces(
+    pages: PagesUi,
+    thumbnail: PageThumbnail,
+    actions: PageActions,
+    modifier: Modifier = Modifier,
+) {
+    when (pages.surface) {
+        PageSurface.NONE -> {
+            Unit
+        }
+
+        PageSurface.PANEL -> {
+            Box(modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { actions.onCloseSurface() } }) {
+                PagePanel(
+                    pages = pages.pages,
+                    current = pages.current,
+                    thumbnail = thumbnail,
+                    actions = actions,
+                    onClose = actions.onCloseSurface,
+                    // Taps inside the card must not close it.
+                    modifier =
+                        Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(FolioTheme.space.chromeInset)
+                            .pointerInput(Unit) { detectTapGestures { } },
+                )
+            }
+        }
+
+        PageSurface.OVERVIEW -> {
+            PageOverview(pages.pages, pages.current, thumbnail, actions, modifier)
+        }
+    }
+    val settingsRef = pages.settingsPage?.let { id -> pages.pages.firstOrNull { it.id == id } }
+    if (settingsRef != null) {
+        PageSettingsSheet(PageSettings(settingsRef), actions.onApplySettings, actions.onCloseSettings)
     }
 }
 
@@ -243,6 +312,7 @@ private fun EditorChrome(
     onPopover: (OptionsPopover?) -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
+    pageChrome: PageChrome,
 ) {
     val space = FolioTheme.space
     val motion = FolioTheme.motion
@@ -274,6 +344,7 @@ private fun EditorChrome(
                             onHome = onBack,
                             onSelectTool = onSelectTool,
                             modifier = Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+                            pages = pageChrome,
                             grip = { dockedGrip(false) },
                         )
                         options(
@@ -295,6 +366,7 @@ private fun EditorChrome(
                                 onSelectTool = onSelectTool,
                                 modifier = Modifier.windowInsetsPadding(safe.only(outer + WindowInsetsSides.Vertical)),
                                 vertical = true,
+                                pages = pageChrome,
                                 grip = { dockedGrip(true) },
                             )
                         }

@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P04
-next: P04-T06
+next: P04-T07
 updated: 2026-10-02
 
 ## Completed
@@ -11,17 +11,19 @@ updated: 2026-10-02
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
 
 ## Current phase progress
-- P04: T01, T02, T03, T04, T10, T05 (device check pending)
+- P04: T01, T02, T03, T04, T10, T05 (device check pending), T06 (device check pending)
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (Roborazzi + unit tests cover it). Recheck P03-REVIEW (no grant-storage.sh, after `pm clear`): the app still reports All files access granted and shows the library. The toggle is not in the app's permission list: open Settings > Privacy (or Apps) > Special app access (Special permissions) > All files access > Folio Debug > off, then write "-> revoked" here; or approve new protected `scripts/device/revoke-storage.sh`: `source "$(dirname "$0")/_common.sh"; init_device; dshell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE default; echo "MANAGE_EXTERNAL_STORAGE: $(dshell appops get --uid "$PKG" MANAGE_EXTERNAL_STORAGE | head -n1)"`. Blocks nothing else. [revoked]
 - P04-T05 device check not run (no tablet: connect.sh found 0 devices): connect the Pad 7 (Wireless debugging on, unlocked), then have device-tester run: Ctrl+Z undoes the last stroke (`input.sh combo CTRL_LEFT Z`), Ctrl+Y redoes, Alt+3 eraser / Alt+1 pen, Ctrl+/ help sheet + Esc, PageDown/PageUp, Ctrl+= / Ctrl+0 zoom. Blocks nothing else.
+- P04-T06 device check not run (same: 0 devices): device-tester opens a 4+ page note, `debugcmd.sh reorder-page 2,1`, reads `pageOrder` in `state`, reopens the doc and checks the order held; smoke: panel, overview, add, duplicate, delete + Ctrl+Z, settings sheet apply. Blocks nothing else.
 
 ## USER-CHECK (human verification; non-blocking)
 - P03-REVIEW (D-017, your "no thin ring visible"): install the debug app, open a document, hold the Focus Pen just above the page -> a thin dark ring (light edge) follows the tip, at least pen-dot size; the system hover dot is gone over the canvas; the ring disappears when the pen touches or leaves. If still no ring, keep the app open and write "no ring": Claude reads `hoverEvents` from debug `state` (0 = hover never reaches the canvas). [Checked, ring is there]
 - P04-T03: open a note, try row 2 (pen kinds, widths, long-press a width or color, + add color, pen settings, eraser modes, clear page) -> controls respond, ink uses the choices, choices survive closing and reopening the app. [Checked, really good, pressure is considered, eraser modes there but eraser ring disappears when pressing, needs to be visible when erasing always, reopening the app keeps progress]
 - P04-T04: drag the toolbar grip (dots at the right end of row 1, or the bottom of a side rail) to the left and right edges and release it mid-canvas to float; double-tap the floating grip -> moves feel smooth, docks snap with a spring, the placement survives closing and reopening the app (separately per orientation). [Checked]
 - P04-T10: open the library placeholder and a note on the tablet -> toolbar, options row, popovers, colors and type read as Notewise; differences go to docs/plan/FEEDBACK.md.
+- P04-T06: toolbar Pages (drawer), Overview (grid) and Add page buttons; long-press and drag a panel row to reorder; row menu, page settings -> panels and sheet read well, order survives reopening.
 
 ## Deferred (id: reason)
 - D-001 P00-T07: P11 `benchmark` build type needs its own DebugHooksModule (src/benchmark, bind NoOpDebugHooks).
@@ -43,10 +45,11 @@ updated: 2026-10-02
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 - D-025 P04-T04: handedness is modeled and stored (`ToolbarDocks.withHandedness`, A-029) but has no toggle; add it to the settings Toolbar section (10-editor-ui.md#settings) when feature:settings is built.
 - D-026 P04-T05: Alt+9 (Ruler toggle) is not bound and the help sheet lacks later groups (text, selection, Ctrl+N/O/F/W/S/\); each feature task adds its group to `ShortcutRegistry.DEFAULT_GROUPS` (P05, P06, P07, P10).
+- D-027 P04-T06: duplicates drop text frames and sticky notes until P06 flow cloning; thumbnails load through the session LRU (30) and can evict canvas pages in long docs; toolbar "More" menu, expand-to-infinite, move-to-another-document not built; floating toolbar has no page buttons (docked only); delete refuses the last page.
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P04-T05 code done and committed (unit, detekt, lint, Roborazzi green); only its device check is open (Blocked, tablet was not connected).
-- Shortcuts: `ShortcutRegistry` (state/) is the single key table; `EditorViewModel.onKey` performs actions; canvas actions go via `CanvasController.viewCommands` to `CanvasHostView.perform`. Row 2 = `ToolRow2` (undo pill + options).
-- Next: T06 page management. Build UI from `docs/design/notewise/DESIGN.md` + 11-design-system.md; TokensTest parses DESIGN.md.
+- P04-T06 code done (unit, detekt, lint, Roborazzi green); T05 and T06 device checks are open (Blocked, tablet not connected).
+- Pages: `PageOps` (core:model) builds commands; `EditorSession` page methods; `PagesUi`/`PageSettings` (state/); `PagePanel`, `PageOverview`, `PageSettingsSheet` (ui/); debug `reorder-page from,to` + `pageOrder` in `state`.
+- Next: T07. Build UI from `docs/design/notewise/DESIGN.md` + 11-design-system.md; TokensTest parses DESIGN.md.
 - Known nit: FolderCard back page overlaps the folder name (catalog golden); fix with the P05 library cards.
 - FEEDBACK.md turns into tasks at every REVIEW. `FolioIcons.kt` is generated (A-027): `./gradlew :tools:icongen:run`.

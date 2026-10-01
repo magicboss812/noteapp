@@ -81,6 +81,9 @@ interface CanvasController {
     /** Viewport actions for the host to run; commands sent while no host collects are dropped. */
     val viewCommands: Flow<CanvasCommand> get() = emptyFlow()
 
+    /** Pages the host scrolls to (page panel, add page); jumps sent while no host collects are dropped. */
+    val pageJumps: Flow<PageId> get() = emptyFlow()
+
     /** Asks the session to decode [ids] (visible pages and neighbors); [document] updates when they arrive. */
     fun loadPages(ids: Collection<PageId>)
 }

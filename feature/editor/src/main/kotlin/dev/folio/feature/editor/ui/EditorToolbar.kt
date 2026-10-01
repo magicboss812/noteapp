@@ -53,6 +53,7 @@ internal fun EditorToolbarRow1(
     onSelectTool: (EditorTool) -> Unit,
     modifier: Modifier = Modifier,
     vertical: Boolean = false,
+    pages: PageChrome = PageChrome(),
     grip: @Composable () -> Unit = {},
 ) {
     val space = FolioTheme.space
@@ -60,9 +61,9 @@ internal fun EditorToolbarRow1(
     val content: @Composable (Modifier) -> Unit = { toolsModifier ->
         PillGroup(orientation = orientation) {
             FolioIconButton(FolioIcons.House, "Home", onHome)
-            FolioIconButton(FolioIcons.PanelLeft, "Pages", onClick = {}, enabled = false)
-            FolioIconButton(FolioIcons.LayoutGrid, "Page overview", onClick = {}, enabled = false)
-            FolioIconButton(FolioIcons.FilePlus, "Add page", onClick = {}, enabled = false)
+            FolioIconButton(FolioIcons.PanelLeft, "Pages", pages.onPanel)
+            FolioIconButton(FolioIcons.LayoutGrid, "Page overview", pages.onOverview)
+            FolioIconButton(FolioIcons.FilePlus, "Add page", pages.onAdd)
             FolioIconButton(FolioIcons.Ellipsis, "More", onClick = {}, enabled = false)
         }
         val scroll = rememberScrollState()

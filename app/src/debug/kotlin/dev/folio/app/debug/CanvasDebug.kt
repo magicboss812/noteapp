@@ -83,6 +83,21 @@ internal data class ZoomAnim(
     }
 }
 
+/** Parsed `reorder-page from,to`: moves page [from] to position [to] (both 1-based). */
+internal data class ReorderPage(
+    val from: Int,
+    val to: Int,
+) {
+    companion object {
+        fun parse(arg: String?): ReorderPage? {
+            val parts = arg?.split(',')?.takeIf { it.size == 2 } ?: return null
+            val from = parts[0].toIntOrNull()?.takeIf { it >= 1 } ?: return null
+            val to = parts[1].toIntOrNull()?.takeIf { it >= 1 } ?: return null
+            return ReorderPage(from, to)
+        }
+    }
+}
+
 /** Parsed `scroll-page n[,durationMs]`; [page] is 1-based. */
 internal data class ScrollPage(
     val page: Int,
@@ -209,6 +224,19 @@ internal class CanvasDebug(
         return DebugReply.ok(buildJsonObject { put("seeding", seed.count) })
     }
 
+    fun reorderPage(arg: String?): DebugReply {
+        val move = ReorderPage.parse(arg) ?: return DebugReply.error("reorder-page needs from,to (1-based page numbers)")
+        val current = session ?: return DebugReply.error(NO_CANVAS)
+        val pages = current.document.value.pages
+        if (move.from > pages.size || move.to > pages.size) return DebugReply.error("only ${pages.size} pages")
+        val id = pages[move.from - 1].id
+        scope.launch {
+            val ok = current.movePage(id, move.to - 1)
+            FolioLog.i(DebugReply.TAG, "reorder-page ${move.from},${move.to} -> ${if (ok) "ok" else "failed"}")
+        }
+        return DebugReply.ok(buildJsonObject { put("reordering", "${move.from},${move.to}") })
+    }
+
     fun tool(arg: String?): DebugReply {
         val setting =
             ToolSetting.parse(arg) ?: return DebugReply.error("tool needs pen or eraser[,stroke|partial][,radiusPt][,hl]")
@@ -252,6 +280,15 @@ internal class CanvasDebug(
         val vp = current.viewport
         val doc = current.document.value
         put("pages", doc.pages.size)
+        // Page ids in document order (first 8 characters), to check a reorder.
+        put(
+            "pageOrder",
+            kotlinx.serialization.json.JsonArray(
+                doc.pages.map {
+                    kotlinx.serialization.json.JsonPrimitive(it.id.value.take(PAGE_ID_CHARS))
+                },
+            ),
+        )
         put("zoom", vp.zoom)
         put("offsetYPx", vp.offsetYPx)
         put("visibleView", host != null)
@@ -325,6 +362,7 @@ internal class CanvasDebug(
     }
 
     private companion object {
+        const val PAGE_ID_CHARS = 8
         const val NO_CANVAS = "no editor canvas shown; run open first"
         const val WHITE = 0xFFFFFFFF.toInt()
         const val MIB = 1024L * 1024L

@@ -129,7 +129,9 @@ class EditorViewModelTest {
             val vm = viewModel(createDoc("Ready"))
             val session = vm.opened()
 
-            assertThat(vm.awaitState { it.status == EditorStatus.READY }).isEqualTo(EditorUiState(EditorStatus.READY))
+            val ready = vm.awaitState { it.status == EditorStatus.READY }
+            assertThat(ready.copy(pages = PagesUi())).isEqualTo(EditorUiState(EditorStatus.READY))
+            assertThat(ready.pages.pages).hasSize(2)
             assertThat(session.document.value.pages).hasSize(2)
             assertThat(session.activeTool).isEqualTo(CanvasTool.PEN)
             assertThat(session.activeBrush.kind).isEqualTo(BrushKind.BALLPOINT)
@@ -386,6 +388,95 @@ class EditorViewModelTest {
                     .getValue(page)
                     .objects,
             ).hasSize(1)
+        }
+
+    private fun EditorSession.order() = document.value.pages.map { it.id }
+
+    @Test
+    fun pages_addDuplicateDeleteMove_eachIsOneUndoStep() =
+        editorTest {
+            val session = viewModel(createDoc("Pages")).opened()
+            val (first, second) = session.order()
+
+            val added = session.addPage(first, dev.folio.core.model.edit.PageOps.Side.AFTER)
+            assertThat(session.order()).containsExactly(first, added, second).inOrder()
+            assertThat(session.undo()).isTrue()
+            assertThat(session.order()).containsExactly(first, second).inOrder()
+
+            val copy = session.duplicatePages(listOf(second))
+            assertThat(session.order()).containsExactly(first, second, copy).inOrder()
+            assertThat(session.movePage(copy!!, 0)).isTrue()
+            assertThat(session.order()).containsExactly(copy, first, second).inOrder()
+            assertThat(session.undo()).isTrue()
+            assertThat(session.order()).containsExactly(first, second, copy).inOrder()
+
+            assertThat(session.deletePages(listOf(first, second))).isTrue()
+            assertThat(session.order()).containsExactly(copy)
+            assertThat(session.deletePages(listOf(copy))).isFalse()
+            assertThat(session.undo()).isTrue()
+            assertThat(session.order()).containsExactly(first, second, copy).inOrder()
+        }
+
+    @Test
+    fun pages_applySettings_allPagesThenNewPages() =
+        editorTest {
+            val session = viewModel(createDoc("Settings")).opened()
+            val ref = session.document.value.pages[0]
+            val dark = PageSettings(ref).copy(paperArgb = PaperColor.DARK.argb, size = dev.folio.core.model.PaperSize.A5)
+
+            assertThat(session.applyPageSettings(dark, ref.id, ApplyTo.ALL_PAGES)).isTrue()
+            session.document.value.pages.forEach {
+                assertThat(it.background.paperArgb).isEqualTo(PaperColor.DARK.argb)
+                assertThat(
+                    it.spec,
+                ).isEqualTo(
+                    dev.folio.core.model.PageSpec
+                        .Fixed(dev.folio.core.model.PaperSize.A5, dev.folio.core.model.Orientation.PORTRAIT),
+                )
+            }
+            assertThat(session.undo()).isTrue()
+            assertThat(
+                session.document.value.pages
+                    .map { it.background.paperArgb }
+                    .toSet(),
+            ).containsExactly(0xFFFFFFFF.toInt())
+
+            assertThat(session.applyPageSettings(dark, ref.id, ApplyTo.NEW_PAGES)).isTrue()
+            assertThat(session.document.value.meta.defaultBackground.paperArgb).isEqualTo(PaperColor.DARK.argb)
+            assertThat(session.applyPageSettings(dark, ref.id, ApplyTo.NEW_PAGES)).isFalse()
+        }
+
+    @Test
+    fun pages_surfacesAndSettings_escapeClosesSettingsThenSurface() =
+        editorTest {
+            val vm = viewModel(createDoc("Surfaces"))
+            val session = vm.opened()
+            val first = session.order()[0]
+
+            vm.showPages(PageSurface.PANEL)
+            vm.showPageSettings(first)
+            assertThat(vm.awaitState { it.pages.settingsPage == first }.pages.surface).isEqualTo(PageSurface.PANEL)
+            assertThat(vm.state.value.pages.pages).hasSize(2)
+
+            assertThat(vm.onKey(KeyEvent.KEYCODE_ESCAPE, ctrl = false, shift = false, alt = false)).isTrue()
+            assertThat(vm.awaitState { it.pages.settingsPage == null }.pages.surface).isEqualTo(PageSurface.PANEL)
+            assertThat(vm.onKey(KeyEvent.KEYCODE_ESCAPE, ctrl = false, shift = false, alt = false)).isTrue()
+            assertThat(vm.awaitState { it.pages.surface == PageSurface.NONE }.pages.surface).isEqualTo(PageSurface.NONE)
+        }
+
+    @Test
+    fun pages_goToPage_closesTheOverviewAndHighlightsThePage() =
+        editorTest {
+            val vm = viewModel(createDoc("Go"))
+            val session = vm.opened()
+            val second = session.order()[1]
+
+            vm.showPages(PageSurface.OVERVIEW)
+            vm.awaitState { it.pages.surface == PageSurface.OVERVIEW }
+            vm.goToPage(second)
+
+            val pages = vm.awaitState { it.pages.surface == PageSurface.NONE }.pages
+            assertThat(pages.current).isEqualTo(second)
         }
 
     private companion object {

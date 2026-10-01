@@ -253,6 +253,7 @@ class CanvasHostView internal constructor(
         }
         loading.removeAll(next.pageBodies.keys)
         if (previous?.pages != next.pages) layoutPages()
+        pendingJump?.let { goToPage(it) }
         val keep = HashSet<String>(next.pages.size * 2)
         for (ref in next.pages) {
             keep += ref.id.value
@@ -344,6 +345,24 @@ class CanvasHostView internal constructor(
         require(index in 0 until stack.size) { "page $index outside 0..${stack.size - 1}" }
         gestures.stopFling()
         animator.scrollToPage(index, durationMs)
+    }
+
+    // A jump to a page the stack does not hold yet (just inserted) waits for the document that has it.
+    private var pendingJump: PageId? = null
+
+    /** Scrolls to page [id] over [durationMs]; if the page is not laid out yet, once the document with it arrives. */
+    fun goToPage(
+        id: PageId,
+        durationMs: Long = PAGE_JUMP_MS,
+    ) {
+        val stack = viewport.layout
+        val index = stack?.indexOf(id) ?: -1
+        if (index < 0) {
+            pendingJump = id
+            return
+        }
+        pendingJump = null
+        if (viewport.mode is ViewportMode.Stack) scrollToPage(index, durationMs)
     }
 
     /** Runs a viewport [command] (keyboard shortcuts); page commands apply to the page stack only. */
@@ -679,6 +698,7 @@ class CanvasHostView internal constructor(
         // Keyboard zoom and page jumps: one step zooms by 25%, animated over 150 ms.
         private const val KEY_ZOOM_STEP = 1.25f
         private const val KEY_ANIMATION_MS = 150L
+        private const val PAGE_JUMP_MS = 200L
     }
 }
 

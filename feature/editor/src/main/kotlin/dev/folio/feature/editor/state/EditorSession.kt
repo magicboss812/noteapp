@@ -6,14 +6,19 @@ import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.ink.brush.BrushCatalog
 import dev.folio.core.ink.erase.EraserOptions
+import dev.folio.core.model.Background
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.PageId
+import dev.folio.core.model.TemplateKind
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.EditCommand
+import dev.folio.core.model.edit.MovePages
+import dev.folio.core.model.edit.PageOps
 import dev.folio.core.model.edit.RemoveObjects
+import dev.folio.core.render.template.TemplatePresets
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.pageIndexAt
 import dev.folio.core.storage.session.DocumentSession
@@ -36,6 +41,7 @@ import kotlinx.coroutines.withContext
  * its options and the pane's viewport. Commands, undo and redo run on the io dispatcher so the canvas
  * host's main-thread calls stay inside the `ink:commit` budget. [scope] (the ViewModel's) runs page loads.
  */
+@Suppress("TooManyFunctions") // pane API: tool state, history, and one method per page operation of the page panel
 class EditorSession(
     /** The storage session of the open document; shared by both panes of a split view. */
     val documentSession: DocumentSession,
@@ -131,6 +137,77 @@ class EditorSession(
         return ids.isNotEmpty() && execute(RemoveObjects(pageId, ids))
     }
 
+    private val pageJumpRequests = MutableSharedFlow<PageId>(extraBufferCapacity = COMMAND_BUFFER)
+
+    override val pageJumps: Flow<PageId> get() = pageJumpRequests
+
+    /** Scrolls the canvas to page [id] (dropped while no host is attached). */
+    fun goToPage(id: PageId) {
+        pageJumpRequests.tryEmit(id)
+    }
+
+    /** Adds an empty page [side] of [anchor] with its spec and background, then shows it; the new id, or null if it failed. */
+    suspend fun addPage(
+        anchor: PageId,
+        side: PageOps.Side,
+    ): PageId? {
+        val command = build { PageOps.blankNear(document.value, anchor, side, NEW_PAGE_BACKGROUND) }
+        if (command == null || !execute(command)) return null
+        val added = command.pages.single().id
+        goToPage(added)
+        return added
+    }
+
+    /** Copies [ids] after the last of them as one undo step; the id of the first copy, or null if it failed. */
+    suspend fun duplicatePages(ids: Collection<PageId>): PageId? {
+        if (!loaded(ids)) return null
+        val command = build { PageOps.duplicate(document.value, ids) }
+        if (command == null || !execute(command)) return null
+        return command.pages.first().id
+    }
+
+    /** Deletes [ids] as one undo step; false if that would remove every page or it failed. */
+    suspend fun deletePages(ids: Collection<PageId>): Boolean {
+        if (!loaded(ids)) return false
+        val command = build { PageOps.delete(document.value, ids) } ?: return false
+        return execute(command)
+    }
+
+    /** Moves page [id] to position [toIndex] among the pages as one undo step. */
+    suspend fun movePage(
+        id: PageId,
+        toIndex: Int,
+    ): Boolean = execute(MovePages(listOf(id), toIndex))
+
+    /** Applies [settings] chosen for [page] to [applyTo] as one undo step; false if nothing changed or it failed. */
+    suspend fun applyPageSettings(
+        settings: PageSettings,
+        page: PageId,
+        applyTo: ApplyTo,
+    ): Boolean {
+        if (!loaded(settings.pagesToLoad(document.value, page, applyTo))) return false
+        val command = build { settings.commandFor(document.value, page, applyTo) } ?: return false
+        return execute(command)
+    }
+
+    private suspend fun loaded(ids: Collection<PageId>): Boolean {
+        val result = withContext(dispatchers.io) { documentSession.loadPages(ids) }
+        if (result is Outcome.Failure) FolioLog.w(TAG, "loadPages: ${result.message}", result.cause)
+        return result is Outcome.Success
+    }
+
+    // Builders reject unknown ids (a page deleted meanwhile) and pages evicted since loading.
+    private inline fun <T : Any> build(block: () -> T?): T? =
+        try {
+            block()
+        } catch (e: IllegalArgumentException) {
+            FolioLog.w(TAG, "page edit rejected: ${e.message}")
+            null
+        } catch (e: IllegalStateException) {
+            FolioLog.w(TAG, "page edit rejected: ${e.message}")
+            null
+        }
+
     override fun loadPages(ids: Collection<PageId>) {
         scope.launch {
             val result = documentSession.loadPages(ids)
@@ -166,5 +243,8 @@ class EditorSession(
         const val TAG = "EditorSession"
         const val COMMAND_BUFFER = 16
         val BRUSH_VERSION = BrushCatalog.DEFAULT.latestVersion
+
+        // Where a page added next to a PDF page starts: blank white A4 with the default lined template.
+        val NEW_PAGE_BACKGROUND = Background(PaperColor.WHITE.argb, TemplatePresets.default(TemplateKind.LINED), null)
     }
 }

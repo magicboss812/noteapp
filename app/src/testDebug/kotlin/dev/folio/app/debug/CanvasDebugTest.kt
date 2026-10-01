@@ -45,6 +45,15 @@ class CanvasDebugTest {
     }
 
     @Test
+    fun reorderPage_parse_fromAndTo() {
+        assertThat(ReorderPage.parse("3,1")).isEqualTo(ReorderPage(3, 1))
+        assertThat(ReorderPage.parse("0,1")).isNull()
+        assertThat(ReorderPage.parse("2")).isNull()
+        assertThat(ReorderPage.parse("a,b")).isNull()
+        assertThat(ReorderPage.parse(null)).isNull()
+    }
+
+    @Test
     fun seedStrokes_parse_countAndOptionalPage() {
         assertThat(SeedStrokes.parse("1500")).isEqualTo(SeedStrokes(1500, 1))
         assertThat(SeedStrokes.parse("20,3")).isEqualTo(SeedStrokes(20, 3))

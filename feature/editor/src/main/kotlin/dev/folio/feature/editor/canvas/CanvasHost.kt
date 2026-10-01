@@ -50,5 +50,9 @@ internal fun CanvasHost(
             if (view == null) return@LaunchedEffect
             controller.viewCommands.collect { view.perform(it) }
         }
+        LaunchedEffect(view) {
+            if (view == null) return@LaunchedEffect
+            controller.pageJumps.collect { view.goToPage(it) }
+        }
     }
 }
