@@ -16,7 +16,11 @@
 #   FOLIO_MODE=headless  (default) claude -p with a live progress feed in this terminal
 #   FOLIO_MODE=rc        visible interactive session in this terminal + Remote Control
 #                        (session end is detected heuristically: see watch_session)
-#   FOLIO_EFFORT=high    effort level (low|medium|high|xhigh)
+#   Model and effort are picked per task from its "Model: sonnet|opus high|xhigh" line in the phase
+#   file (docs/plan/PLAN.md "Task block format"). No line, and every PNN REVIEW: opus high.
+#   FOLIO_MODEL=         override for every task: sonnet|opus or a full model id
+#   FOLIO_EFFORT=        override for every task: low|medium|high|xhigh
+#   FOLIO_SONNET_MODEL=claude-sonnet-5-5  FOLIO_OPUS_MODEL=claude-opus-5-5  ids behind the two names
 #   FOLIO_PHASES=1       phase scope: run this many phases in a row (each REVIEW, tag, then the next phase
 #                        in fresh sessions). A stopped run resumed with the same value keeps its count.
 #   FOLIO_FEED=1         headless: 0 hides the live feed (only status lines and the final summary)
@@ -46,7 +50,7 @@ fi
 
 scope="${1:-phase}"
 mode="${FOLIO_MODE:-headless}"
-effort="${FOLIO_EFFORT:-high}"
+model=""; effort=""   # set per task by pick_profile
 feed="${FOLIO_FEED:-1}"
 limit_poll="${FOLIO_LIMIT_POLL:-900}"
 limit_max_wait="${FOLIO_LIMIT_MAX_WAIT:-172800}"
@@ -71,6 +75,7 @@ probe_out="$log_dir/.probe.txt"
 case "$scope" in phase|task) ;; *) echo "usage: run-loop.sh [phase|task]"; exit 2 ;; esac
 case "$mode" in headless|rc) ;; *) echo "FOLIO_MODE must be headless or rc"; exit 2 ;; esac
 case "$phases" in ''|*[!0-9]*|0) echo "FOLIO_PHASES must be a positive integer"; exit 2 ;; esac
+case "${FOLIO_EFFORT:-}" in ''|low|medium|high|xhigh) ;; *) echo "FOLIO_EFFORT must be low, medium, high or xhigh"; exit 2 ;; esac
 [ "$scope" = phase ] || phases=1
 max_sessions=$((80 * phases))
 command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 2; }
@@ -126,6 +131,30 @@ advance_phase() {
   say "Phase $run_phase done ($phases_done/$phases); continuing with $new_phase, next $(field next)."
   run_phase="$new_phase"
   phase_tag="$(printf '%s' "$run_phase" | tr 'A-Z' 'a-z')-done"
+}
+
+# ---------- model + effort per task ----------
+task_profile() {   # $1 = task id (sub-commit letters allowed) or "PNN REVIEW"; prints "<model> <effort>"
+  local base file line="" m e
+  base="$(printf '%s' "$1" | sed -nE 's/^(P[0-9]{2}-T[0-9]{2}).*/\1/p')"
+  if [ -n "$base" ]; then
+    file="$(ls docs/plan/phase-"${base:1:2}"-*.md 2>/dev/null | head -n1)"
+    [ -n "$file" ] && line="$(awk -v h="### $base " 'index($0, h) == 1 {f = 1; next} /^### / {f = 0} f && /^Model: / {print; exit}' "$file")"
+  fi
+  read -r m e <<< "${line#Model: }"
+  case "$m" in sonnet|opus) ;; *) m=opus ;; esac
+  case "$e" in low|medium|high|xhigh) ;; *) e=high ;; esac
+  echo "${FOLIO_MODEL:-$m} ${FOLIO_EFFORT:-$e}"
+}
+pick_profile() {   # $1 = task id; sets model (full id), effort and profile (for log lines)
+  local m
+  read -r m effort <<< "$(task_profile "$1")"
+  profile="$m $effort"
+  case "$m" in
+    sonnet) model="${FOLIO_SONNET_MODEL:-claude-sonnet-5-5}" ;;
+    opus) model="${FOLIO_OPUS_MODEL:-claude-opus-5-5}" ;;
+    *) model="$m" ;;
+  esac
 }
 
 new_prompt() {   # $1 = task id or "PNN REVIEW"
@@ -216,10 +245,10 @@ run_headless() {   # $1 = new|resume ; sets RUN_TEXT (result and CLI lines), LAS
   # once and on_interrupt can stop the whole session tree, tools and subagent shells included.
   set -m
   if [ "$feed" = "1" ]; then
-    ( claude "${args[@]}" --permission-mode dontAsk --effort "$effort" --max-turns 400 \
+    ( claude "${args[@]}" --permission-mode dontAsk --model "$model" --effort "$effort" --max-turns 400 \
         --output-format stream-json --verbose < /dev/null 2>&1 | tee "$log" | jq -rj --unbuffered "$feed_filter" 2>/dev/null ) &
   else
-    ( claude "${args[@]}" --permission-mode dontAsk --effort "$effort" --max-turns 400 \
+    ( claude "${args[@]}" --permission-mode dontAsk --model "$model" --effort "$effort" --max-turns 400 \
         --output-format stream-json --verbose < /dev/null > "$log" 2>&1 ) &
   fi
   child_pid=$!
@@ -293,10 +322,10 @@ run_rc() {   # $1 = new|resume
   watcher=$!
   if [ "$kind" = new ]; then
     ( echo "$BASHPID" > "$pidfile"
-      exec claude --remote-control "Folio $cur_task" --permission-mode dontAsk --effort "$effort" "$(new_prompt "$cur_task")" )
+      exec claude --remote-control "Folio $cur_task" --permission-mode dontAsk --model "$model" --effort "$effort" "$(new_prompt "$cur_task")" )
   else
     ( echo "$BASHPID" > "$pidfile"
-      exec claude --resume "$SID" --remote-control "Folio $cur_task" --permission-mode dontAsk --effort "$effort" "$(continue_prompt "$cur_task")" )
+      exec claude --resume "$SID" --remote-control "Folio $cur_task" --permission-mode dontAsk --model "$model" --effort "$effort" "$(continue_prompt "$cur_task")" )
   fi
   kill "$watcher" 2>/dev/null; wait "$watcher" 2>/dev/null
   stty sane 2>/dev/null || true
@@ -358,7 +387,8 @@ fi
 cur_task="$start_next"
 run_desc="scope=$scope ($run_phase, next $cur_task"
 [ "$phases" -gt 1 ] && run_desc="$run_desc, phase $((phases_done + 1))/$phases"
-run_desc="$run_desc) mode=$mode effort=$effort compact=$CLAUDE_CODE_AUTO_COMPACT_WINDOW"
+pick_profile "$cur_task"
+run_desc="$run_desc) mode=$mode model/effort per task (next: $profile) compact=$CLAUDE_CODE_AUTO_COMPACT_WINDOW"
 if [ -n "$SID" ]; then
   say "Run start: $run_desc; resuming session $SID"
 else
@@ -374,7 +404,8 @@ while :; do
   save_state
   head_before="$(git rev-parse HEAD 2>/dev/null || echo none)"
   status_before="$(hash_status)"
-  if [ "$kind" = new ]; then say "Task $cur_task: new session."; fi
+  pick_profile "$cur_task"
+  if [ "$kind" = new ]; then say "Task $cur_task: new session ($profile)."; else say "Task $cur_task: resuming session ($profile)."; fi
   if [ "$mode" = headless ]; then run_headless "$kind"; else run_rc "$kind"; fi
   save_state
   sessions=$((sessions + 1))

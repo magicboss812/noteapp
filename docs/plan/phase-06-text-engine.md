@@ -3,6 +3,7 @@ Goal: typed text as a first-class citizen: instant creation, Markdown blocks sna
 Exit: grid invariant tests pass for 20 fonts and all block types incl. inline math; text budgets met on the tablet; tag `p06-done`.
 
 ### P06-T01 Markdown block model and parser
+Model: sonnet high
 Implements: R-TXT-01, R-TXT-02
 Read: 07-text-engine.md#blocks, #markdown-dialect
 Files: core/text/.../markdown/**
@@ -13,6 +14,7 @@ Accept:
 Verify: `./gradlew :core:text:testDebugUnitTest`
 
 ### P06-T02 Font system
+Model: opus high
 Implements: R-TXT-08
 Read: 07-text-engine.md#fonts, #font-normalization
 Do: `FontRegistry` (20 bundled families + imported .ttf/.otf copied to app files and listed in the library `.fonts/` folder), `FontMetricsCache` (cap height, x-height, ascent, descent per typeface), size derivation per style, fallback chain.
@@ -21,6 +23,7 @@ Accept:
 Verify: module tests (+ `instrumented.sh :core:text`)
 
 ### P06-T03 Grid line-box layout
+Model: opus high
 Implements: R-TXT-03, R-TXT-05
 Read: 07-text-engine.md#line-box, #block-styles, #grid-unit
 Do: `BlockLayout` per block (lines, heights in U multiples, baseline correction), cache keyed by (block hash, width, style key, U). Promote the P01-S3 test into a regression suite for all block styles (rendered baselines per zoom, not only pt error x scale), then delete core:text `spike/` and the `spike-fonts` route (A-008, STATUS D-002).
@@ -29,6 +32,7 @@ Accept:
 Verify: `bash scripts/device/instrumented.sh :core:text`
 
 ### P06-T04 Flows and frames
+Model: opus high
 Implements: R-TXT-07
 Read: 07-text-engine.md#flows-and-frames
 Do: `FlowLayout` distributing block lines across frames (split at line boundaries; tables at rows; math/rules never split), body frames from template zones, auto-continue creating the next page (same spec) when the last frame overflows, infinite frames, free text boxes (auto-grow in U steps), sticky note frames.
@@ -37,6 +41,7 @@ Accept:
 Verify: module tests
 
 ### P06-T05 Rendering text in tiles
+Model: sonnet xhigh
 Implements: R-TXT-05
 Read: 07-text-engine.md#rendering, 05-canvas-rendering.md#tiles
 Do: unfocused blocks drawn by PageRenderer from cached layouts; invalidation limited to changed blocks and shifted lines.
@@ -45,6 +50,7 @@ Accept:
 Verify: `./gradlew :core:render:verifyRoborazziDebug`
 
 ### P06-T06 Focused editing
+Model: sonnet xhigh
 Implements: R-CORE-01, R-TXT-01
 Read: 07-text-engine.md#editing
 Files: feature/editor/.../text/**
@@ -56,6 +62,7 @@ Accept:
 Verify: tests + device-tester
 
 ### P06-T07 Math
+Model: sonnet xhigh
 Implements: R-TXT-02, R-TXT-04
 Read: 07-text-engine.md#math, decisions.md#adr-007-latex-rendering
 Do: chosen MathRenderer adapter; inline math placeholder scaled to fit; block math spanning integer lines; tap on formula edits source inline; invalid LaTeX shows source in red with error tooltip.
@@ -65,6 +72,7 @@ Accept:
 Verify: instrumented + screenshots
 
 ### P06-T08 Tables
+Model: sonnet xhigh
 Implements: R-TXT-02
 Read: 07-text-engine.md#tables
 Do: GFM table layout on the grid (row height = max cell lines x U, borders on grid lines), cell editing with Tab/Shift+Tab, add/remove rows/columns from a small toolbar, column alignment.
@@ -74,6 +82,7 @@ Accept:
 Verify: tests + screenshots
 
 ### P06-T09 Lists, checklists, code, quotes, links
+Model: sonnet xhigh
 Implements: R-TXT-02, R-ORG-02, R-MED-04
 Read: 07-text-engine.md#block-styles, 09-storage-library.md#links
 Do: nested lists with grid-column indentation, tap-to-toggle checkboxes, code blocks (monospace, no highlighting in v1), quotes/callouts, URL links (open externally via intent), `[[` doc link picker inserting `folio://doc/<uuid>` links with titles, broken links styled.
@@ -83,6 +92,7 @@ Accept:
 Verify: tests + screenshots
 
 ### P06-T10 Text tool and instant creation
+Model: sonnet xhigh
 Implements: R-CORE-01, R-TXT-07
 Read: 10-editor-ui.md#text-tool, 07-text-engine.md#editing
 Do: Text tool tap -> caret in the body flow if inside the body zone, else a free text box snapped to the grid, focused in the same frame; typing on a hardware keyboard with nothing focused appends to the current page body; sticky note tool creates a sticky with focus.
@@ -92,6 +102,7 @@ Accept:
 Verify: device-tester
 
 ### P06-T11 Long text performance
+Model: sonnet xhigh
 Implements: R-TXT-05, R-PERF-05
 Read: 12-performance.md#budgets
 Do: seed a 20k-word flow (`seed-text 20000`), measure keystroke-to-frame, scrolling jank, memory; optimize until budgets hold.

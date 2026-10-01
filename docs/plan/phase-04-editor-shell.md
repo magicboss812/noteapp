@@ -45,6 +45,7 @@ Accept:
 Verify: screenshots + device-tester smoke
 
 ### P04-T05 Undo/redo and shortcut foundation
+Model: sonnet high
 Implements: R-FILE-05, R-UI-05
 Read: 10-editor-ui.md#keyboard-shortcuts
 Do: undo/redo buttons bound to session; `ShortcutRegistry` with Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y, Alt+1..9 tools, Ctrl+plus/minus/0 zoom, PageUp/PageDown, Esc; help sheet (Ctrl+/).
@@ -54,6 +55,7 @@ Accept:
 Verify: tests + device-tester
 
 ### P04-T06 Page management
+Model: sonnet high
 Implements: R-PAGE-01, R-PAGE-02
 Read: 10-editor-ui.md#pages
 Do: add page (after current, same spec), duplicate, delete (undoable), page panel drawer (thumbnails, drag reorder), page grid overview, page settings sheet (size A3/A4/A5, orientation, template + spacing, paper color; apply to this page / all pages).
@@ -64,6 +66,7 @@ Accept:
 Verify: tests + device-tester
 
 ### P04-T07 New note flow
+Model: sonnet high
 Implements: R-CORE-02, R-PAGE-01
 Read: 10-editor-ui.md#new-note
 Do: template picker sheet: title, paper size, orientation, template gallery with live previews, spacing, paper color, fixed vs infinite; creates the document in the current folder and opens it.
@@ -73,6 +76,7 @@ Accept:
 Verify: screenshots + device-tester
 
 ### P04-T08 Autosave indicator, recovery, thumbnails
+Model: sonnet high
 Implements: R-FILE-02
 Read: 04-file-format.md#write-protocol, 09-storage-library.md#thumbnails
 Do: subtle save-state dot (saved/saving/error with retry), recovery snackbar after crash recovery, page thumbnails (after 2 s idle, background), cover thumbnail = first page.
@@ -81,6 +85,7 @@ Accept:
 Verify: device-tester
 
 ### P04-T09 Editor instrumented tests
+Model: sonnet high
 Implements: R-FILE-05
 Read: .claude/rules/testing.md
 Do: instrumented tests injecting stylus MotionEvents (TOOL_TYPE_STYLUS) via Instrumentation: create note, draw 5 strokes, undo 2, redo 1, leave, reopen, assert stroke count 4; eraser test.
