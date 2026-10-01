@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
@@ -40,6 +41,8 @@ import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.storage.library.LibraryAccessState
 import dev.folio.feature.library.state.LibraryDocItem
 import dev.folio.feature.library.state.LibraryEntryViewModel
+import dev.folio.feature.library.state.NewNoteState
+import dev.folio.feature.library.state.NewNoteViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
@@ -51,6 +54,11 @@ private val ROW_MIN_HEIGHT = 56.dp
 private val LIBRARY_BAND = 220.dp
 private const val HEADER_KEY = "header"
 
+// The new-note sheet is wider where the template gallery fits (tablet landscape).
+private val NEW_NOTE_WIDE = 640.dp
+private val NEW_NOTE_NARROW = 520.dp
+private const val WIDE_SHEET_MIN_DP = 900
+
 /**
  * Library entry: onboarding while all-files access is missing, else the library (placeholder until P05);
  * [onOpenDocument] opens a document by library path.
@@ -58,24 +66,42 @@ private const val HEADER_KEY = "header"
 @Composable
 fun LibraryEntryRoute(
     onOpenDocument: (String) -> Unit,
+    modifier: Modifier = Modifier,
     viewModel: LibraryEntryViewModel = hiltViewModel(),
+    newNoteViewModel: NewNoteViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle()
+    val newNote by newNoteViewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LifecycleResumeEffect(Unit) {
         viewModel.refresh()
         onPauseOrDispose {}
     }
-    LibraryEntryScreen(
-        state = state,
-        onGrantAccess = {
-            val uri = Uri.parse("package:${context.packageName}")
-            context.startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, uri))
-        },
-        documents = documents,
-        onOpenDocument = onOpenDocument,
-    )
+    Box(modifier) {
+        LibraryEntryScreen(
+            state = state,
+            onGrantAccess = {
+                val uri = Uri.parse("package:${context.packageName}")
+                context.startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, uri))
+            },
+            documents = documents,
+            onOpenDocument = onOpenDocument,
+            onNewNote = newNoteViewModel::show,
+        )
+        (newNote as? NewNoteState.Editing)?.let { editing ->
+            NewNoteSheet(
+                form = editing.form,
+                onChange = newNoteViewModel::update,
+                // The placeholder has no folders yet: new notes go to the library root until P05.
+                onCreate = { newNoteViewModel.create(folder = "", onCreated = onOpenDocument) },
+                onClose = newNoteViewModel::dismiss,
+                creating = editing.creating,
+                error = editing.error,
+                width = if (LocalConfiguration.current.screenWidthDp >= WIDE_SHEET_MIN_DP) NEW_NOTE_WIDE else NEW_NOTE_NARROW,
+            )
+        }
+    }
 }
 
 /** Stateless entry screen. */
@@ -86,6 +112,7 @@ fun LibraryEntryScreen(
     modifier: Modifier = Modifier,
     documents: ImmutableList<LibraryDocItem> = persistentListOf(),
     onOpenDocument: (String) -> Unit = {},
+    onNewNote: () -> Unit = {},
 ) {
     val colors = FolioTheme.colors
     val bandPx = with(LocalDensity.current) { LIBRARY_BAND.toPx() }
@@ -101,7 +128,7 @@ fun LibraryEntryScreen(
             }
 
             is LibraryAccessState.Ready -> {
-                LibraryPlaceholder(state.rootPath, documents, onOpenDocument)
+                LibraryPlaceholder(state.rootPath, documents, onOpenDocument, onNewNote)
             }
 
             is LibraryAccessState.Failed -> {
@@ -166,9 +193,13 @@ private fun LibraryPlaceholder(
     rootPath: String,
     documents: ImmutableList<LibraryDocItem>,
     onOpenDocument: (String) -> Unit,
+    onNewNote: () -> Unit,
 ) {
     if (documents.isEmpty()) {
-        CenteredColumn { LibraryHeader(rootPath, horizontalAlignment = Alignment.CenterHorizontally) }
+        CenteredColumn {
+            LibraryHeader(rootPath, horizontalAlignment = Alignment.CenterHorizontally)
+            FolioButton("New note", onClick = onNewNote)
+        }
         return
     }
     val space = FolioTheme.space
@@ -178,7 +209,13 @@ private fun LibraryPlaceholder(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         item(key = HEADER_KEY) {
-            LibraryHeader(rootPath, Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxWidth().padding(bottom = space.s24))
+            Column(
+                Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxWidth().padding(bottom = space.s24),
+                verticalArrangement = Arrangement.spacedBy(space.s16),
+            ) {
+                LibraryHeader(rootPath)
+                FolioButton("New note", onClick = onNewNote)
+            }
         }
         items(documents, key = { it.path }) { doc -> DocumentRow(doc, onOpenDocument) }
     }
