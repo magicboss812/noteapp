@@ -16,8 +16,9 @@ Verify: tests + device-tester
 Model: sonnet xhigh
 Implements: R-MED-01, R-PERF-06
 Read: 08-pdf.md#rendering, 05-canvas-rendering.md#tiles
-Do: `PdfRasterizer` per document on the pdf dispatcher; low-res page previews first, then bucket tiles into the background cache; prefetch next/previous pages; memory budget shared with tiles.
+Do: `PdfRasterizer` per document on the pdf dispatcher; low-res page previews first, then bucket tiles into the background cache; prefetch next/previous pages; memory budget shared with tiles. First (failing test): `TileLayer.launchRender` leaves a failed, non-cancel render's key in `inFlight`/`waitingVisible`; catch, clear the key, log, retry (D-019). Implement `TemplateAssets` for CUSTOM templates (PNG decoded from session assets, PDF page raster) and add "Import image or PDF page" to the new-note template gallery (D-011).
 Accept:
+- [ ] unit: a throwing tile render clears its key and is retried; CUSTOM template from PNG and from a PDF page renders (D-019, D-011)
 - [ ] device: first page visible <= 2 s after import; scroll jank <= 1%; zoom to 4x shows sharp text after settle
 Verify: device-tester
 

@@ -16,9 +16,9 @@ Verify: `./gradlew :feature:library:verifyRoborazziDebug`
 Model: sonnet high
 Implements: R-ORG-04
 Read: 11-design-system.md#cards
-Do: NoteCard (meta line, title, preview = cover thumbnail or text excerpt, overflow menu: rename, move, duplicate, favorite, tags, export, delete), FolderCard (tint, stacked sheets, count), multi-select with batch move/delete/favorite.
+Do: NoteCard (meta line, title, preview = cover thumbnail or text excerpt, overflow menu: rename, move, duplicate, favorite, tags, export, delete), FolderCard (tint, stacked sheets, count), multi-select with batch move/delete/favorite. The cover is the stored `thumbs/` cover written by `ThumbnailGenerator` (D-028). FolderCard: the back sheet currently overlaps the folder name (P04 nit); fix it.
 Accept:
-- [ ] screenshot: grid with mixed cards; selection mode
+- [ ] screenshot: grid with mixed cards (cover from stored thumb; folder name not overlapped by the back sheet); selection mode
 - [ ] unit: preview choice logic
 Verify: module tests + screenshots
 

@@ -46,9 +46,10 @@ Verify: tests + device-tester
 Model: sonnet high
 Implements: R-TXT-07
 Read: 07-text-engine.md#flows-and-frames, 11-design-system.md#sticky-notes
-Do: sticky object (5 colors, slight default rotation option, shadow), text flow inside snapped to U, resize, move.
+Do: sticky object (5 colors, slight default rotation option, shadow), text flow inside snapped to U, resize, move; page duplicate copies sticky notes (D-027).
 Accept:
 - [ ] screenshot: sticky variants
+- [ ] unit: duplicating a page copies its sticky notes
 Verify: screenshots
 
 ### P07-T06 Ruler
@@ -78,3 +79,14 @@ Do: parametrized tests for every object type and operation: execute, undo, redo,
 Accept:
 - [ ] unit: full matrix green
 Verify: `./gradlew qa`
+
+### P07-T09 Eraser feedback and erase during handoff
+Model: sonnet xhigh
+Implements: R-INK-03
+Read: 06-ink-input.md#erasers, 06-ink-input.md#stylus-capabilities
+Do: the eraser ring disappears when the pen touches; keep it visible and following the tip for the whole erase gesture (user, P04-T03 USER-CHECK), drawn in the overlay without per-event recomposition. An erase gesture right after a pen lift also hits strokes still in the dry handoff: the hit snapshot includes pending strokes (D-022).
+Accept:
+- [ ] unit: erase right after commit removes a stroke still pending in `DryHandoff`; undo restores it
+- [ ] device: eraser ring visible in a screenshot taken mid-erase (`input.sh` stylus drag)
+- [ ] user: "Erase with the pen. Does the ring stay visible the whole time?"
+Verify: tests + device-tester

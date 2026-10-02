@@ -8,4 +8,5 @@ Format: `- YYYY-MM-DD <what bothers you or what you want> [now]` (the date and `
 
 ## Converted
 - 2026-10-01 UI does not look like Notewise; capture the real app and redo the design before P04-T05 -> P04-T10.
-- 2026-09-30 dry strokes look slightly blocky when zoomed in; more detail or a setting -> D-018 (gets its P11 task at the P04 REVIEW intake).
+- 2026-09-30 dry strokes look slightly blocky when zoomed in; more detail or a setting -> D-018 -> P11-T08.
+- 2026-10-02 (P04-T03 USER-CHECK) the eraser ring disappears while pressing; it must stay visible while erasing -> P07-T09.
