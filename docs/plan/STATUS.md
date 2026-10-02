@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
-phase: P04
-next: P04 REVIEW
+phase: P05
+next: P05-T01
 updated: 2026-10-02
 
 ## Completed
@@ -9,9 +9,10 @@ updated: 2026-10-02
 - P01 done 2026-09-28 (tag p01-done): ADR-002..008 Accepted: ink front buffer (onTouch p95 0.28 ms), bitmap tiles (jank 0.49%, p95 gap -> P03-T10), library IO (46 MB pack 1.4 s), PdfBox merge (100 pp 0.24 s), jlatexmath (p95 0.8 ms), grid-pitch text (0.000 px, 20 fonts); A-005..A-008; qa green.
 - P02 done 2026-09-29 (tag p02-done): model + commands (200-command undo property test), folio.v1 codec (1000x120 inputs 709 KB), container + goldens, crash-safe packer (100 injected failures), recovery, Room index (500 docs 149 ms), repositories, sessions (LRU 30); REVIEW fixed 6 blocking findings; A-009..A-016; qa green.
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
+- P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 pending (no tablet); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green.
 
 ## Current phase progress
-- P04: T01, T02, T03, T04, T10, T05 (device check pending), T06 (device check pending), T07 (device check pending), T08 (device check pending), T09 (device check pending); REVIEW: reviewer done, fixes committed, intake done
+- P05: (none yet)
 
 ## Blocked (needs user; stops dependent tasks)
 - P02-T06: storage onboarding never seen on the tablet (you revoked All files access): device-tester confirms onboarding shows at the next device session. Blocks nothing else.
@@ -38,6 +39,6 @@ updated: 2026-10-02
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P04 REVIEW: reviewer found 1 blocking (page loads dirtied the copy via thumbnails; fixed in dd40694) plus non-blocking fixes; intake of D-items and user feedback into P05..P11 tasks done.
-- Next: full `./gradlew qa`, tag p04-done, collapse P04, next P05-T01.
+- P04 closed: REVIEW fixes in dd40694, intake in a6fd75d, full qa green, tag p04-done.
+- Next: P05-T01 (D-007 open-documents check belongs to it). P04 device checks stay Blocked until the Pad 7 is connected.
 - FEEDBACK.md turns into tasks at every REVIEW. `FolioIcons.kt` is generated (A-027): `./gradlew :tools:icongen:run`.
