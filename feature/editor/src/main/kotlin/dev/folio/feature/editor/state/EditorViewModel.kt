@@ -14,6 +14,7 @@ import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.PageOps
 import dev.folio.core.storage.session.DocumentSessions
 import dev.folio.core.storage.session.SaveState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -179,7 +180,14 @@ class EditorViewModel
                 val stored = async { toolOptions.options.first() }
                 when (val result = sessions.open(docPath)) {
                     is Outcome.Success -> {
-                        val initial = stored.await()
+                        val initial =
+                            try {
+                                stored.await()
+                            } catch (e: CancellationException) {
+                                // Left before the session was published: onCleared cannot see it, release it here.
+                                sessions.release(result.value)
+                                throw e
+                            }
                         val session = EditorSession(result.value, density, dispatchers, viewModelScope, initial)
                         mutableSession.value = session
                         ThumbnailGenerator(result.value, dispatchers, viewModelScope).start()

@@ -83,8 +83,8 @@ fun LibraryEntryRoute(
     // One-time recovery report (04-file-format.md#crash-recovery); forgotten once it was on screen.
     LaunchedEffect(notice) {
         notice?.let {
-            snackbars.showSnackbar(it)
-            viewModel.recoveryNoticeShown()
+            snackbars.showSnackbar(it.text)
+            viewModel.recoveryNoticeShown(it)
         }
     }
     LifecycleResumeEffect(Unit) {

@@ -29,7 +29,8 @@ object PageOps {
 
     /**
      * An empty page next to [anchor] with the anchor's spec and background. A PDF page has neither a template
-     * nor a fixed size worth copying: the new page is A4 portrait on [fallback] (blank lined by default).
+     * nor a fixed size worth copying: the new page takes the document's new-page defaults (page settings "Apply
+     * to: new pages"), or A4 portrait on [fallback] (blank lined by default) where those are infinite or PDF-backed.
      */
     fun blankNear(
         doc: Document,
@@ -45,7 +46,10 @@ object PageOps {
             if (ref.background.pdf == null) {
                 Page(newId(), ref.spec, ref.background, persistentListOf())
             } else {
-                Page(newId(), PageSpec.Fixed(PaperSize.A4, Orientation.PORTRAIT), fallback, persistentListOf())
+                val spec =
+                    doc.meta.defaultPageSpec.takeIf { it !is PageSpec.Infinite } ?: PageSpec.Fixed(PaperSize.A4, Orientation.PORTRAIT)
+                val background = doc.meta.defaultBackground.takeIf { it.pdf == null } ?: fallback
+                Page(newId(), spec, background, persistentListOf())
             }
         return InsertPages(if (side == Side.BEFORE) index else index + 1, listOf(page))
     }

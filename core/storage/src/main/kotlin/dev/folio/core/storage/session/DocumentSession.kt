@@ -22,22 +22,16 @@ import dev.folio.core.storage.work.WorkingCopy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-
-/** Called after edits with the pages whose content changed (thumbnail generation, P04). */
-fun interface ThumbnailHook {
-    /** [pageIds] changed in [doc]. */
-    fun pagesChanged(
-        doc: Document,
-        pageIds: Set<PageId>,
-    )
-}
 
 /**
  * One open document (03-document-model.md#sessions): working copy, `StateFlow<Document>`, lazily
@@ -54,7 +48,6 @@ class DocumentSession internal constructor(
     private val dispatchers: FolioDispatchers,
     private val scope: CoroutineScope,
     private val app: ManifestApp,
-    private val thumbnails: ThumbnailHook,
     private val onPacked: suspend (PackResult) -> Unit,
     private val maxDecodedPages: Int = DEFAULT_MAX_DECODED_PAGES,
     private val packIntervalMs: Long = DEFAULT_PACK_INTERVAL_MS,
@@ -74,6 +67,13 @@ class DocumentSession internal constructor(
     private var packTimer: Job? = null
     private var closed = false
     private val autosaver = EntryAutosaver(scope, dispatchers.io, autosaveDebounceMs, ::writeEntries)
+    private val edits = MutableSharedFlow<Set<PageId>>(extraBufferCapacity = EDIT_BUFFER)
+
+    /**
+     * Pages whose content an edit, undo or redo changed (thumbnail generation, 09-storage-library.md#thumbnails).
+     * Decoding a page (load, re-decode after eviction) never emits.
+     */
+    val pageEdits: SharedFlow<Set<PageId>> = edits.asSharedFlow()
 
     /** Whether edits are on disk: [SaveState.Error] after a failed autosave or pack until a retry succeeds. */
     val saveState: StateFlow<SaveState> get() = autosaver.state
@@ -189,7 +189,7 @@ class DocumentSession internal constructor(
         return Outcome.Success(Unit)
     }
 
-    private fun commit(
+    private suspend fun commit(
         after: Document,
         touched: Set<PageId>,
     ) {
@@ -215,8 +215,8 @@ class DocumentSession internal constructor(
         scheduleFlows(before, after)
         autosaver.schedule(FolioEntries.MANIFEST) { manifestBytes() }
         autosaver.schedule(FolioEntries.SEARCH_TEXT) { DocumentEntries.searchText(state.value).encodeToByteArray() }
-        if (changedPages.isNotEmpty()) thumbnails.pagesChanged(state.value, changedPages)
         startPackTimer()
+        if (changedPages.isNotEmpty()) edits.emit(changedPages)
     }
 
     private fun scheduleFlows(
@@ -307,5 +307,8 @@ class DocumentSession internal constructor(
         private const val TAG = "DocumentSession"
         private const val INITIAL_LRU = 64
         private const val LOAD_FACTOR = 0.75f
+
+        // Edits queued for a slow `pageEdits` collector before `execute` waits for it.
+        private const val EDIT_BUFFER = 64
     }
 }

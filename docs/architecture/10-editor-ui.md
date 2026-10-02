@@ -61,7 +61,7 @@ Color dot: 22 dp with a 1 dp border; the selected color and width preset get a 4
 - Page panel (left drawer, 280 dp): thumbnails with page numbers; drag to reorder; per-page menu: duplicate, delete, insert blank before/after, page settings, expand to infinite, move to another document (later).
 - Page grid overview: full-screen grid of thumbnails (4 columns landscape, 3 portrait), multi-select for delete/duplicate/move.
 - Page settings sheet: size (A3, A4, A5; PDF pages show their size read-only), orientation, template (gallery with previews), spacing preset, paper color (white, cream, light gray, light green, dark), margin line on/off. Apply to: this page / all pages / new pages.
-- Add page: after the current page with the current page's spec and background (PDF pages: blank A4 lined by default).
+- Add page: after the current page with the current page's spec and background (PDF pages: the document's new-page defaults from "Apply to: new pages", blank A4 lined by default).
 - Page indicator chip (bottom right): "3 / 12"; tap opens a go-to-page field.
 
 ## New note

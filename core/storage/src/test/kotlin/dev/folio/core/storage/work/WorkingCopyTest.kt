@@ -155,6 +155,11 @@ class WorkingCopyTest {
 
             saver.packFinished(success = false)
             assertThat(saver.state.value).isEqualTo(SaveState.Error)
+            // A later edit saved to the working copy does not make the stale .folio look saved.
+            saver.schedule("flows/f.md") { byteArrayOf(1) }
+            assertThat(saver.state.value).isEqualTo(SaveState.Error)
+            assertThat(saver.flush()).isInstanceOf(Outcome.Success::class.java)
+            assertThat(saver.state.value).isEqualTo(SaveState.Error)
             saver.packFinished(success = true)
             assertThat(saver.state.value).isEqualTo(SaveState.Saved)
         }

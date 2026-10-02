@@ -2,6 +2,7 @@ package dev.folio.core.storage.work
 
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.common.Outcome
+import dev.folio.core.format.container.FolioEntries
 import dev.folio.core.storage.work.WorkFixture.orThrow
 import dev.folio.core.testing.FakeClock
 import dev.folio.core.testing.FaultyFolioFs
@@ -94,6 +95,20 @@ class RecoveryTest {
         assertThat(copy.writeEntries(mapOf("flows/${flow.id.value}.md" to "# x".toByteArray()))).isInstanceOf(Outcome.Failure::class.java)
         assertThat(faultyStore.find(doc.meta.id)!!.isDirty).isTrue()
         assertThat(recovery.run()).containsExactly(RecoveryEvent.Recovered(doc.meta.id, source))
+    }
+
+    @Test
+    fun recovery_onlyThumbnailsDirty_packsWithoutEvent() {
+        store
+            .open(source)
+            .orThrow()
+            .writeEntries(mapOf(FolioEntries.COVER to byteArrayOf(1)))
+            .orThrow()
+
+        assertThat(recovery.run()).isEmpty()
+
+        assertThat(store.find(doc.meta.id)!!.isDirty).isFalse()
+        assertThat(events.pending.value).isEmpty()
     }
 
     @Test

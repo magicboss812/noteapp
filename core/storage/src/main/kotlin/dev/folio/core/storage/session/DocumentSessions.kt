@@ -35,7 +35,6 @@ class DocumentSessions(
     private val dispatchers: FolioDispatchers,
     private val scope: CoroutineScope,
     private val app: ManifestApp,
-    private val thumbnails: ThumbnailHook = ThumbnailHook { _, _ -> },
     private val beforeFirstOpen: () -> Unit = {},
 ) {
     private val lock = Mutex()
@@ -54,7 +53,7 @@ class DocumentSessions(
                     // Each session backs up the file as it was opened (A-012), even when the copy is reused.
                     copy.updateBase(copy.base.copy(backupDone = false)).flatMap {
                         DocumentCodec.readDocument(copy).map { doc ->
-                            DocumentSession(copy, doc, packer, clock, dispatchers, scope, app, thumbnails, ::indexAfterPack)
+                            DocumentSession(copy, doc, packer, clock, dispatchers, scope, app, ::indexAfterPack)
                         }
                     }
                 }

@@ -25,6 +25,7 @@ import dev.folio.core.render.PageContent
 import dev.folio.core.render.PageRenderer
 import dev.folio.core.render.RenderTarget
 import dev.folio.feature.editor.state.EditorSession
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -34,6 +35,9 @@ internal typealias PageThumbnail = @Composable (page: PageRef, modifier: Modifie
 
 // Thumbnails render at one width and scale down in the UI.
 private const val THUMB_WIDTH_PX = 240
+
+// Quiet time after an edit before a shown thumbnail re-renders.
+private const val REFRESH_DEBOUNCE_MS = 300L
 
 /** Paper-colored frame of [page] without content: the placeholder while a picture renders, and the previews/tests. */
 @Composable
@@ -57,7 +61,11 @@ internal fun SessionPageThumbnail(
             .collectAsStateWithLifecycle(session.bodyOf(page.id))
     // A page that is not decoded yet loads through the session (previews of settings are not in the document).
     if (inDocument) LaunchedEffect(page.id, body == null) { if (body == null) session.loadPages(listOf(page.id)) }
+    // The state outlives key changes: the old picture stays up while edits come in, and a burst of strokes renders
+    // once. Replaced bitmaps are left to the GC (pixels are native-registered since API 26); recycling one could
+    // still be drawn this frame.
     val picture by produceState<ImageBitmap?>(null, page, body) {
+        if (value != null) delay(REFRESH_DEBOUNCE_MS)
         value = withContext(session.renderDispatcher) { renderThumbnail(page, body) }
     }
     val shown = picture

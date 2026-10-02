@@ -33,7 +33,10 @@ class EntryAutosaver(
     private var timer: Job? = null
     private val mutableState = MutableStateFlow(SaveState.Saved)
 
-    /** Saved when nothing waits, Saving while changes wait or are written, Error after a failed write. */
+    // Last pack failed: the .folio is stale whatever the entry writes do; guarded by synchronized(pending).
+    private var packFailed = false
+
+    /** Saved when nothing waits, Saving while changes wait or are written, Error after a failed write or pack. */
     val state: StateFlow<SaveState> = mutableState.asStateFlow()
 
     /** Marks [name] changed; restarts the idle timer. */
@@ -44,7 +47,7 @@ class EntryAutosaver(
         // Same lock as the state update in flush: a flush finishing now cannot report Saved over this change.
         synchronized(pending) {
             pending[name] = provider
-            mutableState.value = SaveState.Saving
+            mutableState.value = if (packFailed) SaveState.Error else SaveState.Saving
         }
         timer?.cancel()
         timer =
@@ -72,14 +75,15 @@ class EntryAutosaver(
                     mutableState.value = SaveState.Error
                 }
             } else {
-                synchronized(pending) { if (pending.isEmpty()) mutableState.value = SaveState.Saved }
+                synchronized(pending) { if (pending.isEmpty() && !packFailed) mutableState.value = SaveState.Saved }
             }
             result
         }
 
-    /** Reports the outcome of a pack: a failure shows as [SaveState.Error], a success clears it unless changes wait. */
+    /** Reports the outcome of a pack: a failure shows as [SaveState.Error] until a pack succeeds. */
     fun packFinished(success: Boolean) {
         synchronized(pending) {
+            packFailed = !success
             mutableState.value =
                 when {
                     !success -> SaveState.Error

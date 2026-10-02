@@ -2,6 +2,15 @@ package dev.folio.feature.library.state
 
 import dev.folio.core.storage.work.RecoveryEvent
 
+/** A recovery snackbar: its [text] and the [events] it reports (consumed once shown, later events stay pending). */
+data class RecoveryNotice(
+    val text: String,
+    val events: List<RecoveryEvent>,
+)
+
+/** The notice for [events], or null when there is nothing to report. */
+fun recoveryNotice(events: List<RecoveryEvent>): RecoveryNotice? = recoveryMessage(events)?.let { RecoveryNotice(it, events) }
+
 /**
  * The one snackbar text for start-up recovery [events] (04-file-format.md#crash-recovery), or null when there
  * is nothing to report. Several recovered documents read as one "Recovered unsaved changes".

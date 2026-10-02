@@ -48,7 +48,6 @@ class SessionConcurrencyTest : RepositoryTestBase() {
                     dispatchers = real,
                     scope = scope,
                     app = ManifestApp("Folio", "test"),
-                    thumbnails = { _, _ -> },
                     onPacked = {},
                     maxDecodedPages = 2,
                     autosaveDebounceMs = 1,

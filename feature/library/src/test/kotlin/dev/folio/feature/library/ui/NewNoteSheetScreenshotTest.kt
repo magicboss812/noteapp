@@ -54,14 +54,24 @@ class NewNoteSheetScreenshotTest {
         compose.onRoot().captureRoboImage("src/test/screenshots/NewNote_portrait.png")
     }
 
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun sheet_landscape_creatingWithError() {
+        // Create disabled while a create runs, and the message of the previous failed create.
+        show(NewNoteForm(TITLE), dark = false, width = 640.dp, creating = true, error = "Could not create the note: storage full.")
+        compose.onRoot().captureRoboImage("src/test/screenshots/NewNote_landscape_creatingError.png")
+    }
+
     private fun show(
         form: NewNoteForm,
         dark: Boolean,
         width: androidx.compose.ui.unit.Dp,
+        creating: Boolean = false,
+        error: String? = null,
     ) {
         compose.setContent {
             FolioTheme(darkTheme = dark) {
-                NewNoteSheet(form = form, onChange = {}, onCreate = {}, onClose = {}, width = width)
+                NewNoteSheet(form = form, onChange = {}, onCreate = {}, onClose = {}, width = width, creating = creating, error = error)
             }
         }
     }

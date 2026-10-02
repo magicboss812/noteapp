@@ -45,6 +45,9 @@ object FolioEntries {
     /** Page thumbnail entry. */
     fun pageThumb(id: PageId): String = "thumbs/${id.value}.webp"
 
+    /** True for generated thumbnails ([COVER], [pageThumb]): derived data, regenerable from the pages. */
+    fun isThumbnail(name: String): Boolean = name.startsWith("thumbs/")
+
     /** Safe relative entry name: printable ASCII, no absolute path, no backslash, no `.`/`..` segments. */
     fun isValidName(name: String): Boolean =
         name.isNotEmpty() &&

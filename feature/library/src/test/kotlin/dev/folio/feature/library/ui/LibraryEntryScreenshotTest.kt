@@ -1,12 +1,23 @@
 package dev.folio.feature.library.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
+import dev.folio.core.designsystem.component.FolioSnackbarHost
 import dev.folio.core.designsystem.theme.FolioTheme
+import dev.folio.core.model.DocId
 import dev.folio.core.storage.library.LibraryAccessState
+import dev.folio.core.storage.work.RecoveryEvent
 import dev.folio.feature.library.state.LibraryDocItem
+import dev.folio.feature.library.state.recoveryNotice
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Rule
 import org.junit.Test
@@ -70,5 +81,33 @@ class LibraryEntryScreenshotTest {
             }
         }
         compose.onRoot().captureRoboImage("src/test/screenshots/LibraryEntry_readyDocuments.png")
+    }
+
+    @Test
+    fun entry_afterRecovery_showsRecoverySnackbar() {
+        val notice = recoveryNotice(listOf(RecoveryEvent.Recovered(DocId("a"), "Lecture notes.folio")))!!
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            FolioTheme(darkTheme = false) {
+                // Same arrangement as LibraryEntryRoute: the snackbar sits bottom center over the library.
+                val snackbars = remember { SnackbarHostState() }
+                LaunchedEffect(notice) { snackbars.showSnackbar(notice.text) }
+                Box {
+                    LibraryEntryScreen(
+                        LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio-Debug"),
+                        onGrantAccess = {},
+                        documents = persistentListOf(LibraryDocItem("Lecture notes.folio", "Lecture notes", "", 1)),
+                    )
+                    FolioSnackbarHost(snackbars, Modifier.align(Alignment.BottomCenter).padding(FolioTheme.space.s16))
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(SNACKBAR_SETTLE_MS)
+        compose.onRoot().captureRoboImage("src/test/screenshots/LibraryEntry_recoverySnackbar.png")
+    }
+
+    private companion object {
+        // Past the snackbar's enter animation, well before its auto-dismiss.
+        const val SNACKBAR_SETTLE_MS = 1_000L
     }
 }

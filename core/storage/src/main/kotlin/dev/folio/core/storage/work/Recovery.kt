@@ -75,14 +75,29 @@ class Recovery(
     fun run(): List<RecoveryEvent> {
         val out = ArrayList<RecoveryEvent>()
         for (copy in store.all()) {
-            if (!copy.isDirty) continue
-            when (val r = packer.pack(copy)) {
-                is Outcome.Failure -> FolioLog.w(TAG, "recovery pack of ${copy.docId.value} failed: ${r.message}", r.cause)
-                is Outcome.Success -> handle(copy, r.value)?.let(out::add)
-            }
+            if (copy.isDirty) recover(copy)?.let(out::add)
         }
         events.publish(out)
         return out
+    }
+
+    private fun recover(copy: WorkingCopy): RecoveryEvent? {
+        if (!copy.hasUnsavedEdits) {
+            // Only thumbnails written after the last pack: regenerable, never worth a pack, conflict or notice.
+            val r = copy.updateBase(copy.base.copy(dirtyEntries = emptySet()))
+            if (r is Outcome.Failure) FolioLog.w(TAG, "recovery reset of ${copy.docId.value} failed: ${r.message}", r.cause)
+            return null
+        }
+        return when (val r = packer.pack(copy)) {
+            is Outcome.Failure -> {
+                FolioLog.w(TAG, "recovery pack of ${copy.docId.value} failed: ${r.message}", r.cause)
+                null
+            }
+
+            is Outcome.Success -> {
+                handle(copy, r.value)
+            }
+        }
     }
 
     private fun handle(

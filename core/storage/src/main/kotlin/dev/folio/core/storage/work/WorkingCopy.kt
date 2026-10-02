@@ -6,6 +6,7 @@ import dev.folio.core.common.Outcome
 import dev.folio.core.common.flatMap
 import dev.folio.core.format.FormatError
 import dev.folio.core.format.container.EntryReader
+import dev.folio.core.format.container.FolioEntries
 import dev.folio.core.model.DocId
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -84,6 +85,9 @@ class WorkingCopy internal constructor(
 
     /** True while entries changed since the last pack. */
     val isDirty: Boolean get() = base.dirtyEntries.isNotEmpty()
+
+    /** True while user content changed since the last pack (dirty entries other than thumbnails). */
+    val hasUnsavedEdits: Boolean get() = base.dirtyEntries.any { !FolioEntries.isThumbnail(it) }
 
     override fun names(): Set<String> {
         val out = HashSet<String>()

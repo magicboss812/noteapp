@@ -71,15 +71,15 @@ class LibraryEntryViewModel
         /** Indexed documents, newest first; empty until the library is ready. */
         val documents: StateFlow<ImmutableList<LibraryDocItem>> = mutableDocuments.asStateFlow()
 
-        /** Snackbar text for what start-up recovery did, null when nothing is pending. */
-        val recoveryNotice: StateFlow<String?> =
+        /** Snackbar for what start-up recovery did, null when nothing is pending. */
+        val recoveryNotice: StateFlow<RecoveryNotice?> =
             recoveryEvents.pending
-                .map(::recoveryMessage)
+                .map(::recoveryNotice)
                 .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-        /** The notice was shown: forgets the events it reported. */
-        fun recoveryNoticeShown() {
-            recoveryEvents.pending.value.forEach(recoveryEvents::consume)
+        /** [notice] was shown: forgets the events it reported; events that arrived meanwhile stay pending. */
+        fun recoveryNoticeShown(notice: RecoveryNotice) {
+            notice.events.forEach(recoveryEvents::consume)
         }
 
         /** Re-checks the permission (and prepares the root once granted), then rescans the library. */

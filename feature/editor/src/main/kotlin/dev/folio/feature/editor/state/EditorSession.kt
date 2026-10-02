@@ -146,7 +146,10 @@ class EditorSession(
         pageJumpRequests.tryEmit(id)
     }
 
-    /** Adds an empty page [side] of [anchor] with its spec and background, then shows it; the new id, or null if it failed. */
+    /**
+     * Adds an empty page [side] of [anchor] with its spec and background (after a PDF page: the document's new-page
+     * defaults), then shows it; the new id, or null if it failed.
+     */
     suspend fun addPage(
         anchor: PageId,
         side: PageOps.Side,

@@ -3,6 +3,7 @@ package dev.folio.feature.library.state
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.model.DocId
 import dev.folio.core.storage.work.RecoveryEvent
+import dev.folio.core.storage.work.RecoveryEvents
 import org.junit.Test
 
 class RecoveryNoticeTest {
@@ -19,6 +20,28 @@ class RecoveryNoticeTest {
         val events = listOf(RecoveryEvent.Recovered(a, "One.folio"), RecoveryEvent.Recovered(b, "Two.folio"))
 
         assertThat(recoveryMessage(events)).isEqualTo("Recovered unsaved changes.")
+    }
+
+    @Test
+    fun notice_carriesExactlyTheEventsItReports() {
+        val events = listOf(RecoveryEvent.Recovered(a, "One.folio"))
+
+        assertThat(recoveryNotice(events)).isEqualTo(RecoveryNotice("Recovered unsaved changes.", events))
+        assertThat(recoveryNotice(emptyList())).isNull()
+    }
+
+    @Test
+    fun noticeShown_consumesOnlyItsEvents() {
+        val pending = RecoveryEvents()
+        val first = RecoveryEvent.Recovered(a, "One.folio")
+        pending.publish(listOf(first))
+        val shown = recoveryNotice(pending.pending.value)!!
+        val later = RecoveryEvent.Conflict(b, "Two (conflict).folio")
+        pending.publish(listOf(later))
+
+        shown.events.forEach(pending::consume)
+
+        assertThat(pending.pending.value).containsExactly(later)
     }
 
     @Test

@@ -16,9 +16,13 @@ import dev.folio.core.render.PageRenderer
 import dev.folio.core.render.RenderTarget
 import dev.folio.core.storage.session.DocumentSession
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -29,9 +33,11 @@ internal typealias ThumbnailEncoder = (page: PageRef, body: Page, longSidePx: In
 
 /**
  * Keeps the stored thumbnails of one open document current (09-storage-library.md#thumbnails): once the
- * document has been idle for [idleMs], every page whose content or frame changed since its last thumbnail is
- * rendered on the render dispatcher (<= 256 px) and written to the working copy; the first page also becomes
- * the library cover (<= 512 px). The pages open at start count as already pictured, so only edits cost work.
+ * document has been idle for [idleMs], every page an edit changed (`DocumentSession.pageEdits`) or whose
+ * spec changed since its last thumbnail is rendered on the render dispatcher (<= 256 px) and written to the
+ * working copy; the first page also becomes the library cover (<= 512 px) when it was edited or another page
+ * became first. Decoding pages (scrolling, the page panel, LRU re-decodes) is not an edit and costs nothing.
+ * Generator state is touched only from [scope]'s (single-threaded) dispatcher.
  */
 internal class ThumbnailGenerator(
     private val session: DocumentSession,
@@ -40,63 +46,78 @@ internal class ThumbnailGenerator(
     private val idleMs: Long = IDLE_MS,
     private val encode: ThumbnailEncoder = ::encodeWebp,
 ) {
-    private val seen = HashMap<PageId, Pictured>()
-    private var cover: Pictured? = null
-
-    private class Pictured(
-        val ref: PageRef,
-        val body: Page,
-    ) {
-        fun sameAs(
-            ref: PageRef,
-            body: Page,
-        ) = this.ref == ref && this.body === body
-    }
+    private val pending = HashSet<PageId>()
+    private val refs = HashMap<PageId, PageRef>()
+    private var coverId: PageId? = null
+    private val changes = MutableStateFlow(0L)
 
     /** Starts watching the document; ends with [scope]. */
     fun start(): Job =
         scope.launch {
-            remember(session.document.value)
-            session.document.collectLatest { doc ->
+            val initial = session.document.value
+            initial.pages.forEach { refs[it.id] = it }
+            coverId = initial.pages.firstOrNull()?.id
+            launch(start = CoroutineStart.UNDISPATCHED) {
+                session.pageEdits.collect { ids ->
+                    pending += ids
+                    changes.value++
+                }
+            }
+            launch(start = CoroutineStart.UNDISPATCHED) {
+                // Spec edits (page settings) and reorders change the page list, never the bodies.
+                session.document.map { it.pages }.distinctUntilChanged().collect { pages ->
+                    var changed = pages.firstOrNull()?.id != coverId
+                    for (ref in pages) {
+                        val old = refs[ref.id]
+                        if (old != null && old != ref) {
+                            pending += ref.id
+                            changed = true
+                        }
+                    }
+                    if (changed) changes.value++
+                }
+            }
+            changes.collectLatest {
                 delay(idleMs)
-                generate(doc)
+                generate(session.document.value)
             }
         }
 
-    // A page whose body is not decoded cannot be pictured (and cannot have changed).
-    private fun pictured(
-        doc: Document,
-        ref: PageRef,
-    ): Pictured? = doc.pageBodies[ref.id]?.let { Pictured(ref, it) }
-
-    private fun remember(doc: Document) {
-        doc.pages.forEach { ref -> pictured(doc, ref)?.let { seen[ref.id] = it } }
-        cover = doc.pages.firstOrNull()?.let { pictured(doc, it) }
-    }
-
     private suspend fun generate(doc: Document) {
-        seen.keys.retainAll(doc.pages.map { it.id }.toSet())
-        val changed = doc.pages.mapNotNull { pictured(doc, it) }.filter { seen[it.ref.id]?.sameAs(it.ref, it.body) != true }
-        val first =
-            doc.pages
-                .firstOrNull()
-                ?.let { pictured(doc, it) }
-                ?.takeIf { cover?.sameAs(it.ref, it.body) != true }
-        if (changed.isEmpty() && first == null) return
-        val entries =
-            withContext(dispatchers.render) {
-                val out = LinkedHashMap<String, ByteArray>()
-                for (page in changed) encode(page.ref, page.body, THUMB_PX)?.let { out[FolioEntries.pageThumb(page.ref.id)] = it }
-                if (first != null) encode(first.ref, first.body, COVER_PX)?.let { out[FolioEntries.COVER] = it }
-                out
-            }
+        val generation = changes.value
+        val due = doc.pages.filter { it.id in pending }
+        val cover = doc.pages.firstOrNull()?.takeIf { it.id != coverId || it.id in pending }
+        if (due.isEmpty() && cover == null) return
+        // Edited pages may have been evicted after their autosave; decoding them again is cheap and clean.
+        if (session.loadPages(due.map { it.id } + listOfNotNull(cover?.id)) is Outcome.Failure) return
+        val bodies = session.document.value.pageBodies
+        val entries = withContext(dispatchers.render) { encodeAll(due, cover, bodies) }
         val result = session.writeThumbnails(entries)
         if (result is Outcome.Failure) {
             FolioLog.w(TAG, "thumbnail write failed: ${result.message}", result.cause)
             return
         }
-        changed.forEach { seen[it.ref.id] = it }
-        if (first != null) cover = first
+        // A change that arrived meanwhile restarts generation; keep its pages pending.
+        if (changes.value != generation) return
+        pending.clear()
+        refs.clear()
+        doc.pages.forEach { refs[it.id] = it }
+        if (cover != null) coverId = cover.id
+    }
+
+    // Entry name -> WebP bytes for the decoded pages among [due] and [cover]; runs on the render dispatcher.
+    private fun encodeAll(
+        due: List<PageRef>,
+        cover: PageRef?,
+        bodies: Map<PageId, Page>,
+    ): Map<String, ByteArray> {
+        val out = LinkedHashMap<String, ByteArray>()
+        for (ref in due) {
+            val body = bodies[ref.id] ?: continue
+            encode(ref, body, THUMB_PX)?.let { out[FolioEntries.pageThumb(ref.id)] = it }
+        }
+        cover?.let { ref -> bodies[ref.id]?.let { encode(ref, it, COVER_PX) } }?.let { out[FolioEntries.COVER] = it }
+        return out
     }
 
     /** Defaults from 09-storage-library.md#thumbnails. */

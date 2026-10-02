@@ -253,7 +253,8 @@ class CanvasHostView internal constructor(
         }
         loading.removeAll(next.pageBodies.keys)
         if (previous?.pages != next.pages) layoutPages()
-        pendingJump?.let { goToPage(it) }
+        // The jump target arrives with the first document after the jump; a page that is not in it is gone.
+        pendingJump?.let { if (next.pageRef(it) != null) goToPage(it) else pendingJump = null }
         val keep = HashSet<String>(next.pages.size * 2)
         for (ref in next.pages) {
             keep += ref.id.value

@@ -17,6 +17,7 @@ import dev.folio.core.storage.repo.DocumentRepository
 import dev.folio.core.storage.repo.NewDocumentSpec
 import dev.folio.core.storage.session.DocumentSession
 import dev.folio.core.storage.session.DocumentSessions
+import dev.folio.core.storage.work.PackResult
 import dev.folio.core.storage.work.Packer
 import dev.folio.core.storage.work.WorkingCopyStore
 import dev.folio.core.testing.FakeClock
@@ -75,8 +76,11 @@ class ThumbnailGeneratorTest {
         db.close()
     }
 
-    private suspend fun open(scope: TestScope): Pair<DocumentSession, String> {
-        val spec = NewDocumentSpec("", "Thumbs", ModelFixtures.A4, ModelFixtures.LINED_BACKGROUND, 2)
+    private suspend fun open(
+        scope: TestScope,
+        pages: Int = 2,
+    ): Pair<DocumentSession, String> {
+        val spec = NewDocumentSpec("", "Thumbs", ModelFixtures.A4, ModelFixtures.LINED_BACKGROUND, pages)
         val path = (documents.create(spec) as Outcome.Success).value.path
         val session = (sessions.open(path) as Outcome.Success).value
         ThumbnailGenerator(session, main.dispatchers, scope.backgroundScope) { page, _, px ->
@@ -102,6 +106,25 @@ class ThumbnailGeneratorTest {
             advanceTimeBy(5_000)
 
             assertThat(encoded).isEmpty()
+        }
+
+    @Test
+    fun pagesLoadedAndRedecodedWithoutEdits_noThumbnailsAndCleanCopy() =
+        runTest(main.testDispatcher) {
+            // 40 pages > LRU of 30: loading all evicts the first ones, loading them again decodes new bodies.
+            val (session, _) = open(this, pages = 40)
+            val ids =
+                session.document.value.pages
+                    .map { it.id }
+            session.loadPages(ids)
+            advanceTimeBy(500)
+            session.loadPages(ids.take(5))
+
+            advanceTimeBy(5_000)
+            runCurrent()
+
+            assertThat(encoded).isEmpty()
+            assertThat((sessions.close(session) as Outcome.Success).value).isEqualTo(PackResult.Clean)
         }
 
     @Test

@@ -144,7 +144,7 @@ private fun TitleField(
                     .fillMaxWidth()
                     .heightIn(min = FolioTheme.space.touchTarget)
                     .background(colors.surfaceInset, FolioTheme.shapes.field)
-                    .border(BorderStroke(1.dp, colors.border), FolioTheme.shapes.field)
+                    .border(BorderStroke(FolioTheme.space.borderWidth, colors.border), FolioTheme.shapes.field)
                     .padding(horizontal = FolioTheme.space.s12)
                     .semantics { contentDescription = "Note title" },
             decorationBox = { inner ->
@@ -243,7 +243,13 @@ private fun TemplateCard(
             modifier =
                 Modifier
                     .height(PREVIEW_HEIGHT)
-                    .border(BorderStroke(if (selected) SELECTED_BORDER else 1.dp, if (selected) colors.accent else colors.border), shape),
+                    .border(
+                        BorderStroke(
+                            if (selected) SELECTED_BORDER else FolioTheme.space.borderWidth,
+                            if (selected) colors.accent else colors.border,
+                        ),
+                        shape,
+                    ),
         )
         Text(
             kind.galleryLabel(),

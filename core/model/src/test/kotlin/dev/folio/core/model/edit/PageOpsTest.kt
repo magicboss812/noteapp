@@ -52,14 +52,46 @@ class PageOpsTest {
     }
 
     @Test
-    fun blankNear_pdfPage_isBlankA4OnFallback() {
+    fun blankNear_pdfPage_usesTheNewPageDefaults() {
+        val pdf = PdfBackground(AssetId("a"), 0)
+        val defaults = ModelFixtures.LINED_BACKGROUND.copy(paperArgb = 0xFFF0F0F0.toInt())
+        val pdfPage =
+            ModelFixtures
+                .page("p1", spec = PageSpec.Custom(300f, 500f))
+                .let { it.copy(background = Background(0, it.background.template, pdf)) }
+        val a5 = PageSpec.Fixed(PaperSize.A5, Orientation.LANDSCAPE)
+        val d =
+            ModelFixtures.document(listOf(pdfPage)).let {
+                it.copy(meta = it.meta.copy(defaultPageSpec = a5, defaultBackground = defaults))
+            }
+        val added =
+            PageOps
+                .blankNear(d, pdfPage.id, PageOps.Side.AFTER, ModelFixtures.LINED_BACKGROUND, newId)
+                .execute(d)
+                .doc
+                .pageRef(PageId("n0"))!!
+        assertThat(added.spec).isEqualTo(a5)
+        assertThat(added.background).isEqualTo(defaults)
+    }
+
+    @Test
+    fun blankNear_pdfPageWithPdfDefaults_isBlankA4OnFallback() {
         val pdf = PdfBackground(AssetId("a"), 0)
         val fallback = ModelFixtures.LINED_BACKGROUND.copy(paperArgb = 0xFFFFF8E7.toInt())
         val pdfPage =
             ModelFixtures
                 .page("p1", spec = PageSpec.Custom(300f, 500f))
                 .let { it.copy(background = Background(0, it.background.template, pdf)) }
-        val d = ModelFixtures.document(listOf(pdfPage))
+        val d =
+            ModelFixtures.document(listOf(pdfPage)).let {
+                it.copy(
+                    meta =
+                        it.meta.copy(
+                            defaultPageSpec = PageSpec.Infinite(PageSpec.Fixed(PaperSize.A3, Orientation.PORTRAIT)),
+                            defaultBackground = pdfPage.background,
+                        ),
+                )
+            }
         val added =
             PageOps
                 .blankNear(d, pdfPage.id, PageOps.Side.AFTER, fallback, newId)
