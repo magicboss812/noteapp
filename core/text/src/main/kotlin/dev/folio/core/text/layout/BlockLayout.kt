@@ -2,6 +2,7 @@ package dev.folio.core.text.layout
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.Paragraph
+import androidx.compose.ui.text.font.FontFamily
 import dev.folio.core.text.markdown.CalloutType
 import androidx.compose.ui.graphics.Canvas as ComposeCanvas
 
@@ -99,6 +100,12 @@ internal class GridText(
     }
 }
 
+/** The font a block's text is set in: [family] at weight bold or regular. */
+class BlockFace internal constructor(
+    internal val family: FontFamily,
+    val bold: Boolean,
+)
+
 /**
  * One Markdown block laid out on the grid (07-text-engine.md#line-box, #blocks): [lineCount] line
  * boxes of [boxUnits] x U each, stacked without gaps, every baseline on the rule at the bottom of
@@ -121,6 +128,8 @@ class BlockLayout internal constructor(
     val fontSizePt: Float,
     /** Bars, backgrounds, rules and checkboxes. */
     val decoration: BlockDecoration,
+    /** The font of the text (null for blocks without text); a live field resolves it with [typeface]. */
+    val face: BlockFace? = null,
 ) {
     /** Height in U: always lineCount x boxUnits. */
     val heightUnits: Int get() = lineCount * boxUnits

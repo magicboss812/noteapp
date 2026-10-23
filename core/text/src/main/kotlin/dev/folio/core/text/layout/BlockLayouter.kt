@@ -198,7 +198,8 @@ class BlockLayouter(
                 val free = marker.widthPt - markerText.lineRightPt(0)
                 max(0f, marker.leftPt + if (marker.centered) free / 2f else free)
             }
-        return BlockLayout(text, markerText, g.unitPt, size.boxUnits, text.lineCount, leftPt, markerLeft, size.fontSizePt, decoration)
+        val face = BlockFace(family.fontFamily, role.bold)
+        return BlockLayout(text, markerText, g.unitPt, size.boxUnits, text.lineCount, leftPt, markerLeft, size.fontSizePt, decoration, face)
     }
 
     /** A list label in the gutter [leftPt]..[leftPt] + [widthPt]: centered (bullets) or end-aligned (numbers). */

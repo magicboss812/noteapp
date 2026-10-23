@@ -74,8 +74,8 @@ class FlowLayout internal constructor(
         return out
     }
 
-    /** Layout of block [index], null when the block was not placed (overflow). */
-    fun layoutOf(index: Int): BlockLayout? = layouts[index]
+    /** Layout of block [index], null when the block was not placed (overflow) or does not exist. */
+    fun layoutOf(index: Int): BlockLayout? = layouts.getOrNull(index)
 
     /** First line of [slice] in its block's layout. */
     fun firstLine(slice: FlowSlice): Int = slice.fromUnit / boxUnits(slice)

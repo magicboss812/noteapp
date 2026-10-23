@@ -13,7 +13,7 @@ updated: 2026-10-23
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06a, T06b
+- P06: T12, T13, T01, T02, T03, T04, T05, T06a, T06b, T06c
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -30,4 +30,6 @@ updated: 2026-10-23
 ## Handoff (<= 5 lines, overwritten each session)
 - T06a (A-043) wired the engine into the session; T06b done (A-044): core:text `edit/` has `BlockEditing` (insert/delete/copy/enter/softBreak/backspace/deleteForward/indent/shortcut/left/right), `BlockStyles`, `Formatting`, `FlowTextDiff`; every result equals a re-parse (property test).
 - `EditorSession.editText(flowId, coalesceKey) { doc -> EditResult? }` runs a block edit as one `EditFlow` (typing key `type:<flow>:<block>`, structural null; ids kept via `FlowParses.adopt`); `FlowLayout.runs(frame, skipBlock)` and `FocusedBlock` in `PageTexts.of` exist for the focused-block skip.
-- T06c (next): live field overlay in the canvas host (dimmed markers, tap-to-caret `text:focus`, formatting bar, `isAutoHandwritingEnabled = false`), debug `seed-text`, screenshot test, device checks (pen ink over a focused block, tap-to-caret p95 <= 50 ms). Tool row y 1963 px, mode pill y 171 px in landscape.
+- T06c done: `FlowLayout.hit(page, x, y)` (-> `BlockHit`), `placementOf(block)`, `BlockLayout.face` + `typeface(resolver)`, `EditMarkers.ranges(block)` (dim ranges) in core:text, all unit-tested.
+- T06d (next, feature:editor): focus state (`TextController` on `CanvasController`, `FocusedBlock` into `PageTexts.of`), finger tap in `FingerGestures` -> focus (`text:focus`), then T06e: `LiveTextField` EditText in `CanvasHostView.overlay` (handwriting off, dimmed markers via `EditMarkers`, line height = box x U at zoom, view top = block top + box - |ascent|), formatting bar, cross-block selection, debug `seed-text`, screenshot test, device checks (pen ink over a focused block, tap-to-caret p95 <= 50 ms), A-045.
+- Tool row y 1963 px, mode pill y 171 px in landscape.
