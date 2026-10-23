@@ -89,6 +89,17 @@ Accept:
 - [ ] device: tap-to-caret p95 <= 50 ms (`text:focus`)
 Verify: tests + device-tester
 
+### P06-T15 USER-CHECK fixes: seamless dry handoff, field zoom
+Model: opus high
+Implements: R-INK-01, R-TXT-01
+Read: 05-canvas-rendering.md#dry-handoff, 07-text-engine.md#live-field-as-built
+Do: user feedback 2026-10-23 (P06-T13 and P06-T06 USER-CHECKs). (1) Every finished stroke vanished for a moment after pen-up and came back: the wet copy left one frame after the frame showing the tile (A-005), while androidx.ink hides a removed stroke with the next HWUI frame by itself; remove it in the same run loop as the invalidate instead (A-046). (2) While a block is edited, zooming kept the field at its screen size until editing ended: the field scales as a layer during the zoom and takes its real font size when the viewport settles.
+Accept:
+- [ ] unit: the wet stroke leaves in the same run loop as the invalidate, only once its tiles are drawn; the field scales with a zoom and is restyled at the settled zoom
+- [ ] device: 30 strokes: handoff committed == removed, nothing missing or doubled; zooming while a block is edited keeps the field matched to the page
+- [ ] user: "Draw a few strokes and lift the pen: does any stroke still blink? Zoom while typing: does the text follow?"
+Verify: `./gradlew :feature:editor:testDebugUnitTest` + device-tester
+
 ### P06-T07 Math
 Model: opus high
 Implements: R-TXT-02, R-TXT-04
@@ -123,13 +134,23 @@ Verify: tests + screenshots
 Model: opus medium
 Implements: R-CORE-01, R-TXT-07
 Read: 10-editor-ui.md#text-tool, 07-text-engine.md#editing
-Do: Text tool tap -> caret in the body flow if inside the body zone, else a free text box snapped to the grid, focused in the same frame; typing on a hardware keyboard with nothing focused appends to the current page body; sticky note tool creates a sticky with focus. Text tool row 2 + settings panel (P06-T13 split): font family picker grouped as in `FontGroup` (imported fonts listed, "Import font" opens the system picker for .ttf/.otf into `CustomFontStore`; `syncFromLibrary` on app start), size S/M/L plus a free size slider (A-039, box height shown in lines). A focused block (and the caret line while typing) scrolls into view above the keyboard and the toolbox, which can cover it today (P06-T06g device run, A-045). The first finger tap after opening a note was lost in all three P06-T06g device runs (no `text:focus` sample); find and fix the cause.
+Do: Text tool tap -> caret in the body flow if inside the body zone, else a free text box snapped to the grid, focused in the same frame; typing on a hardware keyboard with nothing focused appends to the current page body; sticky note tool creates a sticky with focus. Text tool row 2 + settings panel (P06-T13 split): font family picker grouped as in `FontGroup` (imported fonts listed, "Import font" opens the system picker for .ttf/.otf into `CustomFontStore`; `syncFromLibrary` on app start), size S/M/L plus a free size slider (A-039, box height shown in lines).
 Accept:
 - [ ] screenshot: text row 2 and text settings panel with the font picker and the size slider
 - [ ] device: tap-to-caret <= 50 ms p95 for both paths
-- [ ] device: tapping a block in the lower half of the page with the keyboard opening keeps the caret line visible above the toolbox
 - [ ] user: "Type a page of notes with the keyboard mixing headings, lists, math. Does text ever jump off the lines or lag?"
 Verify: device-tester
+
+### P06-T18 Seamless focus: no ghost text, block in view, first input kept
+Model: opus high
+Implements: R-CORE-01, R-TXT-01, R-INK-01
+Read: 07-text-engine.md#editing, #live-field-as-built; 05-canvas-rendering.md#tiles; 06-ink-input.md (input router)
+Do: device findings 2026-10-23 (P06-T06g, P06-T15 runs). (1) Ghost text: for about 0.5 s after a block gets focus the page tile still draws it under the live field (doubled glyphs where the shown markers shift words). The page must stop drawing the block in the frame the field appears and draw it again in the frame the field leaves, like the dry handoff (A-046): e.g. paint the focused block's runs out of the visible tiles synchronously, or keep the field's text hidden until the tiles without the block are drawn, then show both in one frame; measure focus-to-clean time. (2) A focused block (and the caret line while typing) scrolls into view above the keyboard and the toolbox, which cover it today. (3) The first input after opening a note is dropped: the first finger tap (3 of 3 runs, no `text:focus` sample) and the first stylus stroke of a run (`ink:started` one short); find the cause (window or view focus, router state, first-event palm rule) and fix it with a failing test first.
+Accept:
+- [ ] unit: focus and blur switch the page's block and the field in the same frame (no frame with both or neither); the first event after attach reaches the router
+- [ ] device: 20 focus/blur cycles: no frame with doubled text (frame dump or per-frame check), focus to clean frame <= 50 ms; focusing a block in the lower half with the soft keyboard keeps the caret line visible above the toolbox; after `open`, the first tap focuses and the first stroke draws
+- [ ] user: "Tap into text and out again a few times, also low on the page: does anything flash or hide behind the keyboard?"
+Verify: `./gradlew :feature:editor:testDebugUnitTest` + device-tester
 
 ### P06-T14 Selection across blocks
 Model: opus high
@@ -140,6 +161,28 @@ Accept:
 - [ ] unit: Shift+Down from the last line extends into the next block; cut of a 3-block selection is one undo step and the clipboard holds its Markdown; paste of multi-block Markdown splits into blocks
 - [ ] screenshot: a selection over three blocks with handles
 - [ ] device: drag handles across a page boundary; copy/paste into another note keeps headings and lists
+Verify: `./gradlew :feature:editor:testDebugUnitTest :feature:editor:verifyRoborazziDebug` + device-tester
+
+### P06-T16 Baseline lift: text sits a chosen distance above the rules
+Model: opus high
+Implements: R-TXT-03, R-TXT-05
+Read: 07-text-engine.md#line-box, #grid-unit, #fonts; 04-file-format.md (flow style file)
+Do: user feedback 2026-10-23 (P06-T06 USER-CHECK): "text is perfectly above lines, tho I wish to change how much above the lines". A per-flow `baselineLiftUnits` (0 .. 0.35 U, default 0, steps of 0.05 U) raises every baseline by that fraction of U; line boxes stay integer multiples of U, so the grid stays intact (every baseline at rule - lift). Flow style file gains the field (absent = 0, no migration needed beyond the default). Text settings panel (P06-T10) gets a "Distance above lines" slider with a live preview; the live field and tiles use the same lift. Update the CLAUDE.md grid invariant, the text-engine rule and 07-text-engine.md#line-box to "baseline on a grid line, raised by the flow's lift" in the same commit (A-entry).
+Accept:
+- [ ] unit: invariant suite with lift 0, 0.15 and 0.35 U: |baseline - (rule - lift x U)| <= 0.5 px, box heights unchanged; flow style round trip with and without the field
+- [ ] screenshot: the same paragraph at lift 0 and 0.25 U on lined paper; text settings panel with the slider
+- [ ] user: "Set the distance above lines in the text settings: does the text sit where you want it, also while typing?"
+Verify: `./gradlew :core:text:testDebugUnitTest :core:format:test :feature:editor:verifyRoborazziDebug`
+
+### P06-T17 Free text boxes: move and resize on the grid
+Model: opus medium
+Implements: R-TXT-07, R-CORE-01
+Read: 07-text-engine.md#flows-and-frames, 10-editor-ui.md#text-tool; shot G4-text-editing.jpg (box with a top grip and side handles)
+Do: user feedback 2026-10-23 (P06-T06 USER-CHECK): text blocks that can be moved anywhere with the same strict spacing. A focused free text box (FrameRole.BOX, created by P06-T10) shows a top grip and left/right width handles like Notewise. Dragging the grip (finger or pen) moves the box; on release its top snaps to a rule and its left edge to a grid column (lined paper: to 1 mm), so every line stays on the grid. Width handles resize in grid columns and the box reflows (height grows in U steps). One undo step per move or resize. Body text stays in the body flow (no dragging single paragraphs out of it); the lasso moves boxes with the same snapping (P07-T03).
+Accept:
+- [ ] unit: move snaps top to a rule and left to a column; resize reflows and keeps line boxes on the grid; one undo step each
+- [ ] screenshot: focused box with grip and handles
+- [ ] device: drag a box across the page and onto the next page; baselines on rules after release
 Verify: `./gradlew :feature:editor:testDebugUnitTest :feature:editor:verifyRoborazziDebug` + device-tester
 
 ### P06-T11 Long text performance

@@ -13,14 +13,13 @@ updated: 2026-10-23
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g)
+- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
 
 ## USER-CHECK (human verification; non-blocking)
-- P06-T13: in a note tap the selected pen again (or row 2's sliders button) -> panel with preview, kind cards, width + pressure sliders, colors; eraser panel: size, highlighter-only, Clear page; row 2 only widths | colors | details -> holds the pen settings like Notewise, row 2 lighter.
-- P06-T06: in a note with text (debug `seed-text 300` until the text tool lands in T10) tap a paragraph with the finger, type, press Enter, try the formatting bar; then with the pen tool bring the real pen over the block and write -> field, caret and lines match the page, editing ends when the pen comes close and the stroke is drawn; Ctrl+Z on the Focus Pen keyboard undoes while editing (not verifiable by injection).
+- P06-T15: draw several strokes (pen and highlighter) and lift the pen; then focus a text block (debug `seed-text 300`), zoom in and out while editing -> no stroke blinks after pen-up; the edited text scales with the page during the zoom.
 
 ## Deferred (id: reason)
 - D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05.
@@ -31,5 +30,5 @@ updated: 2026-10-23
 ## Handoff (<= 5 lines, overwritten each session)
 - P06-T06 done (a-g). Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` (session `TextController`: edit/select/format queue) -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`) while `EditorUiState.textStyle != null`.
 - Device: tap-to-caret `text:caret` p95 29.4 ms; HyperOS steals stylus over a focused editor, so stylus hover/down over the field ends editing (A-045). Debug `seed-text n[,page]` seeds a body flow (use `open lined:N` with an unused N).
-- Models: future tasks run on Opus 5.5 (A-045): opus medium for UI/wiring, opus high for layout/ink/render/perf; P06-T14 (selection across blocks) runs after T10.
+- Models: Opus 5.5 (A-045): opus medium for UI/wiring, opus high for layout/ink/render/perf. P06 order: T07, T08, T09, T10, T18 (seamless focus), T14 (selection), T16 (baseline lift), T17 (move text boxes), T11. Wet ink now leaves in the run loop of the invalidate (A-046).
 - Next: P06-T07 Math. Tool row y 1963 px, mode pill y 171 px in landscape.

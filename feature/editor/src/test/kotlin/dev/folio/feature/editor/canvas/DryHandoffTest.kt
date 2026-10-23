@@ -14,9 +14,10 @@ class DryHandoffTest {
     private val commits = ArrayList<Pair<PageId, List<InkStroke>>>()
     private val rejectors = ArrayList<() -> Unit>()
     private val drawn = HashSet<ObjectId>()
-    private val frameCallbacks = ArrayList<Runnable>()
     private val removed = ArrayList<Any>()
-    private var invalidations = 0
+
+    // Invalidations and removals in call order: the wet copy must leave in the same run loop as the invalidate.
+    private val calls = ArrayList<String>()
     private var ids = 0
     private val handoff =
         DryHandoff(
@@ -25,9 +26,11 @@ class DryHandoffTest {
                 rejectors += onRejected
             },
             isDrawn = { _, stroke -> stroke.id in drawn },
-            invalidate = { invalidations++ },
-            afterFrameCommit = { frameCallbacks += it },
-            removeWet = { removed.addAll(it) },
+            invalidate = { calls += "invalidate" },
+            removeWet = {
+                removed.addAll(it)
+                calls += "remove ${it.joinToString()}"
+            },
             newId = { ObjectId("o${ids++}") },
         )
 
@@ -59,40 +62,36 @@ class DryHandoffTest {
 
         handoff.check()
 
-        assertThat(frameCallbacks).isEmpty()
-        assertThat(removed).isEmpty()
+        assertThat(calls).isEmpty()
         assertThat(handoff.pendingCount).isEqualTo(1)
     }
 
     @Test
-    fun check_strokeDrawn_invalidatesAndRemovesTheWetStrokeOnlyAfterTheFrameCommit() {
+    fun check_strokeDrawn_invalidatesAndRemovesTheWetStrokeInTheSameRunLoop() {
         handoff.onFinished(listOf(wet("w0", "p1", 10f), wet("w1", "p1", 20f)))
         drawn += ObjectId("o1")
 
         handoff.check()
 
-        assertThat(invalidations).isEqualTo(1)
-        assertThat(removed).isEmpty()
-        frameCallbacks.single().run()
-        assertThat(removed).containsExactly("w1")
+        // androidx.ink hides a removed stroke with the next HWUI frame, the one the invalidate draws (A-046).
+        assertThat(calls).containsExactly("invalidate", "remove w1").inOrder()
         assertThat(handoff.pendingCount).isEqualTo(1)
         assertThat(handoff.removedCount).isEqualTo(1)
 
         drawn += ObjectId("o0")
         handoff.check()
-        frameCallbacks.last().run()
         assertThat(removed).containsExactly("w1", "w0").inOrder()
     }
 
     @Test
-    fun check_twice_registersOneFrameCallbackPerReadyStroke() {
+    fun check_twice_removesEachReadyStrokeOnce() {
         handoff.onFinished(listOf(wet("w0", "p1", 10f)))
         drawn += ObjectId("o0")
 
         handoff.check()
         handoff.check()
 
-        assertThat(frameCallbacks).hasSize(1)
+        assertThat(removed).containsExactly("w0")
     }
 
     @Test

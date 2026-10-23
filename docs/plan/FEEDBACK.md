@@ -6,6 +6,10 @@ Format: `- YYYY-MM-DD <what bothers you or what you want> [now]` (the date and `
 ## Open
 
 ## Converted
+- 2026-10-23 (P06-T13 USER-CHECK) each stroke disappears shortly after lifting the pen and reappears; any reload must be seamless -> P06-T15 (fixed, A-046).
+- 2026-10-23 (P06-T06 USER-CHECK) zooming while typing keeps the text block at its screen size until editing ends -> P06-T15 (fixed, A-046).
+- 2026-10-23 (P06-T06 USER-CHECK) choose how far text sits above the lines -> P06-T16.
+- 2026-10-23 (P06-T06 USER-CHECK) individual text blocks that can be moved anywhere with the same strict spacing -> P06-T17 (+ lasso snapping in P07-T03).
 - 2026-10-23 (P04-T10 USER-CHECK) editor UI does not look like Notewise: no top bar, toolbar floats over the note so read mode/fullscreen transitions are seamless; more pen settings in the menu opened by tapping the tool again; the width/color row can be hidden -> A-037, P06-T12, P06-T13.
 - 2026-10-23 (P05-T07, P04-T06, P04-T07 USER-CHECKs) library <-> editor transitions are a little rough; page panel, overview and new-note sheet need smoother animations -> P11-T03.
 - 2026-10-23 (P05-T05 USER-CHECK) selecting a tag in search without typing lists nothing; tagged notes only show once a word is typed -> P11-T11.

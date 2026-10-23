@@ -70,12 +70,11 @@ class CanvasHostTest {
     private val controller = FakeCanvasController(pages = 20)
     private var host: CanvasHostView? = null
     private var wet: FakeWetSurface? = null
-    private val frameCommits = ArrayList<Runnable>()
 
     private fun show() {
         compose.setContent {
             CanvasHost(controller, Modifier.fillMaxSize(), onHost = { host = it }) { context ->
-                CanvasHostView(context, controller, afterFrameCommit = { _, action -> frameCommits += action }) {
+                CanvasHostView(context, controller) {
                     FakeWetSurface(it).also { surface -> wet = surface }
                 }
             }
@@ -276,7 +275,7 @@ class CanvasHostTest {
     }
 
     @Test
-    fun finishedStroke_committedToThePageUnderThePen_wetCopyRemovedAfterTheFrameShowingIt() {
+    fun finishedStroke_committedToThePageUnderThePen_wetCopyRemovedOnceItsTileIsDrawn() {
         show()
         val page = ModelFixtures.page("p0").id
         compose.runOnUiThread {
@@ -288,15 +287,12 @@ class CanvasHostTest {
 
         var key: Any? = null
         compose.runOnUiThread { key = wet?.deliver(page, floatArrayOf(100f, 150f), floatArrayOf(100f, 100f)) }
-        val removedBeforeFrame = wet?.removed?.toList()
         settle()
-        compose.runOnUiThread { frameCommits.forEach(Runnable::run) }
 
         val objects =
             controller.document.value.pageBodies[page]
                 ?.objects
         assertThat(objects?.single()?.bounds?.left).isWithin(1f).of(100f)
-        assertThat(removedBeforeFrame).isEmpty()
         assertThat(wet?.removed).containsExactly(key)
         assertThat(hostView().handoffStats).isEqualTo(HandoffStats(committed = 1, pending = 0, removed = 1))
         assertThat(hostView().tileStats.contentBytes).isGreaterThan(0L) // the tile under the stroke was rendered

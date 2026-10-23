@@ -86,7 +86,6 @@ data class TileStats(
 class CanvasHostView internal constructor(
     context: Context,
     private val controller: CanvasController,
-    afterFrameCommit: (View, Runnable) -> Unit = { view, action -> view.viewTreeObserver.registerFrameCommitCallback(action) },
     createWetSurface: (Context) -> WetSurface,
 ) : FrameLayout(context) {
     /** Host for [controller] with the androidx.ink wet-ink layer. */
@@ -118,7 +117,11 @@ class CanvasHostView internal constructor(
             )
         }
     private val animator = ViewportAnimator(controller.viewport, ::onViewportChanged)
-    private val idleRequest = Runnable { requestTiles(idle = true) }
+    private val idleRequest =
+        Runnable {
+            requestTiles(idle = true)
+            textField.refresh() // the field takes its real font size at the settled zoom
+        }
     private val memoryCallbacks = MemoryCallbacks()
     private var document: Document? = null
     private var pageTexts: Map<PageId, PageText> = emptyMap()
@@ -186,7 +189,6 @@ class CanvasHostView internal constructor(
             commit = ::commitStrokes,
             isDrawn = ::isDrawn,
             invalidate = ::invalidateLayers,
-            afterFrameCommit = { afterFrameCommit(this, it) },
             removeWet = wet::remove,
         )
 

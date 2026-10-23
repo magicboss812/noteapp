@@ -26,7 +26,7 @@ Verify: tests
 Model: opus high
 Implements: R-INK-04
 Read: 06-ink-input.md#lasso
-Do: freeform and rectangle lasso (dashed path), selection rules, selection box with 8 handles + rotate handle, move (pen or finger drag inside), scale, rotate, action bar: cut, copy, paste, duplicate, delete, recolor, bring forward/back, to front/back; in-app clipboard (also as image to the system clipboard via FileProvider).
+Do: freeform and rectangle lasso (dashed path), selection rules, selection box with 8 handles + rotate handle, move (pen or finger drag inside), scale, rotate, action bar: cut, copy, paste, duplicate, delete, recolor, bring forward/back, to front/back; in-app clipboard (also as image to the system clipboard via FileProvider). Free text boxes in a selection move with the grid snapping of P06-T17 (top on a rule, left on a column) so their lines stay on the grid.
 Accept:
 - [ ] unit: selection membership rules; transform commands undo
 - [ ] device: select 50 strokes, move and rotate; one undo each

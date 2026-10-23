@@ -21,15 +21,15 @@ data class HandoffStats(
  * Moves finished wet strokes into the document (05-canvas-rendering.md#dry-handoff): each batch of
  * [WetStroke]s becomes [InkStroke]s committed per page through [commit] (one undo step per page).
  * The wet copies stay until [check] finds the committed stroke [isDrawn] by the content tiles; then
- * the layers are [invalidate]d and the wet strokes are removed once that frame is submitted
- * ([afterFrameCommit]), so no frame lacks the stroke. A rejected commit drops the wet stroke.
+ * the layers are [invalidate]d and the wet strokes removed in the same run loop: androidx.ink hides a
+ * removed stroke with the next HWUI frame, which is the one drawing the tiles, so no frame lacks the
+ * stroke or draws it twice (A-046; removing one frame later flickered). A rejected commit drops the wet stroke.
  */
 @MainThread
 internal class DryHandoff(
     private val commit: (page: PageId, strokes: List<InkStroke>, onRejected: () -> Unit) -> Unit,
     private val isDrawn: (page: PageId, stroke: InkStroke) -> Boolean,
     private val invalidate: () -> Unit,
-    private val afterFrameCommit: (Runnable) -> Unit,
     private val removeWet: (Collection<Any>) -> Unit,
     private val newId: () -> ObjectId = ObjectId::random,
 ) {
@@ -65,19 +65,17 @@ internal class DryHandoff(
         }
     }
 
-    /** Removes the wet copies of strokes whose committed copies are drawn (after the next frame). */
+    /** Removes the wet copies of strokes whose committed copies the next frame draws. */
     fun check() {
         if (pending.isEmpty()) return
         val done = pending.filter { isDrawn(it.page, it.stroke) }
         if (done.isEmpty()) return
         pending.removeAll(done.toSet())
         invalidate()
-        afterFrameCommit {
-            removeWet(done.map { it.key })
-            removedCount += done.size
-            val now = PerfMonitor.clock.monotonicNs()
-            for (p in done) PerfMonitor.record(SECTION_HANDOFF, now - p.finishedNs)
-        }
+        removeWet(done.map { it.key })
+        removedCount += done.size
+        val now = PerfMonitor.clock.monotonicNs()
+        for (p in done) PerfMonitor.record(SECTION_HANDOFF, now - p.finishedNs)
     }
 
     /**

@@ -194,8 +194,14 @@ internal class LiveTextField(
         val gutterPt = if (layout.hasMarker) layout.markerLeftPt else layout.textLeftPt
         val leftPx = viewport.pageOriginViewX(pageIndex) + (spec.placement.leftPt + gutterPt) * scale
         val baselinePx = viewport.pageOriginViewY(pageIndex) + (spec.placement.topPt + layout.baselinePt(0)) * scale
+        // Mid-zoom the field scales as a layer around its top-left corner; [show] sets the real size when the zoom settles.
+        val layerScale = if (styledScale > 0f) scale / styledScale else 1f
+        pivotX = 0f
+        pivotY = 0f
+        scaleX = layerScale
+        scaleY = layerScale
         translationX = leftPx.toFloat()
-        translationY = (baselinePx - ascentPx).toFloat()
+        translationY = (baselinePx - ascentPx * layerScale).toFloat()
     }
 
     /** Removes the field and the keyboard. */

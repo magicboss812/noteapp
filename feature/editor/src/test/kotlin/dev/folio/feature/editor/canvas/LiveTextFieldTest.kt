@@ -130,6 +130,25 @@ class LiveTextFieldTest {
     }
 
     @Test
+    fun place_whileZooming_scalesTheFieldWithThePageUntilShownAgain() {
+        val spec = spec("hello")
+        show(spec)
+        val styledSize = field.textSize
+        val before = viewport.scale
+
+        viewport.zoomBy(0.5f, 0f, 0f)
+        field.place(viewport, 0)
+        val midZoom = field.scaleX
+        val midSize = field.textSize
+        show(spec)
+
+        assertThat(midZoom).isWithin(1e-4f).of(viewport.scale / before)
+        assertThat(midSize).isEqualTo(styledSize)
+        assertThat(field.scaleX).isEqualTo(1f)
+        assertThat(field.textSize).isWithin(0.01f).of(spec.layout.fontSizePt * viewport.scale)
+    }
+
+    @Test
     fun show_listItem_dimsTheMarker() {
         show(spec("- item"))
 
