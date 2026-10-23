@@ -44,6 +44,7 @@ import dev.folio.feature.library.state.LibraryBrowseViewModel
 import dev.folio.feature.library.state.LibraryDocItem
 import dev.folio.feature.library.state.LibraryEntryViewModel
 import dev.folio.feature.library.state.LibraryFolderItem
+import dev.folio.feature.library.state.LibraryOpsViewModel
 import dev.folio.feature.library.state.LibraryTab
 import dev.folio.feature.library.state.NewNoteState
 import dev.folio.feature.library.state.NewNoteViewModel
@@ -73,6 +74,7 @@ fun LibraryEntryRoute(
     viewModel: LibraryEntryViewModel = hiltViewModel(),
     browseViewModel: LibraryBrowseViewModel = hiltViewModel(),
     newNoteViewModel: NewNoteViewModel = hiltViewModel(),
+    opsViewModel: LibraryOpsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle()
@@ -85,7 +87,12 @@ fun LibraryEntryRoute(
             LibraryContent(browse, documents, folders, browseViewModel.nowMs(), ZoneId.systemDefault())
         }
     val actions =
-        remember(browseViewModel, onOpenDocument, newNoteViewModel) {
+        remember(browseViewModel, opsViewModel, onOpenDocument, newNoteViewModel) {
+            // Batch actions end the selection; a refused one (open document) is reported by the snackbar.
+            val batch: (() -> Unit) -> Unit = { run ->
+                run()
+                browseViewModel.clearSelection()
+            }
             LibraryActions(
                 onSelectTab = browseViewModel::selectTab,
                 onSetSort = browseViewModel::setSort,
@@ -94,6 +101,17 @@ fun LibraryEntryRoute(
                 onToggleSidebar = browseViewModel::toggleSidebar,
                 onOpenDocument = onOpenDocument,
                 onNewNote = newNoteViewModel::show,
+                onSelectAll = browseViewModel::selectAll,
+                notes =
+                    NoteActions(
+                        onToggleSelected = browseViewModel::toggleSelected,
+                        onRename = opsViewModel::rename,
+                        onMove = { paths, folder -> batch { opsViewModel.move(paths, folder) } },
+                        onDuplicate = opsViewModel::duplicate,
+                        onSetFavorite = { paths, favorite -> batch { opsViewModel.setFavorite(paths, favorite) } },
+                        onDelete = { paths -> batch { opsViewModel.delete(paths) } },
+                        loadCover = opsViewModel::cover,
+                    ),
             )
         }
     val context = LocalContext.current
@@ -106,6 +124,7 @@ fun LibraryEntryRoute(
             viewModel.recoveryNoticeShown(it)
         }
     }
+    LaunchedEffect(opsViewModel) { opsViewModel.messages.collect { snackbars.showSnackbar(it) } }
     LifecycleResumeEffect(Unit) {
         viewModel.refresh()
         onPauseOrDispose {}
@@ -159,6 +178,8 @@ data class LibraryActions(
     val onToggleSidebar: () -> Unit = {},
     val onOpenDocument: (String) -> Unit = {},
     val onNewNote: () -> Unit = {},
+    val onSelectAll: (List<String>) -> Unit = {},
+    val notes: NoteActions = NoteActions(),
 )
 
 /** Stateless entry screen. */
@@ -197,6 +218,8 @@ fun LibraryEntryScreen(
                     onToggleSidebar = actions.onToggleSidebar,
                     onOpenDocument = actions.onOpenDocument,
                     newActions = NewActions(note = actions.onNewNote),
+                    notes = actions.notes,
+                    onSelectAll = actions.onSelectAll,
                 )
             }
 

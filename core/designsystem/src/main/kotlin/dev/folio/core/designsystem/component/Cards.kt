@@ -1,8 +1,10 @@
 package dev.folio.core.designsystem.component
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -23,7 +25,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.folio.core.designsystem.icon.FolioIcons
 import dev.folio.core.designsystem.theme.FolderColor
@@ -37,9 +42,13 @@ private val HEADER_HEIGHT = 66.dp
 private const val TITLE_MAX_LINES = 2
 private val OVERFLOW_OVERHANG = 12.dp
 private val FRONT_PAGE_WIDTH = 150.dp
-private val FRONT_PAGE_HEIGHT = 110.dp
-private val BACK_PAGE_RISE = 10.dp
-private const val POCKET_FRACTION = 0.4f
+private val FRONT_PAGE_HEIGHT = 100.dp
+private val BACK_PAGE_WIDTH = 134.dp
+
+// Sheet tops below the header (the back sheet used to rise into the folder name), and how much of the card the pocket covers.
+private val BACK_PAGE_TOP = 10.dp
+private val FRONT_PAGE_TOP = 22.dp
+private const val POCKET_FRACTION = 0.5f
 private const val POCKET_ALPHA = 0.55f
 private const val COUNT_ALPHA = 0.45f
 private const val BACK_PAGE_ALPHA = 0.35f
@@ -57,6 +66,8 @@ fun NoteCard(
     favorite: Boolean = false,
     tags: ImmutableList<String> = persistentListOf(),
     selected: Boolean = false,
+    selectMode: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
     onOverflow: (() -> Unit)? = null,
     preview: @Composable ColumnScope.() -> Unit = {},
 ) {
@@ -73,7 +84,7 @@ fun NoteCard(
                     width = if (selected) space.selectedBorderWidth else space.borderWidth,
                     color = if (selected) colors.accent else colors.border,
                     shape = shape,
-                ).clickable(onClick = onClick),
+                ).combinedClickable(onLongClick = onLongClick, onClick = onClick),
     ) {
         Column(
             Modifier
@@ -83,7 +94,13 @@ fun NoteCard(
                 .padding(horizontal = space.s12, vertical = space.s8),
             verticalArrangement = Arrangement.spacedBy(space.s2),
         ) {
-            CardMetaLine(timestamp = timestamp, favorite = favorite, tags = tags, onOverflow = onOverflow)
+            CardMetaLine(
+                timestamp = timestamp,
+                favorite = favorite,
+                tags = tags,
+                selectMark = if (selectMode) selected else null,
+                onOverflow = onOverflow,
+            )
             Text(
                 text = title,
                 style = FolioTheme.type.cardTitle,
@@ -102,6 +119,7 @@ private fun CardMetaLine(
     timestamp: String,
     favorite: Boolean,
     tags: ImmutableList<String>,
+    selectMark: Boolean?,
     onOverflow: (() -> Unit)?,
 ) {
     val colors = FolioTheme.colors
@@ -119,7 +137,15 @@ private fun CardMetaLine(
             Text(text = "#$tag", style = FolioTheme.type.caption, color = colors.textTertiary, maxLines = 1)
         }
         Box(Modifier.weight(1f))
-        if (onOverflow != null) {
+        if (selectMark != null) {
+            // Select mode replaces the overflow button with a tick circle.
+            Icon(
+                if (selectMark) FolioIcons.CircleCheck else FolioIcons.Circle,
+                contentDescription = if (selectMark) "Selected" else "Not selected",
+                modifier = Modifier.size(space.s16),
+                tint = if (selectMark) colors.accent else colors.textTertiary,
+            )
+        } else if (onOverflow != null) {
             // The 44 dp target overhangs the header padding instead of pushing the title down.
             Box(Modifier.size(space.s16), contentAlignment = Alignment.Center) {
                 FolioIconButton(
@@ -167,12 +193,9 @@ fun FolderCard(
             )
             Text(text = name, style = FolioTheme.type.cardTitle, color = onColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.BottomCenter) {
-            PreviewPage(
-                Color.Black.copy(alpha = BACK_PAGE_ALPHA),
-                Modifier.offset(y = -BACK_PAGE_RISE - FRONT_PAGE_HEIGHT * POCKET_FRACTION),
-            )
-            PreviewPage(Color.White, Modifier.offset(y = -FRONT_PAGE_HEIGHT * POCKET_FRACTION + BACK_PAGE_RISE)) {
+        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
+            PreviewPage(Color.Black.copy(alpha = BACK_PAGE_ALPHA), Modifier.offset(y = BACK_PAGE_TOP), width = BACK_PAGE_WIDTH)
+            PreviewPage(Color.White, Modifier.offset(y = FRONT_PAGE_TOP)) {
                 Column(Modifier.padding(space.s8), verticalArrangement = Arrangement.spacedBy(space.s2)) {
                     if (latestTitle != null) {
                         Text(
@@ -191,8 +214,9 @@ fun FolderCard(
             // Translucent pocket over the lower part of the previews.
             Box(
                 Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .fillMaxHeight(POCKET_FRACTION + POCKET_FRACTION / 2)
+                    .fillMaxHeight(POCKET_FRACTION)
                     .background(Color.White.copy(alpha = POCKET_ALPHA - COUNT_ALPHA)),
             )
         }
@@ -206,12 +230,43 @@ private const val TEXT_ON_PAPER = 0xFF2E2D2B
 private fun PreviewPage(
     fill: Color,
     modifier: Modifier = Modifier,
+    width: Dp = FRONT_PAGE_WIDTH,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
     Box(
-        modifier = modifier.size(FRONT_PAGE_WIDTH, FRONT_PAGE_HEIGHT).clip(FolioTheme.shapes.settings).background(fill),
+        modifier = modifier.size(width, FRONT_PAGE_HEIGHT).clip(FolioTheme.shapes.settings).background(fill),
         content = content,
     )
+}
+
+/** The stored cover thumbnail edge to edge, top-aligned and cropped; paper white while [cover] is still loading. */
+@Composable
+fun ColumnScope.NoteCardCover(
+    cover: ImageBitmap?,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier.fillMaxSize().background(Color.White)) {
+        if (cover != null) {
+            Image(
+                bitmap = cover,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.TopCenter,
+            )
+        }
+    }
+}
+
+/** Mini-Markdown excerpt of a note in caption type on paper white (the [NoteCard] preview of a note without cover). */
+@Composable
+fun ColumnScope.NoteCardTextPreview(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    NoteCardPaper(modifier) {
+        Text(text = text, style = FolioTheme.type.caption, color = Color(TEXT_ON_PAPER), overflow = TextOverflow.Clip)
+    }
 }
 
 /** Fills a [NoteCard] preview with paper white (cover thumbnails draw on top). */

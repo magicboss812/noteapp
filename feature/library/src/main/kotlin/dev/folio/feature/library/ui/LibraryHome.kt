@@ -1,6 +1,7 @@
 package dev.folio.feature.library.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -90,11 +92,14 @@ internal fun LibraryHome(
     onOpenDocument: (String) -> Unit,
     newActions: NewActions,
     modifier: Modifier = Modifier,
+    notes: NoteActions = NoteActions(),
+    onSelectAll: (List<String>) -> Unit = {},
     onSearch: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
 ) {
     val visible = visibleDocuments(documents, browse.tab, browse.sort)
     var drawerOpen by rememberSaveable { mutableStateOf(false) }
+    var movingSelection by remember { mutableStateOf(false) }
     BoxWithConstraints(modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         val drawer = maxWidth < DRAWER_BELOW
         val sidebar: @Composable (Modifier) -> Unit = { sidebarModifier ->
@@ -124,16 +129,48 @@ internal fun LibraryHome(
                     LibraryControls(browse, onSelectTab, onSetSort, onToggleViewMode, onToggleSelectMode)
                     LibraryDocuments(
                         documents = visible,
+                        folders = folders,
                         viewMode = browse.viewMode,
+                        selectMode = browse.selectMode,
+                        selected = browse.selected,
                         nowMs = nowMs,
                         zone = zone,
                         emptyTitle = emptyTitle(browse.tab),
                         emptyHint = emptyHint(browse.tab),
                         onOpenDocument = onOpenDocument,
+                        notes = notes,
                     )
                 }
-                NewButton(newActions, Modifier.align(Alignment.BottomEnd).padding(end = FAB_SIDE, bottom = FAB_BOTTOM))
+                if (browse.selectMode) {
+                    SelectionBar(
+                        count = browse.selected.size,
+                        allSelected = visible.isNotEmpty() && visible.all { it.path in browse.selected },
+                        favoriteAll =
+                            visible.filter { it.path in browse.selected }.let { picked ->
+                                picked.isNotEmpty() &&
+                                    picked.all { it.favorite }
+                            },
+                        onSelectAll = { onSelectAll(visible.map { it.path }) },
+                        onMove = { movingSelection = true },
+                        onFavorite = { favorite -> notes.onSetFavorite(browse.selected, favorite) },
+                        onDelete = { notes.onDelete(browse.selected) },
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = FAB_BOTTOM),
+                    )
+                } else {
+                    NewButton(newActions, Modifier.align(Alignment.BottomEnd).padding(end = FAB_SIDE, bottom = FAB_BOTTOM))
+                }
             }
+        }
+        if (movingSelection) {
+            MoveNotesDialog(
+                folders = folders,
+                currentFolder = null,
+                onMove = {
+                    movingSelection = false
+                    notes.onMove(browse.selected, it)
+                },
+                onDismiss = { movingSelection = false },
+            )
         }
         if (drawer && drawerOpen) {
             Box(Modifier.fillMaxSize().background(FolioTheme.colors.scrim).clickable(onClickLabel = "Close menu") { drawerOpen = false })
@@ -298,6 +335,52 @@ private fun NewButton(
     }
 }
 
+/** Batch actions on the ticked notes, floating where the New button sits otherwise. */
+@Composable
+private fun SelectionBar(
+    count: Int,
+    allSelected: Boolean,
+    favoriteAll: Boolean,
+    onSelectAll: () -> Unit,
+    onMove: () -> Unit,
+    onFavorite: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = FolioTheme.colors
+    val space = FolioTheme.space
+    Row(
+        modifier
+            .background(colors.surface, FolioTheme.shapes.stadium)
+            .border(space.borderWidth, colors.border, FolioTheme.shapes.stadium)
+            .padding(horizontal = space.s16),
+        horizontalArrangement = Arrangement.spacedBy(space.s4),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = if (count == 0) "Select notes" else "$count selected",
+            style = FolioTheme.type.labelSmall,
+            color = colors.textPrimary,
+            modifier = Modifier.padding(end = space.s8),
+        )
+        FolioIconButton(
+            FolioIcons.ListChecks,
+            if (allSelected) "All selected" else "Select all",
+            onSelectAll,
+            enabled = !allSelected,
+        )
+        FolioIconButton(FolioIcons.Folder, "Move selected", onMove, enabled = count > 0)
+        FolioIconButton(
+            FolioIcons.Star,
+            if (favoriteAll) "Remove favorite from selected" else "Favorite selected",
+            { onFavorite(!favoriteAll) },
+            enabled = count > 0,
+            tint = if (favoriteAll) colors.warning else Color.Unspecified,
+        )
+        FolioIconButton(FolioIcons.Trash, "Delete selected", onDelete, enabled = count > 0)
+    }
+}
+
 @Composable
 private fun NewMenuRow(
     icon: ImageVector,
@@ -317,7 +400,7 @@ private fun NewMenuRow(
 }
 
 @Composable
-private fun FolioMenu(
+internal fun FolioMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
@@ -335,17 +418,19 @@ private fun FolioMenu(
 }
 
 @Composable
-private fun MenuRow(
+internal fun MenuRow(
     label: String,
     onClick: () -> Unit,
     icon: ImageVector? = null,
     selected: Boolean = false,
     enabled: Boolean = true,
+    destructive: Boolean = false,
 ) {
     val colors = FolioTheme.colors
     val tint =
         when {
             !enabled -> colors.textDisabled
+            destructive -> colors.danger
             selected -> colors.accent
             else -> colors.textPrimary
         }

@@ -44,6 +44,10 @@ data class LibraryDocItem(
     val modifiedMs: Long = 0L,
     val createdMs: Long = 0L,
     val favorite: Boolean = false,
+    /** First lines of the note, from the manifest; the card preview when there is no cover. */
+    val textPreview: String = "",
+    /** The file stores a `thumbs/cover.webp`. */
+    val hasCover: Boolean = false,
 )
 
 /**
@@ -121,7 +125,8 @@ class LibraryEntryViewModel
             }
         }
 
-        private fun DocumentRow.toItem() = LibraryDocItem(path, title, folderPath, pageCount, modifiedMs, createdMs, favorite)
+        private fun DocumentRow.toItem() =
+            LibraryDocItem(path, title, folderPath, pageCount, modifiedMs, createdMs, favorite, textPreview, coverThumbPath != null)
 
         private companion object {
             const val ROOT = ""

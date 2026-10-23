@@ -76,6 +76,54 @@ class LibraryBrowseViewModelTest {
         }
 
     @Test
+    fun toggleSelected_entersSelectModeAndTogglesPath() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.toggleSelected("a.folio")
+            vm.toggleSelected("b.folio")
+            advanceUntilIdle()
+            assertThat(vm.state.value.selectMode).isTrue()
+            assertThat(vm.state.value.selected).containsExactly("a.folio", "b.folio")
+
+            vm.toggleSelected("a.folio")
+            advanceUntilIdle()
+            assertThat(vm.state.value.selected).containsExactly("b.folio")
+        }
+
+    @Test
+    fun selectAllAndClear_addTheVisibleThenLeaveSelectMode() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.toggleSelected("a.folio")
+            vm.selectAll(listOf("b.folio", "c.folio"))
+            advanceUntilIdle()
+            assertThat(vm.state.value.selected).containsExactly("a.folio", "b.folio", "c.folio")
+
+            vm.clearSelection()
+            advanceUntilIdle()
+            assertThat(vm.state.value.selected).isEmpty()
+            assertThat(vm.state.value.selectMode).isFalse()
+        }
+
+    @Test
+    fun leavingSelectMode_dropsTheSelection() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.toggleSelected("a.folio")
+            advanceUntilIdle()
+
+            vm.toggleSelectMode()
+            advanceUntilIdle()
+            assertThat(vm.state.value.selectMode).isFalse()
+            assertThat(vm.state.value.selected).isEmpty()
+
+            vm.toggleSelected("a.folio")
+            vm.selectTab(LibraryTab.FAVORITES)
+            advanceUntilIdle()
+            assertThat(vm.state.value.selected).isEmpty()
+        }
+
+    @Test
     fun state_unreadableChoices_fallBackToDefaults() =
         runTest(dispatcher) {
             store.write(LibraryBrowseViewModel.PREFS_KEY, "{not json")

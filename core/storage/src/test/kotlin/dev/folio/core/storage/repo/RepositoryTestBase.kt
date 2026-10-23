@@ -26,6 +26,15 @@ abstract class RepositoryTestBase {
     protected lateinit var documents: DocumentRepository
     protected lateinit var library: LibraryRepository
 
+    /** Paths the tests mark as open in an editor session. */
+    protected val openPaths = mutableSetOf<String>()
+    private val openDocuments =
+        object : OpenDocuments {
+            override fun isOpen(path: String) = path in openPaths
+
+            override fun anyOpenUnder(folder: String) = openPaths.any { it.startsWith("$folder/") }
+        }
+
     private val direct = Dispatchers.Unconfined
     protected val dispatchers = FolioDispatchers(direct, direct, direct, direct, direct)
 
@@ -33,8 +42,8 @@ abstract class RepositoryTestBase {
     fun setUpRepositories() {
         db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), IndexDb::class.java).build()
         scanner = LibraryScanner(fs, db, clock, dispatchers)
-        documents = DocumentRepository(fs, scanner, db.dao(), clock, dispatchers, ManifestApp("Folio", "test"))
-        library = LibraryRepository(fs, scanner, db.dao(), dispatchers, documents)
+        documents = DocumentRepository(fs, scanner, db.dao(), clock, dispatchers, ManifestApp("Folio", "test"), openDocuments)
+        library = LibraryRepository(fs, scanner, db.dao(), dispatchers, documents, openDocuments)
     }
 
     @After

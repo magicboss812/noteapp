@@ -47,6 +47,7 @@ class LibraryRepository(
     private val dao: IndexDao,
     private val dispatchers: FolioDispatchers,
     private val documents: DocumentRepository,
+    private val openDocuments: OpenDocuments = OpenDocuments.None,
 ) {
     private val rewriter = ContainerRewriter(fs)
 
@@ -121,7 +122,7 @@ class LibraryRepository(
         path: String,
         name: String,
     ): Outcome<String> =
-        folderOp {
+        openDocuments.refuseIfOpenUnder(path) ?: folderOp {
             val target = FileNames.unique(fs, FileNames.parentOf(path), FileNames.stemOf(name), "")
             fs.move(path, target).map { target }
         }
@@ -131,7 +132,7 @@ class LibraryRepository(
         path: String,
         parent: String,
     ): Outcome<String> =
-        folderOp {
+        openDocuments.refuseIfOpenUnder(path) ?: folderOp {
             require(parent != path && !parent.startsWith("$path/")) { "cannot move a folder into itself" }
             val target = FileNames.unique(fs, parent, FileNames.nameOf(path), "")
             fs.move(path, target).map { target }
@@ -148,15 +149,17 @@ class LibraryRepository(
         }
 
     /** Moves a folder with its contents to the bin. */
-    suspend fun deleteFolder(path: String): Outcome<BinEntry> = documents.moveToBin(path, null).also { scanner.incrementalScan() }
+    suspend fun deleteFolder(path: String): Outcome<BinEntry> =
+        openDocuments.refuseIfOpenUnder(path) ?: documents.moveToBin(path, null).also { scanner.incrementalScan() }
 
     private suspend fun patch(
         path: String,
         patch: ManifestPatch,
     ): Outcome<Unit> =
-        withContext(dispatchers.io) { rewriter.rewrite(path, path, patch) }
-            .flatMap { Outcome.Success(Unit) }
-            .also { if (it is Outcome.Success) scanner.indexFile(path) }
+        openDocuments.refuseIfOpen(path)
+            ?: withContext(dispatchers.io) { rewriter.rewrite(path, path, patch) }
+                .flatMap { Outcome.Success(Unit) }
+                .also { if (it is Outcome.Success) scanner.indexFile(path) }
 
     private suspend fun <T> folderOp(block: () -> Outcome<T>): Outcome<T> =
         withContext(dispatchers.io) { block() }.also { if (it is Outcome.Success) scanner.incrementalScan() }

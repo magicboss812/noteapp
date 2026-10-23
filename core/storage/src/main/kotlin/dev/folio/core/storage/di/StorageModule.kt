@@ -21,6 +21,7 @@ import dev.folio.core.storage.library.AndroidStoragePermission
 import dev.folio.core.storage.library.LibraryLayout
 import dev.folio.core.storage.library.LibraryRoot
 import dev.folio.core.storage.library.StoragePermission
+import dev.folio.core.storage.repo.CoverReader
 import dev.folio.core.storage.repo.DocumentRepository
 import dev.folio.core.storage.repo.LibraryRepository
 import dev.folio.core.storage.session.DocumentSessions
@@ -51,6 +52,7 @@ internal abstract class StorageModule {
     @Binds
     abstract fun settingsStore(impl: DataStoreSettingsStore): SettingsStore
 
+    @Suppress("TooManyFunctions") // one provider per storage service; splitting the module would only scatter the wiring
     internal companion object {
         @Provides
         @Singleton
@@ -85,7 +87,15 @@ internal abstract class StorageModule {
             clock: Clock,
             dispatchers: FolioDispatchers,
             app: ManifestApp,
-        ): DocumentRepository = DocumentRepository(root.fs, scanner, db.dao(), clock, dispatchers, app)
+            sessions: DocumentSessions,
+        ): DocumentRepository = DocumentRepository(root.fs, scanner, db.dao(), clock, dispatchers, app, sessions)
+
+        @Provides
+        @Singleton
+        fun coverReader(
+            root: LibraryRoot,
+            dispatchers: FolioDispatchers,
+        ): CoverReader = CoverReader(root.fs, dispatchers)
 
         @Provides
         @Singleton
@@ -155,6 +165,7 @@ internal abstract class StorageModule {
             db: IndexDb,
             dispatchers: FolioDispatchers,
             documents: DocumentRepository,
-        ): LibraryRepository = LibraryRepository(root.fs, scanner, db.dao(), dispatchers, documents)
+            sessions: DocumentSessions,
+        ): LibraryRepository = LibraryRepository(root.fs, scanner, db.dao(), dispatchers, documents, sessions)
     }
 }

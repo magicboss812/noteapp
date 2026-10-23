@@ -10,6 +10,7 @@ import dev.folio.core.format.container.DocumentCodec
 import dev.folio.core.format.manifest.ManifestApp
 import dev.folio.core.model.DocId
 import dev.folio.core.storage.index.LibraryScanner
+import dev.folio.core.storage.repo.OpenDocuments
 import dev.folio.core.storage.work.PackResult
 import dev.folio.core.storage.work.Packer
 import dev.folio.core.storage.work.WorkingCopyStore
@@ -36,9 +37,16 @@ class DocumentSessions(
     private val scope: CoroutineScope,
     private val app: ManifestApp,
     private val beforeFirstOpen: () -> Unit = {},
-) {
+) : OpenDocuments {
     private val lock = Mutex()
     private val open = LinkedHashMap<DocId, DocumentSession>()
+
+    // Copy of `open` for the non-suspending OpenDocuments queries; replaced under the lock after every change.
+    @Volatile private var openSnapshot: List<DocumentSession> = emptyList()
+
+    override fun isOpen(path: String): Boolean = openSnapshot.any { it.path == path }
+
+    override fun anyOpenUnder(folder: String): Boolean = openSnapshot.any { it.path.startsWith("$folder/") }
 
     /** Opens the `.folio` at library [path], reusing a valid working copy, or returns its open session. */
     suspend fun open(path: String): Outcome<DocumentSession> =
@@ -57,7 +65,12 @@ class DocumentSessions(
                         }
                     }
                 }
-            }.also { if (it is Outcome.Success) open[it.value.docId] = it.value }
+            }.also {
+                if (it is Outcome.Success) {
+                    open[it.value.docId] = it.value
+                    openSnapshot = open.values.toList()
+                }
+            }
         }
 
     /**
@@ -69,6 +82,7 @@ class DocumentSessions(
             lock.withLock {
                 val result = session.close()
                 open.remove(session.docId)
+                openSnapshot = open.values.toList()
                 result
             }
         }

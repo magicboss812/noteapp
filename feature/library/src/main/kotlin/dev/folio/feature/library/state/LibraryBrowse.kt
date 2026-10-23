@@ -3,6 +3,8 @@ package dev.folio.feature.library.state
 import androidx.compose.runtime.Immutable
 import dev.folio.core.storage.repo.DocumentSort
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
 import java.time.Instant
 import java.time.ZoneId
@@ -49,6 +51,8 @@ data class LibraryBrowseState(
     val sidebarCollapsed: Boolean = false,
     /** Blank = not set; the greeting then reads "Your notes". */
     val userName: String = "",
+    /** Library paths ticked in select mode; always empty outside it. */
+    val selected: ImmutableSet<String> = persistentSetOf(),
 )
 
 /** Greeting line above the library: "Hello, <name>", or "Your notes" while no name is set. */

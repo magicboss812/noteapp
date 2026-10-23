@@ -57,6 +57,7 @@ class DocumentRepository(
     private val clock: Clock,
     private val dispatchers: FolioDispatchers,
     private val app: ManifestApp,
+    private val openDocuments: OpenDocuments = OpenDocuments.None,
 ) {
     private val rewriter = ContainerRewriter(fs)
     private val trash = Bin(fs, clock)
@@ -114,7 +115,7 @@ class DocumentRepository(
         path: String,
         title: String,
     ): Outcome<String> =
-        io {
+        openDocuments.refuseIfOpen(path) ?: io {
             val stem = FileNames.stemOf(title)
             val newName = stem + FileNames.FOLIO_EXT
             val oldName = FileNames.nameOf(path)
@@ -146,7 +147,7 @@ class DocumentRepository(
         path: String,
         folder: String,
     ): Outcome<String> =
-        io {
+        openDocuments.refuseIfOpen(path) ?: io {
             val stem = FileNames.nameOf(path).removeSuffix(FileNames.FOLIO_EXT)
             val target = FileNames.unique(fs, folder, stem, FileNames.FOLIO_EXT)
             fs.move(path, target).map { target }
@@ -154,6 +155,7 @@ class DocumentRepository(
 
     /** Moves the file to the bin. */
     suspend fun delete(path: String): Outcome<BinEntry> {
+        openDocuments.refuseIfOpen(path)?.let { return it }
         val docId = dao.document(path)?.docId
         return io { trash.moveToBin(path, docId) }
             .also { if (it is Outcome.Success) scanner.removeFiles(listOf(path)) }

@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P05
-next: P05-T02
+next: P05-T03
 updated: 2026-10-23
 
 ## Completed
@@ -12,27 +12,27 @@ updated: 2026-10-23
 - P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 PASS 2026-10-23 (T09 after fix: CanvasHost collectors on the main dispatcher); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green.
 
 ## Current phase progress
-- P05: T01
+- P05: T01, T02
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
 
 ## USER-CHECK (human verification; non-blocking)
+- P05-T02: library home -> long-press a card to select several, use Move/Favorite/Delete in the bar; card menu Rename/Move/Duplicate/Favorite/Delete; with a note open in the editor its menu actions show "is open in the editor" -> covers (after a first save) and text excerpts read well.
 - P04-T10: open the library placeholder and a note on the tablet -> toolbar, options row, popovers, colors and type read as Notewise; differences go to docs/plan/FEEDBACK.md.
 - P04-T06: toolbar Pages (drawer), Overview (grid) and Add page buttons; long-press and drag a panel row to reorder; row menu, page settings -> panels and sheet read well, order survives reopening.
 - P04-T07: library "New note" -> sheet with title, paper size/orientation, fixed/infinite, template gallery previews, spacing, paper color; Create opens the note; the next sheet starts with your last choices.
 - P04-T08: draw, then watch the small dot at the editor's bottom-left (green idle, orange while saving); force-quit mid-edit and reopen -> "Recovered unsaved changes." snackbar on the library.
 
 ## Deferred (id: reason)
-- D-001, D-015 -> P11-T05; D-009, D-010 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P06-T04, P07-T05, P10-T01, P11-T10; D-028 -> P05-T02, P11-T10.
+- D-001, D-015 -> P11-T05; D-009, D-010 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P06-T04, P07-T05, P10-T01, P11-T10; D-028 -> P11-T10.
 - D-002 P01-T08: spike route spike-fonts + core:text spike/ (remove in P06-T03; spike-ink/spike-stylus went in P03-T09); USER-CHECKs answered (A-008).
 - D-004 P01-REVIEW: `GridParagraph.draw` allocates a Compose canvas wrapper per call; cache it or mark HOT PATH before P06-T05 paints text into tiles.
 - D-006 P01-S3 (user feedback): decide BACKLOG B-12 (free font size tied to the rules, top/middle/bottom placement in the line box) in P06-T02 before building size styles.
-- D-007 P02-REVIEW: repositories do not refuse open documents (favorite/rename/move/delete of an open doc); add an open-documents check with a typed error -> P05-T02 (first menu actions that call these).
 - D-014 P03-T09: tilt shading has no off switch (A-025): dry rendering applies tilt whenever stored inputs carry tilt; the P11-T01 setting needs a stored per-stroke choice (or dropping tilt at commit) so wet and dry ink agree.
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P05-T01 done: library home (sidebar/rail/drawer, greeting, tabs, sort, grid/list, select toggle, New menu) in feature/library; cards are plain NoteCard (title + timestamp) until T02.
-- Wired later: folder pills (T03), search button (T05), settings gear + `profile.name` greeting key (P11 settings), Tags/Bin tabs show empty text (T04/T06), New menu Folder/Import entries are disabled (T03, P08).
-- Next: P05-T02 (now also owns D-007). FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).
+- P05-T02 done: NoteCard previews (stored cover, else excerpt), overflow menu, multi-select bar (move/favorite/delete), FolderCard sheet fix; D-007 guard (`OpenDocuments`, typed `DocumentOpenException`) in core:storage, also covers folder rename/move/delete.
+- Menu Tags and Export rows are disabled placeholders (T04 tag editor, P09 export). FolderCard is not on the home grid yet (T03); its golden is in the component catalog and NoteCards_mixedRow.
+- Next: P05-T03 (folders). FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).

@@ -7,6 +7,8 @@ import dev.folio.core.common.Clock
 import dev.folio.core.common.FolioLog
 import dev.folio.core.storage.repo.DocumentSort
 import dev.folio.core.storage.settings.SettingsStore
+import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,17 +38,29 @@ class LibraryBrowseViewModel
         /** Current browse state; defaults until the settings are read. */
         val state: StateFlow<LibraryBrowseState> =
             combine(settings.read(PREFS_KEY).map(::decode), settings.read(NAME_KEY), transient) { prefs, name, t ->
-                LibraryBrowseState(t.tab, prefs.sort, prefs.viewMode, t.selectMode, prefs.sidebarCollapsed, name.orEmpty())
+                LibraryBrowseState(t.tab, prefs.sort, prefs.viewMode, t.selectMode, prefs.sidebarCollapsed, name.orEmpty(), t.selected)
             }.stateIn(viewModelScope, SharingStarted.Eagerly, LibraryBrowseState())
 
         /** Current wall-clock time for the date line and card timestamps. */
         fun nowMs(): Long = clock.nowMs()
 
         /** Shows [tab]; leaves select mode because the selection belongs to the old list. */
-        fun selectTab(tab: LibraryTab) = transient.update { it.copy(tab = tab, selectMode = false) }
+        fun selectTab(tab: LibraryTab) = transient.update { it.copy(tab = tab, selectMode = false, selected = persistentSetOf()) }
 
-        /** Toggles select mode. */
-        fun toggleSelectMode() = transient.update { it.copy(selectMode = !it.selectMode) }
+        /** Toggles select mode; leaving it drops the selection. */
+        fun toggleSelectMode() = transient.update { it.copy(selectMode = !it.selectMode, selected = persistentSetOf()) }
+
+        /** Ticks or unticks [path]; ticking outside select mode enters it (long press on a card). */
+        fun toggleSelected(path: String) =
+            transient.update {
+                it.copy(selectMode = true, selected = if (path in it.selected) it.selected.remove(path) else it.selected.add(path))
+            }
+
+        /** Ticks every path of [paths] (the visible notes). */
+        fun selectAll(paths: Collection<String>) = transient.update { it.copy(selected = it.selected.addAll(paths)) }
+
+        /** Unticks everything and leaves select mode (after a batch action). */
+        fun clearSelection() = transient.update { it.copy(selectMode = false, selected = persistentSetOf()) }
 
         /** Stores the sort order. */
         fun setSort(sort: DocumentSort) = store { it.copy(sort = sort) }
@@ -78,6 +92,7 @@ class LibraryBrowseViewModel
         private data class Transient(
             val tab: LibraryTab = LibraryTab.ALL,
             val selectMode: Boolean = false,
+            val selected: PersistentSet<String> = persistentSetOf(),
         )
 
         @Serializable

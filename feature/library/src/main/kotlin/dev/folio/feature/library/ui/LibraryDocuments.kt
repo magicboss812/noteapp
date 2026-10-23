@@ -2,10 +2,11 @@ package dev.folio.feature.library.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,21 +19,38 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.folio.core.designsystem.component.CardSize
+import dev.folio.core.designsystem.component.FolioIconButton
 import dev.folio.core.designsystem.component.NoteCard
+import dev.folio.core.designsystem.component.NoteCardCover
+import dev.folio.core.designsystem.component.NoteCardPaper
+import dev.folio.core.designsystem.component.NoteCardTextPreview
+import dev.folio.core.designsystem.icon.FolioIcons
 import dev.folio.core.designsystem.theme.FolioTheme
+import dev.folio.feature.library.state.CardPreview
 import dev.folio.feature.library.state.LibraryDocItem
+import dev.folio.feature.library.state.LibraryFolderItem
 import dev.folio.feature.library.state.LibraryViewMode
+import dev.folio.feature.library.state.cardPreview
 import dev.folio.feature.library.state.cardTimestamp
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableSet
 import java.time.ZoneId
 
 private val GUTTER = 24.dp
@@ -42,27 +60,64 @@ private val LIST_THUMB_RADIUS = 10.dp
 private const val LIST_COLUMNS = 2
 private val EMPTY_MAX_TEXT = 360.dp
 
+/** What the note cards report; the defaults are no-ops so previews and tests pass only what they check. */
+data class NoteActions(
+    val onToggleSelected: (String) -> Unit = {},
+    val onRename: (path: String, title: String) -> Unit = { _, _ -> },
+    val onMove: (paths: Set<String>, folder: String) -> Unit = { _, _ -> },
+    val onDuplicate: (String) -> Unit = {},
+    val onSetFavorite: (paths: Set<String>, favorite: Boolean) -> Unit = { _, _ -> },
+    val onDelete: (paths: Set<String>) -> Unit = {},
+    /** Decoded cover thumbnail of a note; null while missing. */
+    val loadCover: suspend (LibraryDocItem) -> ImageBitmap? = { null },
+)
+
 /**
  * The documents of the current tab: 195 dp cards in a grid with a 24 dp gutter, or two columns of 100 dp rows
- * (11-design-system.md#library-screen). Cards show the title and timestamp; previews and menus arrive with P05-T02.
+ * (11-design-system.md#library-screen). In select mode a tap ticks a note; a long press starts it.
  */
 @Composable
 internal fun LibraryDocuments(
     documents: ImmutableList<LibraryDocItem>,
+    folders: ImmutableList<LibraryFolderItem>,
     viewMode: LibraryViewMode,
+    selectMode: Boolean,
+    selected: ImmutableSet<String>,
     nowMs: Long,
     zone: ZoneId,
     emptyTitle: String,
     emptyHint: String,
     onOpenDocument: (String) -> Unit,
+    notes: NoteActions,
     modifier: Modifier = Modifier,
 ) {
     if (documents.isEmpty()) {
         EmptyState(emptyTitle, emptyHint, modifier)
         return
     }
+    var menuFor by remember { mutableStateOf<String?>(null) }
+    var renaming by remember { mutableStateOf<LibraryDocItem?>(null) }
+    var moving by remember { mutableStateOf<LibraryDocItem?>(null) }
     val inset = PaddingValues(start = FolioTheme.space.s16, end = FolioTheme.space.s16, top = FolioTheme.space.s8, bottom = FAB_CLEARANCE)
     val spacing = Arrangement.spacedBy(GUTTER)
+    val open: (LibraryDocItem) -> Unit = { doc -> if (selectMode) notes.onToggleSelected(doc.path) else onOpenDocument(doc.path) }
+    val menu: @Composable (LibraryDocItem) -> Unit = { doc ->
+        NoteMenu(
+            expanded = menuFor == doc.path,
+            favorite = doc.favorite,
+            onDismiss = { menuFor = null },
+            onAction = { action ->
+                menuFor = null
+                when (action) {
+                    NoteAction.Rename -> renaming = doc
+                    NoteAction.Move -> moving = doc
+                    NoteAction.Duplicate -> notes.onDuplicate(doc.path)
+                    NoteAction.ToggleFavorite -> notes.onSetFavorite(setOf(doc.path), !doc.favorite)
+                    NoteAction.Delete -> notes.onDelete(setOf(doc.path))
+                }
+            },
+        )
+    }
     when (viewMode) {
         LibraryViewMode.GRID -> {
             LazyVerticalGrid(
@@ -73,12 +128,20 @@ internal fun LibraryDocuments(
                 horizontalArrangement = spacing,
             ) {
                 items(documents, key = { it.path }) { doc ->
-                    NoteCard(
-                        title = doc.title,
-                        timestamp = cardTimestamp(doc.modifiedMs, nowMs, zone),
-                        onClick = { onOpenDocument(doc.path) },
-                        favorite = doc.favorite,
-                    )
+                    val cover = rememberCover(doc, notes.loadCover)
+                    Box {
+                        NoteCard(
+                            title = doc.title,
+                            timestamp = cardTimestamp(doc.modifiedMs, nowMs, zone),
+                            onClick = { open(doc) },
+                            favorite = doc.favorite,
+                            selected = doc.path in selected,
+                            selectMode = selectMode,
+                            onLongClick = { if (!selectMode) notes.onToggleSelected(doc.path) },
+                            onOverflow = if (selectMode) null else ({ menuFor = doc.path }),
+                        ) { NotePreview(doc, cover) }
+                        menu(doc)
+                    }
                 }
             }
         }
@@ -91,16 +154,91 @@ internal fun LibraryDocuments(
                 verticalArrangement = Arrangement.spacedBy(FolioTheme.space.s16),
                 horizontalArrangement = spacing,
             ) {
-                items(documents, key = { it.path }) { doc -> DocumentListRow(doc, onClick = { onOpenDocument(doc.path) }) }
+                items(documents, key = { it.path }) { doc ->
+                    Box {
+                        DocumentListRow(
+                            doc = doc,
+                            cover = rememberCover(doc, notes.loadCover),
+                            selectMode = selectMode,
+                            selected = doc.path in selected,
+                            onClick = { open(doc) },
+                            onLongClick = { if (!selectMode) notes.onToggleSelected(doc.path) },
+                            onOverflow = { menuFor = doc.path },
+                        )
+                        menu(doc)
+                    }
+                }
             }
         }
+    }
+    NoteDialogHost(renaming, moving, folders, notes, onCloseRename = { renaming = null }, onCloseMove = { moving = null })
+}
+
+/** The rename and move dialogs of the note menu; [onCloseRename] and [onCloseMove] clear the state that opened them. */
+@Composable
+private fun NoteDialogHost(
+    renaming: LibraryDocItem?,
+    moving: LibraryDocItem?,
+    folders: ImmutableList<LibraryFolderItem>,
+    notes: NoteActions,
+    onCloseRename: () -> Unit,
+    onCloseMove: () -> Unit,
+) {
+    if (renaming != null) {
+        RenameNoteDialog(
+            title = renaming.title,
+            onRename = {
+                onCloseRename()
+                notes.onRename(renaming.path, it)
+            },
+            onDismiss = onCloseRename,
+        )
+    }
+    if (moving != null) {
+        MoveNotesDialog(
+            folders = folders,
+            currentFolder = moving.folder,
+            onMove = {
+                onCloseMove()
+                notes.onMove(setOf(moving.path), it)
+            },
+            onDismiss = onCloseMove,
+        )
+    }
+}
+
+@Composable
+private fun rememberCover(
+    doc: LibraryDocItem,
+    load: suspend (LibraryDocItem) -> ImageBitmap?,
+): ImageBitmap? {
+    val currentLoad by rememberUpdatedState(load)
+    if (!doc.hasCover) return null
+    return produceState<ImageBitmap?>(null, doc.path, doc.modifiedMs) { value = currentLoad(doc) }.value
+}
+
+/** Cover thumbnail, else the text excerpt, else a blank paper (see [cardPreview]). */
+@Composable
+internal fun ColumnScope.NotePreview(
+    doc: LibraryDocItem,
+    cover: ImageBitmap?,
+) {
+    when (val preview = cardPreview(doc)) {
+        CardPreview.Cover -> NoteCardCover(cover)
+        is CardPreview.Excerpt -> NoteCardTextPreview(preview.text)
+        CardPreview.Blank -> NoteCardPaper()
     }
 }
 
 @Composable
 private fun DocumentListRow(
     doc: LibraryDocItem,
+    cover: ImageBitmap?,
+    selectMode: Boolean,
+    selected: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onOverflow: () -> Unit,
 ) {
     val colors = FolioTheme.colors
     val space = FolioTheme.space
@@ -110,17 +248,21 @@ private fun DocumentListRow(
             .fillMaxWidth()
             .height(LIST_ROW_HEIGHT)
             .clip(FolioTheme.shapes.tile)
-            .clickable(onClickLabel = "Open", onClick = onClick),
+            .combinedClickable(onClickLabel = if (selectMode) "Select" else "Open", onLongClick = onLongClick, onClick = onClick),
         horizontalArrangement = Arrangement.spacedBy(space.s12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
+        Column(
             Modifier
                 .size(LIST_THUMB)
                 .clip(thumbShape)
                 .background(colors.surface)
-                .border(space.borderWidth, colors.border, thumbShape),
-        )
+                .border(
+                    if (selected) space.selectedBorderWidth else space.borderWidth,
+                    if (selected) colors.accent else colors.border,
+                    thumbShape,
+                ),
+        ) { NotePreview(doc, cover) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(space.s2)) {
             Text(
                 text = if (doc.pageCount == 1) "1 page" else "${doc.pageCount} pages",
@@ -134,6 +276,16 @@ private fun DocumentListRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        if (selectMode) {
+            Icon(
+                if (selected) FolioIcons.CircleCheck else FolioIcons.Circle,
+                contentDescription = if (selected) "Selected" else "Not selected",
+                modifier = Modifier.size(space.iconMenu),
+                tint = if (selected) colors.accent else colors.textTertiary,
+            )
+        } else {
+            FolioIconButton(FolioIcons.Ellipsis, contentDescription = "More", onClick = onOverflow, tint = colors.textTertiary)
         }
     }
 }

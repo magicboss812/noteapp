@@ -258,6 +258,23 @@ class DocumentSessionTest : RepositoryTestBase() {
         }
 
     @Test
+    fun isOpen_followsOpenAndClose() =
+        runTest {
+            val ref = documents.create(spec("Tracked", "Folder")).orThrow()
+            val sessions = sessions(backgroundScope)
+            assertThat(sessions.isOpen(ref.path)).isFalse()
+
+            val session = sessions.open(ref.path).orThrow()
+            assertThat(sessions.isOpen(ref.path)).isTrue()
+            assertThat(sessions.anyOpenUnder("Folder")).isTrue()
+            assertThat(sessions.anyOpenUnder("Other")).isFalse()
+
+            sessions.close(session)
+            assertThat(sessions.isOpen(ref.path)).isFalse()
+            assertThat(sessions.anyOpenUnder("Folder")).isFalse()
+        }
+
+    @Test
     fun release_thenOpenSamePath_packsAndReturnsFreshSession() =
         runTest {
             val ref = documents.create(spec("Release")).orThrow()
