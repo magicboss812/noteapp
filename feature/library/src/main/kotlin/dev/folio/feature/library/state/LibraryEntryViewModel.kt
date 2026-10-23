@@ -12,6 +12,7 @@ import dev.folio.core.storage.library.LibraryAccess
 import dev.folio.core.storage.library.LibraryAccessState
 import dev.folio.core.storage.repo.DocumentFilter
 import dev.folio.core.storage.repo.LibraryRepository
+import dev.folio.core.storage.work.BinMaintenance
 import dev.folio.core.storage.work.Recovery
 import dev.folio.core.storage.work.RecoveryEvents
 import kotlinx.collections.immutable.ImmutableList
@@ -69,11 +70,13 @@ class LibraryEntryViewModel
         // Lazy: the index is only built once the library folder is usable.
         private val scanner: Lazy<LibraryScanner>,
         private val library: Lazy<LibraryRepository>,
+        private val binMaintenance: Lazy<BinMaintenance>,
     ) : ViewModel() {
         private val mutableState = MutableStateFlow<LibraryAccessState>(LibraryAccessState.Checking)
         private val mutableDocuments = MutableStateFlow<ImmutableList<LibraryDocItem>>(persistentListOf())
         private val mutableFolders = MutableStateFlow<ImmutableList<LibraryFolderItem>>(persistentListOf())
         private var listing: Job? = null
+        private var binMaintained = false
 
         /** Folders for the sidebar tree; empty until the library is ready. */
         val folders: StateFlow<ImmutableList<LibraryFolderItem>> = mutableFolders.asStateFlow()
@@ -104,6 +107,10 @@ class LibraryEntryViewModel
                     }
                 mutableState.value = checked
                 if (checked is LibraryAccessState.Ready) {
+                    if (!binMaintained) {
+                        binMaintained = true
+                        launch { binMaintenance.get().runAtStart() }
+                    }
                     scanner.get().incrementalScan()
                     if (listing == null) {
                         listing = launch { allDocuments().collect { mutableDocuments.value = it } }

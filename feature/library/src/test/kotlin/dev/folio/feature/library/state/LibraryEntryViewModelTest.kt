@@ -16,6 +16,7 @@ import dev.folio.core.storage.library.LibraryRoot
 import dev.folio.core.storage.repo.DocumentRepository
 import dev.folio.core.storage.repo.LibraryRepository
 import dev.folio.core.storage.repo.NewDocumentSpec
+import dev.folio.core.storage.work.BinMaintenance
 import dev.folio.core.storage.work.Packer
 import dev.folio.core.storage.work.Recovery
 import dev.folio.core.storage.work.RecoveryEvents
@@ -52,6 +53,13 @@ class LibraryEntryViewModelTest {
     private lateinit var documents: DocumentRepository
     private lateinit var vm: LibraryEntryViewModel
     private val recoveryEvents = RecoveryEvents()
+    private var maintenanceRuns = 0
+    private val binMaintenance =
+        object : BinMaintenance {
+            override suspend fun runAtStart() {
+                maintenanceRuns++
+            }
+        }
 
     @Before
     fun setUp() {
@@ -71,6 +79,7 @@ class LibraryEntryViewModelTest {
                 dispatchers.dispatchers,
                 Lazy { scanner },
                 Lazy { repository },
+                Lazy { binMaintenance },
             )
     }
 
@@ -88,6 +97,21 @@ class LibraryEntryViewModelTest {
             granted = true
             vm.refresh()
             assertThat(vm.state.first { it is LibraryAccessState.Ready }).isEqualTo(LibraryAccessState.Ready(root.path))
+        }
+
+    @Test
+    fun refresh_binMaintenanceRunsOnceWhenReady() =
+        runTest(dispatchers.testDispatcher) {
+            vm.refresh()
+            vm.state.first { it != LibraryAccessState.Checking }
+            assertThat(maintenanceRuns).isEqualTo(0) // no access yet: the bin is not touched
+
+            granted = true
+            vm.refresh()
+            vm.state.first { it is LibraryAccessState.Ready }
+            vm.refresh()
+            vm.state.first { it is LibraryAccessState.Ready }
+            assertThat(maintenanceRuns).isEqualTo(1)
         }
 
     @Test

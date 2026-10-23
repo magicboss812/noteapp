@@ -41,12 +41,15 @@ import dev.folio.core.designsystem.component.SegmentedTabs
 import dev.folio.core.designsystem.icon.FolioIcons
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.storage.repo.DocumentSort
+import dev.folio.feature.library.state.LibraryBinState
 import dev.folio.feature.library.state.LibraryBrowseState
 import dev.folio.feature.library.state.LibraryDocItem
 import dev.folio.feature.library.state.LibraryFolderItem
 import dev.folio.feature.library.state.LibraryTab
 import dev.folio.feature.library.state.LibraryViewMode
 import dev.folio.feature.library.state.SearchUiState
+import dev.folio.feature.library.state.allFavorite
+import dev.folio.feature.library.state.allTicked
 import dev.folio.feature.library.state.breadcrumb
 import dev.folio.feature.library.state.childFolders
 import dev.folio.feature.library.state.dateSubtitle
@@ -105,6 +108,8 @@ internal fun LibraryHome(
     search: SearchUiState = SearchUiState(),
     searchActions: SearchActions = SearchActions(),
     onOpenSettings: (() -> Unit)? = null,
+    bin: LibraryBinState = LibraryBinState(),
+    binActions: BinActions = BinActions(),
 ) {
     // A folder renamed, moved or deleted elsewhere falls back to the root instead of showing an empty view.
     val folder = existingFolder(folders, browse.folder)
@@ -150,32 +155,34 @@ internal fun LibraryHome(
                     )
                     LibraryControls(browse, folder, onSelectTab, folderActions.onOpen, onSetSort, onToggleViewMode, onToggleSelectMode)
                     TagTabChips(browse.tab, tags, onSelectTag)
-                    LibraryDocuments(
-                        knownTags = tags.known,
-                        documents = visible,
-                        folders = folders,
-                        subfolders = subfolders,
-                        viewMode = browse.viewMode,
-                        selectMode = browse.selectMode,
-                        selected = browse.selected,
-                        nowMs = nowMs,
-                        zone = zone,
-                        emptyTitle = emptyTitle(browse.tab, folder),
-                        emptyHint = emptyHint(browse.tab, folder),
-                        onOpenDocument = onOpenDocument,
-                        notes = notes,
-                        folderActions = folderActions,
-                    )
+                    if (browse.tab == LibraryTab.BIN) {
+                        LibraryBinList(bin, binActions)
+                    } else {
+                        LibraryDocuments(
+                            knownTags = tags.known,
+                            documents = visible,
+                            folders = folders,
+                            subfolders = subfolders,
+                            viewMode = browse.viewMode,
+                            selectMode = browse.selectMode,
+                            selected = browse.selected,
+                            nowMs = nowMs,
+                            zone = zone,
+                            emptyTitle = emptyTitle(browse.tab, folder),
+                            emptyHint = emptyHint(browse.tab, folder),
+                            onOpenDocument = onOpenDocument,
+                            notes = notes,
+                            folderActions = folderActions,
+                        )
+                    }
                 }
-                if (browse.selectMode) {
+                if (browse.tab == LibraryTab.BIN) {
+                    Unit // nothing is created or ticked inside the bin
+                } else if (browse.selectMode) {
                     SelectionBar(
                         count = browse.selected.size,
-                        allSelected = visible.isNotEmpty() && visible.all { it.path in browse.selected },
-                        favoriteAll =
-                            visible.filter { it.path in browse.selected }.let { picked ->
-                                picked.isNotEmpty() &&
-                                    picked.all { it.favorite }
-                            },
+                        allSelected = allTicked(visible, browse.selected),
+                        favoriteAll = allFavorite(visible, browse.selected),
                         onSelectAll = { onSelectAll(visible.map { it.path }) },
                         onMove = { movingSelection = true },
                         onFavorite = { favorite -> notes.onSetFavorite(browse.selected, favorite) },
@@ -246,7 +253,7 @@ private fun emptyHint(
         LibraryTab.ALL -> "Tap the plus button to start a note."
         LibraryTab.FAVORITES -> "Mark a note as favorite and it shows up here."
         LibraryTab.TAGS -> "Tags you add to notes show up here."
-        LibraryTab.BIN -> "Deleted notes stay here for 30 days."
+        LibraryTab.BIN -> "Deleted notes show up here."
     }
 }
 

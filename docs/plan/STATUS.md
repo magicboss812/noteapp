@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P05
-next: P05-T06
+next: P05-T07
 updated: 2026-10-23
 
 ## Completed
@@ -12,12 +12,13 @@ updated: 2026-10-23
 - P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 PASS 2026-10-23 (T09 after fix: CanvasHost collectors on the main dispatcher); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green.
 
 ## Current phase progress
-- P05: T01, T02, T03, T04, T05
+- P05: T01, T02, T03, T04, T05, T06
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
 
 ## USER-CHECK (human verification; non-blocking)
+- P05-T06: delete a note and a folder, open the Bin tab -> rows show age and days left (red when 3 or fewer), Restore puts them back, trash button and "Empty bin" ask first, the "Keep deleted items" picker changes the days left; `bash scripts/device/diag.sh` shows no WorkManager crash at launch.
 - P05-T05: library header search button -> type part of a title or word from a note's text; results show highlighted snippets, folder and tag chips filter, recent searches reappear and Clear works; tapping a result opens the note.
 - P05-T04: card "..." -> Tags: add/remove tags, suggestions; Tags tab chips filter the grid; cards show the star and first #tag; favorites toggle from the menu and the selection bar -> chips and dialog read well; tags survive a relaunch.
 - P05-T03: library "+" -> Folder; open it, create subfolders; card "..." -> Color, Rename, Move (own subtree greyed), Delete (goes to the bin) -> breadcrumb, colors and cards read well; folders survive a relaunch.
@@ -36,7 +37,7 @@ updated: 2026-10-23
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P05-T05 done: search overlay (`ui/SearchOverlay.kt`, `state/LibrarySearchViewModel.kt`, `state/LibrarySearch.kt`); `LibraryRepository.search(query, folder, tag)` returns `SearchHit` (pure helpers in `repo/SearchText.kt`); 500 docs query 15 ms. Search button now always enabled, so 19 library goldens were re-recorded.
-- Deviation: opening a result does not jump to the first match page (needs flow layout): A-033, D-029 -> P06-T04.
-- State: sidebar has no Tags entry; Bin tab and restore UI are still empty placeholders (T06). Menu Export row is a disabled placeholder.
-- Next: P05-T06 (bin). FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).
+- P05-T06 done: Bin tab (`ui/LibraryBinList.kt`, `state/LibraryBin.kt`, `LibraryBinViewModel`); retention in `repo/BinRetention.kt`, purge via `BinPurger`, `work/BinPurgeWorker` (daily) and `BinMaintenance` (library start). WorkManager initializes lazily (A-034).
+- Not device-tested: the worker never ran on the tablet (USER-CHECK). The Bin tab still shows the sort/view/select header controls, which do nothing there.
+- State: sidebar has no Tags entry. Menu Export row is a disabled placeholder. `feature:settings` is empty, so the retention picker is in the Bin tab.
+- Next: P05-T07 (transitions). FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).

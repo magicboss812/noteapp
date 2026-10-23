@@ -39,6 +39,8 @@ import dev.folio.core.designsystem.component.FolioSnackbarHost
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.storage.library.LibraryAccessState
 import dev.folio.core.storage.repo.DocumentSort
+import dev.folio.feature.library.state.LibraryBinState
+import dev.folio.feature.library.state.LibraryBinViewModel
 import dev.folio.feature.library.state.LibraryBrowseState
 import dev.folio.feature.library.state.LibraryBrowseViewModel
 import dev.folio.feature.library.state.LibraryDocItem
@@ -79,8 +81,10 @@ fun LibraryEntryRoute(
     newNoteViewModel: NewNoteViewModel = hiltViewModel(),
     opsViewModel: LibraryOpsViewModel = hiltViewModel(),
     searchViewModel: LibrarySearchViewModel = hiltViewModel(),
+    binViewModel: LibraryBinViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val bin by binViewModel.state.collectAsStateWithLifecycle()
     val search by searchViewModel.state.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle()
     val folders by viewModel.folders.collectAsStateWithLifecycle()
@@ -88,11 +92,11 @@ fun LibraryEntryRoute(
     val newNote by newNoteViewModel.state.collectAsStateWithLifecycle()
     // Re-read when the list changes, so the date line and the card timestamps follow the clock.
     val content =
-        remember(browse, documents, folders, search) {
-            LibraryContent(browse, documents, folders, browseViewModel.nowMs(), ZoneId.systemDefault(), search)
+        remember(browse, documents, folders, search, bin) {
+            LibraryContent(browse, documents, folders, browseViewModel.nowMs(), ZoneId.systemDefault(), search, bin)
         }
     val actions =
-        remember(browseViewModel, opsViewModel, onOpenDocument, newNoteViewModel, searchViewModel) {
+        remember(browseViewModel, opsViewModel, onOpenDocument, newNoteViewModel, searchViewModel, binViewModel) {
             // Batch actions end the selection; a refused one (open document) is reported by the snackbar.
             val batch: (() -> Unit) -> Unit = { run ->
                 run()
@@ -118,6 +122,13 @@ fun LibraryEntryRoute(
                         onUseRecent = searchViewModel::useRecent,
                         onClearRecent = searchViewModel::clearRecent,
                         onCommit = searchViewModel::commitQuery,
+                    ),
+                bin =
+                    BinActions(
+                        onRestore = binViewModel::restore,
+                        onDeleteForever = binViewModel::deleteForever,
+                        onEmpty = binViewModel::emptyBin,
+                        onSetRetention = binViewModel::setRetention,
                     ),
                 folders =
                     FolderActions(
@@ -152,6 +163,11 @@ fun LibraryEntryRoute(
         }
     }
     LaunchedEffect(opsViewModel) { opsViewModel.messages.collect { snackbars.showSnackbar(it) } }
+    LaunchedEffect(binViewModel) { binViewModel.messages.collect { snackbars.showSnackbar(it) } }
+    // The bin list is read when the tab opens (and once the library is usable), not on every index change.
+    LaunchedEffect(browse.tab, state is LibraryAccessState.Ready) {
+        if (browse.tab == LibraryTab.BIN && state is LibraryAccessState.Ready) binViewModel.refresh()
+    }
     LifecycleResumeEffect(Unit) {
         viewModel.refresh()
         onPauseOrDispose {}
@@ -194,6 +210,7 @@ data class LibraryContent(
     val nowMs: Long = 0L,
     val zone: ZoneId = ZoneOffset.UTC,
     val search: SearchUiState = SearchUiState(),
+    val bin: LibraryBinState = LibraryBinState(),
 )
 
 /** What the library home reports; every default is a no-op so previews and tests pass only what they check. */
@@ -211,6 +228,7 @@ data class LibraryActions(
     val notes: NoteActions = NoteActions(),
     val folders: FolderActions = FolderActions(),
     val search: SearchActions = SearchActions(),
+    val bin: BinActions = BinActions(),
 )
 
 /** Stateless entry screen. */
@@ -255,6 +273,8 @@ fun LibraryEntryScreen(
                     onSelectTag = actions.onSelectTag,
                     search = content.search,
                     searchActions = actions.search,
+                    bin = content.bin,
+                    binActions = actions.bin,
                 )
             }
 

@@ -467,7 +467,7 @@ private fun listMeta(doc: LibraryDocItem): String {
 }
 
 @Composable
-private fun EmptyState(
+internal fun EmptyState(
     title: String,
     hint: String,
     modifier: Modifier = Modifier,

@@ -173,3 +173,8 @@ Format:
 - Reason: the editor has no text flows yet, so there is nothing to look a match up in.
 - Impact: 09-storage-library.md#search, phase-06-text-engine.md P06-T04 (Do).
 
+## A-034 2026-10-23 P05-T06: retention picker lives in the Bin tab; WorkManager starts on first use
+- Change: the retention choice (7, 30 default, 90 days, never; DataStore key `bin.retention`) is a picker row at the top of the Bin tab, because no settings screen exists before P11 (P11 may add the same row there). The purge runs from the daily WorkManager job `bin-purge` and once per start when the library becomes usable (`BinMaintenance`). WorkManager's start-up initializer is removed from the manifest and `FolioApplication` provides the configuration, so WorkManager initializes when the job is first queued, not at process start (12-performance.md cold launch).
+- Reason: the task asks for a retention setting and a daily job; the Bin tab is where the user reasons about it, and the app class must stay free of start-up work.
+- Impact: 09-storage-library.md#trash, docs/notes/env.md (WorkManager row).
+

@@ -27,9 +27,11 @@ import dev.folio.core.storage.repo.LibraryRepository
 import dev.folio.core.storage.session.DocumentSessions
 import dev.folio.core.storage.settings.DataStoreSettingsStore
 import dev.folio.core.storage.settings.SettingsStore
+import dev.folio.core.storage.work.BinMaintenance
 import dev.folio.core.storage.work.Packer
 import dev.folio.core.storage.work.Recovery
 import dev.folio.core.storage.work.RecoveryEvents
+import dev.folio.core.storage.work.WorkBinMaintenance
 import dev.folio.core.storage.work.WorkingCopyStore
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +53,9 @@ internal abstract class StorageModule {
 
     @Binds
     abstract fun settingsStore(impl: DataStoreSettingsStore): SettingsStore
+
+    @Binds
+    abstract fun binMaintenance(impl: WorkBinMaintenance): BinMaintenance
 
     @Suppress("TooManyFunctions") // one provider per storage service; splitting the module would only scatter the wiring
     internal companion object {

@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.work.Configuration
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
 import dev.folio.core.common.FolioLog
@@ -17,9 +18,13 @@ import dev.folio.core.storage.session.DocumentSessions
 import javax.inject.Inject
 
 @HiltAndroidApp
-class FolioApplication : Application() {
+class FolioApplication :
+    Application(),
+    Configuration.Provider {
     @Inject
     lateinit var sessions: Lazy<DocumentSessions>
+
+    override val workManagerConfiguration: Configuration = Configuration.Builder().build()
 
     override fun onCreate() {
         super.onCreate()

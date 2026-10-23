@@ -15,6 +15,7 @@ dependencies {
     implementation(projects.core.common)
     implementation(libs.serialization.json)
     implementation(libs.datastore.preferences)
+    implementation(libs.work.runtime.ktx)
     testImplementation(projects.core.testing)
     testImplementation(libs.bundles.robolectric)
 }

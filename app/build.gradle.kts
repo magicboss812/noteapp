@@ -38,6 +38,7 @@ dependencies {
     implementation(libs.navigation3.runtime)
     implementation(libs.navigation3.ui)
     implementation(libs.core.ktx)
+    implementation(libs.work.runtime.ktx) // Configuration.Provider: WorkManager starts on first use, not at launch
     implementation(libs.coroutines.android)
     debugImplementation(libs.serialization.json)
     // core:text: the P01 spike-fonts screen (app/src/debug/.../spikes, STATUS D-002).

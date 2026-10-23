@@ -47,7 +47,7 @@ Duplicate docIds (a file copied manually): the second file gets a new docId on f
 ## Trash
 - Deleting a document or folder moves it to `.trash/<epochMs>__<name>` plus sidecar `<same>.trash.json` `{ "originalPath": "Physics/Kinematics.folio", "deletedMs": ..., "docId": ... }`.
 - Bin tab lists trash entries with "deleted N days ago / M days left". Restore moves back to the original path (recreating folders; name collision -> " (2)").
-- Retention (settings): 7, 30 (default), 90 days, never. A daily WorkManager job and every app start purge expired entries. "Delete forever" and "Empty bin" ask for confirmation.
+- Retention (a picker row in the Bin tab, A-034): 7, 30 (default), 90 days, never. A daily WorkManager job and every app start purge expired entries. "Delete forever" and "Empty bin" ask for confirmation.
 - Trashed documents are excluded from search and links resolution (links show as broken).
 
 ## Search
