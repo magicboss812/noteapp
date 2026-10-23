@@ -101,7 +101,7 @@ Dark mode never changes paper color, templates, ink, images, or PDF rendering (R
 | emphasized | 320 ms, emphasized decelerate | sheets, card -> editor container transform, split view open |
 | spring | dampingRatio 0.85, stiffness 500 | toolbar dock snapping, floating toolbar drag release, selection box |
 Easing: standard = CubicBezier(0.2, 0, 0, 1); emphasized decelerate = CubicBezier(0.05, 0.7, 0.1, 1).
-- Card -> editor: shared element (card bounds -> page area), cover image crossfades into the live first page.
+- Card -> editor (A-035): the editor scales 0.94 -> 1 with a fade over the library, which settles to 0.97 and never fades (no flash). No shared element.
 - Tool switch: the selected circle fades in, icon scales 0.92 -> 1.
 - Options row: morphs in place, width hugs content and stays centered (AnimatedContent, fade + size).
 - Page add/delete: fade + 0.96 -> 1 scale; page panel reorder: animateItem.

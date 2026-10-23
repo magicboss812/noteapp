@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridItemScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -160,7 +161,7 @@ internal fun LibraryDocuments(
                 horizontalArrangement = spacing,
             ) {
                 items(subfolders, key = { "folder:${it.folder.path}" }) { summary ->
-                    Box {
+                    Box(itemMotion()) {
                         FolderCard(
                             name = summary.folder.name,
                             noteCount = summary.noteCount,
@@ -176,7 +177,7 @@ internal fun LibraryDocuments(
                 }
                 items(documents, key = { it.path }) { doc ->
                     val cover = rememberCover(doc, notes.loadCover)
-                    Box {
+                    Box(itemMotion()) {
                         NoteCard(
                             title = doc.title,
                             timestamp = cardTimestamp(doc.modifiedMs, nowMs, zone),
@@ -203,7 +204,7 @@ internal fun LibraryDocuments(
                 horizontalArrangement = spacing,
             ) {
                 items(subfolders, key = { "folder:${it.folder.path}" }) { summary ->
-                    Box {
+                    Box(itemMotion()) {
                         FolderListRow(
                             summary = summary,
                             onClick = { folderActions.onOpen(summary.folder.path) },
@@ -214,7 +215,7 @@ internal fun LibraryDocuments(
                     }
                 }
                 items(documents, key = { it.path }) { doc ->
-                    Box {
+                    Box(itemMotion()) {
                         DocumentListRow(
                             doc = doc,
                             cover = rememberCover(doc, notes.loadCover),
@@ -244,6 +245,13 @@ internal fun LibraryDocuments(
         )
     }
     FolderDialogHost(folderDialog, folders, folderActions, onClose = { folderDialog = null })
+}
+
+/** Cards fade in and out and glide to their new cell when notes are added, removed or re-sorted. */
+@Composable
+private fun LazyGridItemScope.itemMotion(): Modifier {
+    val motion = FolioTheme.motion
+    return Modifier.animateItem(fadeInSpec = motion.standard(), placementSpec = motion.standard(), fadeOutSpec = motion.standard())
 }
 
 /** Runs a note menu entry; rename, move and tags only open a dialog, so they are handed back through [onRename], [onMove] and [onTags]. */

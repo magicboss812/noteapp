@@ -178,3 +178,8 @@ Format:
 - Reason: the task asks for a retention setting and a daily job; the Bin tab is where the user reasons about it, and the app class must stay free of start-up work.
 - Impact: 09-storage-library.md#trash, docs/notes/env.md (WorkManager row).
 
+## A-035 2026-10-23 P05-T07: card -> editor is a scale + fade, not a shared-element container transform
+- Change: opening a note grows the editor from 0.94 to 1 with a fade (emphasized, 320 ms) over the library, which settles to 0.97 without fading, so the window background never shows. Closing and the predictive back gesture reverse it. Reduce motion: plain fades. Cards use `animateItem` (standard); the sidebar width and folder block animate (standard). `enableOnBackInvokedCallback` is set on the application.
+- Reason: a shared element would move the editor's page area, which hosts the ink SurfaceView and tile views; shared bounds render in an overlay layer that SurfaceViews do not follow. Not tried on the tablet; revisit in P11 polish if the user wants the card to morph.
+- Impact: 11-design-system.md#motion (card -> editor line).
+
