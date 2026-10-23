@@ -2,6 +2,31 @@
 Goal: typed text as a first-class citizen: instant creation, Markdown blocks snapped to the page grid, flows that continue across pages, fonts, LaTeX, tables, links, fast on very long text.
 Exit: grid invariant tests pass for 20 fonts and all block types incl. inline math; text budgets met on the tablet; tag `p06-done`.
 
+Order: P06-T12 and P06-T13 (editor chrome redesign, user feedback 2026-10-23, A-037) run first, so the text options and context bars of this phase land on the new chrome.
+
+### P06-T12 Editor chrome without an app bar
+Model: opus high
+Implements: R-UI-01, R-UI-02, R-UI-04
+Read: 10-editor-ui.md#screen-structure, #toolbar, #toolbar-docking, #read-mode; docs/design/notewise/DESIGN.md sections 7 (toolbar pill, rows, editor top pills), 8 (Editor), 9; shot G3-editor-collapsed.jpg only if the text leaves a question open
+Do: P04-T10 USER-CHECK feedback (A-037). Remove the opaque top bar: pages fill the window on `bg.canvas` and pass under floating pills: nav pill top-left (Home, Pages, Overview, Add page), edit pill 8 dp below it (Undo, Redo), mode pill top-right (Read mode, Split view, More), bottom-left info pill (page fraction | zoom %, the autosave dot sits next to it). Toolbox = row 2 over row 1, centered, 8 dp apart; new BOTTOM dock (default, 25 dp above the bottom edge, slides above the IME); TOP/LEFT/RIGHT/FLOATING keep their behavior with pill styling, releases near the bottom edge snap to BOTTOM (A-029 had no bottom dock); a stored placement still equal to the old TOP default moves to BOTTOM once. Row 1 ends with a collapse chevron that hides row 2 (animated, chevron flips, persisted). Read mode: chrome slides out with FolioMotion, system bars hide, only an exit pill top-right stays; pen and finger only pan, zoom and tap links (no ink, eraser or lasso); Back or the exit pill leaves it; survives rotation, not reopening. Pills consume input only inside their bounds. Update the editor goldens.
+Accept:
+- [ ] screenshot: editor landscape + portrait with the bottom dock and no top bar; row 2 collapsed; top, left, right and floating docks; read mode
+- [ ] unit: dock model with BOTTOM (snap from a drag release, per-orientation persistence, one-time TOP -> BOTTOM move); read mode routes pen and touch to navigation only
+- [ ] device: read mode enter/exit with 1500 strokes: gfxinfo janky <= 1%; a pen stroke in read mode pans and adds no stroke; toolbox and pills stay on screen in portrait
+- [ ] user: "Open a note: does the chrome read like Notewise (floating pills, no top bar)? Hide row 2 with the chevron and enter/leave read mode: smooth?"
+Verify: `./gradlew :feature:editor:testDebugUnitTest :feature:editor:verifyRoborazziDebug` + device-tester
+
+### P06-T13 Tool settings panels and a slim options row
+Model: sonnet high
+Implements: R-UI-01, R-INK-01, R-INK-02, R-INK-03
+Read: 10-editor-ui.md#tool-options; docs/design/notewise/DESIGN.md section 7 (row 2, popover, tool settings panel, slider, switch, segmented buttons); shot G4-pen-settings.jpg only if needed
+Do: P04-T10 USER-CHECK feedback (A-037). Row 2 keeps only mode/kind | widths | colors | details (sliders icon) per tool; everything else moves to a 340 dp tool settings panel (centered title + close chip, stroke preview, kind cards, slider block, 44 dp setting rows, colors last, destructive text in `danger`): pen kind, width slider, pressure curve, tilt shading; highlighter always straight; eraser highlighter-only and Clear page; lasso filter chips. Tapping the selected tool again or the details button opens it, anchored per dock (BOTTOM/TOP: next to row 2, rails: flyout, floating: centered), no scrim, one outside tap closes. Width and color popovers still open from the selected width or color. Later tools (shape, text, table) follow the same row/panel split.
+Accept:
+- [ ] screenshot: settings panel for pen, highlighter, eraser, lasso; slim row 2 per tool; panel anchored for the bottom and a side dock
+- [ ] unit: tapping the selected tool toggles its panel; panel changes persist per tool (ToolOptionsStore round trip)
+- [ ] user: "Tap the pen twice: does the panel hold the pen settings like Notewise, and does row 2 look lighter?"
+Verify: `./gradlew :feature:editor:testDebugUnitTest :feature:editor:verifyRoborazziDebug`
+
 ### P06-T01 Markdown block model and parser
 Model: sonnet high
 Implements: R-TXT-01, R-TXT-02

@@ -188,3 +188,8 @@ Format:
 - Reason: import shares the SAF picker, docId-collision and validation work with export; a sidebar tag list would duplicate the Tags tab chips.
 - Impact: 09-storage-library.md#repositories, 11-design-system.md#library-screen, phase-09-export.md P09-T06.
 
+## A-037 2026-10-23 P05 USER-CHECK intake: Notewise editor chrome, tool settings panels, read mode, bottom dock
+- Change: the editor drops its top bar: nav pill (Home, Pages, Overview, Add page) top-left, edit pill (Undo, Redo) below it, mode pill (Read mode, Split view, More) top-right, info pill (page fraction, zoom) bottom-left, toolbox floating over the canvas. New BOTTOM dock, now the default (A-029 had none; TOP/LEFT/RIGHT/FLOATING stay). Row 1 gets a collapse chevron hiding row 2. Row 2 keeps mode/kind, widths, colors and a details button; the other options move to a 340 dp tool settings panel opened by tapping the selected tool again. New read mode: chrome hidden, immersive, pen and finger only navigate. Built in P06-T12/T13 before the text work.
+- Reason: P04-T10 USER-CHECK: "note UI doesn't look anything like Notewise, especially the top bar"; the user wants read mode/fullscreen transitions, more pen settings in the tap-again panel, and a hideable options row. The user chose: redesign now, read mode without ink, bottom default.
+- Impact: 10-editor-ui.md#screen-structure, #toolbar, #tool-options, #toolbar-docking, #pages, new #read-mode; phase-06-text-engine.md (P06-T12, P06-T13), phase-11-polish.md P11-T10.
+

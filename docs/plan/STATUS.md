@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T01
+next: P06-T12
 updated: 2026-10-23
 
 ## Completed
@@ -9,8 +9,8 @@ updated: 2026-10-23
 - P01 done 2026-09-28 (tag p01-done): ADR-002..008 Accepted: ink front buffer (onTouch p95 0.28 ms), bitmap tiles (jank 0.49%, p95 gap -> P03-T10), library IO (46 MB pack 1.4 s), PdfBox merge (100 pp 0.24 s), jlatexmath (p95 0.8 ms), grid-pitch text (0.000 px, 20 fonts); A-005..A-008; qa green.
 - P02 done 2026-09-29 (tag p02-done): model + commands (200-command undo property test), folio.v1 codec (1000x120 inputs 709 KB), container + goldens, crash-safe packer (100 injected failures), recovery, Room index (500 docs 149 ms), repositories, sessions (LRU 30); REVIEW fixed 6 blocking findings; A-009..A-016; qa green.
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
-- P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 PASS 2026-10-23 (T09 after fix: CanvasHost collectors on the main dispatcher); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green.
-- P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green.
+- P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 PASS 2026-10-23 (T09 after fix: CanvasHost collectors on the main dispatcher); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green; USER-CHECKs answered 2026-10-23 (T10 chrome -> A-037).
+- P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
 - P06: (none)
@@ -19,16 +19,7 @@ updated: 2026-10-23
 - (none)
 
 ## USER-CHECK (human verification; non-blocking)
-- P05-T07: open and close notes from the library (tap, back button, back swipe), collapse/expand the sidebar, delete or duplicate a note -> smooth, no flashes, no jumps; the card does not morph into the page (A-035), say if you want that.
-- P05-T06: delete a note and a folder, open the Bin tab -> rows show age and days left (red when 3 or fewer), Restore puts them back, trash button and "Empty bin" ask first, the "Keep deleted items" picker changes the days left; `bash scripts/device/diag.sh` shows no WorkManager crash at launch.
-- P05-T05: library header search button -> type part of a title or word from a note's text; results show highlighted snippets, folder and tag chips filter, recent searches reappear and Clear works; tapping a result opens the note.
-- P05-T04: card "..." -> Tags: add/remove tags, suggestions; Tags tab chips filter the grid; cards show the star and first #tag; favorites toggle from the menu and the selection bar -> chips and dialog read well; tags survive a relaunch.
-- P05-T03: library "+" -> Folder; open it, create subfolders; card "..." -> Color, Rename, Move (own subtree greyed), Delete (goes to the bin) -> breadcrumb, colors and cards read well; folders survive a relaunch.
-- P05-T02: library home -> long-press a card to select several, use Move/Favorite/Delete in the bar; card menu Rename/Move/Duplicate/Favorite/Delete; with a note open in the editor its menu actions show "is open in the editor" -> covers (after a first save) and text excerpts read well.
-- P04-T10: open the library placeholder and a note on the tablet -> toolbar, options row, popovers, colors and type read as Notewise; differences go to docs/plan/FEEDBACK.md.
-- P04-T06: toolbar Pages (drawer), Overview (grid) and Add page buttons; long-press and drag a panel row to reorder; row menu, page settings -> panels and sheet read well, order survives reopening.
-- P04-T07: library "New note" -> sheet with title, paper size/orientation, fixed/infinite, template gallery previews, spacing, paper color; Create opens the note; the next sheet starts with your last choices.
-- P04-T08: draw, then watch the small dot at the editor's bottom-left (green idle, orange while saving); force-quit mid-edit and reopen -> "Recovered unsaved changes." snackbar on the library.
+- (none)
 
 ## Deferred (id: reason)
 - D-001, D-015 -> P11-T05; D-009, D-010 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P06-T04, P07-T05, P10-T01, P11-T10; D-028 -> P11-T10; D-029 -> P06-T04.
@@ -39,6 +30,7 @@ updated: 2026-10-23
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P05 REVIEW done: storage fixes (move into own folder / same-name or case-only folder rename are no-ops, moveFolder into own subtree is a Failure, restore rescans recreated folders), failure logging, 44 dp chip touch, onSearchHighlight token; qa green; tag p05-done.
-- Intake: A-036 (importFolio -> P09-T06, no sidebar Tags header); autosave dot layering -> P11-T10; reviewer leftovers (open-guard race, bin mutex, search snippet/accents, inert Bin controls, portrait grid margin) -> P11-T11.
-- Next: P06-T01 Markdown block model and parser (read the phase-06 header first). Spike code D-002 goes in P06-T03. `FolioIcons.kt` is generated (A-027).
+- USER-CHECK intake 2026-10-23: all P04/P05 checks answered and cleared; feedback in FEEDBACK.md Converted.
+- A-037 (user decisions): editor chrome without app bar, floating pills, BOTTOM dock as default, row 2 collapse chevron, tool settings panels, read mode without ink; spec in 10-editor-ui.md. New tasks P06-T12, P06-T13 run before P06-T01.
+- Polish additions: P11-T03 (library/editor transitions, drawers, sheets), P11-T11 (tag filter with empty query, Deselect all, card "..." inset).
+- Next: P06-T12 Editor chrome without an app bar (opus high; read the phase-06 header first). Then P06-T13, then P06-T01. `FolioIcons.kt` is generated (A-027).
