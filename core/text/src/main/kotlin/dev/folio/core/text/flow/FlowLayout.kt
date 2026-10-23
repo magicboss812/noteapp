@@ -1,5 +1,6 @@
 package dev.folio.core.text.flow
 
+import androidx.compose.ui.graphics.toArgb
 import dev.folio.core.common.PerfMonitor
 import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.ObjectId
@@ -43,9 +44,29 @@ class FlowLayout internal constructor(
     val distribution: Distribution,
     /** Number of slots that came from auto-continue (the last ones in [slots]). */
     val continuationCount: Int,
+    private val style: FlowTextStyle,
 ) {
     /** Slices of slot [frame], top to bottom. */
     fun slices(frame: Int): List<FlowSlice> = distribution.frames.getOrNull(frame).orEmpty()
+
+    /**
+     * Runs to paint for slot [frame] (07-text-engine.md#rendering): one per slice, positioned from the slot's top at
+     * `topUnit` x U, minus the top of the slice's first line so a block continued from another frame starts mid-block.
+     */
+    fun runs(frame: Int): List<TextRun> {
+        val slot = slots.getOrNull(frame) ?: return emptyList()
+        val slices = slices(frame)
+        if (slices.isEmpty()) return emptyList()
+        val codeBackground = style.palette.codeBackground.toArgb()
+        val out = ArrayList<TextRun>(slices.size)
+        for (slice in slices) {
+            val layout = layouts[slice.blockIndex] ?: continue
+            val first = firstLine(slice)
+            val top = slot.rect.top + slice.topUnit * slot.grid.unitPt - layout.lineTopPt(first)
+            out += TextRun(slot.frameId, layout, first, lineCount(slice), slot.rect.left, top, slot.rect.widthPt, codeBackground)
+        }
+        return out
+    }
 
     /** Layout of block [index], null when the block was not placed (overflow). */
     fun layoutOf(index: Int): BlockLayout? = layouts[index]
@@ -139,7 +160,7 @@ class FlowLayouter(
                 val start = distribution.startFrames[block]
                 if (start >= 0) layouts[block] = layoutFor(block, start)
             }
-            FlowLayout(all, markdown, layouts, distribution, added)
+            FlowLayout(all, markdown, layouts, distribution, added, style)
         }
 
     companion object {

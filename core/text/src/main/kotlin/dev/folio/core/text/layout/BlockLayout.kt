@@ -34,6 +34,33 @@ sealed interface BlockDecoration {
 }
 
 /**
+ * Adapter that lets block layouts paint onto an Android canvas. The Compose canvas wrapper is the only
+ * per-draw allocation of painting text, so a drawing thread binds its canvas once and paints every block
+ * through it. Not thread-safe: one per drawing thread; [release] when the canvas is done.
+ */
+class TextCanvas {
+    private var native: android.graphics.Canvas? = null
+    private var wrapped: ComposeCanvas? = null
+
+    /** Binds [canvas]; binding the canvas that is already bound reuses its wrapper. */
+    fun bind(canvas: android.graphics.Canvas): TextCanvas {
+        if (native !== canvas) {
+            wrapped = ComposeCanvas(canvas)
+            native = canvas
+        }
+        return this
+    }
+
+    /** Forgets the bound canvas so a finished tile bitmap is not retained. */
+    fun release() {
+        native = null
+        wrapped = null
+    }
+
+    internal fun compose(): ComposeCanvas = checkNotNull(wrapped) { "TextCanvas.bind was not called" }
+}
+
+/**
  * Text laid out at the grid-pitch reference scale [refScale] px per pt and shifted by [shiftPx] so
  * the first baseline lands on the bottom of its line box (07-text-engine.md#line-box, A-006).
  */
@@ -53,19 +80,21 @@ internal class GridText(
     /** Right edge of the ink advance of [line] (start-aligned text). */
     fun lineRightPt(line: Int): Float = paragraph.getLineRight(line) / refScale
 
+    // HOT PATH: runs once per block and tile render; no allocation here beyond what Paragraph.paint does itself.
     fun draw(
-        canvas: android.graphics.Canvas,
+        target: TextCanvas,
         leftPt: Float,
         topPt: Float,
         scale: Float,
         color: Color,
     ) {
+        val canvas = target.compose()
         canvas.save()
         canvas.translate(leftPt * scale, topPt * scale)
         val k = scale / refScale
         canvas.scale(k, k)
         canvas.translate(0f, shiftPx)
-        paragraph.paint(ComposeCanvas(canvas), color = color)
+        paragraph.paint(canvas, color = color)
         canvas.restore()
     }
 }
@@ -127,8 +156,25 @@ class BlockLayout internal constructor(
         topPt: Float,
         scale: Float,
         color: Color = Color.Black,
+    ) = draw(TextCanvas().bind(canvas), leftPt, topPt, scale, color)
+
+    /** [draw] through a reusable [target] with a plain ARGB color: the page renderer's path (no Compose types needed). */
+    fun paint(
+        target: TextCanvas,
+        leftPt: Float,
+        topPt: Float,
+        scale: Float,
+        argb: Int,
+    ) = draw(target, leftPt, topPt, scale, Color(argb))
+
+    private fun draw(
+        target: TextCanvas,
+        leftPt: Float,
+        topPt: Float,
+        scale: Float,
+        color: Color,
     ) {
-        text?.draw(canvas, leftPt + textLeftPt, topPt, scale, color)
-        marker?.draw(canvas, leftPt + markerLeftPt, topPt, scale, color)
+        text?.draw(target, leftPt + textLeftPt, topPt, scale, color)
+        marker?.draw(target, leftPt + markerLeftPt, topPt, scale, color)
     }
 }

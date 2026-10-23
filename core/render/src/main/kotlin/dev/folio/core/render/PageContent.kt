@@ -1,9 +1,11 @@
 package dev.folio.core.render
 
+import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.Page
 import dev.folio.core.model.PageObject
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.model.geometry.UniformGridIndex
+import dev.folio.core.text.flow.PageText
 import java.util.concurrent.atomic.AtomicReferenceArray
 
 /**
@@ -11,18 +13,23 @@ import java.util.concurrent.atomic.AtomicReferenceArray
  * their bounds, so a tile render touches only the objects under its rect (05-canvas-rendering.md#tiles).
  * Safe to share with render threads: the index is built once and only queried afterwards. Each object
  * has a [meshSlot] where painters cache derived data (ink meshes); [next] carries the slots of
- * unchanged objects over to the snapshot of an edited page.
+ * unchanged objects over to the snapshot of an edited page. [text] is what the page's text frames show; a
+ * frame is indexed by its bounds plus the ink bounds of its text, so text that hangs out of the frame is drawn.
  */
 class PageContent private constructor(
     /** The page body this snapshot was built from. */
     val page: Page,
     private val slots: AtomicReferenceArray<Any?>,
+    /** The text the page's [FlowFrame]s show. */
+    val text: PageText,
 ) {
     private val index = UniformGridIndex<Int>()
 
     init {
-        page.objects.forEachIndexed { i, o -> index.insert(i, o.bounds) }
+        page.objects.forEachIndexed { i, o -> index.insert(i, indexedBounds(o)) }
     }
+
+    private fun indexedBounds(o: PageObject): RectPt = if (o is FlowFrame) o.bounds.union(text.boundsOf(o.id)) else o.bounds
 
     /** Number of objects. */
     val size: Int get() = page.objects.size
@@ -33,7 +40,7 @@ class PageContent private constructor(
     /** Z-indices (ascending, so bottom first) of the objects whose bounds intersect [rect]. */
     fun objectsIn(rect: RectPt): IntArray = index.query(rect).toIntArray().apply { sort() }
 
-    /** True when no object's bounds intersect [rect]. */
+    /** True when no object's bounds (and no text of a frame) intersect [rect]. */
     fun isEmptyIn(rect: RectPt): Boolean = index.query(rect).isEmpty()
 
     /** Painter cache of object [i] (null until a painter stores one). */
@@ -45,9 +52,12 @@ class PageContent private constructor(
         value: Any?,
     ) = slots.set(i, value)
 
-    /** Snapshot of [next], keeping cached slots of objects that are the same instances as here. */
-    fun next(next: Page): PageContent {
-        if (next === page) return this
+    /** Snapshot of [next] showing [nextText], keeping cached slots of objects that are the same instances as here. */
+    fun next(
+        next: Page,
+        nextText: PageText = text,
+    ): PageContent {
+        if (next === page && nextText === text) return this
         val old = HashMap<String, Int>(size * 2)
         page.objects.forEachIndexed { i, o -> old[o.id.value] = i }
         val carried = AtomicReferenceArray<Any?>(next.objects.size)
@@ -55,13 +65,22 @@ class PageContent private constructor(
             val j = old[o.id.value] ?: return@forEachIndexed
             if (page.objects[j] === o) carried.set(i, slots.get(j))
         }
-        return PageContent(next, carried)
+        return PageContent(next, carried, nextText)
     }
 
     /** Factories and diffing. */
     companion object {
-        /** Snapshot of [page] with empty painter caches. */
-        fun of(page: Page): PageContent = PageContent(page, AtomicReferenceArray(page.objects.size))
+        /** Snapshot of [page] with empty painter caches, showing [text]. */
+        fun of(
+            page: Page,
+            text: PageText = PageText.EMPTY,
+        ): PageContent = PageContent(page, AtomicReferenceArray(page.objects.size), text)
+
+        /** Page-space rects whose pixels may differ between [before] and [after]: changed objects and changed text runs. */
+        fun changedBounds(
+            before: PageContent,
+            after: PageContent,
+        ): List<RectPt> = changedBounds(before.page, after.page) + PageText.changedBounds(before.text, after.text)
 
         /**
          * Page-space rects whose pixels may differ between [old] and [new]: bounds of removed, added and

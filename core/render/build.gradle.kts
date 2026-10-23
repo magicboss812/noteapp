@@ -14,4 +14,6 @@ dependencies {
     implementation(projects.core.common)
     implementation(libs.ink.rendering)
     testImplementation(projects.core.testing)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.text)
 }

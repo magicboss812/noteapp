@@ -42,6 +42,7 @@ class PageRenderer(
     private val ink: InkPainter = AndroidInkPainter(),
 ) {
     private val templates = TemplateRenderer(assets)
+    private val text = TextRunPainter()
     private val toDevice = Matrix()
     private val regionF = RectF()
     private val paper = Paint()
@@ -74,7 +75,13 @@ class PageRenderer(
             templates.draw(canvas, page.background.template, page.spec, regionF, scale)
             // PDF page rasters join the background with core:pdf (P08).
         }
-        if (target.content && content != null) drawObjects(canvas, content, regionPt)
+        if (target.content && content != null) {
+            try {
+                drawObjects(canvas, content, regionPt, scale, textArgb(page.background.paperArgb))
+            } finally {
+                text.release()
+            }
+        }
         canvas.restore()
     }
 
@@ -92,19 +99,34 @@ class PageRenderer(
         canvas: Canvas,
         content: PageContent,
         regionPt: RectPt,
+        scale: Float,
+        textArgb: Int,
     ) {
         for (i in content.objectsIn(regionPt)) {
             when (val o = content[i]) {
                 is InkStroke -> ink.draw(canvas, o, content, i, toDevice)
 
-                // Painters for these arrive with their features: text frames P06, the others P07.
-                is Shape, is FlowFrame, is ImageObject, is StickyNote, is Attachment -> Unit
+                // Unfocused text is painted at its frame's place in the z-order from the cached block layouts (P06-T05).
+                is FlowFrame -> text.draw(canvas, content.text.runsOf(o.id), regionPt, scale, textArgb)
+
+                // Painters for these arrive with their features (P07); a sticky note paints its own flow there.
+                is Shape, is ImageObject, is StickyNote, is Attachment -> Unit
             }
         }
     }
 
     /** Helpers for tile producers. */
     companion object {
+        /** Text color on paper [paperArgb]: near-black on light paper, near-white on dark paper. */
+        fun textArgb(paperArgb: Int): Int {
+            val luma = 0.299f * (paperArgb shr 16 and 0xFF) + 0.587f * (paperArgb shr 8 and 0xFF) + 0.114f * (paperArgb and 0xFF)
+            return if (luma < DARK_PAPER_LUMA) LIGHT_TEXT_ARGB else DARK_TEXT_ARGB
+        }
+
+        private const val DARK_PAPER_LUMA = 110f
+        private const val DARK_TEXT_ARGB = 0xFF1B1D22.toInt()
+        private const val LIGHT_TEXT_ARGB = 0xFFE6E6EA.toInt()
+
         /** True when [target] paints nothing but paper for [page] (the layer draws paper itself). */
         fun isPlainPaper(
             page: PageRef,

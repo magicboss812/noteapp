@@ -15,6 +15,7 @@ import dev.folio.core.render.PageContent
 import dev.folio.core.render.PageRenderer
 import dev.folio.core.render.RenderTarget
 import dev.folio.core.render.viewport.ZoomBuckets
+import dev.folio.core.text.flow.PageText
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -99,16 +100,18 @@ class TileLayer(
     val isSettled: Boolean get() = waitingVisible.isEmpty()
 
     /**
-     * Updates page [ref] (and its decoded [body], null if not loaded) and invalidates what changed:
-     * background tiles on a spec or background change, content tiles by the bounds of changed objects.
+     * Updates page [ref] (its decoded [body], null if not loaded, and the [text] its frames show) and invalidates what
+     * changed: background tiles on a spec or background change, content tiles by the bounds of changed objects and of
+     * text runs that were edited or shifted (07-text-engine.md#rendering).
      */
     fun setPage(
         ref: PageRef,
         body: Page?,
+        text: PageText = PageText.EMPTY,
     ) {
         val key = ref.id.value
         val old = pages[key]
-        val content = contentFor(old?.content, body)
+        val content = contentFor(old?.content, body, text)
         if (old != null && old.ref == ref && old.content === content) return
         pages[key] = PageState(ref, content)
         when {
@@ -122,12 +125,13 @@ class TileLayer(
     private fun contentFor(
         old: PageContent?,
         body: Page?,
+        text: PageText,
     ): PageContent? =
         when {
             target != RenderTarget.SCREEN_CONTENT -> null
             body == null -> old
-            old == null -> PageContent.of(body)
-            else -> old.next(body)
+            old == null -> PageContent.of(body, text)
+            else -> old.next(body, text)
         }
 
     private fun invalidateContent(
@@ -140,7 +144,7 @@ class TileLayer(
             cache.invalidatePage(key) // tiles cached before the body loaded showed no objects
             return
         }
-        for (rect in PageContent.changedBounds(before.page, after.page)) cache.invalidate(key, rect)
+        for (rect in PageContent.changedBounds(before, after)) cache.invalidate(key, rect)
     }
 
     /** Forgets pages not in [keep] and drops their tiles. */

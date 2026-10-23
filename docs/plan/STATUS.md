@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T05
+next: P06-T06
 updated: 2026-10-23
 
 ## Completed
@@ -13,7 +13,7 @@ updated: 2026-10-23
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04
+- P06: T12, T13, T01, T02, T03, T04, T05
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -23,12 +23,11 @@ updated: 2026-10-23
 
 ## Deferred (id: reason)
 - D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-029, D-032 -> P06-T06.
-- D-032 P06-T04: the editor does not run the flow engine yet (no core:text dependency); P06-T06 batches `FlowReflow.plan` with flow edits, passes `FlowLayout.markdownOn` to `duplicatePages`, opens search hits at `FlowSearch.firstPage` (A-041).
-- D-004 P01-REVIEW: `GridText.draw` (core/text layout/BlockLayout.kt) allocates a Compose canvas wrapper per call; cache it or mark HOT PATH before P06-T05 paints text into tiles.
+- D-032 P06-T04/T05: the editor does not run the flow engine yet (no core:text dependency); P06-T06 batches `FlowReflow.plan` with flow edits, passes `FlowLayout.markdownOn` to `duplicatePages`, opens search hits at `FlowSearch.firstPage` (A-041), and passes `PageTexts.of(doc, layouter)` pages to `TileLayer.setPage(ref, body, text)` and the thumbnails (A-042): until then no text shows in the editor.
 - D-014 P03-T09: tilt shading has no off switch (A-025): dry rendering applies tilt whenever stored inputs carry tilt; the P11-T01 setting needs a stored per-stroke choice (or dropping tilt at commit) so wet and dry ink agree; the pen panel gets its tilt row then (P06-T13).
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the highlighter panel, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T04 done (A-041): `TextZones` (core:model) gives body/box/sticky rects. core:text `flow/`: `FlowFrames.slotsOf(doc, flow)` -> `FlowLayouter.layout(...)` -> `FlowLayout` (per-slot `FlowSlice`s in U from frame top, `layoutOf(block)`, `markdownOn(page)`). `FlowReflow.plan(doc, flow)` returns layout + command (continuation pages, empty-page removal, box growth). `FlowSearch.firstPage` maps a query to a page.
-- `BlockLayout` (T03) is laid out per block at its start frame's width. `plainText`/`lineForOffset` were added for search. The editor does not use any of this yet (D-032 -> P06-T06).
-- Next: P06-T05 Rendering text in tiles: draw a page's slices via `FlowLayout.slices(slot)` + `layoutOf`, top = slot.rect.top + slice.topUnit x U, minus `lineTopPt(firstLine)`. D-004 first. Device-tester tip: tool row y 1963 px, mode pill y 171 px in landscape.
+- P06-T05 done (A-042): `PageTexts.of(doc, layouter)` -> `PageText` (runs per frame) -> `PageContent.of(page, text)` / `TileLayer.setPage(ref, body, text)`; `PageRenderer` paints runs via `TextRunPainter` (decorations + `BlockLayout.paint` through one `TextCanvas`, D-004 closed). `PageText.changedBounds` gives the minimal tile invalidation. Goldens `TextTiles_{LINED,GRID,DOTTED}_{a,b}.png`.
+- Not painted yet: sticky notes (P07-T05), math (T07) and tables (T08) use placeholders. The editor does not run any of the text engine (D-032 -> P06-T06).
+- Next: P06-T06 Focused editing: the focused block is a live field, so its frame must skip painting that block; wire flow reflow + `PageTexts` into the session and tile layers. Device-tester tip: tool row y 1963 px, mode pill y 171 px in landscape.
