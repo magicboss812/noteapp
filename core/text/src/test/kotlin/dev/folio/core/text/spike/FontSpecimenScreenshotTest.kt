@@ -22,7 +22,7 @@ class FontSpecimenScreenshotTest {
         val specimen =
             FontSpecimen(
                 GridTextLayouter(resolver, FontMetricsCache(resolver)),
-                FontRegistry.families,
+                FontRegistry.bundled,
                 BaselineMethod.GRID_PITCH,
                 compact = true,
             )

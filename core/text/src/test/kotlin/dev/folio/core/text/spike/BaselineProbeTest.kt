@@ -26,7 +26,7 @@ class BaselineProbeTest {
     fun gridPitch_everyFontAtZoom4_baselinesWithinHalfPixel() {
         val results =
             BaselineMethod.entries.flatMap { method ->
-                FontRegistry.families.map { BaselineProbe.run(layouter, metrics, it, method) }
+                FontRegistry.bundled.map { BaselineProbe.run(layouter, metrics, it, method) }
             }
         File("build/reports/p01-s3").mkdirs()
         File("build/reports/p01-s3/baseline-robolectric.md").writeText(BaselineProbe.table(results))

@@ -10,8 +10,8 @@ import androidx.compose.ui.text.style.TextMotion
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
-import dev.folio.core.text.fonts.BundledFontFamily
 import dev.folio.core.text.fonts.FontMetricsCache
+import dev.folio.core.text.fonts.TextFontFamily
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Canvas as ComposeCanvas
@@ -87,7 +87,7 @@ class GridTextLayouter(
      */
     fun layout(
         text: String,
-        family: BundledFontFamily,
+        family: TextFontFamily,
         unitPt: Float,
         capFraction: Float,
         widthPt: Float,

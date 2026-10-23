@@ -20,7 +20,15 @@ class GridTextLayouterTest {
     fun gridPitch_everyTemplateUnit_everyBaselineOnItsRule() {
         for (unitMm in TEMPLATE_UNITS_MM) {
             val unitPt = unitMm * PT_PER_MM
-            val block = layouter.layout(TEXT, FontRegistry.byName("Inter"), unitPt, BODY_M_CAP, WIDTH_PT, BaselineMethod.GRID_PITCH)
+            val block =
+                layouter.layout(
+                    TEXT,
+                    FontRegistry.Bundled.resolve("Inter"),
+                    unitPt,
+                    BODY_M_CAP,
+                    WIDTH_PT,
+                    BaselineMethod.GRID_PITCH,
+                )
 
             assertWithMessage("U=$unitMm mm lines").that(block.lineCount).isAtLeast(MIN_LINES)
             assertWithMessage("U=$unitMm mm height").that(block.heightPt).isEqualTo(block.lineCount * unitPt)
@@ -34,7 +42,7 @@ class GridTextLayouterTest {
     fun gridPitch_referenceScale_oneUnitIsWholePixels() {
         for (unitMm in TEMPLATE_UNITS_MM) {
             val unitPt = unitMm * PT_PER_MM
-            val block = layouter.layout("x", FontRegistry.byName("Inter"), unitPt, BODY_M_CAP, WIDTH_PT, BaselineMethod.GRID_PITCH)
+            val block = layouter.layout("x", FontRegistry.Bundled.resolve("Inter"), unitPt, BODY_M_CAP, WIDTH_PT, BaselineMethod.GRID_PITCH)
 
             // The line height is chosen as whole px; refScale is derived from it and only approximates it back.
             assertWithMessage("U=$unitMm mm").that(block.lineHeightPx).isEqualTo(Math.round(block.lineHeightPx).toFloat())

@@ -2,7 +2,7 @@ package dev.folio.core.text.spike
 
 import android.graphics.Canvas
 import android.graphics.Paint
-import dev.folio.core.text.fonts.BundledFontFamily
+import dev.folio.core.text.fonts.TextFontFamily
 import dev.folio.core.text.layout.BaselineMethod
 import dev.folio.core.text.layout.GridParagraph
 import dev.folio.core.text.layout.GridTextLayouter
@@ -14,7 +14,7 @@ import dev.folio.core.text.layout.GridTextLayouter
  */
 class FontSpecimen(
     layouter: GridTextLayouter,
-    families: List<BundledFontFamily>,
+    families: List<TextFontFamily>,
     method: BaselineMethod,
     compact: Boolean,
 ) {

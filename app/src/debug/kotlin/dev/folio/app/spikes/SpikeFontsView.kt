@@ -126,7 +126,7 @@ internal class SpikeFontsView(
         build =
             scope.launch {
                 val startNs = SystemClock.elapsedRealtimeNanos()
-                specimen = withContext(dispatchers.text) { FontSpecimen(layouter, FontRegistry.families, next, compact = false) }
+                specimen = withContext(dispatchers.text) { FontSpecimen(layouter, FontRegistry.bundled, next, compact = false) }
                 layoutMs = (SystemClock.elapsedRealtimeNanos() - startNs) / NS_PER_MS
                 clamp()
                 invalidate()

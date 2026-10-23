@@ -24,11 +24,11 @@ class BaselineProbeInstrumentedTest {
         val metrics = FontMetricsCache(resolver)
         val layouter = GridTextLayouter(resolver, metrics)
         // Warm-up so the first family does not carry class loading and font parsing in its layout time.
-        BaselineProbe.run(layouter, metrics, FontRegistry.families.first(), BaselineMethod.GRID_PITCH)
+        BaselineProbe.run(layouter, metrics, FontRegistry.bundled.first(), BaselineMethod.GRID_PITCH)
 
         val results =
             BaselineMethod.entries.flatMap { method ->
-                FontRegistry.families.map { BaselineProbe.run(layouter, metrics, it, method) }
+                FontRegistry.bundled.map { BaselineProbe.run(layouter, metrics, it, method) }
             }
         BaselineProbe.table(results).lines().forEach { Log.i(TAG, it) }
 

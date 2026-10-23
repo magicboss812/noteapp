@@ -1,7 +1,7 @@
 package dev.folio.core.text.spike
 
-import dev.folio.core.text.fonts.BundledFontFamily
 import dev.folio.core.text.fonts.FontMetricsCache
+import dev.folio.core.text.fonts.TextFontFamily
 import dev.folio.core.text.layout.BaselineMethod
 import dev.folio.core.text.layout.GridTextLayouter
 import java.util.Locale
@@ -69,7 +69,7 @@ object BaselineProbe {
     fun run(
         layouter: GridTextLayouter,
         metrics: FontMetricsCache,
-        family: BundledFontFamily,
+        family: TextFontFamily,
         method: BaselineMethod,
     ): BaselineProbeResult {
         var lines = 0

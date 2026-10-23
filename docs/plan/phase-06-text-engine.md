@@ -122,8 +122,9 @@ Verify: tests + screenshots
 Model: sonnet xhigh
 Implements: R-CORE-01, R-TXT-07
 Read: 10-editor-ui.md#text-tool, 07-text-engine.md#editing
-Do: Text tool tap -> caret in the body flow if inside the body zone, else a free text box snapped to the grid, focused in the same frame; typing on a hardware keyboard with nothing focused appends to the current page body; sticky note tool creates a sticky with focus.
+Do: Text tool tap -> caret in the body flow if inside the body zone, else a free text box snapped to the grid, focused in the same frame; typing on a hardware keyboard with nothing focused appends to the current page body; sticky note tool creates a sticky with focus. Text tool row 2 + settings panel (P06-T13 split): font family picker grouped as in `FontGroup` (imported fonts listed, "Import font" opens the system picker for .ttf/.otf into `CustomFontStore`; `syncFromLibrary` on app start), size S/M/L plus a free size slider (A-039, box height shown in lines).
 Accept:
+- [ ] screenshot: text row 2 and text settings panel with the font picker and the size slider
 - [ ] device: tap-to-caret <= 50 ms p95 for both paths
 - [ ] user: "Type a page of notes with the keyboard mixing headings, lists, math. Does text ever jump off the lines or lag?"
 Verify: device-tester

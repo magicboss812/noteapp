@@ -18,6 +18,8 @@ Typed text is Markdown, laid out on the page grid so that every line sits on the
 - Fonts differ in em-box proportions. Size is therefore derived, not chosen in sp: `sizePx = targetCapHeight / capRatio(typeface)` where `capRatio` = cap height ("H" bounds) / size, measured once per typeface and cached in `FontMetricsCache`.
 - Target cap heights (fraction of U): body S 0.38, M 0.45 (default), L 0.52; H1 0.95 (2U box); H2 0.75 (2U box); H3 0.55 bold (1U box); code 0.40 (monospace); table cells = body; sticky notes = body.
 - The user picks S/M/L per flow and a font family per flow. Mixed fonts inside a flow: code spans use the monospace family, math uses the math renderer; all share the line box.
+- Free size (A-039): the flow's body cap fraction may also be any value in 0.30..1.80; every role scales by body/0.45 and its line box is max(role minimum, ceil(cap / 0.66)) x U (the table above is the M case: H1/H2 minimum 2U, others 1U). Text never moves inside its box: baselines stay on rules.
+- Bold roles (H1..H3) are sized from the bold face's own cap ratio. `TextSizing.derive` returns font size, cap fraction and box units; tests assert the cap height within 1% for all bundled fonts.
 
 ## Fonts
 Bundled (OFL, downloaded from github.com/google/fonts in P01-S3, licenses shipped in assets/licenses): regular, italic, bold, bold italic where available; variable fonts where Google publishes them.
@@ -28,6 +30,8 @@ Bundled (OFL, downloaded from github.com/google/fonts in P01-S3, licenses shippe
 | Mono | JetBrains Mono, IBM Plex Mono |
 | Handwriting | Caveat, Patrick Hand, Kalam, Architects Daughter, Shadows Into Light |
 Default text font: Inter. Custom fonts: import `.ttf/.otf` via the system file picker; copied to app storage and mirrored into the library folder `.fonts/` so other devices can install them; documents reference fonts by family name with fallback to Inter. UI fonts (Inter, Literata) live separately in core:designsystem.
+- `FontRegistry` = bundled families + imported ones (`CustomFontStore`: family and face read from the OpenType `name` table, files `fonts/<family>-<face>.ttf|otf` in app files, mirrored to library `.fonts/`, `syncFromLibrary` installs fonts found there; max 32 MB, collections rejected). Bundled names win on a clash.
+- Fallback chain: exact family name -> same name ignoring case/spaces -> Inter. Code uses the flow family if it is monospace, else JetBrains Mono. Missing glyphs (CJK, emoji) come from the system fallback fonts.
 
 ## Blocks
 A flow's Markdown is split into blocks. Block = the unit of parsing, layout caching, invalidation, and focused editing. Runtime block ids are stable within a session (not stored).

@@ -17,5 +17,6 @@ dependencies {
     implementation(libs.compose.runtime) // FontFamily.Resolver returns a State
     implementation(libs.jlatexmath.android) // ADR-007
     implementation(libs.bundles.commonmark)
+    testImplementation(projects.core.testing)
     androidTestImplementation(libs.bundles.android.test)
 }
