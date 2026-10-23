@@ -4,7 +4,7 @@ Claude turns `Open` entries into task blocks at every phase REVIEW (next-task sk
 Format: `- YYYY-MM-DD <what bothers you or what you want> [now]` (the date and `[now]` are optional).
 
 ## Open
-- (none)
+- 2026-10-23 (device-tester, P04 device checks) the autosave dot (bottom-left) is drawn on top of the open pages panel and the overview; it should sit below them.
 
 ## Converted
 - 2026-10-01 UI does not look like Notewise; capture the real app and redo the design before P04-T05 -> P04-T10.

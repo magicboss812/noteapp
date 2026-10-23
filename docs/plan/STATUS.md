@@ -2,25 +2,20 @@
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P05
 next: P05-T01
-updated: 2026-10-02
+updated: 2026-10-23
 
 ## Completed
 - P00 done 2026-09-27 (tag p00-done): AGP 9.4.1/Kotlin 2.4.20/Gradle 9.8.0, compileSdk 37.2, minSdk 35 (device SDK 36); qa green; instrumented smoke 1/1 on Pad 7; cold launch 786 ms; A-001..A-004.
 - P01 done 2026-09-28 (tag p01-done): ADR-002..008 Accepted: ink front buffer (onTouch p95 0.28 ms), bitmap tiles (jank 0.49%, p95 gap -> P03-T10), library IO (46 MB pack 1.4 s), PdfBox merge (100 pp 0.24 s), jlatexmath (p95 0.8 ms), grid-pitch text (0.000 px, 20 fonts); A-005..A-008; qa green.
 - P02 done 2026-09-29 (tag p02-done): model + commands (200-command undo property test), folio.v1 codec (1000x120 inputs 709 KB), container + goldens, crash-safe packer (100 injected failures), recovery, Room index (500 docs 149 ms), repositories, sessions (LRU 30); REVIEW fixed 6 blocking findings; A-009..A-016; qa green.
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
-- P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 pending (no tablet); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green.
+- P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T08 PASS 2026-10-23 (T09 Blocked); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green.
 
 ## Current phase progress
 - P05: (none yet)
 
 ## Blocked (needs user; stops dependent tasks)
-- P02-T06: storage onboarding never seen on the tablet (you revoked All files access): device-tester confirms onboarding shows at the next device session. Blocks nothing else.
-- P04-T05 device check not run (no tablet: connect.sh found 0 devices): connect the Pad 7 (Wireless debugging on, unlocked), then have device-tester run: Ctrl+Z undoes the last stroke (`input.sh combo CTRL_LEFT Z`), Ctrl+Y redoes, Alt+3 eraser / Alt+1 pen, Ctrl+/ help sheet + Esc, PageDown/PageUp, Ctrl+= / Ctrl+0 zoom. Blocks nothing else.
-- P04-T06 device check not run (same: 0 devices): device-tester opens a 4+ page note, `debugcmd.sh reorder-page 2,1`, reads `pageOrder` in `state`, reopens the doc and checks the order held; smoke: panel, overview, add, duplicate, delete + Ctrl+Z, settings sheet apply. Blocks nothing else.
-- P04-T07 device check not run (0 devices): device-tester taps "New note" on the library, edits the title (or keeps it), taps Create; the editor opens and the `.folio` appears in Folio-Debug (`scripts/device` file listing); reopen the sheet and check the last choices are the defaults. Blocks nothing else.
-- P04-T09 device check not run (0 devices): connect the Pad 7, then `bash scripts/device/instrumented.sh :feature:editor` (device-tester): StylusEditingTest 2/2 (5 strokes, undo 2, redo 1, reopen = 4; eraser sweep + undo). Test APK install may need HyperOS "USB debugging (Security settings)". Blocks nothing else.
-- P04-T08 device check not run (0 devices): device-tester draws strokes, `stop.sh` before the 30 s pack, relaunches: library shows "Recovered unsaved changes." and the note has every stroke; save dot bottom-left is green when idle; scrolling a long note without editing must not trigger the snackbar after a force-quit. Blocks nothing else.
+- P04-T09 device check: 2026-10-23 the test APK install was refused (INSTALL_FAILED_USER_RESTRICTED; removing the old `dev.folio.feature.editor.test` also failed, DELETE_FAILED_INTERNAL_ERROR), 0 tests ran though Gradle said SUCCESS. On the Pad 7 turn on Developer options "Install via USB" and "USB debugging (Security settings)", tap Allow on any install prompt, then device-tester reruns `bash scripts/device/instrumented.sh :feature:editor`: StylusEditingTest 2/2 (5 strokes, undo 2, redo 1, reopen = 4; eraser sweep + undo). Blocks nothing else.
 - P04-REVIEW (D-005, D-016): rule edits were denied headless; apply interactively. `.claude/rules/text-engine.md` line 9 -> "- Fixed line box via `TextStyle(lineHeight, LineHeightStyle(Alignment.Bottom, Trim.None))` laid out at the grid-pitch reference scale r = round(4*U)/U px per pt, then shifted by the measured `k*U*r - firstLineBaseline` (A-006). Never rely on font ascent/descent for placement." `.claude/rules/rendering.md` line 5 -> "- During pan/zoom gestures transform existing tiles; only newly uncovered tiles at the current bucket are requested (throttled). Re-render at the new bucket after 100 ms idle: visible tiles first, center-out. Base tiles (low bucket) of visible pages are never evicted by the budget (A-026)." Blocks nothing.
 
 ## USER-CHECK (human verification; non-blocking)
@@ -40,5 +35,5 @@ updated: 2026-10-02
 
 ## Handoff (<= 5 lines, overwritten each session)
 - P04 closed: REVIEW fixes in dd40694, intake in a6fd75d, full qa green, tag p04-done.
-- Next: P05-T01 (D-007 open-documents check belongs to it). P04 device checks stay Blocked until the Pad 7 is connected.
+- Next: P05-T01 (D-007 open-documents check belongs to it). 2026-10-23 device session: P02-T06 confirmed by you; P04-T05..T08 device checks PASS; P04-T09 waits on the HyperOS install setting.
 - FEEDBACK.md turns into tasks at every REVIEW. `FolioIcons.kt` is generated (A-027): `./gradlew :tools:icongen:run`.
