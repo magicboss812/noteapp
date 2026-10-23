@@ -50,6 +50,10 @@ class SearchScreenshotTest {
     @Test
     fun search_noMatches_light() = capture("Search_noMatchesLight", dark = false, SearchUiState(open = true, query = "zzz"))
 
+    @Test
+    @Config(qualifiers = "w777dp-h1164dp-port-440dpi")
+    fun search_results_portrait_light() = capture("Search_resultsPortraitLight", dark = false, results())
+
     private fun results() =
         SearchUiState(
             open = true,

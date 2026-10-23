@@ -14,6 +14,7 @@ import dev.folio.feature.library.state.LibraryFolderItem
 import dev.folio.feature.library.state.LibraryTab
 import dev.folio.feature.library.state.LibraryViewMode
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -128,16 +129,47 @@ class LibraryHomeScreenshotTest {
             browse = LibraryBrowseState(viewMode = LibraryViewMode.LIST),
         )
 
+    @Test
+    @Config(qualifiers = LANDSCAPE)
+    fun home_twelveNotesLandscapeLight() = capture("LibraryHome_twelveLandscapeLight", dark = false, documents = true, twelve = true)
+
+    @Test
+    @Config(qualifiers = PORTRAIT)
+    fun home_twelveNotesPortraitDark() = capture("LibraryHome_twelvePortraitDark", dark = true, documents = true, twelve = true)
+
     private fun capture(
         name: String,
         dark: Boolean,
         documents: Boolean = false,
         browse: LibraryBrowseState = LibraryBrowseState(),
+        twelve: Boolean = false,
     ) {
+        val twelveDocs =
+            (1..12).map { i ->
+                doc(
+                    "Note $i.folio",
+                    if (i % 5 ==
+                        0
+                    ) {
+                        "Note $i with a long title that wraps onto a second line"
+                    } else {
+                        "Note $i"
+                    },
+                    hoursAgo = i * 20L,
+                    favorite = i % 4 == 0,
+                )
+            }
         val content =
             LibraryContent(
                 browse = browse,
-                documents = if (documents) docs else persistentListOf(),
+                documents =
+                    if (twelve) {
+                        twelveDocs.toImmutableList()
+                    } else if (documents) {
+                        docs
+                    } else {
+                        persistentListOf()
+                    },
                 folders = if (documents) folders else persistentListOf(),
                 nowMs = now,
                 zone = ZoneOffset.UTC,

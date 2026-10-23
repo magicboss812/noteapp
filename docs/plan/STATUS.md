@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P05
-next: P05-T08
+next: P05 REVIEW
 updated: 2026-10-23
 
 ## Completed
@@ -12,7 +12,7 @@ updated: 2026-10-23
 - P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 PASS 2026-10-23 (T09 after fix: CanvasHost collectors on the main dispatcher); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green.
 
 ## Current phase progress
-- P05: T01, T02, T03, T04, T05, T06, T07
+- P05: T01, T02, T03, T04, T05, T06, T07, T08
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -38,7 +38,7 @@ updated: 2026-10-23
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P05-T07 done: `app/nav/FolioNavHost.kt` (`NavTransitions`: scale+fade open/close, predictive back, A-035); cards `itemMotion()` in `LibraryDocuments.kt`; sidebar width/folders animate in `LibrarySidebar.kt` (explicit Spacers keep goldens unchanged).
-- Not done: shared-element card morph (A-035). No unit test for the transition specs (Compose transition data is internal).
-- State: Bin tab still shows inert sort/view/select controls; sidebar has no Tags entry; menu Export row is a disabled placeholder; `feature:settings` is empty.
-- Next: P05-T08 (library screenshot suite), then P05 REVIEW. FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).
+- P05-T08 done: suite already covered most states; added 12-notes grid (landscape light, portrait dark) and portrait search results goldens; `:feature:library:verifyRoborazziDebug` green.
+- Observed, not changed: fixed-size card grid leaves a ragged right margin in portrait (about 1/6 width, left aligned); folder cards in the 12-notes fixture read "0 notes" (fixture has no docs in folders).
+- State: Bin tab still shows inert sort/view/select controls; sidebar has no Tags entry; menu Export row is a disabled placeholder; `feature:settings` is empty. Shared-element card morph not done (A-035).
+- Next: P05 REVIEW (reviewer subagent over p04-done..HEAD, intake, full qa, tag p05-done). FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).
