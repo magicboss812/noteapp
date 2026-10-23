@@ -69,6 +69,11 @@ Indent step: 1 grid column on grid/dotted templates, 6 mm on lined/blank.
 - Headings: display weight of the chosen family; H1/H2 have 2U boxes so their baselines sit on every second rule.
 - Alignment per flow: start (default), center, justified (paragraphs only).
 
+### Block styles (as built)
+- List levels follow leading spaces / 2 (Tab writes 2 spaces), so `1.` > `a.` > `i.` and disc > circle > dash cycle by level.
+- Links: web links and note links (`folio://doc/`, `[[Title]]`) share the accent color and underline. A note link whose target the index does not know (missing or in the bin) is drawn muted gray and struck through (`FlowTextStyle.brokenLinks`, A-049). The layout cache key holds only the broken ids the block itself links to, so a change in the set re-lays out just the blocks that link to those ids.
+- Taps (`FlowLayout.tapTargetAt`): a finger tap on a block that is not being edited acts on what is under it before it focuses: the task checkbox (anywhere in the item's marker gutter on its first line) toggles `[ ]`/`[x]` through `Formatting.toggleTask` without focusing; a web link opens via ACTION_VIEW; a note link opens that note (a `[[Title]]` link opens the note with exactly that title). Taps in the focused field only move the caret. Links in table cells are not tappable yet. In read mode (navigate tool) links and checkboxes still act.
+
 ## Flows and frames
 - **Body flow:** one per document, created on first typed text in a page body. Its frames are the BODY frames of pages in document order.
 - **Body frame rect** = the template's text zone: lined/blank: left margin (25 mm margin line + 2 mm, or 12 mm without margin line) to width - 12 mm, top y0, bottom = last rule above height - 12 mm. Grid/dotted/graph: 12 mm margins snapped to grid columns. Cornell: notes column (cue column and summary are separate BOX frames created on tap). Planners: notes areas. Infinite pages: origin width, unbounded height.

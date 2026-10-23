@@ -62,6 +62,11 @@ Duplicate docIds (a file copied manually): the second file gets a new docId on f
 - Backlinks: `links` table filled from each manifest's `links` array (maintained at pack time from the flows). The editor's overflow menu shows "Linked from" with a list.
 - Web links (`https://`) open via ACTION_VIEW in the user's browser (Folio itself has no network access).
 
+### Links (as built)
+- `DocumentLinks.targets(doc)` (core:format) lists the distinct `folio://doc/<id>` targets of all flows in text order, without self links; `encodeManifest` writes them as the manifest `links`, so every pack refreshes the index rows. `[[Title]]` links have no id and are not in `links`.
+- `NoteLinks` (core:storage, over the index): `resolve(docId)` -> path and title (null when missing or binned), `missing(ids)` for broken-link drawing, `backlinks(docId)` sorted by title without the note itself, `titled(query)` for the picker (case-insensitive substring, LIKE wildcards literal, newest first).
+- `[[` picker: typing `[[` plus a query in the live field lists matching titles; a choice replaces `[[query` (and a `]]` right after the caret) with `[Title](folio://doc/<id>)` (`Formatting.insertNoteLink`, title Markdown escaped). The broken-link look replaces the "not found" tooltip; a tap on a broken link says "Note not found" (A-049).
+
 ## Thumbnails
 - Cover: first page rendered at <= 512 px long side (WebP q80), stored in the document (`thumbs/cover.webp`) at pack time and cached in app cache for the library grid.
 - Page thumbnails: <= 256 px, generated after 2 s editing idle on the render dispatcher for pages changed since the last thumbnail; used by the page panel; stored in the document at pack time (optional entries).

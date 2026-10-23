@@ -24,6 +24,7 @@ import dev.folio.core.storage.library.StoragePermission
 import dev.folio.core.storage.repo.CoverReader
 import dev.folio.core.storage.repo.DocumentRepository
 import dev.folio.core.storage.repo.LibraryRepository
+import dev.folio.core.storage.repo.NoteLinks
 import dev.folio.core.storage.session.DocumentSessions
 import dev.folio.core.storage.settings.DataStoreSettingsStore
 import dev.folio.core.storage.settings.SettingsStore
@@ -172,5 +173,12 @@ internal abstract class StorageModule {
             documents: DocumentRepository,
             sessions: DocumentSessions,
         ): LibraryRepository = LibraryRepository(root.fs, scanner, db.dao(), dispatchers, documents, sessions)
+
+        @Provides
+        @Singleton
+        fun noteLinks(
+            db: IndexDb,
+            dispatchers: FolioDispatchers,
+        ): NoteLinks = NoteLinks(db.dao(), dispatchers)
     }
 }

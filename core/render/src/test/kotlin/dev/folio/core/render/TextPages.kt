@@ -66,24 +66,26 @@ internal class TextPages(
     fun page(frames: List<PageObject> = listOf(body)): Page =
         ModelFixtures.page("p").copy(background = background, objects = frames.toPersistentList())
 
-    /** The text [markdown] shows in [frames] of [page]. */
+    /** The text [markdown] shows in [frames] of [page]; note links to [brokenLinks] are drawn broken. */
     fun text(
         markdown: String,
         frames: List<PageObject> = listOf(body),
+        brokenLinks: Set<String> = emptySet(),
     ): PageText {
         val doc =
             ModelFixtures.document(
                 listOf(page(frames)),
                 flows = listOf(ModelFixtures.flow(flowId.value, markdown)),
             )
-        return PageTexts.of(doc, layouter).getValue(page(frames).id)
+        return PageTexts.of(doc, PageTexts.layouts(doc, layouter, brokenLinks = brokenLinks)).getValue(page(frames).id)
     }
 
     /** Render snapshot of [page] with [markdown] in its frames. */
     fun content(
         markdown: String,
         frames: List<PageObject> = listOf(body),
-    ): PageContent = PageContent.of(page(frames), text(markdown, frames))
+        brokenLinks: Set<String> = emptySet(),
+    ): PageContent = PageContent.of(page(frames), text(markdown, frames, brokenLinks))
 
     private companion object {
         const val BOX_LEFT_PT = 100f

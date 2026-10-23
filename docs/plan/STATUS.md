@@ -13,7 +13,7 @@ updated: 2026-10-24
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07 (blocked: device run), T08 (a-b)
+- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07 (blocked: device run), T08 (a-b), T09 (a)
 
 ## Blocked (needs user; stops dependent tasks)
 - P06-T07 device: test APK refused 2026-10-24 (`INSTALL_FAILED_USER_RESTRICTED`, Gradle still SUCCESS, no tests ran). User: keep the tablet unlocked and tap Allow on the "Install via USB" prompt (or turn on "USB debugging (Security settings)"), then the next session runs `bash scripts/device/instrumented.sh :core:text` -> GridInvariantInstrumentedTest 20 fonts, 0 violations, Formulas 136. Robolectric run of the same suite passes.
@@ -31,7 +31,8 @@ updated: 2026-10-24
 - D-034 P06-T07: math blocks are always centered; 07-text-engine.md#math names a left alignment setting (A-047).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T08 done: tables laid out, painted and edited cell by cell (`CellField`, `FieldEdit.Cell`, table buttons in `TextFormatRow`); 07-text-engine.md#tables-as-built, A-048. Nothing half-done.
+- P06-T09a committed (core): manifest `links` (`DocumentLinks`), `NoteLinks` (resolve/missing/backlinks/titled, Hilt), broken links struck gray (`FlowTextStyle.brokenLinks`, `PageTexts.layouts(brokenLinks)`), `FlowLayout.tapTargetAt`, `LinkEdits` (toggleTask, insertNoteLink, noteLinkQueryStart); A-049, 07#block-styles-as-built, 09#links-as-built.
+- NEXT P06-T09b (editor): CanvasHostView finger tap -> tapTargetAt before focusAt (also in NAVIGATE): Checkbox -> LinkEdits.toggleTask via EditorText.editCommand, Url -> ACTION_VIEW, Note -> NoteLinks.resolve (title links via titled exact) -> new `onOpenNote(path)` EditorRoute callback -> app navigator.openEditor, missing -> "Note not found" snackbar; feed NoteLinks.missing(linkedDocIds) into EditorText.refresh (io, relayout on change); `[[` picker in live field + Roborazzi; "Linked from" in More menu; USER-CHECK; next: P06-T10.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`).
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]` seeds a body flow (use `open lined:N` with an unused N). Test APK installs need the user's Allow on the tablet.
 - Next: P06-T09 Lists, checklists, code, quotes, links (then T10, T18, T14, T16, T17, T11). Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.

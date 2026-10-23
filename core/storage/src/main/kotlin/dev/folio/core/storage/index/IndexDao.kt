@@ -98,6 +98,20 @@ interface IndexDao {
 
     @Query("SELECT l.fromPath FROM links l WHERE l.toDocId = :docId")
     suspend fun backlinkPaths(docId: String): List<String>
+
+    @Query("SELECT * FROM documents WHERE docId IN (:docIds) ORDER BY status, path")
+    suspend fun documentsByIds(docIds: List<String>): List<DocumentRow>
+
+    /** Documents with a note link to [docId], by title. */
+    @Query("SELECT d.* FROM documents d JOIN links l ON l.fromPath = d.path WHERE l.toDocId = :docId ORDER BY d.title COLLATE NOCASE")
+    suspend fun backlinks(docId: String): List<DocumentRow>
+
+    /** Documents whose title contains [pattern] (a LIKE pattern with `\` escapes), newest first. */
+    @Query("SELECT * FROM documents WHERE title LIKE :pattern ESCAPE '\\' ORDER BY modifiedMs DESC LIMIT :limit")
+    suspend fun documentsTitled(
+        pattern: String,
+        limit: Int,
+    ): List<DocumentRow>
 }
 
 /** Size and mtime of an indexed file (incremental scan). */

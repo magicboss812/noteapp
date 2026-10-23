@@ -157,7 +157,7 @@ class TextTilesScreenshotTest {
     private fun capture(kind: TemplateKind) {
         val pages = TextPages(kind)
         for ((part, markdown) in listOf("a" to INLINE_AND_LISTS, "b" to BLOCKS)) {
-            val content = pages.content(markdown)
+            val content = pages.content(markdown, brokenLinks = setOf(MISSING_DOC))
             render(pages, content, RenderTarget.EXPORT_RASTER).captureRoboImage("src/test/screenshots/TextTiles_${kind}_$part.png")
         }
     }
@@ -234,6 +234,7 @@ class TextTilesScreenshotTest {
         const val GAP_LINES = 6
         const val QUOTE_BAR = 0xFF8E96A3.toInt()
         const val OPAQUE = 0xFF
+        const val MISSING_DOC = "missing-id"
 
         /** Math corpus page (P06-T07): inline math in every context, a tall formula, invalid LaTeX, block math. */
         const val MATH_CORPUS =
@@ -273,11 +274,16 @@ class TextTilesScreenshotTest {
 
             Plain text with **bold**, *italic*, ~~strike~~, `code`, ==highlight== and a [link](https://example.org) in it.
 
+            Note links: [Physics](folio://doc/physics-id), [[Wiki title]] and a broken [Old note](folio://doc/$MISSING_DOC).
+
             - Bullet one
               - Nested bullet
             - Bullet two
 
             1. Ordered one
+              1. Nested ordered
+              2. Nested again
+                1. Third level
             2. Ordered two
 
             - [ ] Open task

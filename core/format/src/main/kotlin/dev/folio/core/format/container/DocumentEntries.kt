@@ -18,11 +18,11 @@ object DocumentEntries {
     private const val PREVIEW_CHARS = 300
     private val WHITESPACE = Regex("\\s+")
 
-    /** `manifest.json` bytes for [doc]. */
+    /** `manifest.json` bytes for [doc]; [links] are the note links of its flows unless given. */
     fun encodeManifest(
         doc: Document,
         app: ManifestApp,
-        links: List<String> = emptyList(),
+        links: List<String> = DocumentLinks.targets(doc),
     ): ByteArray {
         val manifest = ManifestMapper.fromDocument(doc, app, links, textPreview(doc))
         return FolioJson.encodeToString(Manifest.serializer(), manifest).encodeToByteArray()

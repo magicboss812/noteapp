@@ -18,9 +18,12 @@ data class TextPalette(
     val codeBackground: Color,
     /** Source of LaTeX that does not parse (07-text-engine.md#math). */
     val mathError: Color = MATH_ERROR,
+    /** Note links whose document is not in the library (09-storage-library.md#links); drawn struck through. */
+    val brokenLink: Color = BROKEN_LINK,
 ) {
     companion object {
         private val MATH_ERROR = Color(0xFFD0342C)
+        private val BROKEN_LINK = Color(0xFF8E96A3)
 
         /** Ink-on-paper defaults: blue links, marker yellow, light gray code, red invalid LaTeX. */
         val Paper = TextPalette(link = Color(0xFF2F6FDE), highlight = Color(0x66FFE14D), codeBackground = Color(0x1F000000))
@@ -36,6 +39,11 @@ data class FlowTextStyle(
     val bodyCap: Float = BodySize.M.capFraction,
     val alignment: FlowAlignment = FlowAlignment.START,
     val palette: TextPalette = TextPalette.Paper,
+    /**
+     * Document ids whose note links are broken (no such document in the library). The layout cache keys a block only
+     * by the ids it links to, so a change of this set lays out just the blocks whose links changed state.
+     */
+    val brokenLinks: Set<String> = emptySet(),
 )
 
 /**

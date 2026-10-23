@@ -112,6 +112,33 @@ class FlowHitTest {
         assertThat(offsetAt(layout, bodyRect.right - 1f, line = 1)).isEqualTo(source.indexOf("two") + 3)
     }
 
+    private fun targetAt(
+        layout: FlowLayout,
+        xPt: Float,
+        line: Int = 0,
+    ): TapTarget? = layout.tapTargetAt(checkNotNull(layout.hit(page, xPt, midLine(line))), xPt)
+
+    @Test
+    fun tapTargetAt_taskMarkerGutter_isTheCheckbox() {
+        val layout = layoutOf("Intro\n\n- [ ] milk")
+        val item = checkNotNull(layout.layoutOf(1))
+
+        assertThat(targetAt(layout, bodyRect.left + (item.markerLeftPt + item.textLeftPt) / 2f, line = 1)).isEqualTo(TapTarget.Checkbox(1))
+        assertThat(targetAt(layout, bodyRect.left + item.textLeftPt + 2f, line = 1)).isNull()
+    }
+
+    @Test
+    fun tapTargetAt_onLinks_isTheirTargetAndPlainTextIsNull() {
+        val layout = layoutOf("[web](https://example.org) [note](folio://doc/abc#page=p2) [[Wiki]] tail")
+        val text = checkNotNull(layout.layoutOf(0))
+        val targets = (0..200).mapNotNull { targetAt(layout, bodyRect.left + text.textLeftPt + it * 2f) }.distinct()
+
+        assertThat(targets)
+            .containsExactly(TapTarget.Url("https://example.org"), TapTarget.Note("abc", "note"), TapTarget.Note(null, "Wiki"))
+            .inOrder()
+        assertThat(targetAt(layout, bodyRect.right - 1f)).isNull()
+    }
+
     @Test
     fun sourceOffsetAt_tapsMovingRight_neverMoveTheCaretLeft() {
         val layout = layoutOf("Hello **brave** new world")

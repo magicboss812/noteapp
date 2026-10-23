@@ -15,7 +15,10 @@ data class InlineSpan(
     val plainStart: Int,
     val plainEnd: Int,
     val target: String? = null,
-)
+) {
+    /** The document a `folio://doc/` link points to (its target without a `#page=` fragment); null for other spans and `[[Title]]`. */
+    val docId: String? get() = if (kind == SpanKind.DOC_LINK) target?.substringBefore('#')?.takeIf { it.isNotEmpty() } else null
+}
 
 /**
  * Inline content of one block as plain text plus spans. A hard line break is `\n`, a soft break a space, inline math
@@ -82,6 +85,26 @@ sealed interface BlockContent {
     ) : BlockContent
 
     data object Rule : BlockContent
+}
+
+/** Every inline text of the block: its text, or a table's header and body cells row by row; none for code, math and rules. */
+fun BlockContent.inlineTexts(): List<InlineText> =
+    when (this) {
+        is BlockContent.Paragraph -> listOf(text)
+        is BlockContent.Heading -> listOf(text)
+        is BlockContent.ListItem -> listOf(text)
+        is BlockContent.Quote -> listOf(text)
+        is BlockContent.Table -> header + rows.flatten()
+        BlockContent.Empty, BlockContent.Rule, is BlockContent.Code, is BlockContent.Math -> emptyList()
+    }
+
+/** Ids of the documents the note links of this block point to. */
+fun BlockContent.linkedDocIds(): Set<String> {
+    val texts = inlineTexts()
+    if (texts.isEmpty()) return emptySet()
+    val out = HashSet<String>()
+    for (t in texts) for (span in t.spans) span.docId?.let(out::add)
+    return out
 }
 
 /**

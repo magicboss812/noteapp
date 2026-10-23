@@ -123,6 +123,20 @@ class BlockLayouterTest {
     }
 
     @Test
+    fun layout_brokenLinksElsewhere_keepTheCachedInstance() {
+        val plain = block("No links here")
+        val linked = block("See [a](folio://doc/aaa) and [b](folio://doc/bbb#page=p1)")
+        val firstPlain = layouter.layout(plain, WIDTH_PT, style, lined)
+        val firstLinked = layouter.layout(linked, WIDTH_PT, style, lined)
+
+        assertThat(layouter.layout(plain, WIDTH_PT, style.copy(brokenLinks = setOf("aaa")), lined)).isSameInstanceAs(firstPlain)
+        assertThat(layouter.layout(linked, WIDTH_PT, style.copy(brokenLinks = setOf("zzz")), lined)).isSameInstanceAs(firstLinked)
+        val broken = layouter.layout(linked, WIDTH_PT, style.copy(brokenLinks = setOf("bbb", "zzz")), lined)
+        assertThat(broken).isNotSameInstanceAs(firstLinked)
+        assertThat(layouter.layout(linked, WIDTH_PT, style.copy(brokenLinks = setOf("bbb")), lined)).isSameInstanceAs(broken)
+    }
+
+    @Test
     fun layout_sameBlockAndSettings_returnsCachedInstance() {
         val paragraph = block("Some cached text")
 

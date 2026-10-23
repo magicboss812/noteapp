@@ -32,6 +32,7 @@ import dev.folio.core.text.markdown.ListKind
 import dev.folio.core.text.markdown.MarkdownBlock
 import dev.folio.core.text.markdown.SpanKind
 import dev.folio.core.text.markdown.TableAlign
+import dev.folio.core.text.markdown.linkedDocIds
 import dev.folio.core.text.math.MathRenderer
 import kotlin.math.ceil
 import kotlin.math.max
@@ -81,9 +82,10 @@ class BlockLayouter(
         style: FlowTextStyle,
         grid: LayoutGrid,
     ): BlockLayout {
-        val key = Key(block.source, widthPt, style, grid)
+        val keyStyle = styleFor(block.content, style)
+        val key = Key(block.source, widthPt, keyStyle, grid)
         synchronized(cache) { cache[key] }?.let { return it }
-        val layout = PerfMonitor.trace(TRACE_LAYOUT) { build(block.content, widthPt, style, grid) }
+        val layout = PerfMonitor.trace(TRACE_LAYOUT) { build(block.content, widthPt, keyStyle, grid) }
         synchronized(cache) { cache[key] = layout }
         return layout
     }
@@ -568,9 +570,27 @@ class BlockLayouter(
             val end = span.plainEnd.coerceIn(start, length)
             val spanStyle =
                 when (span.kind) {
-                    SpanKind.CODE -> code
-                    SpanKind.MATH -> mathStyle(formulas.firstOrNull { it.span === span }) { invalidMath }
-                    else -> markStyle(span.kind, style.palette)
+                    SpanKind.CODE -> {
+                        code
+                    }
+
+                    SpanKind.MATH -> {
+                        mathStyle(formulas.firstOrNull { it.span === span }) { invalidMath }
+                    }
+
+                    SpanKind.DOC_LINK -> {
+                        if (span.docId in
+                            style.brokenLinks
+                        ) {
+                            brokenLink(style.palette)
+                        } else {
+                            markStyle(span.kind, style.palette)
+                        }
+                    }
+
+                    else -> {
+                        markStyle(span.kind, style.palette)
+                    }
                 }
             if (start < end && spanStyle != null) out += AnnotatedString.Range(spanStyle, start + offset, end + offset)
         }
@@ -625,6 +645,21 @@ class BlockLayouter(
                 formula.layout != null -> null
                 else -> invalid()
             }
+
+        /** [style] with only the broken links that [content] links to: blocks without them share one cache entry. */
+        private fun styleFor(
+            content: BlockContent,
+            style: FlowTextStyle,
+        ): FlowTextStyle {
+            if (style.brokenLinks.isEmpty()) return style
+            val linked = content.linkedDocIds()
+            val broken = if (linked.isEmpty()) emptySet() else linked.filterTo(HashSet()) { it in style.brokenLinks }
+            return style.copy(brokenLinks = broken)
+        }
+
+        /** A note link to a missing document: muted and struck through. */
+        private fun brokenLink(palette: TextPalette): SpanStyle =
+            SpanStyle(color = palette.brokenLink, textDecoration = TextDecoration.LineThrough)
 
         /** Style of the Markdown marks (bold, italic, strike, highlight, links); null for code and math. */
         private fun markStyle(

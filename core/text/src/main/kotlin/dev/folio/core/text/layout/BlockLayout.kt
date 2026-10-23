@@ -274,6 +274,22 @@ internal class GridText(
         return paragraph.getOffsetForPosition(Offset(xPt * refScale, middle))
     }
 
+    /** Offset of the character on [line] whose box spans [xPt] (from the text's left edge), -1 beside the text. */
+    fun charAt(
+        xPt: Float,
+        line: Int,
+    ): Int {
+        val l = line.coerceIn(0, paragraph.lineCount - 1)
+        val near = offsetAt(xPt, l)
+        val x = xPt * refScale
+        for (c in intArrayOf(near, near - 1)) {
+            if (c < paragraph.getLineStart(l) || c >= paragraph.getLineEnd(l) || c >= plain.length) continue
+            val box = paragraph.getBoundingBox(c)
+            if (x >= box.left && x <= box.right) return c
+        }
+        return -1
+    }
+
     fun baselinePt(line: Int): Float = (paragraph.getLineBaseline(line) + shiftPx) / refScale
 
     /** Box of placeholder [index] in pt from the text's top-left (bottom = its baseline), null when it is not shown. */
@@ -370,6 +386,12 @@ class BlockLayout internal constructor(
         xPt: Float,
         line: Int,
     ): Int = text?.offsetAt(xPt - textLeftPt, line) ?: 0
+
+    /** Offset into [plainText] of the character drawn under [xPt] (from the block's left edge) on [line]; -1 beside the text. */
+    fun plainCharAt(
+        xPt: Float,
+        line: Int,
+    ): Int = text?.charAt(xPt - textLeftPt, line) ?: -1
 
     /** Baseline of the marker label, null without a marker. */
     fun markerBaselinePt(): Float? = marker?.baselinePt(0)

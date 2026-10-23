@@ -4,6 +4,10 @@ import dev.folio.core.model.PageId
 import dev.folio.core.text.edit.SourceOffsets
 import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.edit.TableEditing
+import dev.folio.core.text.layout.BlockDecoration
+import dev.folio.core.text.markdown.InlineSpan
+import dev.folio.core.text.markdown.SpanKind
+import dev.folio.core.text.markdown.inlineTexts
 
 /** The block under a point: [slot] of the layout, the block's [blockIndex], the [line] of that block, [pastEnd] below the last block. */
 data class BlockHit(
@@ -93,6 +97,52 @@ fun FlowLayout.sourceOffsetAt(
         SourceOffsets.fromPlain(block, plain.coerceAtLeast(0))
     }
 }
+
+/** Something on the page that a tap acts on instead of placing the caret (07-text-engine.md#block-styles). */
+sealed interface TapTarget {
+    /** The checkbox of the task item at [blockIndex]. */
+    data class Checkbox(
+        val blockIndex: Int,
+    ) : TapTarget
+
+    /** A web or other URL link to [url]. */
+    data class Url(
+        val url: String,
+    ) : TapTarget
+
+    /** A note link to document [docId] (`folio://doc/`), or by [title] only for `[[Title]]` (then [docId] is null). */
+    data class Note(
+        val docId: String?,
+        val title: String,
+    ) : TapTarget
+}
+
+/**
+ * What a tap at [xPt] on the line of [hit] acts on: the checkbox of a task item (anywhere in its marker gutter on the
+ * first line) or the link drawn under the point; null for plain text, tables and taps past the end.
+ */
+fun FlowLayout.tapTargetAt(
+    hit: BlockHit,
+    xPt: Float,
+): TapTarget? {
+    val block = markdown.blocks.getOrNull(hit.blockIndex)
+    val layout = layoutOf(hit.blockIndex)?.takeIf { it.table == null && !hit.pastEnd }
+    if (block == null || layout == null) return null
+    val x = xPt - slots[hit.slot].rect.left
+    val inGutter = hit.line == 0 && x >= layout.markerLeftPt && x < layout.textLeftPt
+    if (inGutter && layout.decoration is BlockDecoration.Checkbox) return TapTarget.Checkbox(hit.blockIndex)
+    val inline = block.content.inlineTexts().singleOrNull() ?: return null
+    // A callout lays out its title and a line break before the text.
+    val at = layout.plainCharAt(x, hit.line) - (layout.plainText.length - inline.plain.length)
+    val span = inline.spans.lastOrNull { it.isLink && at in it.plainStart until it.plainEnd }
+    return when {
+        span == null -> null
+        span.kind == SpanKind.LINK -> span.target?.takeIf { it.isNotBlank() }?.let(TapTarget::Url)
+        else -> TapTarget.Note(span.docId, inline.plain.substring(span.plainStart, span.plainEnd))
+    }
+}
+
+private val InlineSpan.isLink: Boolean get() = kind == SpanKind.LINK || kind == SpanKind.DOC_LINK
 
 /** Where block [index] starts: its first slice's slot and the page y of its first line box, null when it was not placed. */
 fun FlowLayout.placementOf(index: Int): BlockPlacement? {

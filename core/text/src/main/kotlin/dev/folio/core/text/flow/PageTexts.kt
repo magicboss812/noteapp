@@ -35,17 +35,19 @@ object PageTexts {
         focused: FocusedBlock? = null,
     ): Map<PageId, PageText> = of(doc, layouts(doc, layouter, markdown), focused)
 
-    /** Layout of every flow of [doc] that has frames on loaded pages. */
+    /** Layout of every flow of [doc] that has frames on loaded pages; note links to [brokenLinks] are drawn broken. */
     fun layouts(
         doc: Document,
         layouter: FlowLayouter,
         markdown: (TextFlow) -> MarkdownDocument = parseFlow,
+        brokenLinks: Set<String> = emptySet(),
     ): Map<FlowId, FlowLayout> {
         val out = LinkedHashMap<FlowId, FlowLayout>()
         for ((flowId, flow) in doc.flows) {
             val slots = FlowFrames.slotsOf(doc, flowId)
             if (slots.isEmpty()) continue
-            out[flowId] = layouter.layout(markdown(flow), flow.style.toTextStyle(), flow.style.paragraphGapLines, slots)
+            val style = flow.style.toTextStyle().let { if (brokenLinks.isEmpty()) it else it.copy(brokenLinks = brokenLinks) }
+            out[flowId] = layouter.layout(markdown(flow), style, flow.style.paragraphGapLines, slots)
         }
         return out
     }
