@@ -13,6 +13,7 @@ import dev.folio.core.model.PageId
 import dev.folio.core.model.PageSpec
 import dev.folio.core.model.PaperSize
 import dev.folio.core.model.PdfBackground
+import dev.folio.core.model.StickyNote
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.testing.ModelFixtures
 import org.junit.Assert.assertThrows
@@ -105,7 +106,7 @@ class PageOpsTest {
     @Test
     fun duplicate_copiesInkWithFreshIdsAfterTheLastSelectedPageAndUndoes() {
         var obj = 0
-        val applied = PageOps.duplicate(doc, ids("p1"), newId) { ObjectId("c${obj++}") }.execute(doc)
+        val applied = PageOps.duplicate(doc, ids("p1"), newId, newObjectId = { ObjectId("c${obj++}") }).command.execute(doc)
         assertThat(order(applied.doc)).containsExactly("p1", "n0", "p2", "p3").inOrder()
         val copy = applied.doc.page(PageId("n0"))!!
         assertThat(copy.objects.map { it.id.value }).containsExactly("c0", "c1", "c2").inOrder()
@@ -114,21 +115,56 @@ class PageOpsTest {
     }
 
     @Test
-    fun duplicate_textFrames_stayBehind() {
-        val frame = FlowFrame(ObjectId("t"), FlowId("f"), RectPt(0f, 0f, 100f, 100f), 0, FrameRole.BODY, false)
-        val d = ModelFixtures.document(listOf(ModelFixtures.page("p1", listOf(frame, strokes[0]))), flows = listOf(ModelFixtures.flow("f")))
-        val copy =
-            PageOps
-                .duplicate(d, ids("p1"), newId)
-                .execute(d)
-                .doc
-                .page(PageId("n0"))!!
-        assertThat(copy.objects).hasSize(1)
+    fun duplicate_textFrames_getNewIndependentFlows() {
+        val body = FlowFrame(ObjectId("t"), FlowId("body"), RectPt(0f, 0f, 100f, 100f), 1, FrameRole.BODY, false)
+        val box = FlowFrame(ObjectId("b"), FlowId("box"), RectPt(0f, 200f, 100f, 220f), 0, FrameRole.BOX, true)
+        val sticky = StickyNote(ObjectId("s"), FlowId("note"), RectPt(0f, 300f, 80f, 380f), 3f, 0xFFFFE14D.toInt())
+        val flows =
+            listOf(
+                ModelFixtures.flow("body", "Page one\n\nPage two"),
+                ModelFixtures.flow("box", "Box"),
+                ModelFixtures.flow("note", "Sticky"),
+            )
+        val d = ModelFixtures.document(listOf(ModelFixtures.page("p1", listOf(body, box, sticky, strokes[0]))), flows = flows)
+        var flow = 0
+        val result =
+            PageOps.duplicate(d, ids("p1"), newId, newFlowId = { FlowId("c${flow++}") }) { id, page ->
+                if (id == FlowId("body") && page == PageId("p1")) "Page two" else null
+            }
+        val applied = result.command.execute(d)
+        val copy = applied.doc.page(PageId("n0"))!!
+
+        val frames = copy.objects.filterIsInstance<FlowFrame>()
+        assertThat(frames.map { it.role }).containsExactly(FrameRole.BOX, FrameRole.BOX).inOrder()
+        assertThat(frames[0].rect).isEqualTo(body.rect)
+        assertThat(frames[0].autoGrow).isFalse()
+        assertThat(frames[1].autoGrow).isTrue()
+        val copiedSticky = copy.objects.filterIsInstance<StickyNote>().single()
+        assertThat(copiedSticky.rotationDeg).isEqualTo(3f)
+        assertThat((frames.map { it.flow } + copiedSticky.flow).map { it.value }).containsExactly("c0", "c1", "c2").inOrder()
+        assertThat(applied.doc.flows[FlowId("c0")]!!.markdown).isEqualTo("Page two")
+        assertThat(applied.doc.flows[FlowId("c1")]!!.markdown).isEqualTo("Box")
+        assertThat(applied.doc.flows[FlowId("c2")]!!.markdown).isEqualTo("Sticky")
+        assertThat(applied.doc.flows[FlowId("c0")]!!.autoContinue).isFalse()
+        // Independent: editing the original flow leaves the copy alone.
+        val edited = EditFlow(FlowId("body"), listOf(TextEdit(0, 4, "Leaf"))).execute(applied.doc).doc
+        assertThat(edited.flows[FlowId("c0")]!!.markdown).isEqualTo("Page two")
+        assertThat(applied.inverse.execute(applied.doc).doc).isEqualTo(d)
+    }
+
+    @Test
+    fun duplicate_frameOfMissingFlow_isDropped() {
+        val frame = FlowFrame(ObjectId("t"), FlowId("gone"), RectPt(0f, 0f, 100f, 100f), 0, FrameRole.BOX, false)
+        val d = ModelFixtures.document(listOf(ModelFixtures.page("p1", listOf(frame, strokes[0]))))
+        val result = PageOps.duplicate(d, ids("p1"), newId)
+        assertThat(result.flows).isEmpty()
+        assertThat(result.pages.single().objects).hasSize(1)
+        assertThat(result.command).isInstanceOf(InsertPages::class.java)
     }
 
     @Test
     fun duplicate_severalPages_keepDocumentOrder() {
-        val applied = PageOps.duplicate(doc, ids("p3", "p1"), newId).execute(doc)
+        val applied = PageOps.duplicate(doc, ids("p3", "p1"), newId).command.execute(doc)
         assertThat(order(applied.doc)).containsExactly("p1", "p2", "p3", "n0", "n1").inOrder()
         assertThat(applied.doc.page(PageId("n0"))!!.objects).hasSize(3)
     }

@@ -77,6 +77,14 @@ Indent step: 1 grid column on grid/dotted templates, 6 mm on lined/blank.
 - **Free text boxes (BOX):** own flow per box. Top snaps to a rule line; left snaps to a grid column (grid templates) or is free (lined); width default 60% of body width, min 20 mm; height grows in whole U steps. Resizable and movable via selection.
 - **Sticky notes:** own flow; inner padding 0.5U; lines at U relative to the sticky's own top (no visible rules); rotation applies to the whole sticky.
 
+### Flow engine
+- Code: `TextZones` (core:model) computes body rects, new box rects, box growth and sticky content rects. In core:text `flow/`: `FlowDistributor` (pure placement in whole U), `FlowLayouter` (blocks to `FlowLayout`), `FlowReflow` (page changes) and `FlowSearch` (search hit to page). Slots come from loaded page bodies only, so callers load a flow's pages first.
+- Each block is laid out at the width and grid of the frame it starts in. A continuation in a frame of another width keeps those line breaks.
+- An unsplittable block taller than an empty frame takes that frame and hangs out of it, so distribution always ends. Infinite pages and auto-grow boxes are unbounded. Infinite pages never auto-continue.
+- Reflow: `FlowReflow.plan` runs on the document after the edit and returns one command, which the caller batches with the edit: `InsertPages` for continuation pages (same spec and template, no PDF page, BODY frame at the body rect, placed after the last frame's page), or `RemovePages` for trailing BODY frames without text, plus `UpdateObjects` to resize auto-grow boxes to max(1, used) x U. A page is only removed when it holds nothing but its frame, and the flow's first page is never removed.
+- Page duplicate (D-027): each text object gets a new, independent flow. A BODY frame becomes a fixed BOX frame at the same rect that holds the blocks shown on that page (`FlowLayout.markdownOn`), so a document keeps one body flow. Boxes and sticky notes copy their whole text. Cloned flows do not auto-continue.
+- Search page lookup: `FlowSearch.firstPage` returns the page of the first line showing any query term (case-insensitive substring), taking the earliest page over all flows. Text overflowing a fixed box is on no page.
+
 ## Rendering
 - `BlockLayout` = reference-scale layout of one block for a given width + style key + U: line ranges, line box heights, placeholder rects (math, checkboxes), baseline correction. Cached (LRU, key = block text hash + width + style + U).
 - `FlowLayout` = distribution result: per frame, the list of (block, first line, last line, y offset in U).

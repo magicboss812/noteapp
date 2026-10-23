@@ -184,12 +184,15 @@ class EditorSession(
         return added
     }
 
-    /** Copies [ids] after the last of them as one undo step; the id of the first copy, or null if it failed. */
+    /**
+     * Copies [ids] after the last of them as one undo step; the id of the first copy, or null if it failed. Text
+     * objects get new flows; body frames copy the whole flow until P06-T06 passes the page's own text (D-032).
+     */
     suspend fun duplicatePages(ids: Collection<PageId>): PageId? {
         if (!loaded(ids)) return null
-        val command = build { PageOps.duplicate(document.value, ids) }
-        if (command == null || !execute(command)) return null
-        return command.pages.first().id
+        val copy = build { PageOps.duplicate(document.value, ids) }
+        if (copy == null || !execute(copy.command)) return null
+        return copy.pages.first().id
     }
 
     /** Deletes [ids] as one undo step; false if that would remove every page or it failed. */

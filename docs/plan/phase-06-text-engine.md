@@ -81,9 +81,10 @@ Model: sonnet xhigh
 Implements: R-CORE-01, R-TXT-01
 Read: 07-text-engine.md#editing
 Files: feature/editor/.../text/**
-Do: single live text field for the focused block (zoom-scaled font size, identical TextStyle to layout), tap-to-caret mapping, block navigation (arrows, Enter splits, Backspace merges), Markdown shortcuts at block start, dimmed markers in the focused block only, selection across blocks (copy/cut/paste/delete as markdown), formatting bar above the keyboard, system stylus handwriting disabled.
+Do: single live text field for the focused block (zoom-scaled font size, identical TextStyle to layout), tap-to-caret mapping, block navigation (arrows, Enter splits, Backspace merges), Markdown shortcuts at block start, dimmed markers in the focused block only, selection across blocks (copy/cut/paste/delete as markdown), formatting bar above the keyboard, system stylus handwriting disabled. Wire the P06-T04 flow engine into the session (D-032, A-041): every flow edit runs `FlowReflow.plan` on the edited document and executes `Batch(edit, plan.command)` as one undo step (flow pages loaded first); `duplicatePages` passes `FlowLayout.markdownOn` as `pageText`; a library search result opens the note at `FlowSearch.firstPage` (query carried in the editor route).
 Accept:
 - [ ] unit: block split/merge commands and undo coalescing
+- [ ] unit: typing past the last body frame adds a continuation page in the same undo step; a search query opens the editor on the page of its first match
 - [ ] device: pen stroke over a focused block produces ink (no system handwriting)
 - [ ] device: tap-to-caret p95 <= 50 ms (`text:focus`)
 Verify: tests + device-tester

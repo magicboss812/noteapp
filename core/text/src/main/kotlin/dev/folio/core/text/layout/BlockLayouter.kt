@@ -337,7 +337,7 @@ class BlockLayouter(
                 fontFamilyResolver = resolver,
                 spanStyles = spans,
             )
-        return GridText(paragraph, g.refScale, lineHeightPx - paragraph.getLineBaseline(0))
+        return GridText(paragraph, plain, g.refScale, lineHeightPx - paragraph.getLineBaseline(0))
     }
 
     private fun spanStyles(

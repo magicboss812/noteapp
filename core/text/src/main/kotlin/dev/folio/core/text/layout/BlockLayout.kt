@@ -39,10 +39,14 @@ sealed interface BlockDecoration {
  */
 internal class GridText(
     private val paragraph: Paragraph,
+    /** The characters laid out (a callout title, a newline, then the text for callouts). */
+    val plain: String,
     private val refScale: Float,
     private val shiftPx: Float,
 ) {
     val lineCount: Int get() = paragraph.lineCount
+
+    fun lineForOffset(offset: Int): Int = paragraph.getLineForOffset(offset)
 
     fun baselinePt(line: Int): Float = (paragraph.getLineBaseline(line) + shiftPx) / refScale
 
@@ -103,6 +107,12 @@ class BlockLayout internal constructor(
 
     /** Baseline of [line]; blocks without text report the bottom of their line box. */
     fun baselinePt(line: Int): Float = text?.baselinePt(line) ?: ((line + 1) * boxUnits * unitPt)
+
+    /** The text shown in the block's lines (without list labels); empty for blocks without text. */
+    val plainText: String get() = text?.plain.orEmpty()
+
+    /** Line that shows character [offset] of [plainText] (0 for blocks without text). */
+    fun lineForOffset(offset: Int): Int = text?.lineForOffset(offset) ?: 0
 
     /** Baseline of the marker label, null without a marker. */
     fun markerBaselinePt(): Float? = marker?.baselinePt(0)

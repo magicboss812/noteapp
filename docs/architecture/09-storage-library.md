@@ -53,7 +53,7 @@ Duplicate docIds (a file copied manually): the second file gets a new docId on f
 ## Search
 - FTS4 over title + body where body = `search/text.txt` (plain text of all flows, Markdown syntax stripped, math source kept as text). Handwriting is not searchable (R-ORG-03).
 - Query: tokens with prefix matching (`term*`), all tokens must match. Ranking: title matches first, then by modifiedMs.
-- Results show title, folder, snippet with highlighted matches (FTS snippet()). Opening a result jumps to the first page containing the first match (page lookup via flow layout at open; until P06-T04 it opens the note at its usual page, A-033).
+- Results show title, folder, snippet with highlighted matches (FTS snippet()). Opening a result jumps to the first page containing the first match (page lookup `FlowSearch.firstPage` on the flow layout at open; until P06-T06 wires it, the note opens at its usual page, A-033, A-041).
 - Recent searches: last 10, stored locally in DataStore.
 
 ## Links
