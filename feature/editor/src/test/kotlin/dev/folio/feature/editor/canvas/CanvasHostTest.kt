@@ -130,6 +130,71 @@ class CanvasHostTest {
     }
 
     @Test
+    fun fingerTap_onAPage_asksTheTextControllerToFocusThePagePoint() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val page =
+            controller.document.value.pages[0]
+                .id
+        val at = controller.viewport.toViewPx(page, PointPt(100f, 200f))
+
+        tapAt(at.x, at.y)
+
+        assertThat(texts.focusCalls).hasSize(1)
+        val (pageId, xPt, yPt) = texts.focusCalls.single()
+        assertThat(pageId).isEqualTo(page)
+        assertThat(xPt).isWithin(1e-2f).of(100f)
+        assertThat(yPt).isWithin(1e-2f).of(200f)
+    }
+
+    @Test
+    fun fingerTap_readMode_doesNotFocus() {
+        val texts = FakeTextController().also { controller.textController = it }
+        controller.activeTool = CanvasTool.NAVIGATE
+        show()
+
+        tapAt(500f, 500f)
+
+        assertThat(texts.focusCalls).isEmpty()
+    }
+
+    @Test
+    fun fingerTap_withoutTextController_isIgnored() {
+        show()
+        val offsetBefore = controller.viewport.offsetYPx
+
+        tapAt(500f, 500f)
+
+        assertThat(controller.viewport.offsetYPx).isEqualTo(offsetBefore)
+    }
+
+    @Test
+    fun fingerDrag_pans_doesNotFocus() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+
+        compose.runOnUiThread {
+            val view = hostView()
+            view.dispatchTouchEvent(event(ACTION_DOWN, 0, 500f to 1500f))
+            view.dispatchTouchEvent(event(ACTION_MOVE, 50, 500f to 1000f))
+            view.dispatchTouchEvent(event(ACTION_UP, 100, 500f to 1000f))
+        }
+
+        assertThat(texts.focusCalls).isEmpty()
+    }
+
+    private fun tapAt(
+        xPx: Float,
+        yPx: Float,
+    ) {
+        compose.runOnUiThread {
+            val view = hostView()
+            view.dispatchTouchEvent(event(ACTION_DOWN, 0, xPx to yPx))
+            view.dispatchTouchEvent(event(ACTION_UP, 80, xPx to yPx))
+        }
+    }
+
+    @Test
     fun finishedStroke_committedToThePageUnderThePen_wetCopyRemovedAfterTheFrameShowingIt() {
         show()
         val page = ModelFixtures.page("p0").id

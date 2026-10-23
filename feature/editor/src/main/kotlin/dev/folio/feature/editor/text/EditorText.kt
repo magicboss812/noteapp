@@ -3,6 +3,7 @@ package dev.folio.feature.editor.text
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
+import dev.folio.core.common.PerfMonitor
 import dev.folio.core.model.Document
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
@@ -17,14 +18,19 @@ import dev.folio.core.storage.session.DocumentSession
 import dev.folio.core.text.edit.FlowTextDiff
 import dev.folio.core.text.flow.FlowLayout
 import dev.folio.core.text.flow.FlowSearch
+import dev.folio.core.text.flow.FocusedBlock
 import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.PageTexts
 import dev.folio.core.text.markdown.MarkdownDocument
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -32,8 +38,10 @@ import kotlinx.coroutines.withContext
 class TextSnapshot(
     /** Layout of every flow that has frames, by flow. */
     val layouts: Map<FlowId, FlowLayout>,
-    /** Page text of every page that shows text; other pages are absent. */
+    /** Page text of every page that shows text; other pages are absent. Thumbnails paint these. */
     val pages: Map<PageId, PageText>,
+    /** [pages] as the canvas paints them: without the focused block, which its live field draws. */
+    val canvas: Map<PageId, PageText> = pages,
 ) {
     /** Constants. */
     companion object {
@@ -56,18 +64,30 @@ class EditorText internal constructor(
     private val engine: TextEngine,
     private val dispatchers: FolioDispatchers,
     scope: CoroutineScope,
-) {
+) : TextController {
     private val parses = FlowParses()
     private val mutableSnapshot = MutableStateFlow(TextSnapshot.EMPTY)
+    private val mutableFocus = MutableStateFlow<TextFocus?>(null)
     private val ready = CompletableDeferred<Unit>()
     private var discovered = false
     private var inputs: LayoutInputs? = null
+    private var shown: FocusedBlock? = null
 
     /** The latest layouts and page texts; [TextSnapshot.EMPTY] until [awaitReady]. */
     val snapshot: StateFlow<TextSnapshot> = mutableSnapshot.asStateFlow()
 
+    /** The block being edited, null while the live field is not shown. */
+    val focus: StateFlow<TextFocus?> = mutableFocus.asStateFlow()
+
+    override val field: Flow<TextFieldSpec?> =
+        combine(mutableFocus, mutableSnapshot) { focus, snapshot -> snapshot.fieldOf(focus) }
+            .flowOn(dispatchers.text)
+
     init {
-        scope.launch(dispatchers.text) { documentSession.document.collect { refresh(it) } }
+        scope.launch(dispatchers.text) {
+            // Sequential: a focus change redraws the pages without the block, a document change lays out again.
+            combine(documentSession.document, mutableFocus, ::Pair).collect { (seen, _) -> refresh(seen) }
+        }
     }
 
     /** Returns once every page with a frame is decoded and [snapshot] shows the first layout. */
@@ -80,19 +100,35 @@ class EditorText internal constructor(
         }
         val doc = documentSession.document.value
         val next = LayoutInputs.of(doc)
-        if (next != inputs) {
-            inputs = next
-            val layouts = PageTexts.layouts(doc, engine.layouter, parses::of)
-            val old = mutableSnapshot.value.pages
-            // A page whose runs did not change keeps its instance, so the tiles and the thumbnails see no change.
-            val pages =
-                PageTexts.of(doc, layouts).mapValues { (id, text) ->
-                    old[id]?.takeIf { PageText.changedBounds(it, text).isEmpty() }
-                        ?: text
-                }
-            mutableSnapshot.value = TextSnapshot(layouts, pages)
+        val relaid = next != inputs
+        val current = mutableSnapshot.value
+        val layouts = if (relaid) PageTexts.layouts(doc, engine.layouter, parses::of) else current.layouts
+        inputs = next
+        // The focused block's id changes when undo or redo parses the text again: the block at the same place gets the focus.
+        mutableFocus.update { it?.resolvedIn(layouts) }
+        val focused = mutableFocus.value?.let { FocusedBlock(it.flowId, it.blockId) }
+        if (relaid || focused != shown) {
+            shown = focused
+            val pages = keepUnchanged(current.pages, PageTexts.of(doc, layouts))
+            val canvas = if (focused == null) pages else keepUnchanged(current.canvas, PageTexts.of(doc, layouts, focused))
+            mutableSnapshot.value = TextSnapshot(layouts, pages, canvas)
         }
         ready.complete(Unit)
+    }
+
+    override fun focusAt(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ): Boolean =
+        PerfMonitor.trace(TRACE_FOCUS) {
+            val focus = mutableSnapshot.value.focusAt(pageId, xPt, yPt, mutableFocus.value?.revision ?: 0)
+            mutableFocus.value = focus
+            focus != null
+        }
+
+    override fun blur() {
+        mutableFocus.value = null
     }
 
     // Loads the pages that are not decoded yet, a few at a time, so a frame on any page takes part in the layout.
@@ -209,6 +245,13 @@ class EditorText internal constructor(
 
     private companion object {
         const val TAG = "EditorText"
+        const val TRACE_FOCUS = "text:focus"
         const val DISCOVER_CHUNK = 8
+
+        // A page whose runs did not change keeps its instance, so the tiles and the thumbnails see no change.
+        fun keepUnchanged(
+            old: Map<PageId, PageText>,
+            next: Map<PageId, PageText>,
+        ): Map<PageId, PageText> = next.mapValues { (id, text) -> old[id]?.takeIf { PageText.changedBounds(it, text).isEmpty() } ?: text }
     }
 }

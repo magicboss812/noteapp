@@ -10,15 +10,17 @@ import dev.folio.core.render.viewport.Viewport
 import kotlin.math.hypot
 import kotlin.math.pow
 
-/** Touch thresholds, px and px/s (from ViewConfiguration); [scrollPx] per wheel step. */
+/** Touch thresholds, px and px/s (from ViewConfiguration); [scrollPx] per wheel step; a tap is released within [tapTimeoutMs]. */
 internal data class GestureConfig(
     val touchSlopPx: Float,
     val minFlingPxPerS: Float,
     val maxFlingPxPerS: Float,
     val scrollPx: Float = DEFAULT_SCROLL_PX,
+    val tapTimeoutMs: Long = DEFAULT_TAP_TIMEOUT_MS,
 ) {
     private companion object {
         const val DEFAULT_SCROLL_PX = 64f
+        const val DEFAULT_TAP_TIMEOUT_MS = 400L
     }
 }
 
@@ -29,7 +31,8 @@ internal data class GestureConfig(
  * A gesture that starts with another pointer type is ignored until the next ACTION_DOWN (except a read
  * mode stylus, see [onTouchEvent]); extra non-finger
  * pointers and third fingers are ignored. [onChanged] runs after every viewport change; [postFrame]
- * schedules a fling step on the next frame.
+ * schedules a fling step on the next frame. A finger or mouse press that is released in place within the tap
+ * timeout is a tap: [onTap] gets its view position (a tap focuses the text block under it).
  */
 @MainThread
 internal class FingerGestures(
@@ -38,6 +41,7 @@ internal class FingerGestures(
     private val config: GestureConfig,
     private val onChanged: () -> Unit,
     private val postFrame: (Runnable) -> Unit,
+    private val onTap: (xPx: Float, yPx: Float) -> Unit = { _, _ -> },
 ) : NavigationTarget {
     private enum class Mode { NONE, IGNORED, PENDING, PAN, PINCH }
 
@@ -45,6 +49,7 @@ internal class FingerGestures(
     private var velocity: VelocityTracker? = null
     private var firstId = NO_POINTER
     private var secondId = NO_POINTER
+    private var tapCandidate = false
     private var downX = 0f
     private var downY = 0f
     private var lastX = 0f
@@ -131,6 +136,7 @@ internal class FingerGestures(
         }
         firstId = event.getPointerId(0)
         secondId = NO_POINTER
+        tapCandidate = !stylus
         downX = event.x
         downY = event.y
         lastX = downX
@@ -210,7 +216,9 @@ internal class FingerGestures(
                 postFrame(flingStep)
             }
         }
+        val tapped = mode == Mode.PENDING && tapCandidate && event.eventTime - event.downTime <= config.tapTimeoutMs
         mode = Mode.NONE
+        if (tapped) onTap(event.x, event.y)
     }
 
     private fun panTo(

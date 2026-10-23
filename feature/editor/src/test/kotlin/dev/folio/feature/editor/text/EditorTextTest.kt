@@ -32,6 +32,7 @@ import dev.folio.core.text.edit.BlockEditing
 import dev.folio.core.text.edit.Caret
 import dev.folio.core.text.edit.TextSelection
 import dev.folio.core.text.flow.FlowLayouter
+import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.toTextStyle
 import dev.folio.feature.editor.state.EditorSession
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +40,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -322,6 +324,179 @@ class EditorTextTest {
             assertThat(session.undo()).isTrue()
             assertThat(documentSession.document.value.pages).hasSize(1)
             assertThat(markdown(documentSession)).isEqualTo(original)
+        }
+
+    // Points inside the first and the second line box of the body frame (short paragraphs are one line box each).
+    private val lineBoxPt =
+        ModelFixtures.LINED_BACKGROUND.template.spacingPt * FlowLayouter.bodyBoxUnits(ModelFixtures.FLOW_STYLE.toTextStyle())
+
+    private fun firstLineY(): Float = bodyRect.top + 2f
+
+    private fun secondLineY(): Float = bodyRect.top + lineBoxPt + 2f
+
+    @Test
+    fun focusAt_firstBlock_focusesItWithTheCaretAtTheEndOfAShortLine() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val first = checkNotNull(text.parsed(body)).blocks[0]
+            val page =
+                documentSession.document.value.pages[0]
+                    .id
+
+            val focused = text.focusAt(page, bodyRect.right - 4f, firstLineY())
+
+            assertThat(focused).isTrue()
+            assertThat(text.focus.value).isEqualTo(TextFocus(body, first.id, 0, "alpha".length, 1))
+        }
+
+    @Test
+    fun focusAt_pointLeftOfTheText_putsTheCaretAtTheBlockStart() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val page =
+                documentSession.document.value.pages[0]
+                    .id
+
+            text.focusAt(page, bodyRect.left, firstLineY())
+
+            assertThat(text.focus.value?.caret).isEqualTo(0)
+        }
+
+    @Test
+    fun focusAt_beyondTheFrame_endsTheFocus() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val page =
+                documentSession.document.value.pages[0]
+                    .id
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            assertThat(text.focus.value).isNotNull()
+
+            val focused = text.focusAt(page, bodyRect.left + 4f, bodyRect.bottom + 40f)
+
+            assertThat(focused).isFalse()
+            assertThat(text.focus.value).isNull()
+            assertThat(text.field.first()).isNull()
+        }
+
+    @Test
+    fun focusAt_secondTap_countsTheRevisionUp() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val page =
+                documentSession.document.value.pages[0]
+                    .id
+
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            text.focusAt(page, bodyRect.left + 8f, firstLineY())
+
+            assertThat(text.focus.value?.revision).isEqualTo(2)
+        }
+
+    @Test
+    fun field_focusedBlock_showsItsSourceAtItsPlaceOnThePage() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val page =
+                documentSession.document.value.pages[0]
+                    .id
+
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+
+            val field = checkNotNull(text.field.first())
+            assertThat(field.block.source).isEqualTo("alpha")
+            assertThat(field.pageId).isEqualTo(page)
+            assertThat(field.placement.topPt).isAtLeast(bodyRect.top)
+        }
+
+    @Test
+    fun snapshot_focusedBlock_canvasSkipsItWhileThumbnailsStillShowIt() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val page =
+                documentSession.document.value.pages[0]
+                    .id
+            val before = text.snapshot.value
+            assertThat(before.canvas[page]).isSameInstanceAs(before.pages[page])
+
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            yield() // the text dispatcher lays the pages out again without the focused block
+
+            val focused = text.snapshot.value
+            assertThat(focused.canvas.runCount(page)).isLessThan(focused.pages.runCount(page))
+            assertThat(focused.pages[page]).isSameInstanceAs(before.pages[page])
+
+            text.blur()
+            yield()
+
+            assertThat(text.snapshot.value.canvas[page]).isSameInstanceAs(before.pages[page])
+        }
+
+    private fun Map<PageId, PageText>.runCount(page: PageId): Int = getValue(page).runs.size
+
+    @Test
+    fun focus_blockAboveIsSplit_followsTheBlockByIdAndUndoMovesItToTheSameIndex() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val page =
+                documentSession.document.value.pages[0]
+                    .id
+            val parsed = checkNotNull(text.parsed(body))
+            text.focusAt(page, bodyRect.left + 4f, secondLineY())
+            assertThat(text.focus.value?.blockId).isEqualTo(parsed.blocks[1].id)
+
+            session.editText(body) { BlockEditing.enter(it, TextSelection.at(Caret(parsed.blocks[0].id, 2))) }
+            yield()
+
+            assertThat(text.focus.value?.blockId).isEqualTo(parsed.blocks[1].id)
+            assertThat(text.focus.value?.blockIndex).isEqualTo(2)
+
+            assertThat(session.undo()).isTrue()
+            yield()
+
+            assertThat(text.focus.value?.blockIndex).isEqualTo(1)
+            assertThat(text.fieldSource()).isEqualTo("beta")
+        }
+
+    private suspend fun EditorText.fieldSource(): String? = field.first()?.block?.source
+
+    @Test
+    fun focusAt_emptyFlow_focusesAnEmptyBlock() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val page =
+                documentSession.document.value.pages[0]
+                    .id
+
+            val focused = text.focusAt(page, bodyRect.left + 4f, firstLineY())
+
+            assertThat(focused).isTrue()
+            assertThat(text.focus.value?.caret).isEqualTo(0)
+            assertThat(text.fieldSource()).isEqualTo("")
         }
 
     @Test

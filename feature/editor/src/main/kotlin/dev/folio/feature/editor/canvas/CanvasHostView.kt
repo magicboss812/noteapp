@@ -34,10 +34,12 @@ import dev.folio.core.render.tiles.BitmapPool
 import dev.folio.core.render.tiles.TileGrid
 import dev.folio.core.render.tiles.TileLayer
 import dev.folio.core.render.tiles.VisiblePage
+import dev.folio.core.render.viewport.PointPx
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.ViewportMode
 import dev.folio.core.render.viewport.ZoomBuckets
 import dev.folio.core.render.viewport.pageIndexAt
+import dev.folio.core.render.viewport.toPagePt
 import dev.folio.core.text.flow.PageText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
@@ -111,6 +113,7 @@ class CanvasHostView internal constructor(
                 ),
                 onChanged = ::onViewportChanged,
                 postFrame = ::postOnAnimation,
+                onTap = ::onFingerTap,
             )
         }
     private val animator = ViewportAnimator(controller.viewport, ::onViewportChanged)
@@ -504,6 +507,18 @@ class CanvasHostView internal constructor(
         if (width == 0 || height == 0) return
         viewport.setPages(current, width.toFloat(), height.toFloat())
         onViewportChanged()
+    }
+
+    // A finger tap on a page focuses the text block under it; a tap beside the text frames ends the focus. Read mode only reads.
+    private fun onFingerTap(
+        xPx: Float,
+        yPx: Float,
+    ) {
+        val texts = controller.textController
+        if (texts == null || controller.activeTool == CanvasTool.NAVIGATE) return
+        val pageId = document?.pages?.getOrNull(viewport.pageIndexAt(yPx))?.id ?: return
+        val pt = viewport.toPagePt(pageId, PointPx(xPx, yPx))
+        texts.focusAt(pageId, pt.x, pt.y)
     }
 
     private fun onViewportChanged() {

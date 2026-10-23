@@ -27,6 +27,7 @@ class FingerGesturesTest {
     private val viewport = Viewport(DENSITY).apply { setPages(List(20) { ModelFixtures.page("p$it").toRef() }, VIEW_W, VIEW_H) }
     private val frames = ArrayList<Runnable>()
     private var changes = 0
+    private val taps = ArrayList<Pair<Float, Float>>()
     private val gestures =
         FingerGestures(
             viewport,
@@ -34,6 +35,7 @@ class FingerGesturesTest {
             GestureConfig(touchSlopPx = 20f, minFlingPxPerS = 100f, maxFlingPxPerS = 20_000f),
             onChanged = { changes++ },
             postFrame = { frames += it },
+            onTap = { x, y -> taps += x to y },
         )
 
     @Test
@@ -144,6 +146,66 @@ class FingerGesturesTest {
         gestures.onTouchEvent(event(ACTION_MOVE, 100, 1000f to 1200f, toolType = TOOL_TYPE_MOUSE))
 
         assertThat(viewport.offsetYPx).isWithin(1e-3).of(-300.0)
+    }
+
+    @Test
+    fun tap_fingerReleasedInPlace_reportsItsPosition() {
+        gestures.onTouchEvent(event(ACTION_DOWN, 0, 1000f to 1500f))
+        gestures.onTouchEvent(event(ACTION_UP, 120, 1004f to 1503f))
+
+        assertThat(taps).containsExactly(1004f to 1503f)
+    }
+
+    @Test
+    fun tap_mouseClick_reportsItsPosition() {
+        gestures.onTouchEvent(event(ACTION_DOWN, 0, 1000f to 1500f, toolType = TOOL_TYPE_MOUSE))
+        gestures.onTouchEvent(event(ACTION_UP, 80, 1000f to 1500f, toolType = TOOL_TYPE_MOUSE))
+
+        assertThat(taps).containsExactly(1000f to 1500f)
+    }
+
+    @Test
+    fun tap_afterPanning_isNoTap() {
+        gestures.onTouchEvent(event(ACTION_DOWN, 0, 1000f to 1500f))
+        gestures.onTouchEvent(event(ACTION_MOVE, 50, 1000f to 1400f))
+        gestures.onTouchEvent(event(ACTION_UP, 100, 1000f to 1400f))
+
+        assertThat(taps).isEmpty()
+    }
+
+    @Test
+    fun tap_heldLongerThanTheTapTimeout_isNoTap() {
+        gestures.onTouchEvent(event(ACTION_DOWN, 0, 1000f to 1500f))
+        gestures.onTouchEvent(event(ACTION_UP, 900, 1000f to 1500f))
+
+        assertThat(taps).isEmpty()
+    }
+
+    @Test
+    fun tap_twoFingers_isNoTap() {
+        gestures.onTouchEvent(event(ACTION_DOWN, 0, 800f to 1600f))
+        gestures.onTouchEvent(event(ACTION_POINTER_DOWN, 20, 800f to 1600f, 1200f to 1600f, actionIndex = 1))
+        gestures.onTouchEvent(event(ACTION_POINTER_UP, 60, 800f to 1600f, 1200f to 1600f, actionIndex = 1))
+        gestures.onTouchEvent(event(ACTION_UP, 80, 800f to 1600f))
+
+        assertThat(taps).isEmpty()
+    }
+
+    @Test
+    fun tap_stylusInReadMode_isNoTap() {
+        gestures.onTouchEvent(event(ACTION_DOWN, 0, 1000f to 1500f, toolType = TOOL_TYPE_STYLUS), stylus = true)
+        gestures.onTouchEvent(event(ACTION_UP, 80, 1000f to 1500f, toolType = TOOL_TYPE_STYLUS), stylus = true)
+
+        assertThat(taps).isEmpty()
+    }
+
+    @Test
+    fun tap_canceled_isNoTap() {
+        gestures.onTouchEvent(event(ACTION_DOWN, 0, 1000f to 1500f))
+        gestures.onTouchEvent(event(MotionEvent.ACTION_CANCEL, 50, 1000f to 1500f))
+        gestures.onTouchEvent(event(ACTION_UP, 60, 1000f to 1500f))
+
+        assertThat(taps).isEmpty()
     }
 
     @Test

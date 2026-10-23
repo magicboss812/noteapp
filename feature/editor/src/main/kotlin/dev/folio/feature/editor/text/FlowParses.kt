@@ -2,6 +2,7 @@ package dev.folio.feature.editor.text
 
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.TextFlow
+import dev.folio.core.text.edit.BlockEditing
 import dev.folio.core.text.markdown.MarkdownDocument
 
 /**
@@ -18,12 +19,12 @@ internal class FlowParses {
         val document: MarkdownDocument,
     )
 
-    /** The parsed [flow]. */
+    /** The parsed [flow]; an empty flow has one empty block, the one a caret sits in and typing starts. */
     @Synchronized
     fun of(flow: TextFlow): MarkdownDocument {
         val entry = parsed[flow.id]
         if (entry != null && entry.markdown == flow.markdown) return entry.document
-        return MarkdownDocument.parse(flow.markdown).also { parsed[flow.id] = Entry(flow.markdown, it) }
+        return BlockEditing.ensureBlock(MarkdownDocument.parse(flow.markdown)).also { parsed[flow.id] = Entry(flow.markdown, it) }
     }
 
     /** Remembers [document] as the parse of flow [id] whose text will be `document.toMarkdown()`. */

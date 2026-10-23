@@ -13,7 +13,7 @@ updated: 2026-10-23
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06a, T06b, T06c, T06d
+- P06: T12, T13, T01, T02, T03, T04, T05, T06a, T06b, T06c, T06d, T06e
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -28,9 +28,8 @@ updated: 2026-10-23
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the highlighter panel, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- T06a (A-043) wired the engine into the session; T06b done (A-044): core:text `edit/` has `BlockEditing` (insert/delete/copy/enter/softBreak/backspace/deleteForward/indent/shortcut/left/right), `BlockStyles`, `Formatting`, `FlowTextDiff`; every result equals a re-parse (property test).
-- `EditorSession.editText(flowId, coalesceKey) { doc -> EditResult? }` runs a block edit as one `EditFlow` (typing key `type:<flow>:<block>`, structural null; ids kept via `FlowParses.adopt`); `FlowLayout.runs(frame, skipBlock)` and `FocusedBlock` in `PageTexts.of` exist for the focused-block skip.
-- T06c/T06d done (core:text): `FlowLayout.hit(page, x, y)` -> `BlockHit`, `placementOf(block)`, `BlockLayout.face` + `typeface(resolver)`, `EditMarkers.ranges(block)` (dim ranges), `FlowLayout.sourceOffsetAt(hit, xPt)` (tap -> caret offset in block source via `SourceOffsets.fromPlain`), all unit-tested.
-- T06e (next, feature:editor): focus state in `EditorText` (focus flow, field spec from snapshot + `placementOf`, `FocusedBlock` into `PageTexts.of`, re-resolve by index after undo), `CanvasController` text members (default no-ops), finger tap in `FingerGestures` -> focus (`text:focus`; ignored in NAVIGATE).
-- T06f: `LiveTextField` EditText in `CanvasHostView.overlay` (handwriting off, dimmed markers, line height = box x U at zoom, view top = block top + box - |ascent|), typing + Enter/Backspace/arrows via `editText`. T06g: formatting bar, cross-block selection, debug `seed-text`, screenshot test, device checks (pen ink over a focused block, tap-to-caret p95 <= 50 ms), A-045.
+- T06a-T06e done. core:text has `BlockEditing`, `FlowLayout.hit/placementOf/sourceOffsetAt`, `BlockLayout.face/typeface`, `EditMarkers.ranges`; `EditorSession.editText(flowId, coalesceKey) { doc -> EditResult? }` runs a block edit as one `EditFlow` (typing key `type:<flow>:<block>`, structural null; ids kept via `FlowParses.adopt`).
+- T06e: `EditorText` is the `TextController` (`focus`, `field` of `TextFieldSpec`, `focusAt`, `blur`; focus re-resolved by index after undo; `snapshot.canvas` = pages without the focused block, thumbnails keep `pages`); finger/mouse tap: `FingerGestures.onTap` -> `CanvasHostView.onFingerTap` -> `controller.textController` (ignored in NAVIGATE).
+- T06f (next): `LiveTextField` EditText in `CanvasHostView.overlay` fed by `textController.field` (collect in `CanvasHost.kt`): handwriting off, dimmed markers, line height = box x U at zoom, view top = block top + box - |ascent|; typing + Enter/Backspace/arrows via `editText`.
+- T06g: formatting bar, cross-block selection, debug `seed-text`, screenshot test, device checks (pen ink over a focused block, tap-to-caret p95 <= 50 ms), A-045 (tap focus without Text tool, per-line drift, frame-spanning blocks).
 - Tool row y 1963 px, mode pill y 171 px in landscape.

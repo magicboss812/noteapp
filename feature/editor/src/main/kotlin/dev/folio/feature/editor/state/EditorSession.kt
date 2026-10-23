@@ -32,6 +32,7 @@ import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
 import dev.folio.feature.editor.text.EditorText
+import dev.folio.feature.editor.text.TextController
 import dev.folio.feature.editor.text.TextEngine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -71,7 +72,9 @@ class EditorSession(
     val text: EditorText? = textEngine?.let { EditorText(documentSession, it, dispatchers, scope) }
 
     override val pageTexts: Flow<Map<PageId, PageText>> =
-        text?.snapshot?.map { it.pages }?.distinctUntilChanged() ?: emptyFlow()
+        text?.snapshot?.map { it.canvas }?.distinctUntilChanged() ?: emptyFlow()
+
+    override val textController: TextController? get() = text
 
     /** The selected toolbar tool (chrome state; the canvas reads [activeTool] at stylus down). */
     val tool: StateFlow<EditorTool> = mutableTool.asStateFlow()

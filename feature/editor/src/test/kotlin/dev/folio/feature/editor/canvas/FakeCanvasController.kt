@@ -13,9 +13,31 @@ import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.testing.ModelFixtures
+import dev.folio.feature.editor.text.TextController
+import dev.folio.feature.editor.text.TextFieldSpec
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
+
+/** Text controller that records the taps it gets; [focusResult] is what every tap returns. */
+internal class FakeTextController : TextController {
+    override val field: Flow<TextFieldSpec?> = emptyFlow()
+    var focusResult = true
+    val focusCalls = ArrayList<Triple<PageId, Float, Float>>()
+
+    override fun focusAt(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ): Boolean {
+        focusCalls += Triple(pageId, xPt, yPt)
+        return focusResult
+    }
+
+    override fun blur() = Unit
+}
 
 /** Controller over an in-memory document of [pages] lined A4 pages; commands apply synchronously. */
 internal class FakeCanvasController(
@@ -35,6 +57,7 @@ internal class FakeCanvasController(
     override var activeTool = CanvasTool.PEN
     override var eraserOptions = EraserOptions.DEFAULT
     override var stylusPreferences = StylusPreferences.DEFAULT
+    override var textController: TextController? = null
     val loadRequests = ArrayList<PageId>()
 
     /** The thread of every [loadPages] call (the view asks while applying a document, so it must be main). */
