@@ -103,6 +103,7 @@ fun LibraryEntryRoute(
                 onOpenDocument = onOpenDocument,
                 onNewNote = newNoteViewModel::show,
                 onSelectAll = browseViewModel::selectAll,
+                onSelectTag = browseViewModel::selectTag,
                 folders =
                     FolderActions(
                         onOpen = browseViewModel::openFolder,
@@ -119,6 +120,7 @@ fun LibraryEntryRoute(
                         onMove = { paths, folder -> batch { opsViewModel.move(paths, folder) } },
                         onDuplicate = opsViewModel::duplicate,
                         onSetFavorite = { paths, favorite -> batch { opsViewModel.setFavorite(paths, favorite) } },
+                        onSetTags = opsViewModel::setTags,
                         onDelete = { paths -> batch { opsViewModel.delete(paths) } },
                         loadCover = opsViewModel::cover,
                     ),
@@ -189,6 +191,7 @@ data class LibraryActions(
     val onOpenDocument: (String) -> Unit = {},
     val onNewNote: () -> Unit = {},
     val onSelectAll: (List<String>) -> Unit = {},
+    val onSelectTag: (String) -> Unit = {},
     val notes: NoteActions = NoteActions(),
     val folders: FolderActions = FolderActions(),
 )
@@ -232,6 +235,7 @@ fun LibraryEntryScreen(
                     notes = actions.notes,
                     folderActions = actions.folders,
                     onSelectAll = actions.onSelectAll,
+                    onSelectTag = actions.onSelectTag,
                 )
             }
 

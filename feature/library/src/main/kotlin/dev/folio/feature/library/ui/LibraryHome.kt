@@ -100,12 +100,14 @@ internal fun LibraryHome(
     notes: NoteActions = NoteActions(),
     folderActions: FolderActions = FolderActions(),
     onSelectAll: (List<String>) -> Unit = {},
+    onSelectTag: (String) -> Unit = {},
     onSearch: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
 ) {
     // A folder renamed, moved or deleted elsewhere falls back to the root instead of showing an empty view.
     val folder = existingFolder(folders, browse.folder)
-    val visible = visibleDocuments(documents, browse.tab, browse.sort, folder)
+    val tags = remember(documents, browse.tag) { TagFilter.of(documents, browse.tag) }
+    val visible = visibleDocuments(documents, browse.tab, browse.sort, folder, tags.active)
     val subfolders =
         remember(folders, documents, browse.tab, folder) {
             if (browse.tab == LibraryTab.ALL) folderSummaries(childFolders(folders, folder), documents) else persistentListOf()
@@ -145,7 +147,9 @@ internal fun LibraryHome(
                         onSearch = onSearch,
                     )
                     LibraryControls(browse, folder, onSelectTab, folderActions.onOpen, onSetSort, onToggleViewMode, onToggleSelectMode)
+                    TagTabChips(browse.tab, tags, onSelectTag)
                     LibraryDocuments(
+                        knownTags = tags.known,
                         documents = visible,
                         folders = folders,
                         subfolders = subfolders,

@@ -55,6 +55,8 @@ import dev.folio.feature.library.state.folderColor
 import dev.folio.feature.library.state.tintName
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import java.time.ZoneId
 
 private val GUTTER = 24.dp
@@ -62,6 +64,9 @@ private val LIST_ROW_HEIGHT = 100.dp
 private val LIST_THUMB = 100.dp
 private val LIST_THUMB_RADIUS = 10.dp
 private const val LIST_COLUMNS = 2
+
+// The meta line of a 195 dp card has room for the timestamp, a star and one tag; list rows and the editor show them all.
+private const val CARD_TAGS = 1
 private val EMPTY_MAX_TEXT = 360.dp
 
 /** What the note cards report; the defaults are no-ops so previews and tests pass only what they check. */
@@ -71,6 +76,7 @@ data class NoteActions(
     val onMove: (paths: Set<String>, folder: String) -> Unit = { _, _ -> },
     val onDuplicate: (String) -> Unit = {},
     val onSetFavorite: (paths: Set<String>, favorite: Boolean) -> Unit = { _, _ -> },
+    val onSetTags: (path: String, tags: List<String>) -> Unit = { _, _ -> },
     val onDelete: (paths: Set<String>) -> Unit = {},
     /** Decoded cover thumbnail of a note; null while missing. */
     val loadCover: suspend (LibraryDocItem) -> ImageBitmap? = { null },
@@ -107,6 +113,7 @@ internal fun LibraryDocuments(
     notes: NoteActions,
     folderActions: FolderActions,
     modifier: Modifier = Modifier,
+    knownTags: ImmutableList<String> = persistentListOf(),
 ) {
     if (documents.isEmpty() && subfolders.isEmpty()) {
         EmptyState(emptyTitle, emptyHint, modifier)
@@ -115,6 +122,7 @@ internal fun LibraryDocuments(
     var menuFor by remember { mutableStateOf<String?>(null) }
     var renaming by remember { mutableStateOf<LibraryDocItem?>(null) }
     var moving by remember { mutableStateOf<LibraryDocItem?>(null) }
+    var tagging by remember { mutableStateOf<LibraryDocItem?>(null) }
     var folderMenuFor by remember { mutableStateOf<String?>(null) }
     var folderDialog by remember { mutableStateOf<FolderDialog?>(null) }
     val folderMenu: @Composable (FolderSummary) -> Unit = { summary ->
@@ -138,7 +146,7 @@ internal fun LibraryDocuments(
             onDismiss = { menuFor = null },
             onAction = { action ->
                 menuFor = null
-                performNoteAction(action, doc, notes, onRename = { renaming = doc }, onMove = { moving = doc })
+                performNoteAction(action, doc, notes, onRename = { renaming = doc }, onMove = { moving = doc }, onTags = { tagging = doc })
             },
         )
     }
@@ -174,6 +182,7 @@ internal fun LibraryDocuments(
                             timestamp = cardTimestamp(doc.modifiedMs, nowMs, zone),
                             onClick = { open(doc) },
                             favorite = doc.favorite,
+                            tags = doc.tags.take(CARD_TAGS).toImmutableList(),
                             selected = doc.path in selected,
                             selectMode = selectMode,
                             onLongClick = { if (!selectMode) notes.onToggleSelected(doc.path) },
@@ -222,20 +231,34 @@ internal fun LibraryDocuments(
         }
     }
     NoteDialogHost(renaming, moving, folders, notes, onCloseRename = { renaming = null }, onCloseMove = { moving = null })
+    tagging?.let { doc ->
+        TagEditorDialog(
+            noteTitle = doc.title,
+            initial = doc.tags,
+            known = knownTags,
+            onSave = {
+                tagging = null
+                notes.onSetTags(doc.path, it)
+            },
+            onDismiss = { tagging = null },
+        )
+    }
     FolderDialogHost(folderDialog, folders, folderActions, onClose = { folderDialog = null })
 }
 
-/** Runs a note menu entry; rename and move only open a dialog, so they are handed back through [onRename] and [onMove]. */
+/** Runs a note menu entry; rename, move and tags only open a dialog, so they are handed back through [onRename], [onMove] and [onTags]. */
 private fun performNoteAction(
     action: NoteAction,
     doc: LibraryDocItem,
     notes: NoteActions,
     onRename: () -> Unit,
     onMove: () -> Unit,
+    onTags: () -> Unit,
 ) {
     when (action) {
         NoteAction.Rename -> onRename()
         NoteAction.Move -> onMove()
+        NoteAction.Tags -> onTags()
         NoteAction.Duplicate -> notes.onDuplicate(doc.path)
         NoteAction.ToggleFavorite -> notes.onSetFavorite(setOf(doc.path), !doc.favorite)
         NoteAction.Delete -> notes.onDelete(setOf(doc.path))
@@ -411,9 +434,11 @@ private fun DocumentListRow(
         ) { NotePreview(doc, cover) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(space.s2)) {
             Text(
-                text = if (doc.pageCount == 1) "1 page" else "${doc.pageCount} pages",
+                text = listMeta(doc),
                 style = FolioTheme.type.caption,
                 color = colors.textTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = doc.title,
@@ -434,6 +459,11 @@ private fun DocumentListRow(
             FolioIconButton(FolioIcons.Ellipsis, contentDescription = "More", onClick = onOverflow, tint = colors.textTertiary)
         }
     }
+}
+
+private fun listMeta(doc: LibraryDocItem): String {
+    val pages = if (doc.pageCount == 1) "1 page" else "${doc.pageCount} pages"
+    return (listOf(pages) + doc.tags.map { "#$it" }).joinToString("  ")
 }
 
 @Composable

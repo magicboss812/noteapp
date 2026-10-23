@@ -84,6 +84,9 @@ class LibraryRepository(
     /** All tags in use. */
     fun tags(): Flow<List<String>> = dao.allTags()
 
+    /** Tags per document path (sorted); documents without tags are absent. */
+    fun tagAssignments(): Flow<Map<String, List<String>>> = dao.tagRows().map { rows -> rows.groupBy({ it.path }, { it.tag }) }
+
     /** Marks a closed document as favorite (manifest rewrite). */
     suspend fun setFavorite(
         path: String,

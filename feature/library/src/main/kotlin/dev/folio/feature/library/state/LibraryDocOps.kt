@@ -49,6 +49,12 @@ class LibraryDocOps(
         favorite: Boolean,
     ): String? = report("update", paths, paths.map { library.setFavorite(it, favorite) }, successText = null)
 
+    /** Replaces the tags of the note at [path] with [tags]. */
+    suspend fun setTags(
+        path: String,
+        tags: List<String>,
+    ): String? = report("tag", listOf(path), listOf(library.setTags(path, tags.toSet())), successText = null)
+
     /** Moves each of [paths] to the bin. */
     suspend fun delete(paths: List<String>): String? =
         report("delete", paths, paths.map { documents.delete(it) }, successText = binText(paths.size))

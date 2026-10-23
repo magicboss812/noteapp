@@ -48,6 +48,8 @@ data class LibraryDocItem(
     val textPreview: String = "",
     /** The file stores a `thumbs/cover.webp`. */
     val hasCover: Boolean = false,
+    /** Tags from the manifest, sorted. */
+    val tags: ImmutableList<String> = persistentListOf(),
 )
 
 /**
@@ -118,20 +120,29 @@ class LibraryEntryViewModel
 
         private fun allDocuments(): Flow<ImmutableList<LibraryDocItem>> {
             val repo = library.get()
-            return repo.folderTree().flatMapLatest { folders ->
-                val lists = (listOf(ROOT) + folders.map { it.path }).map { repo.documents(DocumentFilter.InFolder(it)) }
-                combine(lists) { perFolder ->
-                    perFolder
-                        .flatMap { it }
-                        .sortedByDescending { it.modifiedMs }
-                        .map { it.toItem() }
-                        .toImmutableList()
+            val perFolder =
+                repo.folderTree().flatMapLatest { folders ->
+                    val lists = (listOf(ROOT) + folders.map { it.path }).map { repo.documents(DocumentFilter.InFolder(it)) }
+                    combine(lists) { rows -> rows.flatMap { it }.sortedByDescending { it.modifiedMs } }
                 }
+            return combine(perFolder, repo.tagAssignments()) { rows, tags ->
+                rows.map { it.toItem(tags[it.path].orEmpty()) }.toImmutableList()
             }
         }
 
-        private fun DocumentRow.toItem() =
-            LibraryDocItem(path, title, folderPath, pageCount, modifiedMs, createdMs, favorite, textPreview, coverThumbPath != null)
+        private fun DocumentRow.toItem(tags: List<String>) =
+            LibraryDocItem(
+                path,
+                title,
+                folderPath,
+                pageCount,
+                modifiedMs,
+                createdMs,
+                favorite,
+                textPreview,
+                coverThumbPath != null,
+                tags.toImmutableList(),
+            )
 
         private companion object {
             const val ROOT = ""

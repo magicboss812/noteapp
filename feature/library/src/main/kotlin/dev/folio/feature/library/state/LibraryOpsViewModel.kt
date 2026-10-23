@@ -62,6 +62,12 @@ class LibraryOpsViewModel
             favorite: Boolean,
         ) = run { ops.setFavorite(paths.toList(), favorite) }
 
+        /** Replaces the tags of the note at [path]. */
+        fun setTags(
+            path: String,
+            tags: List<String>,
+        ) = run { ops.setTags(path, tags) }
+
         /** Moves [paths] to the bin. */
         fun delete(paths: Collection<String>) = run { ops.delete(paths.toList()) }
 

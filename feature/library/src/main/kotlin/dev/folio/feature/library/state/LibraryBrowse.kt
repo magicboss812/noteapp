@@ -61,6 +61,8 @@ data class LibraryBrowseState(
     val userName: String = "",
     /** Library paths ticked in select mode; always empty outside it. */
     val selected: ImmutableSet<String> = persistentSetOf(),
+    /** Tag chosen on the Tags tab; null lists every tagged note. */
+    val tag: String? = null,
 )
 
 /** Greeting line above the library: "Hello, <name>", or "Your notes" while no name is set. */
@@ -90,20 +92,22 @@ fun cardTimestamp(
 
 /**
  * Documents of [tab] in [sort] order. The All tab lists only the notes directly in [folder] ("" = root); null lists
- * every folder. Tags and Bin have their own content (P05-T04, P05-T06), so they list nothing here. Name sorts
- * case-insensitively; ties keep the newest first.
+ * every folder. The Tags tab lists the notes carrying [tag], or every tagged note while [tag] is null. Bin has its
+ * own content (P05-T06), so it lists nothing here. Name sorts case-insensitively; ties keep the newest first.
  */
 fun visibleDocuments(
     all: List<LibraryDocItem>,
     tab: LibraryTab,
     sort: DocumentSort,
     folder: String? = null,
+    tag: String? = null,
 ): ImmutableList<LibraryDocItem> {
     val pool =
         when (tab) {
             LibraryTab.ALL -> if (folder == null) all else all.filter { it.folder == folder }
             LibraryTab.FAVORITES -> all.filter { it.favorite }
-            LibraryTab.TAGS, LibraryTab.BIN -> emptyList()
+            LibraryTab.TAGS -> all.filter { if (tag == null) it.tags.isNotEmpty() else tag in it.tags }
+            LibraryTab.BIN -> emptyList()
         }
     val order =
         when (sort) {

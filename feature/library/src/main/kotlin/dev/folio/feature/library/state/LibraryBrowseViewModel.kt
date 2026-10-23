@@ -26,6 +26,7 @@ import javax.inject.Inject
  * Browse state of the library: tab and select mode live here, sort order, view mode and the collapsed sidebar are
  * stored in the app settings (one JSON key), the greeting name comes from [NAME_KEY] (set by the settings screen).
  */
+@Suppress("TooManyFunctions") // one small setter per browse choice; splitting would only move them
 @HiltViewModel
 class LibraryBrowseViewModel
     @Inject
@@ -47,6 +48,7 @@ class LibraryBrowseViewModel
                     prefs.sidebarCollapsed,
                     name.orEmpty(),
                     t.selected,
+                    t.tag,
                 )
             }.stateIn(viewModelScope, SharingStarted.Eagerly, LibraryBrowseState())
 
@@ -59,6 +61,12 @@ class LibraryBrowseViewModel
         /** Shows the All tab at [folder] ("" = library root); the selection belongs to the old folder and is dropped. */
         fun openFolder(folder: String) =
             transient.update { it.copy(tab = LibraryTab.ALL, folder = folder, selectMode = false, selected = persistentSetOf()) }
+
+        /** Filters the Tags tab by [tag]; choosing the active tag again, or null, shows every tagged note. */
+        fun selectTag(tag: String?) =
+            transient.update {
+                it.copy(tag = if (tag == it.tag) null else tag, selectMode = false, selected = persistentSetOf())
+            }
 
         /** Toggles select mode; leaving it drops the selection. */
         fun toggleSelectMode() = transient.update { it.copy(selectMode = !it.selectMode, selected = persistentSetOf()) }
@@ -107,6 +115,7 @@ class LibraryBrowseViewModel
             val folder: String = "",
             val selectMode: Boolean = false,
             val selected: PersistentSet<String> = persistentSetOf(),
+            val tag: String? = null,
         )
 
         @Serializable

@@ -4,11 +4,11 @@ import androidx.compose.runtime.Composable
 import dev.folio.core.designsystem.icon.FolioIcons
 
 /** Entries of the note overflow menu that act today. */
-internal enum class NoteAction { Rename, Move, Duplicate, ToggleFavorite, Delete }
+internal enum class NoteAction { Rename, Move, Duplicate, ToggleFavorite, Tags, Delete }
 
 /**
- * Overflow menu of a note card: rename, move, duplicate, favorite, tags, export, delete. Tags and Export are listed
- * disabled until their screens exist (P05-T04 tag editor, P09 export).
+ * Overflow menu of a note card: rename, move, duplicate, favorite, tags, export, delete. Export is listed disabled
+ * until its screen exists (P09).
  */
 @Composable
 internal fun NoteMenu(
@@ -26,7 +26,7 @@ internal fun NoteMenu(
             onClick = { onAction(NoteAction.ToggleFavorite) },
             icon = FolioIcons.Star,
         )
-        MenuRow("Tags", {}, icon = FolioIcons.Tag, enabled = false)
+        MenuRow("Tags", { onAction(NoteAction.Tags) }, icon = FolioIcons.Tag)
         MenuRow("Export", {}, icon = FolioIcons.Share2, enabled = false)
         MenuRow("Delete", { onAction(NoteAction.Delete) }, icon = FolioIcons.Trash, destructive = true)
     }

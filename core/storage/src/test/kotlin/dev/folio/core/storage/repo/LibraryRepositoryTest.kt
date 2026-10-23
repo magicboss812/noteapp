@@ -9,6 +9,7 @@ import dev.folio.core.format.container.WriterEntry
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -30,6 +31,27 @@ class LibraryRepositoryTest : RepositoryTestBase() {
             assertThat(library.documents(DocumentFilter.Tagged("school")).first().map { it.path }).containsExactly(doc.path)
             library.setFavorite(doc.path, false).orThrow()
             assertThat(library.documents(DocumentFilter.Favorites).first()).isEmpty()
+        }
+
+    @Test
+    fun setTags_writesManifestAndMirrorsAssignmentsInIndex() =
+        runTest {
+            val first = documents.create(spec("Kinematics")).orThrow()
+            val second = documents.create(spec("Optics")).orThrow()
+            library.setTags(first.path, setOf("school", "physics")).orThrow()
+            library.setTags(second.path, setOf("physics")).orThrow()
+
+            FolioContainerReader.open(file(first.path)).orThrow().use { reader ->
+                val json = Json.parseToJsonElement(reader.read(FolioEntries.MANIFEST, 1_000_000).orThrow().decodeToString()).jsonObject
+                assertThat(json["tags"]).isEqualTo(JsonArray(listOf(JsonPrimitive("physics"), JsonPrimitive("school"))))
+            }
+            assertThat(library.tagAssignments().first())
+                .containsExactly(first.path, listOf("physics", "school"), second.path, listOf("physics"))
+
+            library.setTags(first.path, emptySet()).orThrow()
+
+            assertThat(library.tagAssignments().first()).containsExactly(second.path, listOf("physics"))
+            assertThat(library.tags().first()).containsExactly("physics")
         }
 
     @Test

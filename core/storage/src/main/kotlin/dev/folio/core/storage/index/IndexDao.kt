@@ -66,6 +66,9 @@ interface IndexDao {
     @Query("SELECT DISTINCT tag FROM tags ORDER BY tag")
     fun allTags(): Flow<List<String>>
 
+    @Query("SELECT * FROM tags ORDER BY path, tag")
+    fun tagRows(): Flow<List<TagRow>>
+
     @Query("SELECT * FROM folders ORDER BY path")
     fun folders(): Flow<List<FolderRow>>
 

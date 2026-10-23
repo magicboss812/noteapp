@@ -17,6 +17,7 @@ import dev.folio.core.testing.FakeClock
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.testing.TestDispatchersRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -110,6 +111,31 @@ class LibraryDocOpsTest {
             assertThat(File(root, "B (2).folio").exists()).isTrue()
             assertThat(ops.delete(listOf(b, "B (2).folio"))).isEqualTo("Moved 2 notes to the bin.")
             assertThat(documents.bin.value).hasSize(2)
+        }
+
+    @Test
+    fun setTags_updatesIndexAndOpenDocumentIsRefused() =
+        runTest(dispatchers.testDispatcher) {
+            val path = create("Tagged")
+
+            assertThat(ops.setTags(path, listOf("school", "physics"))).isNull()
+            assertThat(
+                db
+                    .dao()
+                    .tagRows()
+                    .first()
+                    .map { it.tag },
+            ).containsExactly("physics", "school")
+
+            open += path
+            assertThat(ops.setTags(path, emptyList())).isEqualTo("“Tagged” is open in the editor. Close it first.")
+            assertThat(
+                db
+                    .dao()
+                    .tagRows()
+                    .first()
+                    .map { it.tag },
+            ).containsExactly("physics", "school")
         }
 
     @Test

@@ -76,6 +76,28 @@ class LibraryBrowseViewModelTest {
         }
 
     @Test
+    fun selectTag_choosesThenClearsOnSecondTapAndDropsTheSelection() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            advanceUntilIdle()
+            vm.toggleSelected("a.folio")
+            advanceUntilIdle()
+
+            vm.selectTag("physics")
+            advanceUntilIdle()
+            assertThat(vm.state.value.tag).isEqualTo("physics")
+            assertThat(vm.state.value.selected).isEmpty()
+
+            vm.selectTag("school")
+            advanceUntilIdle()
+            assertThat(vm.state.value.tag).isEqualTo("school")
+
+            vm.selectTag("school")
+            advanceUntilIdle()
+            assertThat(vm.state.value.tag).isNull()
+        }
+
+    @Test
     fun openFolder_showsAllTabAtThatFolderAndDropsTheSelection() =
         runTest(dispatcher) {
             val vm = viewModel()
