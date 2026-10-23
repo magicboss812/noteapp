@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
-phase: P05
-next: P05 REVIEW
+phase: P06
+next: P06-T01
 updated: 2026-10-23
 
 ## Completed
@@ -10,9 +10,10 @@ updated: 2026-10-23
 - P02 done 2026-09-29 (tag p02-done): model + commands (200-command undo property test), folio.v1 codec (1000x120 inputs 709 KB), container + goldens, crash-safe packer (100 injected failures), recovery, Room index (500 docs 149 ms), repositories, sessions (LRU 30); REVIEW fixed 6 blocking findings; A-009..A-016; qa green.
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
 - P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 PASS 2026-10-23 (T09 after fix: CanvasHost collectors on the main dispatcher); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green.
+- P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green.
 
 ## Current phase progress
-- P05: T01, T02, T03, T04, T05, T06, T07, T08
+- P06: (none)
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -38,7 +39,6 @@ updated: 2026-10-23
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P05-T08 done: suite already covered most states; added 12-notes grid (landscape light, portrait dark) and portrait search results goldens; `:feature:library:verifyRoborazziDebug` green.
-- Observed, not changed: fixed-size card grid leaves a ragged right margin in portrait (about 1/6 width, left aligned); folder cards in the 12-notes fixture read "0 notes" (fixture has no docs in folders).
-- State: Bin tab still shows inert sort/view/select controls; sidebar has no Tags entry; menu Export row is a disabled placeholder; `feature:settings` is empty. Shared-element card morph not done (A-035).
-- Next: P05 REVIEW (reviewer subagent over p04-done..HEAD, intake, full qa, tag p05-done). FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).
+- P05 REVIEW done: storage fixes (move into own folder / same-name or case-only folder rename are no-ops, moveFolder into own subtree is a Failure, restore rescans recreated folders), failure logging, 44 dp chip touch, onSearchHighlight token; qa green; tag p05-done.
+- Intake: A-036 (importFolio -> P09-T06, no sidebar Tags header); autosave dot layering -> P11-T10; reviewer leftovers (open-guard race, bin mutex, search snippet/accents, inert Bin controls, portrait grid margin) -> P11-T11.
+- Next: P06-T01 Markdown block model and parser (read the phase-06 header first). Spike code D-002 goes in P06-T03. `FolioIcons.kt` is generated (A-027).
