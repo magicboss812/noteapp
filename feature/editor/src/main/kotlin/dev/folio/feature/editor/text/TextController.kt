@@ -80,6 +80,32 @@ sealed interface FieldEdit {
         val start: Int,
         val end: Int,
     ) : FieldEdit
+
+    /** A formatting bar [action] on the selection [start] to [end] of the block source ([start] <= [end]). */
+    data class Format(
+        val action: FormatAction,
+        val start: Int,
+        val end: Int,
+    ) : FieldEdit
+}
+
+/** The formatting bar's actions (07-text-engine.md#editing): inline markers, block styles, a link and a table. */
+enum class FormatAction {
+    BOLD,
+    ITALIC,
+    STRIKE,
+    HIGHLIGHT,
+    CODE,
+    MATH,
+    LINK,
+    HEADING_1,
+    HEADING_2,
+    HEADING_3,
+    BULLET,
+    ORDERED,
+    TASK,
+    QUOTE,
+    TABLE,
 }
 
 /** What the canvas host asks of the text engine: focus a block by tapping it, the field to show for it, its edits. */
@@ -112,4 +138,13 @@ interface TextController {
      * still waiting is replaced by the next; the field is told the outcome through [field]. Main thread.
      */
     fun edit(edit: FieldEdit)
+
+    /** The live field's selection moved to [start]..[end] (offsets of the block source, any order). Main thread. */
+    fun select(
+        start: Int,
+        end: Int,
+    )
+
+    /** Applies the formatting bar [action] to the field's current selection, after the edits typed before it. Main thread. */
+    fun format(action: FormatAction)
 }

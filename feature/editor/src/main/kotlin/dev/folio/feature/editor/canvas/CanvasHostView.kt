@@ -481,6 +481,7 @@ class CanvasHostView internal constructor(
             if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                 animator.cancel()
                 gestures.stopFling()
+                yieldTextToStylus(event)
             }
             router.onTouchEvent(event)
         }
@@ -490,8 +491,20 @@ class CanvasHostView internal constructor(
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         // HOT PATH: per hover event; children still see hover and scroll.
         if (event.isFromSource(InputDevice.SOURCE_CLASS_POINTER) && event.isHover()) hoverEventCount++
+        if (event.actionMasked == MotionEvent.ACTION_HOVER_ENTER || event.actionMasked == MotionEvent.ACTION_HOVER_MOVE) {
+            yieldTextToStylus(event)
+        }
         val routed = router.onGenericMotionEvent(event)
         return super.dispatchGenericMotionEvent(event) || routed
+    }
+
+    // The pen writes over a focused block: its editing ends first, on hover or at the latest at the stylus down (A-045).
+    private fun yieldTextToStylus(event: MotionEvent) {
+        // HOT PATH: per hover event; no allocation.
+        val tool = event.getToolType(0)
+        if (tool != MotionEvent.TOOL_TYPE_STYLUS && tool != MotionEvent.TOOL_TYPE_ERASER) return
+        if (controller.activeTool == CanvasTool.NAVIGATE) return
+        textField.yieldToStylus(event.x, event.y)
     }
 
     /** While the ring is the hover cursor, the system stylus pointer (HyperOS draws a dot) is hidden (D-017). */
@@ -536,6 +549,7 @@ class CanvasHostView internal constructor(
         if (texts == null || controller.activeTool == CanvasTool.NAVIGATE) return
         val pageId = document?.pages?.getOrNull(viewport.pageIndexAt(yPx))?.id ?: return
         val pt = viewport.toPagePt(pageId, PointPx(xPx, yPx))
+        textField.tapped(System.nanoTime())
         texts.focusAt(pageId, pt.x, pt.y)
     }
 
@@ -648,6 +662,9 @@ class CanvasHostView internal constructor(
     }
 
     private fun onTileReady() {
+        // A tile rendered for a page that changed meanwhile (a fast edit, text laid out a moment later) is stale.
+        val outdated = backgroundTiles.takeOutdated() or contentTiles.takeOutdated()
+        if (outdated) refreshTiles()
         invalidateLayers()
         val start = settleStartNs
         if (start != 0L && backgroundTiles.isSettled && contentTiles.isSettled) {

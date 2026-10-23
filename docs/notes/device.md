@@ -17,6 +17,7 @@ Filled by P00-T02, P01-S1, P01-S7 and later discoveries. Known from Xiaomi specs
 - Pen digitizer: `NVTCapacitivePenM80p` and `NVTCapacitivePenP81c` (sources KEYBOARD | TOUCHSCREEN | STYLUS)
 - Focus Pen BT companions: `Xiaomi Focus Pen`, `Xiaomi Focus Pen Keyboard`, `Xiaomi Focus Pen Mouse`
 - System window `stylus-handwriting-event-receiver-0` is a SPY with INTERCEPTS_STYLUS over the full screen (Android stylus handwriting); watch for it in P01-S7
+- HyperOS handwriting (P06-T06g): a stylus down over a FOCUSED editor starts Xiaomi's handwriting path (`HandWritingStubImpl` runs in our process), our stroke gets ACTION_CANCEL and a toast "Handschrift wird in diesem Feld nicht unterstützt" shows, even with `isAutoHandwritingEnabled = false` and `EditorInfo.setStylusHandwritingEnabled(false)`. Strokes outside the editor's bounds are unaffected. Workaround: end the editing on stylus hover/down over the field (A-045).
 - Touch sample rate: not measured yet
 
 ## Stylus

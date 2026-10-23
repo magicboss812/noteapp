@@ -10,11 +10,13 @@ import android.view.MotionEvent.ACTION_UP
 import android.view.MotionEvent.TOOL_TYPE_ERASER
 import android.view.MotionEvent.TOOL_TYPE_STYLUS
 import android.view.PointerIcon
+import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -24,6 +26,7 @@ import dev.folio.core.ink.input.StylusPreferences
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowId
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.InputTool
 import dev.folio.core.model.ObjectId
@@ -36,7 +39,15 @@ import dev.folio.core.model.geometry.PointPt
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.toViewPx
 import dev.folio.core.testing.ModelFixtures
+import dev.folio.core.text.flow.BlockPlacement
+import dev.folio.core.text.fonts.FontMetricsCache
+import dev.folio.core.text.layout.BlockLayouter
+import dev.folio.core.text.layout.FlowTextStyle
+import dev.folio.core.text.layout.LayoutGrid
+import dev.folio.core.text.markdown.MarkdownDocument
 import dev.folio.feature.editor.canvas.TouchEvents.event
+import dev.folio.feature.editor.text.TextFieldSpec
+import dev.folio.feature.editor.text.TextFocus
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -145,6 +156,76 @@ class CanvasHostTest {
         assertThat(pageId).isEqualTo(page)
         assertThat(xPt).isWithin(1e-2f).of(100f)
         assertThat(yPt).isWithin(1e-2f).of(200f)
+    }
+
+    // A one-line paragraph focused on the first page, shown as the live field.
+    private fun showFocusedField(texts: FakeTextController): LiveTextField {
+        val page =
+            controller.document.value.pages[0]
+                .id
+        val resolver = createFontFamilyResolver(ApplicationProvider.getApplicationContext<Context>())
+        val block = MarkdownDocument.parse("alpha beta").blocks.first()
+        val layout =
+            BlockLayouter(resolver, FontMetricsCache(resolver))
+                .layout(block, 400f, FlowTextStyle(), LayoutGrid(unitPt = 20f, indentStepPt = 20f))
+        val focus = TextFocus(FlowId("body"), block.id, 0, 0, 1)
+        compose.runOnUiThread { texts.field.value = TextFieldSpec(focus, block, layout, BlockPlacement(0, page, 40f, 100f, 400f)) }
+        settle()
+        return checkNotNull(hostView().liveTextField)
+    }
+
+    private fun stylusDownUp(
+        xPx: Float,
+        yPx: Float,
+    ) = compose.runOnUiThread {
+        hostView().dispatchTouchEvent(event(ACTION_DOWN, 3000, xPx to yPx, toolType = TOOL_TYPE_STYLUS))
+        hostView().dispatchTouchEvent(event(ACTION_UP, 3100, xPx + 50f to yPx, toolType = TOOL_TYPE_STYLUS))
+    }
+
+    @Test
+    fun stylusDown_onTheFocusedBlock_endsTheEditingAndThePenStillDraws() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val field = showFocusedField(texts)
+        val insideX = field.x + 10f
+        val insideY = field.y + field.height / 2f
+
+        stylusDownUp(insideX, field.y + field.height + 400f)
+        val blurredByStrokeBelow = texts.blurCount
+        stylusDownUp(insideX, insideY)
+
+        assertThat(blurredByStrokeBelow).isEqualTo(0)
+        assertThat(texts.blurCount).isEqualTo(1)
+        assertThat(field.visibility).isEqualTo(View.GONE)
+        assertThat(hostView().inkStats.started).isEqualTo(2)
+    }
+
+    @Test
+    fun stylusHover_overTheFocusedBlock_endsTheEditingBeforeThePenTouches() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val field = showFocusedField(texts)
+
+        compose.runOnUiThread {
+            hostView().rootView.dispatchGenericMotionEvent(
+                event(ACTION_HOVER_ENTER, 1900, field.x + 10f to field.y + field.height / 2f, toolType = TOOL_TYPE_STYLUS),
+            )
+        }
+
+        assertThat(texts.blurCount).isEqualTo(1)
+        assertThat(field.visibility).isEqualTo(View.GONE)
+    }
+
+    @Test
+    fun stylusDown_onTheFocusedBlockInReadMode_keepsTheEditing() {
+        val texts = FakeTextController().also { controller.textController = it }
+        controller.activeTool = CanvasTool.NAVIGATE
+        show()
+        val field = showFocusedField(texts)
+
+        stylusDownUp(field.x + 10f, field.y + field.height / 2f)
+
+        assertThat(texts.blurCount).isEqualTo(0)
     }
 
     @Test

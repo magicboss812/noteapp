@@ -72,6 +72,7 @@ class TileLayer(
     private var warmUp: Job? = null
     private val pages = HashMap<String, PageState>()
     private val inFlight = HashMap<TileKey, Job>()
+    private var outdated = false
     private val waitingVisible = HashSet<TileKey>()
     private val renderers = ThreadLocal<PageRenderer>()
     private val canvases = ThreadLocal<Canvas>()
@@ -145,6 +146,16 @@ class TileLayer(
             return
         }
         for (rect in PageContent.changedBounds(before, after)) cache.invalidate(key, rect)
+    }
+
+    /**
+     * True once after a render finished for a page that changed while it ran: that tile is stale and only a new
+     * [request] renders it again. Check it from the ready callback.
+     */
+    fun takeOutdated(): Boolean {
+        val was = outdated
+        outdated = false
+        return was
     }
 
     /** Forgets pages not in [keep] and drops their tiles. */
@@ -501,7 +512,11 @@ class TileLayer(
                 inFlight.remove(key)
                 val fresh = cache.put(key, bitmap, TileGrid.TILE_BYTES)
                 cached = true
-                if (pages[key.page] !== state) fresh.stale = true // the page changed while rendering
+                if (pages[key.page] !== state) {
+                    // The page changed while rendering, and requests skipped the tile while it was in flight.
+                    fresh.stale = true
+                    outdated = true
+                }
                 waitingVisible.remove(key)
                 onTileReady()
             }

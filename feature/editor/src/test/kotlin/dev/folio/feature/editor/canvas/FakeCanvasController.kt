@@ -14,6 +14,7 @@ import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.feature.editor.text.FieldEdit
+import dev.folio.feature.editor.text.FormatAction
 import dev.folio.feature.editor.text.TextController
 import dev.folio.feature.editor.text.TextFieldSpec
 import kotlinx.coroutines.CompletableDeferred
@@ -27,6 +28,7 @@ internal class FakeTextController : TextController {
     val focusCalls = ArrayList<Triple<PageId, Float, Float>>()
     val moveCalls = ArrayList<Triple<PageId, Float, Float>>()
     val edits = ArrayList<FieldEdit>()
+    val formats = ArrayList<FormatAction>()
     var blurCount = 0
 
     override fun focusAt(
@@ -53,6 +55,15 @@ internal class FakeTextController : TextController {
 
     override fun edit(edit: FieldEdit) {
         edits += edit
+    }
+
+    override fun select(
+        start: Int,
+        end: Int,
+    ) = Unit
+
+    override fun format(action: FormatAction) {
+        formats += action
     }
 }
 

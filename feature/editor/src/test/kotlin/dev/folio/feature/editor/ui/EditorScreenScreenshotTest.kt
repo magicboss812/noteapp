@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import dev.folio.core.designsystem.theme.FolioTheme
+import dev.folio.core.text.edit.BlockStyle
 import dev.folio.feature.editor.canvas.CanvasHost
 import dev.folio.feature.editor.canvas.CanvasHostView
 import dev.folio.feature.editor.canvas.FakeCanvasController
@@ -42,6 +43,7 @@ class EditorScreenScreenshotTest {
         dark: Boolean = false,
         optionsHidden: Boolean = false,
         readMode: Boolean = false,
+        textStyle: BlockStyle? = null,
     ) {
         val controller = FakeCanvasController(pages = 2)
         val docks = ToolbarDocks(landscape = placement, portrait = placement, optionsHidden = optionsHidden)
@@ -62,6 +64,7 @@ class EditorScreenScreenshotTest {
                         pages = pages,
                         readMode = readMode,
                         view = ViewInfo(pageIndex = 0, zoomPercent = 100),
+                        textStyle = textStyle,
                     ),
                     onBack = {},
                     onSelectTool = {},
@@ -109,6 +112,20 @@ class EditorScreenScreenshotTest {
     fun editor_portraitDockedTopDark_toolboxBelowNavColumn() {
         showReady(placement = ToolbarPlacement(DockMode.TOP), dark = true)
         compose.onRoot().captureRoboImage("src/test/screenshots/Editor_dockTop_portrait.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeTextFocused_formattingBarReplacesRow2() {
+        showReady(textStyle = BlockStyle.HEADING_2)
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_textFormatBar.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_PORTRAIT)
+    fun editor_portraitTextFocusedLeftDock_formattingBarAsInnerRail() {
+        showReady(placement = ToolbarPlacement(DockMode.LEFT), textStyle = BlockStyle.BULLET)
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_textFormatBar_leftDock.png")
     }
 
     @Test

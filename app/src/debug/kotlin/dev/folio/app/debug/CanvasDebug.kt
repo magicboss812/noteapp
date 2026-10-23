@@ -5,13 +5,24 @@ import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.common.flatMap
 import dev.folio.core.model.Background
+import dev.folio.core.model.FlowFrame
+import dev.folio.core.model.FlowId
+import dev.folio.core.model.FlowStyle
+import dev.folio.core.model.FrameRole
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.Orientation
+import dev.folio.core.model.PageRef
 import dev.folio.core.model.PageSpec
 import dev.folio.core.model.PaperSize
 import dev.folio.core.model.TemplateKind
+import dev.folio.core.model.TextAlign
+import dev.folio.core.model.TextFlow
+import dev.folio.core.model.TextZones
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.Batch
 import dev.folio.core.model.edit.RemoveObjects
+import dev.folio.core.model.edit.TextEdit
+import dev.folio.core.model.edit.UpdateFlows
 import dev.folio.core.render.template.TemplatePresets
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.storage.repo.DocumentRepository
@@ -224,6 +235,43 @@ internal class CanvasDebug(
         return DebugReply.ok(buildJsonObject { put("seeding", seed.count) })
     }
 
+    // The page's body flow gets the text in place of what it held; a page without one gets a body frame and flow first.
+    fun seedText(arg: String?): DebugReply {
+        val seed = SeedText.parse(arg) ?: return DebugReply.error("seed-text needs n[,page] with n in 1..${SeedText.MAX_WORDS}")
+        val current = session ?: return DebugReply.error(NO_CANVAS)
+        val ref =
+            current.document.value.pages
+                .getOrNull(seed.page - 1) ?: return DebugReply.error("no page ${seed.page}")
+        val markdown = SyntheticText.generate(seed.words)
+        scope.launch {
+            val ok = current.documentSession.loadPages(listOf(ref.id)) !is Outcome.Failure && seedBody(current, ref, markdown)
+            FolioLog.i(DebugReply.TAG, "seed-text ${seed.words} on page ${seed.page} -> ${if (ok) "ok" else "failed"}")
+        }
+        return DebugReply.ok(buildJsonObject { put("seeding", seed.words) })
+    }
+
+    private suspend fun seedBody(
+        current: EditorSession,
+        ref: PageRef,
+        markdown: String,
+    ): Boolean {
+        val frame =
+            current.document.value.pageBodies[ref.id]
+                ?.objects
+                ?.firstNotNullOfOrNull { (it as? FlowFrame)?.takeIf { f -> f.role == FrameRole.BODY } }
+        val flowId = frame?.flow ?: FlowId.random()
+        if (frame == null) {
+            val rect = TextZones.bodyRect(ref.spec, ref.background.template) ?: return false
+            val flow = TextFlow(flowId, "", SEED_STYLE, autoContinue = true)
+            val body = FlowFrame(ObjectId.random(), flowId, rect, 0, FrameRole.BODY, autoGrow = false)
+            if (!current.execute(Batch(listOf(UpdateFlows(listOf(flow)), AddObjects(ref.id, listOf(body)))))) return false
+        }
+        val old =
+            current.document.value.flows[flowId]
+                ?.markdown ?: return false
+        return current.editFlow(flowId, listOf(TextEdit(0, old.length, markdown)))
+    }
+
     fun reorderPage(arg: String?): DebugReply {
         val move = ReorderPage.parse(arg) ?: return DebugReply.error("reorder-page needs from,to (1-based page numbers)")
         val current = session ?: return DebugReply.error(NO_CANVAS)
@@ -367,5 +415,8 @@ internal class CanvasDebug(
         const val WHITE = 0xFFFFFFFF.toInt()
         const val MIB = 1024L * 1024L
         val A4 = PageSpec.Fixed(PaperSize.A4, Orientation.PORTRAIT)
+
+        // Body text style of a seeded flow (the text tool's default lands in P06-T10).
+        val SEED_STYLE = FlowStyle("Inter", 0.45f, 0, TextAlign.START)
     }
 }

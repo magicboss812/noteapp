@@ -56,6 +56,7 @@ import dev.folio.feature.editor.state.ShortcutGroup
 import dev.folio.feature.editor.state.ShortcutRegistry
 import dev.folio.feature.editor.state.ToolOptions
 import dev.folio.feature.editor.state.ToolbarPlacement
+import dev.folio.feature.editor.text.FormatAction
 
 /**
  * Editor destination for the document at library path [docPath]; [onBack] returns to the library. A [searchQuery]
@@ -89,6 +90,7 @@ fun EditorRoute(
         onRedo = viewModel::redo,
         onHelp = viewModel::showHelp,
         onKey = viewModel::onKey,
+        onFormat = viewModel::format,
         pageChrome =
             PageChrome(
                 onPanel = { viewModel.showPages(PageSurface.PANEL) },
@@ -153,6 +155,7 @@ fun EditorScreen(
     pageActions: PageActions = PageActions(),
     pageThumbnail: PageThumbnail = { page, thumbModifier -> PaperThumbnail(page, thumbModifier) },
     onRetrySave: () -> Unit = {},
+    onFormat: (FormatAction) -> Unit = {},
     canvas: @Composable (Modifier) -> Unit,
 ) {
     val colors = FolioTheme.colors
@@ -185,6 +188,7 @@ fun EditorScreen(
                 onToggleOptions = { onHideOptions(!state.docks.optionsHidden) },
                 onRetrySave = onRetrySave,
                 pages = pageChrome,
+                onFormat = onFormat,
             ),
         )
     val actions = remember(latest) { ChromeActions.forwardingTo(latest) }

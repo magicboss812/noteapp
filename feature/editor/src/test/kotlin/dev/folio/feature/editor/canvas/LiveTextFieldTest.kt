@@ -106,6 +106,15 @@ class LiveTextFieldTest {
     }
 
     @Test
+    fun inputConnection_editorInfo_declaresNoStylusHandwriting() {
+        val info = EditorInfo()
+
+        field.onCreateInputConnection(info)
+
+        assertThat(info.isStylusHandwritingEnabled).isFalse()
+    }
+
+    @Test
     fun show_zoomedViewport_scalesFontSizeAndLineHeight() {
         val spec = spec("hello")
         show(spec)
@@ -192,6 +201,17 @@ class LiveTextFieldTest {
         input().commitText("c", 1)
 
         assertThat(edits).containsExactly(FieldEdit.Typed("abc", 3))
+    }
+
+    @Test
+    fun selecting_aRange_reportsItForTheFormattingBar() {
+        val selections = ArrayList<Pair<Int, Int>>()
+        field.onSelection = { start, end -> selections += start to end }
+        show(spec("alpha beta", caret = 0))
+
+        field.setSelection(6, 10)
+
+        assertThat(selections.last()).isEqualTo(6 to 10)
     }
 
     @Test

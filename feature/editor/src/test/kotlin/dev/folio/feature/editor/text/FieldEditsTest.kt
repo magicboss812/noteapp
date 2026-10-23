@@ -32,6 +32,54 @@ class FieldEditsTest {
     }
 
     @Test
+    fun applyTo_formatBoldOverASelection_wrapsItInMarkers() {
+        val result = FieldEdit.Format(FormatAction.BOLD, 0, 5).applyTo(doc("alpha beta"), 1L)
+
+        assertThat(result?.document?.toMarkdown()).isEqualTo("**alpha** beta")
+    }
+
+    @Test
+    fun applyTo_formatHeadingTwice_givesAHeadingThenAParagraphAgain() {
+        val heading = FieldEdit.Format(FormatAction.HEADING_2, 2, 2).applyTo(doc("alpha"), 1L)
+        val markdown = checkNotNull(heading).document.toMarkdown()
+        val block = heading.document.blocks[0].id
+        val back = FieldEdit.Format(FormatAction.HEADING_2, 5, 5).applyTo(heading.document, block)
+
+        assertThat(markdown).isEqualTo("## alpha")
+        assertThat(back?.document?.toMarkdown()).isEqualTo("alpha")
+    }
+
+    @Test
+    fun applyTo_formatBulletOnAParagraph_makesAListItemAndKeepsTheCaretInTheText() {
+        val result = FieldEdit.Format(FormatAction.BULLET, 3, 3).applyTo(doc("alpha"), 1L)
+
+        assertThat(result?.document?.toMarkdown()).isEqualTo("- alpha")
+        assertThat(result?.selection?.focus?.offset).isEqualTo(5)
+    }
+
+    @Test
+    fun applyTo_formatLink_wrapsTheSelectionWithTheCaretInTheUrl() {
+        val result = FieldEdit.Format(FormatAction.LINK, 0, 5).applyTo(doc("alpha"), 1L)
+
+        assertThat(result?.document?.toMarkdown()).isEqualTo("[alpha]()")
+        assertThat(result?.selection?.focus?.offset).isEqualTo(8)
+    }
+
+    @Test
+    fun applyTo_formatTable_addsATableAfterTheBlock() {
+        val result = FieldEdit.Format(FormatAction.TABLE, 5, 5).applyTo(doc("alpha"), 1L)
+
+        assertThat(result?.document?.toMarkdown()).startsWith("alpha\n\n|")
+    }
+
+    @Test
+    fun applyTo_formatOffsetsPastTheSource_areClamped() {
+        val result = FieldEdit.Format(FormatAction.ITALIC, 3, 99).applyTo(doc("alpha"), 1L)
+
+        assertThat(result?.document?.toMarkdown()).isEqualTo("alp*ha*")
+    }
+
+    @Test
     fun applyTo_unknownBlock_isNull() {
         assertThat(FieldEdit.Typed("x", 1).applyTo(doc("a"), 99L)).isNull()
         assertThat(key(FieldKey.ENTER, 0).applyTo(doc("a"), 99L)).isNull()

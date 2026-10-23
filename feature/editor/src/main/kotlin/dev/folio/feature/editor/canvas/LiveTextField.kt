@@ -2,6 +2,7 @@ package dev.folio.feature.editor.canvas
 
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.text.LineBreaker
 import android.text.Editable
 import android.text.InputType
@@ -13,6 +14,7 @@ import android.text.style.ForegroundColorSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputConnectionWrapper
@@ -23,6 +25,7 @@ import androidx.annotation.MainThread
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.core.graphics.ColorUtils
+import dev.folio.core.common.PerfMonitor
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.pageOriginViewX
 import dev.folio.core.render.viewport.pageOriginViewY
@@ -62,6 +65,15 @@ internal class LiveTextField(
 
     /** Up (true) or Down at the first or last line, with the caret's x in the host view, px. */
     var onVertical: (up: Boolean, caretXPx: Float) -> Unit = { _, _ -> }
+
+    /**
+     * Gets every selection change (start, end; offsets of the block source). Nullable: EditText reports a selection
+     * from its own constructor, before this class's properties exist.
+     */
+    var onSelection: ((Int, Int) -> Unit)? = null
+
+    // Time of the tap that focused the shown block (System.nanoTime), recorded as `text:caret` on the next draw; 0 when none.
+    private var tapNs = 0L
 
     private val resolver: FontFamily.Resolver = createFontFamilyResolver(context)
     private val sent = ArrayList<String>()
@@ -148,6 +160,28 @@ internal class LiveTextField(
         }
     }
 
+    /** Records the time from [tapNs] (System.nanoTime of the focusing tap) to the next frame that draws the field. */
+    fun traceCaretFrom(tapNs: Long) {
+        this.tapNs = tapNs
+        invalidate()
+    }
+
+    override fun onSelectionChanged(
+        selStart: Int,
+        selEnd: Int,
+    ) {
+        super.onSelectionChanged(selStart, selEnd)
+        onSelection?.invoke(selStart, selEnd)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        if (tapNs != 0L) {
+            PerfMonitor.record(TRACE_CARET, System.nanoTime() - tapNs)
+            tapNs = 0L
+        }
+    }
+
     /** Moves the field with the viewport. */
     fun place(
         viewport: Viewport,
@@ -172,6 +206,8 @@ internal class LiveTextField(
         sent.clear()
         appliedDims = null
         if (visibility != GONE) {
+            // The insets controller hides the keyboard even when the focus then lands on another view of the window.
+            windowInsetsController?.hide(WindowInsets.Type.ime())
             context.getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(windowToken, 0)
             clearFocus()
             visibility = GONE
@@ -345,6 +381,8 @@ internal class LiveTextField(
     // Soft keyboards send Enter and Backspace as text edits, not as key events.
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
         val base = super.onCreateInputConnection(outAttrs) ?: return null
+        // Tells the IME and the system handwriting service that this editor takes no stylus handwriting (API 35).
+        outAttrs.setStylusHandwritingEnabled(false)
         return object : InputConnectionWrapper(base, true) {
             override fun commitText(
                 text: CharSequence,
@@ -384,5 +422,8 @@ internal class LiveTextField(
     private companion object {
         const val DIM_ALPHA = 102 // 40% of 255
         const val MAX_SENT = 64
+
+        // Tap to the first frame that draws the focused field (07-text-engine.md#editing budget: 50 ms).
+        const val TRACE_CARET = "text:caret"
     }
 }

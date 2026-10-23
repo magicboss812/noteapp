@@ -81,7 +81,7 @@ Model: sonnet xhigh
 Implements: R-CORE-01, R-TXT-01
 Read: 07-text-engine.md#editing
 Files: feature/editor/.../text/**
-Do: single live text field for the focused block (zoom-scaled font size, identical TextStyle to layout), tap-to-caret mapping, block navigation (arrows, Enter splits, Backspace merges), Markdown shortcuts at block start, dimmed markers in the focused block only, selection across blocks (copy/cut/paste/delete as markdown), formatting bar above the keyboard, system stylus handwriting disabled. Wire the P06-T04 flow engine into the session (D-032, A-041): every flow edit runs `FlowReflow.plan` on the edited document and executes `Batch(edit, plan.command)` as one undo step (flow pages loaded first); `duplicatePages` passes `FlowLayout.markdownOn` as `pageText`; a library search result opens the note at `FlowSearch.firstPage` (query carried in the editor route). Show the text (A-042): build `PageTexts.of(doc, layouter)` on the `text` dispatcher and pass each page's `PageText` to `TileLayer.setPage(ref, body, text)` and to the thumbnail renderer; the focused block's frame skips painting that block while its live field is shown.
+Do: single live text field for the focused block (zoom-scaled font size, identical TextStyle to layout), tap-to-caret mapping, block navigation (arrows, Enter splits, Backspace merges), Markdown shortcuts at block start, dimmed markers in the focused block only, formatting bar above the keyboard (selection across blocks moved to P06-T14, A-045), system stylus handwriting disabled. Wire the P06-T04 flow engine into the session (D-032, A-041): every flow edit runs `FlowReflow.plan` on the edited document and executes `Batch(edit, plan.command)` as one undo step (flow pages loaded first); `duplicatePages` passes `FlowLayout.markdownOn` as `pageText`; a library search result opens the note at `FlowSearch.firstPage` (query carried in the editor route). Show the text (A-042): build `PageTexts.of(doc, layouter)` on the `text` dispatcher and pass each page's `PageText` to `TileLayer.setPage(ref, body, text)` and to the thumbnail renderer; the focused block's frame skips painting that block while its live field is shown.
 Accept:
 - [ ] unit: block split/merge commands and undo coalescing
 - [ ] unit: typing past the last body frame adds a continuation page in the same undo step; a search query opens the editor on the page of its first match
@@ -90,7 +90,7 @@ Accept:
 Verify: tests + device-tester
 
 ### P06-T07 Math
-Model: sonnet xhigh
+Model: opus high
 Implements: R-TXT-02, R-TXT-04
 Read: 07-text-engine.md#math, decisions.md#adr-007-latex-rendering
 Do: chosen MathRenderer adapter; inline math placeholder scaled to fit; block math spanning integer lines; tap on formula edits source inline; invalid LaTeX shows source in red with error tooltip.
@@ -100,7 +100,7 @@ Accept:
 Verify: instrumented + screenshots
 
 ### P06-T08 Tables
-Model: sonnet xhigh
+Model: opus high
 Implements: R-TXT-02
 Read: 07-text-engine.md#tables
 Do: GFM table layout on the grid (row height = max cell lines x U, borders on grid lines), cell editing with Tab/Shift+Tab, add/remove rows/columns from a small toolbar, column alignment.
@@ -110,7 +110,7 @@ Accept:
 Verify: tests + screenshots
 
 ### P06-T09 Lists, checklists, code, quotes, links
-Model: sonnet xhigh
+Model: opus medium
 Implements: R-TXT-02, R-ORG-02, R-MED-04
 Read: 07-text-engine.md#block-styles, 09-storage-library.md#links
 Do: nested lists with grid-column indentation, tap-to-toggle checkboxes, code blocks (monospace, no highlighting in v1), quotes/callouts, URL links (open externally via intent), `[[` doc link picker inserting `folio://doc/<uuid>` links with titles, broken links styled.
@@ -120,18 +120,30 @@ Accept:
 Verify: tests + screenshots
 
 ### P06-T10 Text tool and instant creation
-Model: sonnet xhigh
+Model: opus medium
 Implements: R-CORE-01, R-TXT-07
 Read: 10-editor-ui.md#text-tool, 07-text-engine.md#editing
-Do: Text tool tap -> caret in the body flow if inside the body zone, else a free text box snapped to the grid, focused in the same frame; typing on a hardware keyboard with nothing focused appends to the current page body; sticky note tool creates a sticky with focus. Text tool row 2 + settings panel (P06-T13 split): font family picker grouped as in `FontGroup` (imported fonts listed, "Import font" opens the system picker for .ttf/.otf into `CustomFontStore`; `syncFromLibrary` on app start), size S/M/L plus a free size slider (A-039, box height shown in lines).
+Do: Text tool tap -> caret in the body flow if inside the body zone, else a free text box snapped to the grid, focused in the same frame; typing on a hardware keyboard with nothing focused appends to the current page body; sticky note tool creates a sticky with focus. Text tool row 2 + settings panel (P06-T13 split): font family picker grouped as in `FontGroup` (imported fonts listed, "Import font" opens the system picker for .ttf/.otf into `CustomFontStore`; `syncFromLibrary` on app start), size S/M/L plus a free size slider (A-039, box height shown in lines). A focused block (and the caret line while typing) scrolls into view above the keyboard and the toolbox, which can cover it today (P06-T06g device run, A-045). The first finger tap after opening a note was lost in all three P06-T06g device runs (no `text:focus` sample); find and fix the cause.
 Accept:
 - [ ] screenshot: text row 2 and text settings panel with the font picker and the size slider
 - [ ] device: tap-to-caret <= 50 ms p95 for both paths
+- [ ] device: tapping a block in the lower half of the page with the keyboard opening keeps the caret line visible above the toolbox
 - [ ] user: "Type a page of notes with the keyboard mixing headings, lists, math. Does text ever jump off the lines or lag?"
 Verify: device-tester
 
+### P06-T14 Selection across blocks
+Model: opus high
+Implements: R-TXT-01
+Read: 07-text-engine.md#editing, #block-edit-logic-as-built
+Do: split out of P06-T06 (A-045). A flow selection (`TextSelection` of two `Caret`s) that spans blocks: Shift+arrows past the field's first or last line or its ends, Ctrl+A (block, then flow), and drag handles at both ends (finger). Selected blocks outside the live field are highlighted by the page (selection rects from `FlowLayout` per line, drawn in the canvas overlay, not in tiles); the field shows its part. Copy/cut/paste/delete as Markdown through `BlockEditing.copy/delete/insert`, plain text fallback for foreign paste; typing replaces the selection; formatting bar inline actions apply per block where `Formatting` allows.
+Accept:
+- [ ] unit: Shift+Down from the last line extends into the next block; cut of a 3-block selection is one undo step and the clipboard holds its Markdown; paste of multi-block Markdown splits into blocks
+- [ ] screenshot: a selection over three blocks with handles
+- [ ] device: drag handles across a page boundary; copy/paste into another note keeps headings and lists
+Verify: `./gradlew :feature:editor:testDebugUnitTest :feature:editor:verifyRoborazziDebug` + device-tester
+
 ### P06-T11 Long text performance
-Model: sonnet xhigh
+Model: opus high
 Implements: R-TXT-05, R-PERF-05
 Read: 12-performance.md#budgets
 Do: seed a 20k-word flow (`seed-text 20000`), measure keystroke-to-frame, scrolling jank, memory; optimize until budgets hold.

@@ -99,11 +99,11 @@ Indent step: 1 grid column on grid/dotted templates, 6 mm on lined/blank.
 - Exactly one live text field exists: for the focused block. It sits in the canvas overlay at the block's screen rect, uses the same TextStyle with font size scaled by the viewport (not a graphics-layer scale), and system stylus handwriting disabled.
 - While focused, the block is excluded from tiles; the field draws it. On unfocus the block's layout is recomputed and tiles updated.
 - The focused block shows Markdown markers dimmed (40% alpha) via styling only (no hidden characters, so caret mapping stays trivial). Unfocused blocks render without markers.
-- Caret placement: tap (pen with Text tool, or finger tap on a text block when the Text tool is active) maps to (block, offset) via BlockLayout; the field receives focus in the same frame. Budget: tap to visible caret <= 50 ms.
+- Caret placement: tap (pen with Text tool, or a finger tap on a text block with any tool outside read mode, A-045) maps to (block, offset) via BlockLayout; the field receives focus in the same frame. Budget: tap to visible caret <= 50 ms (`text:caret`).
 - Navigation: arrows cross block boundaries (keeping the x position); Enter splits the block (new list item continues the list); Backspace at block start merges with the previous block; Tab/Shift+Tab indent list items.
 - Shortcuts at block start: `# `, `## `, `### `, `- `, `* `, `1. `, `[] ` / `- [ ] `, `> `, ` ``` `, `$$`, `---`, `| a | b |` + Enter (table).
-- Selection across blocks: Shift+arrows or drag handles; copy/cut/paste as Markdown (plain text fallback for foreign paste).
-- Formatting bar (docked above the on-screen keyboard or at the toolbar options row with a hardware keyboard): bold, italic, highlight, code, math, link, heading level, list types, checklist, table, undo, redo.
+- Selection across blocks: Shift+arrows or drag handles; copy/cut/paste as Markdown (plain text fallback for foreign paste). Built in P06-T14 (A-045); until then a selection stays inside the focused block.
+- Formatting bar (docked above the on-screen keyboard or at the toolbar options row with a hardware keyboard): bold, italic, highlight, code, math, link, heading level, list types, checklist, table. As built it is toolbar row 2 while a block is focused (a bottom-docked toolbox slides above the keyboard); undo and redo stay in the edit pill (A-045).
 - Each edit is an `EditFlow` command; typing coalesces per block within 1 s.
 
 ### Block edit logic (as built)
@@ -113,6 +113,13 @@ Indent step: 1 grid column on grid/dotted templates, 6 mm on lined/blank.
 - Enter: paragraph splits (a lone pipe row becomes a table, `` ``` `` and `$$` close at once), a list item continues the list (ordered lists renumber, an empty item outdents, then leaves the list), a quote continues as a separate quote block, a table gets a row (an empty last row ends it), code and math take a newline until the fence is closed. Shift+Enter is a hard break (two trailing spaces), at the end of a paragraph or item it behaves as Enter.
 - Backspace at a marker strips it (a list item outdents first); at block start it merges into the previous block. Text never merges into or out of code, math, tables or rules (the caret moves instead).
 - An unclosed fence or `$$` stays local to its block in the editor; a re-parse (undo, reopen) lets it swallow the rest of the flow.
+
+### Live field (as built)
+- `LiveTextField` is an `EditText` in the canvas overlay, placed by `TextFieldHost` from the `TextFieldSpec` that `EditorText.field` publishes (block source, `BlockLayout`, placement of the first line box): typeface of the layout, font size and line height (box units x U) scaled by the zoom, top = baseline of line 0 minus the ascent. Its line breaks come from the platform text layout, which can wrap a long line one word apart from the page layout while focused; the page layout is used again on blur (A-045).
+- A block that continues into the next frame is edited in one field at its first frame; the field overhangs that frame while focused (A-045).
+- Pen over the focused block: a stylus with an ink tool hovering over the field (at the latest its stylus down) ends the editing, so the pen writes there. HyperOS otherwise takes the stylus stream over a focused editor for its own handwriting service and cancels the stroke, despite `isAutoHandwritingEnabled = false` and `EditorInfo.setStylusHandwritingEnabled(false)` (A-045, docs/notes/device.md).
+- The field reports every keystroke as the whole block source (`FieldEdit.Typed`) and structural keys as `FieldEdit.Key` (Enter, Shift+Enter, Backspace at the start or in the marker, Delete at the end, Left/Right at the ends, Tab, Shift+Tab); Up/Down on the edge lines move the focus to the block above or below at the caret's x. Ctrl/Alt chords go to the editor shortcuts.
+- `TextEditor` (the session's `TextController`) runs field edits one after another through `EditorSession.editText`; a waiting keystroke is replaced by the next one of the same block, structural keys and formatting keep their order. An edit always lands in the block it was typed in; it moves the focus only while the focus revision is still the one it was typed at, so a tap or an earlier split wins and no keystroke is dropped.
 
 ## Math
 - `MathRenderer` interface (ADR-007): `layout(latex, fontSizePx, argb, display): Outcome<MathLayout>` with `MathLayout.box = MathBox(widthPx, ascentPx, depthPx)` and `draw(canvas, x, baselineY)`; vector drawing only (works on PDF canvases). Renderer: jlatexmath-android with true TeX metrics (`setTrueValues`), box padded by 0.04 em on every side because ink (accents, vector arrows, big operators) exceeds the TeX box by up to 1.9 px at 50 px (A-007).

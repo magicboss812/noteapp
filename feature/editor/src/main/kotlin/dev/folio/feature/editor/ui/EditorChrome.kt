@@ -59,6 +59,7 @@ import dev.folio.feature.editor.state.EditorUiState
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.ScreenOrientation
 import dev.folio.feature.editor.state.ToolbarPlacement
+import dev.folio.feature.editor.text.FormatAction
 import kotlin.math.max
 
 /** Row 1 of a bottom-docked toolbox sits this far above the window's safe bottom (DESIGN.md section 8). */
@@ -82,6 +83,7 @@ internal class ChromeActions(
     val onToggleOptions: () -> Unit,
     val onRetrySave: () -> Unit,
     val pages: PageChrome,
+    val onFormat: (FormatAction) -> Unit = {},
 ) {
     internal companion object {
         /** Actions that call whatever [latest] holds when invoked; the instance itself never changes. */
@@ -102,6 +104,7 @@ internal class ChromeActions(
                         onOverview = { latest.value.pages.onOverview() },
                         onAdd = { latest.value.pages.onAdd() },
                     ),
+                onFormat = { latest.value.onFormat(it) },
             )
     }
 }
@@ -257,18 +260,7 @@ private fun Toolbox(
     val hidden = state.docks.optionsHidden
     val ready = state.status == EditorStatus.READY
     val options: @Composable (Modifier, Boolean) -> Unit = { pillModifier, vertical ->
-        if (ready) {
-            ToolOptionsRow(
-                state.tool,
-                state.options,
-                actions.onOptionsChange,
-                actions.onPopover,
-                Modifier,
-                pillModifier,
-                vertical,
-                onSettings = actions.onSelectTool,
-            )
-        }
+        if (ready) Row2(state, actions, pillModifier, vertical)
     }
     val row1: @Composable (Modifier, Boolean) -> Unit = { rowModifier, vertical ->
         ToolsRow(
@@ -359,6 +351,31 @@ private fun Toolbox(
                 )
             }
         }
+    }
+}
+
+// Row 2: the formatting bar while a text block is focused, else the options of the tool. [modifier] places the pill.
+@Composable
+private fun Row2(
+    state: EditorUiState,
+    actions: ChromeActions,
+    modifier: Modifier = Modifier,
+    vertical: Boolean = false,
+) {
+    val textStyle = state.textStyle
+    if (textStyle != null) {
+        TextFormatRow(textStyle, actions.onFormat, modifier, vertical)
+    } else {
+        ToolOptionsRow(
+            state.tool,
+            state.options,
+            actions.onOptionsChange,
+            actions.onPopover,
+            Modifier,
+            modifier,
+            vertical,
+            onSettings = actions.onSelectTool,
+        )
     }
 }
 

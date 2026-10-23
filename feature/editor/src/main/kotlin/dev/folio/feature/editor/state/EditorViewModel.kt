@@ -14,6 +14,9 @@ import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.PageOps
 import dev.folio.core.storage.session.DocumentSessions
 import dev.folio.core.storage.session.SaveState
+import dev.folio.core.text.edit.BlockStyle
+import dev.folio.core.text.edit.BlockStyles
+import dev.folio.feature.editor.text.FormatAction
 import dev.folio.feature.editor.text.TextEngine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -63,6 +66,8 @@ data class EditorUiState(
     val readMode: Boolean = false,
     /** Page indicator and zoom of the info pill. */
     val view: ViewInfo = ViewInfo(),
+    /** Style of the focused text block (row 2 is then the formatting bar), null while no block has focus. */
+    val textStyle: BlockStyle? = null,
 )
 
 /** What the info pill shows: the page at the view center ([pageIndex], 0-based) and the zoom (100 = fit width). */
@@ -168,7 +173,12 @@ class EditorViewModel
                                     ::PagesUi,
                                 )
                             val overlays = combine(mutablePopover, mutableHelp, pages, ::Triple)
-                            val view = combine(session.readMode, session.view, ::Pair)
+                            val textStyle =
+                                session.textController
+                                    ?.field
+                                    ?.map { spec -> spec?.let { BlockStyles.of(it.block) } }
+                                    ?.distinctUntilChanged() ?: flowOf(null)
+                            val view = combine(session.readMode, session.view, textStyle, ::Triple)
                             combine(
                                 session.tool,
                                 session.options,
@@ -189,6 +199,7 @@ class EditorViewModel
                                     saveState = h.third,
                                     readMode = v.first,
                                     view = v.second,
+                                    textStyle = v.third,
                                 )
                             }
                         }
@@ -288,6 +299,11 @@ class EditorViewModel
                 mutableHelp.value = false
             }
             session.setReadMode(on)
+        }
+
+        /** Applies a formatting bar action to the focused text block. */
+        fun format(action: FormatAction) {
+            mutableSession.value?.textController?.format(action)
         }
 
         /** Undoes the last step (toolbar button). */

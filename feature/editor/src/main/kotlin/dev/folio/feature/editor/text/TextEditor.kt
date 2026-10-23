@@ -43,6 +43,8 @@ internal class TextEditor(
     // Touched on the main thread only: `edit` adds, the worker below takes.
     private val waiting = ArrayDeque<Pending>()
     private val wake = Channel<Unit>(Channel.CONFLATED)
+    private var selectionStart = 0
+    private var selectionEnd = 0
 
     override val field: Flow<TextFieldSpec?> get() = text.field
 
@@ -63,6 +65,17 @@ internal class TextEditor(
     ): Boolean = text.moveFocusAt(pageId, xPt, yPt)
 
     override fun blur() = text.blur()
+
+    override fun select(
+        start: Int,
+        end: Int,
+    ) {
+        // HOT PATH: per caret move; two ints, no allocation.
+        selectionStart = minOf(start, end).coerceAtLeast(0)
+        selectionEnd = maxOf(start, end).coerceAtLeast(0)
+    }
+
+    override fun format(action: FormatAction) = edit(FieldEdit.Format(action, selectionStart, selectionEnd))
 
     override fun edit(edit: FieldEdit) {
         // HOT PATH: per keystroke; the block source String is the only allocation besides the queue entry.

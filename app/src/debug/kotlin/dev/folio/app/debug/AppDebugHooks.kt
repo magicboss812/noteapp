@@ -67,6 +67,7 @@ internal class AppDebugHooks
                         "zoom-anim" to canvas::zoomAnim,
                         "scroll-page" to canvas::scrollPage,
                         "seed-strokes" to canvas::seedStrokes,
+                        "seed-text" to canvas::seedText,
                         "reorder-page" to canvas::reorderPage,
                         "tool" to canvas::tool,
                         "undo" to canvas::undo,

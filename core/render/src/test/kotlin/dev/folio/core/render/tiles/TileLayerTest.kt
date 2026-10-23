@@ -88,6 +88,28 @@ class TileLayerTest {
     }
 
     @Test
+    fun setPage_whileItsTileRenders_reportsTheTileOutdatedOnceAndTheNextRequestRendersTheChange() {
+        val layer = layer(RenderTarget.SCREEN_CONTENT)
+        val first = a4.withStrokes(stroke("s1", 100f, 100f))
+        layer.setPage(first.toRef(), first)
+        layer.request(listOf(visible(frame)), scale = 1f) // the render of s1's tile is in flight
+
+        val second = first.withStrokes(first.objects[0] as InkStroke, stroke("s2", 120f, 120f))
+        layer.setPage(second.toRef(), second)
+        layer.request(listOf(visible(frame)), scale = 1f) // nothing new: the tile is in flight
+        scope.testScheduler.advanceUntilIdle()
+        val outdated = layer.takeOutdated()
+        val again = layer.takeOutdated()
+        layer.request(listOf(visible(frame)), scale = 1f)
+        scope.testScheduler.advanceUntilIdle()
+
+        assertThat(outdated).isTrue()
+        assertThat(again).isFalse()
+        assertThat(painter.draws).containsExactly("s1", "s1", "s2").inOrder()
+        assertThat(layer.takeOutdated()).isFalse()
+    }
+
+    @Test
     fun isDrawn_addedStroke_falseUntilTheTileUnderItIsRerendered() {
         val layer = layer(RenderTarget.SCREEN_CONTENT)
         val first = a4.withStrokes(stroke("s1", 100f, 100f))

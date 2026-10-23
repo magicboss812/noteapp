@@ -64,6 +64,28 @@ class CanvasDebugTest {
     }
 
     @Test
+    fun seedText_parse_wordsAndOptionalPage() {
+        assertThat(SeedText.parse("20000")).isEqualTo(SeedText(20000, 1))
+        assertThat(SeedText.parse("300,2")).isEqualTo(SeedText(300, 2))
+        assertThat(SeedText.parse("0")).isNull()
+        assertThat(SeedText.parse("50001")).isNull()
+        assertThat(SeedText.parse(null)).isNull()
+    }
+
+    @Test
+    fun syntheticText_generate_deterministicMarkdownOfAboutTheWordCount() {
+        val text = SyntheticText.generate(2000)
+        val words = text.split(Regex("\\s+")).count { w -> w.any(Char::isLetter) && !w.startsWith("#") && w != "Section" }
+
+        assertThat(SyntheticText.generate(2000)).isEqualTo(text)
+        assertThat(text).startsWith("## Section 1\n\n")
+        assertThat(text).contains("\n\n- [ ] ")
+        // Within 2%: a paragraph may start with the word "section", which the count above skips as a heading word.
+        assertThat(words).isAtLeast(1960)
+        assertThat(words).isAtMost(2040)
+    }
+
+    @Test
     fun toolSetting_parse_penOrEraserWithOptions() {
         assertThat(ToolSetting.parse("pen")).isEqualTo(ToolSetting(CanvasTool.PEN))
         assertThat(ToolSetting.parse("eraser")).isEqualTo(ToolSetting(CanvasTool.ERASER, EraserOptions.DEFAULT))
