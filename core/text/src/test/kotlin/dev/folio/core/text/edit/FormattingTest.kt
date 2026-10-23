@@ -79,6 +79,12 @@ class FormattingTest {
     }
 
     @Test
+    fun toggleInline_inTableCell_wrapsAndUnwrapsTheCellText() {
+        assertThat(inline("| a |\n| - |\n| «x» |", SpanKind.BOLD)).isEqualTo("| a |\n| - |\n| **«x»** |")
+        assertThat(inline("| a |\n| - |\n| **x^** |", SpanKind.BOLD)).isEqualTo("| a |\n| - |\n| x^ |")
+    }
+
+    @Test
     fun setStyle_paragraphToHeading_addsTheMarkerAndKeepsTheCaretInTheText() {
         assertThat(style("ab^c", BlockStyle.HEADING_2)).isEqualTo("## ab^c")
     }

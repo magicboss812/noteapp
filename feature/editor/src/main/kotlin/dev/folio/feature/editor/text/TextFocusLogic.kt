@@ -3,6 +3,7 @@ package dev.folio.feature.editor.text
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.PageId
 import dev.folio.core.text.flow.FlowLayout
+import dev.folio.core.text.flow.FocusedBlock
 import dev.folio.core.text.flow.hit
 import dev.folio.core.text.flow.placementOf
 import dev.folio.core.text.flow.sourceOffsetAt
@@ -29,6 +30,16 @@ internal fun TextFocus.resolvedIn(layouts: Map<FlowId, FlowLayout>): TextFocus? 
             TextFocus(flowId, blocks[at].id, at, blocks[at].source.length, revision + 1)
         }
     }
+}
+
+/** What the canvas leaves out for this focus in [layouts]: the focused block, or in a table only the edited cell. */
+internal fun TextFocus.shownIn(layouts: Map<FlowId, FlowLayout>): FocusedBlock {
+    val layout = layouts[flowId]
+    val index = layout?.markdown?.indexOf(blockId) ?: -1
+    val block = layout?.markdown?.blocks?.getOrNull(index)
+    val blockLayout = layout?.layoutOf(index)
+    val cell = if (block == null || blockLayout == null) null else CellField.of(block, blockLayout, caret)
+    return FocusedBlock(flowId, blockId, cell?.index ?: FlowLayout.NO_CELL)
 }
 
 /**

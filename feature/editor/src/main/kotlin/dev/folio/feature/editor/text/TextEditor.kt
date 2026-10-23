@@ -4,6 +4,7 @@ import dev.folio.core.common.PerfMonitor
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.PageId
 import dev.folio.core.text.edit.EditResult
+import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.markdown.MarkdownDocument
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -36,8 +37,13 @@ internal class TextEditor(
         val revision: Int,
         val edit: FieldEdit,
     ) {
-        fun isTypedIn(other: Pending): Boolean =
-            edit is FieldEdit.Typed && other.edit is FieldEdit.Typed && flowId == other.flowId && blockId == other.blockId
+        // A keystroke carries the whole block source (or cell text), so it replaces the one before it in the same place.
+        fun isTypedIn(other: Pending): Boolean {
+            if (flowId != other.flowId || blockId != other.blockId) return false
+            val a = edit
+            val b = other.edit
+            return (a is FieldEdit.Typed && b is FieldEdit.Typed) || (a is FieldEdit.Cell && b is FieldEdit.Cell && a.cell == b.cell)
+        }
     }
 
     // Touched on the main thread only: `edit` adds, the worker below takes.
@@ -45,6 +51,7 @@ internal class TextEditor(
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private var selectionStart = 0
     private var selectionEnd = 0
+    private var selectionCell: TableCell? = null
 
     override val field: Flow<TextFieldSpec?> get() = text.field
 
@@ -69,13 +76,15 @@ internal class TextEditor(
     override fun select(
         start: Int,
         end: Int,
+        cell: TableCell?,
     ) {
-        // HOT PATH: per caret move; two ints, no allocation.
+        // HOT PATH: per caret move; two ints and a reference, no allocation.
         selectionStart = minOf(start, end).coerceAtLeast(0)
         selectionEnd = maxOf(start, end).coerceAtLeast(0)
+        selectionCell = cell
     }
 
-    override fun format(action: FormatAction) = edit(FieldEdit.Format(action, selectionStart, selectionEnd))
+    override fun format(action: FormatAction) = edit(FieldEdit.Format(action, selectionStart, selectionEnd, selectionCell))
 
     override fun edit(edit: FieldEdit) {
         // HOT PATH: per keystroke; the block source String is the only allocation besides the queue entry.
@@ -96,13 +105,15 @@ internal class TextEditor(
     // only while the focus is still the one it was typed at: after a tap, a blur or an earlier split or merge the focus
     // stays where that put it, so a late keystroke is kept without pulling the caret back.
     private suspend fun run(item: Pending) {
-        val typed = item.edit as? FieldEdit.Typed
-        val coalesceKey = typed?.let { "type:${item.flowId.value}:${item.blockId}" }
-        val result = runEdit(item.flowId, coalesceKey) { doc -> item.edit.applyTo(doc, item.blockId) }
+        val edit = item.edit
+        val keystroke = edit is FieldEdit.Typed || edit is FieldEdit.Cell
+        val coalesceKey = if (keystroke) "type:${item.flowId.value}:${item.blockId}" else null
+        val result = runEdit(item.flowId, coalesceKey) { doc -> edit.applyTo(doc, item.blockId) }
         if (text.focus.value?.revision != item.revision) return
         when {
-            result != null -> text.focusAfter(item.flowId, result, typed)
-            typed != null -> text.resync(typed.caret)
+            result != null -> text.focusAfter(item.flowId, result, edit)
+            edit is FieldEdit.Typed -> text.resync(edit.caret)
+            edit is FieldEdit.Cell -> text.focus.value?.let { text.resync(it.caret) }
         }
     }
 }

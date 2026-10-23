@@ -364,7 +364,7 @@ private fun Row2(
 ) {
     val textStyle = state.textStyle
     if (textStyle != null) {
-        TextFormatRow(textStyle, actions.onFormat, modifier, vertical)
+        TextFormatRow(textStyle, actions.onFormat, modifier, vertical, table = state.textInTable)
     } else {
         ToolOptionsRow(
             state.tool,

@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T08
+next: P06-T09
 updated: 2026-10-24
 
 ## Completed
@@ -13,7 +13,7 @@ updated: 2026-10-24
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07 (blocked: device run)
+- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07 (blocked: device run), T08 (a-b)
 
 ## Blocked (needs user; stops dependent tasks)
 - P06-T07 device: test APK refused 2026-10-24 (`INSTALL_FAILED_USER_RESTRICTED`, Gradle still SUCCESS, no tests ran). User: keep the tablet unlocked and tap Allow on the "Install via USB" prompt (or turn on "USB debugging (Security settings)"), then the next session runs `bash scripts/device/instrumented.sh :core:text` -> GridInvariantInstrumentedTest 20 fonts, 0 violations, Formulas 136. Robolectric run of the same suite passes.
@@ -21,6 +21,7 @@ updated: 2026-10-24
 ## USER-CHECK (human verification; non-blocking)
 - P06-T07: in a note type `Area $\pi r^2$ and $\frac{a}{b}$`, a `$$` block with `\int_0^1 x^2 dx` and `$\notacommand$`, then tap elsewhere -> formulas sit on the lines, the bad one is red source; tapping it shows its source with an error popup.
 - P06-T15: draw several strokes (pen and highlighter) and lift the pen; then focus a text block (debug `seed-text 300`), zoom in and out while editing -> no stroke blinks after pen-up; the edited text scales with the page during the zoom.
+- P06-T08: in a note type `| a | b |` + Enter, fill cells with Tab, add/remove rows and columns and set alignment from the table buttons, on lined and grid paper -> borders on rules, header bold, every cell's text on a line, only the edited cell's source shows, the Markdown stays normalized GFM.
 
 ## Deferred (id: reason)
 - D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05.
@@ -30,7 +31,7 @@ updated: 2026-10-24
 - D-034 P06-T07: math blocks are always centered; 07-text-engine.md#math names a left alignment setting (A-047).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T08a done (table layout, painting, `TableEditing` ops, taps; 07-text-engine.md#tables-as-built, A-048). Next: T08b = editor cell field (`TextFieldSpec` cell from `TableEditing.cellAt`, `FocusedBlock.cell`, `FieldEdits` table keys -> `TableEditing`) and the table mini toolbar in `TextFormatRow` + screenshot.
+- P06-T08 done: tables laid out, painted and edited cell by cell (`CellField`, `FieldEdit.Cell`, table buttons in `TextFormatRow`); 07-text-engine.md#tables-as-built, A-048. Nothing half-done.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`).
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]` seeds a body flow (use `open lined:N` with an unused N). Test APK installs need the user's Allow on the tablet.
-- Next: P06-T08 Tables (then T09, T10, T18, T14, T16, T17, T11). Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.
+- Next: P06-T09 Lists, checklists, code, quotes, links (then T10, T18, T14, T16, T17, T11). Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.

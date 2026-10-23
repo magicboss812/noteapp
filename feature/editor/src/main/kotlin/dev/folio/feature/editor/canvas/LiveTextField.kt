@@ -30,8 +30,10 @@ import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.pageOriginViewX
 import dev.folio.core.render.viewport.pageOriginViewY
 import dev.folio.core.text.edit.BlockEditing
+import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.layout.BlockFace
 import dev.folio.core.text.layout.typeface
+import dev.folio.core.text.markdown.TableAlign
 import dev.folio.feature.editor.text.FieldEdit
 import dev.folio.feature.editor.text.FieldKey
 import dev.folio.feature.editor.text.TextFieldSpec
@@ -48,6 +50,9 @@ import dev.folio.feature.editor.text.TextFocus
  * [FieldEdit.Key]; Up and Down on the first and last line go to [onVertical]; Ctrl and Alt chords go to [onShortcut]
  * (the text view would swallow them, the shortcut registry lives above); Escape to [onEscape]. System stylus
  * handwriting is off: the pen draws ink over the block like anywhere else.
+ *
+ * In a table the field edits one cell ([TextFieldSpec.cell]): its text over the cell, in the header's or the body's
+ * face with the column's alignment. Keystrokes report [FieldEdit.Cell]; keys and the selection are cell offsets.
  */
 @MainThread
 @Suppress("TooManyFunctions") // text sync, styling, placement and the key paths of one view
@@ -79,11 +84,14 @@ internal class LiveTextField(
     private val sent = ArrayList<String>()
     private var shown: TextFieldSpec? = null
     private var shownFocus: TextFocus? = null
+    private var shownCell: TableCell? = null
     private var synced: TextFieldSpec? = null
     private var styledFace: BlockFace? = null
     private var styledScale = 0f
     private var styledArgb = 0
     private var styledBoxPx = 0f
+    private var styledWidthPx = 0
+    private var styledGravity = 0
     private var ascentPx = 0f
     private var appliedDims: IntArray? = null
     private val dimSpans = ArrayList<ForegroundColorSpan>()
@@ -152,6 +160,7 @@ internal class LiveTextField(
             synced = spec
         }
         shownFocus = spec.focus
+        shownCell = spec.cell?.cell
         place(viewport, pageIndex)
         if (appearing) {
             visibility = VISIBLE
@@ -190,10 +199,17 @@ internal class LiveTextField(
         // HOT PATH: per viewport change while the field is shown; no allocation.
         val spec = shown ?: return
         val layout = spec.layout
+        val cell = spec.cell
         val scale = viewport.scale
-        val gutterPt = if (layout.hasMarker) layout.markerLeftPt else layout.textLeftPt
+        val gutterPt =
+            when {
+                cell != null -> cell.leftPt
+                layout.hasMarker -> layout.markerLeftPt
+                else -> layout.textLeftPt
+            }
+        val firstBaselinePt = cell?.baselinePt ?: layout.baselinePt(0)
         val leftPx = viewport.pageOriginViewX(pageIndex) + (spec.placement.leftPt + gutterPt) * scale
-        val baselinePx = viewport.pageOriginViewY(pageIndex) + (spec.placement.topPt + layout.baselinePt(0)) * scale
+        val baselinePx = viewport.pageOriginViewY(pageIndex) + (spec.placement.topPt + firstBaselinePt) * scale
         // Mid-zoom the field scales as a layer around its top-left corner; [show] sets the real size when the zoom settles.
         val layerScale = if (styledScale > 0f) scale / styledScale else 1f
         pivotX = 0f
@@ -208,6 +224,7 @@ internal class LiveTextField(
     fun hide() {
         shown = null
         shownFocus = null
+        shownCell = null
         synced = null
         sent.clear()
         appliedDims = null
@@ -233,21 +250,33 @@ internal class LiveTextField(
         scale: Float,
     ) {
         val layout = spec.layout
+        val cell = spec.cell
         val boxPx = layout.boxUnits * layout.unitPt * scale
-        val face = layout.face
-        if (isStyled(face, scale, textArgb, boxPx)) return
-        if (face !== styledFace) typeface = layout.typeface(resolver)
+        // A table cell: the header's or the body's face, the cell's text width and its column's alignment.
+        val face = if (cell != null) cell.face else layout.face
+        val widthPt = cell?.widthPt ?: (spec.placement.widthPt - layout.textLeftPt)
+        val widthPx = (widthPt * scale).toInt().coerceAtLeast(1)
+        val across =
+            when (cell?.align) {
+                TableAlign.CENTER -> Gravity.CENTER_HORIZONTAL
+                TableAlign.RIGHT -> Gravity.END
+                else -> Gravity.START
+            }
+        if (isStyled(face, scale, textArgb, boxPx) && widthPx == styledWidthPx && across == styledGravity) return
+        if (face !== styledFace) typeface = face?.typeface(resolver)
         setTextSize(TypedValue.COMPLEX_UNIT_PX, layout.fontSizePt * scale)
         setLineHeight(TypedValue.COMPLEX_UNIT_PX, boxPx)
         setTextColor(textArgb)
+        gravity = Gravity.TOP or across
         ascentPx = -paint.fontMetricsInt.ascent.toFloat()
-        val widthPx = ((spec.placement.widthPt - layout.textLeftPt) * scale).toInt().coerceAtLeast(1)
         (layoutParams as FrameLayout.LayoutParams).width = widthPx
         requestLayout()
         styledFace = face
         styledScale = scale
         styledArgb = textArgb
         styledBoxPx = boxPx
+        styledWidthPx = widthPx
+        styledGravity = across
         appliedDims = null
     }
 
@@ -264,14 +293,15 @@ internal class LiveTextField(
     private fun sync(spec: TextFieldSpec) {
         val focus = spec.focus
         val before = shownFocus
-        val source = spec.block.source
+        val source = spec.text
         val moved =
-            before == null || before.flowId != focus.flowId || before.blockId != focus.blockId || before.revision != focus.revision
+            before == null || before.flowId != focus.flowId || before.blockId != focus.blockId || before.revision != focus.revision ||
+                shownCell != spec.cell?.cell
         var replaced = false
         if (moved) {
             sent.clear()
             replaced = replaceText(source)
-            setSelection(focus.caret.coerceIn(0, length()))
+            setSelection((focus.caret - (spec.cell?.start ?: 0)).coerceIn(0, length()))
         } else {
             val echo = sent.indexOf(source)
             if (echo >= 0) repeat(echo + 1) { sent.removeAt(0) }
@@ -289,10 +319,15 @@ internal class LiveTextField(
     // Invalid LaTeX in the block (07-text-engine.md#math): the parser's message as the field's error popup, without
     // the icon (it would narrow the text). Typing hides it; the model's answer for the new source shows it again.
     private fun showMathError(spec: TextFieldSpec) {
+        val cell = spec.cell
         val message =
-            spec.layout.mathErrors
-                .firstOrNull()
-                ?.message
+            if (cell != null) {
+                cell.mathError
+            } else {
+                spec.layout.mathErrors
+                    .firstOrNull()
+                    ?.message
+            }
         if (!TextUtils.equals(error, message)) setError(message, null)
     }
 
@@ -332,14 +367,16 @@ internal class LiveTextField(
     private fun typed(source: String) {
         sent += source
         if (sent.size > MAX_SENT) sent.removeAt(0)
-        onEdit(FieldEdit.Typed(source, selectionEnd.coerceAtLeast(0)))
+        val caret = selectionEnd.coerceAtLeast(0)
+        val cell = shown?.cell
+        onEdit(if (cell != null) FieldEdit.Cell(cell.cell, source, caret) else FieldEdit.Typed(source, caret))
     }
 
     private fun send(
         key: FieldKey,
         start: Int = selectionStart,
         end: Int = selectionEnd,
-    ) = onEdit(FieldEdit.Key(key, minOf(start, end).coerceAtLeast(0), maxOf(start, end).coerceAtLeast(0)))
+    ) = onEdit(FieldEdit.Key(key, minOf(start, end).coerceAtLeast(0), maxOf(start, end).coerceAtLeast(0), shown?.cell?.cell))
 
     private val isCollapsed: Boolean get() = selectionStart == selectionEnd
 

@@ -96,6 +96,15 @@ class EditMarkersTest {
     }
 
     @Test
+    fun ranges_tableCellWithBold_dimsItsDelimitersToo() {
+        val dim = dimmed("| **a** | b |\n| --- | --- |\n| 1 | `2` |")
+
+        assertThat(dim.filter { it.trim('|', ' ').isNotEmpty() && !it.startsWith("| -") })
+            .containsExactly("**", "**", "`", "`")
+            .inOrder()
+    }
+
+    @Test
     fun ranges_rule_dimsTheWholeSource() {
         assertThat(dimmed("---")).containsExactly("---")
     }

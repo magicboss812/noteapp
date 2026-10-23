@@ -67,6 +67,7 @@ object Formatting {
             is BlockContent.Heading -> content.text.spans
             is BlockContent.ListItem -> content.text.spans
             is BlockContent.Quote -> content.text.spans
+            is BlockContent.Table -> (content.header + content.rows.flatten()).flatMap { it.spans }
             BlockContent.Empty -> emptyList()
             else -> null
         }

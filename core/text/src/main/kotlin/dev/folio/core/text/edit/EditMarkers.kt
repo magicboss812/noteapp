@@ -19,14 +19,39 @@ object EditMarkers {
         val marker = BlockMarkers.length(block)
         if (marker > 0) found += intArrayOf(0, marker)
         when (val content = block.content) {
-            is BlockContent.Paragraph -> inline(source, content.text, found)
-            is BlockContent.Heading -> inline(source, content.text, found)
-            is BlockContent.ListItem -> inline(source, content.text, found)
-            is BlockContent.Quote -> inline(source, content.text, found)
-            is BlockContent.Code -> fences(source, found)
-            is BlockContent.Table -> pipes(source, found)
-            BlockContent.Rule -> found += intArrayOf(0, source.length)
-            is BlockContent.Math, BlockContent.Empty -> Unit
+            is BlockContent.Paragraph -> {
+                inline(source, content.text, found)
+            }
+
+            is BlockContent.Heading -> {
+                inline(source, content.text, found)
+            }
+
+            is BlockContent.ListItem -> {
+                inline(source, content.text, found)
+            }
+
+            is BlockContent.Quote -> {
+                inline(source, content.text, found)
+            }
+
+            is BlockContent.Code -> {
+                fences(source, found)
+            }
+
+            is BlockContent.Table -> {
+                pipes(source, found)
+                for (cell in content.header) inline(source, cell, found)
+                for (row in content.rows) for (cell in row) inline(source, cell, found)
+            }
+
+            BlockContent.Rule -> {
+                found += intArrayOf(0, source.length)
+            }
+
+            is BlockContent.Math, BlockContent.Empty -> {
+                Unit
+            }
         }
         return merged(found)
     }

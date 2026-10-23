@@ -14,6 +14,8 @@ object FolioIcons {
         get() =
             listOf(
                 "arrow-down-wide-narrow" to ArrowDownWideNarrow,
+                "between-horizontal-end" to BetweenHorizontalEnd,
+                "between-vertical-end" to BetweenVerticalEnd,
                 "bold" to Bold,
                 "book-open" to BookOpen,
                 "brush" to Brush,
@@ -36,6 +38,8 @@ object FolioIcons {
                 "file-plus" to FilePlus,
                 "file-text" to FileText,
                 "file-up" to FileUp,
+                "fold-horizontal" to FoldHorizontal,
+                "fold-vertical" to FoldVertical,
                 "folder" to Folder,
                 "folder-plus" to FolderPlus,
                 "grip-vertical" to GripVertical,
@@ -82,6 +86,9 @@ object FolioIcons {
                 "strikethrough" to Strikethrough,
                 "table" to Table,
                 "tag" to Tag,
+                "text-align-center" to TextAlignCenter,
+                "text-align-end" to TextAlignEnd,
+                "text-align-start" to TextAlignStart,
                 "trash" to Trash,
                 "triangle" to Triangle,
                 "type" to Type,
@@ -98,6 +105,26 @@ object FolioIcons {
             stroke("M11 4h10"),
             stroke("M11 8h7"),
             stroke("M11 12h4"),
+        )
+    }
+
+    /** Lucide `between-horizontal-end`. */
+    val BetweenHorizontalEnd: ImageVector by lazy {
+        lucideIcon(
+            "BetweenHorizontalEnd",
+            stroke("M4 3H15A1 1 0 0 1 16 4V9A1 1 0 0 1 15 10H4A1 1 0 0 1 3 9V4A1 1 0 0 1 4 3Z"),
+            stroke("m22 15-3-3 3-3"),
+            stroke("M4 14H15A1 1 0 0 1 16 15V20A1 1 0 0 1 15 21H4A1 1 0 0 1 3 20V15A1 1 0 0 1 4 14Z"),
+        )
+    }
+
+    /** Lucide `between-vertical-end`. */
+    val BetweenVerticalEnd: ImageVector by lazy {
+        lucideIcon(
+            "BetweenVerticalEnd",
+            stroke("M4 3H9A1 1 0 0 1 10 4V15A1 1 0 0 1 9 16H4A1 1 0 0 1 3 15V4A1 1 0 0 1 4 3Z"),
+            stroke("m9 22 3-3 3 3"),
+            stroke("M15 3H20A1 1 0 0 1 21 4V15A1 1 0 0 1 20 16H15A1 1 0 0 1 14 15V4A1 1 0 0 1 15 3Z"),
         )
     }
 
@@ -323,6 +350,36 @@ object FolioIcons {
             stroke("M14 2v5a1 1 0 0 0 1 1h5"),
             stroke("M12 12v6"),
             stroke("m15 15-3-3-3 3"),
+        )
+    }
+
+    /** Lucide `fold-horizontal`. */
+    val FoldHorizontal: ImageVector by lazy {
+        lucideIcon(
+            "FoldHorizontal",
+            stroke("M2 12h6"),
+            stroke("M22 12h-6"),
+            stroke("M12 2v2"),
+            stroke("M12 8v2"),
+            stroke("M12 14v2"),
+            stroke("M12 20v2"),
+            stroke("m19 9-3 3 3 3"),
+            stroke("m5 15 3-3-3-3"),
+        )
+    }
+
+    /** Lucide `fold-vertical`. */
+    val FoldVertical: ImageVector by lazy {
+        lucideIcon(
+            "FoldVertical",
+            stroke("M12 22v-6"),
+            stroke("M12 8V2"),
+            stroke("M4 12H2"),
+            stroke("M10 12H8"),
+            stroke("M16 12h-2"),
+            stroke("M22 12h-2"),
+            stroke("m15 19-3-3-3 3"),
+            stroke("m15 5-3 3-3-3"),
         )
     }
 
@@ -843,6 +900,36 @@ object FolioIcons {
                 "0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z",
             ),
             filled("M7 7.5A0.5 0.5 0 1 0 8 7.5A0.5 0.5 0 1 0 7 7.5Z"),
+        )
+    }
+
+    /** Lucide `text-align-center`. */
+    val TextAlignCenter: ImageVector by lazy {
+        lucideIcon(
+            "TextAlignCenter",
+            stroke("M21 5H3"),
+            stroke("M17 12H7"),
+            stroke("M19 19H5"),
+        )
+    }
+
+    /** Lucide `text-align-end`. */
+    val TextAlignEnd: ImageVector by lazy {
+        lucideIcon(
+            "TextAlignEnd",
+            stroke("M21 5H3"),
+            stroke("M21 12H9"),
+            stroke("M21 19H7"),
+        )
+    }
+
+    /** Lucide `text-align-start`. */
+    val TextAlignStart: ImageVector by lazy {
+        lucideIcon(
+            "TextAlignStart",
+            stroke("M21 5H3"),
+            stroke("M15 12H3"),
+            stroke("M17 19H3"),
         )
     }
 

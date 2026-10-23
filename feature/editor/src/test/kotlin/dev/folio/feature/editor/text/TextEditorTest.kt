@@ -30,6 +30,7 @@ import dev.folio.core.testing.TempDirFolioFs
 import dev.folio.core.testing.TestDispatchersRule
 import dev.folio.core.text.edit.BlockEditing
 import dev.folio.core.text.edit.Caret
+import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.edit.TextSelection
 import dev.folio.core.text.flow.FlowLayouter
 import dev.folio.core.text.flow.PageText
@@ -96,6 +97,44 @@ class TextEditorTest : EditorTextFixture() {
             assertThat(text.focus.value?.revision).isEqualTo(revision)
             assertThat(session.undo()).isTrue()
             assertThat(markdown(documentSession)).isEqualTo("alpha\n\nbeta")
+        }
+
+    @Test
+    fun edit_typingInATableCell_keepsTheFieldOnThatCellAndTabMovesOn() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "| a   | b   |\n| --- | --- |\n| x   | y   |")
+            val (session, text, page) = focusedFlow(path, this)
+            val texts = checkNotNull(session.textController)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            val revision = checkNotNull(text.focus.value).revision
+            assertThat(
+                text.field
+                    .first()
+                    ?.cell
+                    ?.cell,
+            ).isEqualTo(TableCell(0, 0))
+
+            texts.edit(FieldEdit.Cell(TableCell(0, 0), "ab", 2))
+            yield()
+            texts.edit(FieldEdit.Cell(TableCell(0, 0), "abcdef", 6))
+            yield()
+
+            assertThat(markdown(session.documentSession)).isEqualTo("| abcdef | b   |\n| ------ | --- |\n| x      | y   |")
+            assertThat(text.focus.value?.revision).isEqualTo(revision)
+            val typed = checkNotNull(text.field.first()?.cell)
+            assertThat(typed.text).isEqualTo("abcdef")
+            assertThat(text.focus.value?.caret).isEqualTo(typed.start + 6)
+
+            texts.edit(FieldEdit.Key(FieldKey.TAB, 6, 6, TableCell(0, 0)))
+            yield()
+
+            assertThat(
+                text.field
+                    .first()
+                    ?.cell
+                    ?.cell,
+            ).isEqualTo(TableCell(0, 1))
+            assertThat(text.focus.value?.revision).isGreaterThan(revision)
         }
 
     @Test

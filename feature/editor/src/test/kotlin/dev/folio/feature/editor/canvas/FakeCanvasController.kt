@@ -13,6 +13,7 @@ import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.testing.ModelFixtures
+import dev.folio.core.text.edit.TableCell
 import dev.folio.feature.editor.text.FieldEdit
 import dev.folio.feature.editor.text.FormatAction
 import dev.folio.feature.editor.text.TextController
@@ -57,10 +58,15 @@ internal class FakeTextController : TextController {
         edits += edit
     }
 
+    val selections = ArrayList<Triple<Int, Int, TableCell?>>()
+
     override fun select(
         start: Int,
         end: Int,
-    ) = Unit
+        cell: TableCell?,
+    ) {
+        selections += Triple(start, end, cell)
+    }
 
     override fun format(action: FormatAction) {
         formats += action

@@ -94,7 +94,7 @@ internal class TextFieldHost(
     private fun fieldView(): LiveTextField =
         view ?: LiveTextField(context).also {
             it.onEdit = { edit -> controller.textController?.edit(edit) }
-            it.onSelection = { start, end -> controller.textController?.select(start, end) }
+            it.onSelection = { start, end -> controller.textController?.select(start, end, it.spec?.cell?.cell) }
             it.onShortcut = { keyCode, ctrl, shift, alt -> onShortcut(keyCode, ctrl, shift, alt) }
             it.onEscape = { controller.textController?.blur() }
             it.onVertical = ::moveVertically
@@ -102,7 +102,8 @@ internal class TextFieldHost(
             view = it
         }
 
-    // Up on the first line, Down on the last: the block above or below, at the caret's column. At the edge of the text nothing moves.
+    // Up on the first line, Down on the last: the block (or table row) above or below, at the caret's column. At the
+    // edge of the text nothing moves.
     private fun moveVertically(
         up: Boolean,
         caretXPx: Float,
@@ -111,7 +112,10 @@ internal class TextFieldHost(
         val texts = controller.textController ?: return
         val xPt = viewport.toPagePt(current.pageId, PointPx(caretXPx, 0f)).x
         val unitPt = current.layout.unitPt
-        val yPt = if (up) current.placement.topPt - unitPt / 2 else current.placement.topPt + current.layout.heightPt + unitPt / 2
+        val cell = current.cell
+        val topPt = current.placement.topPt + (cell?.topPt ?: 0f)
+        val heightPt = cell?.heightPt ?: current.layout.heightPt
+        val yPt = if (up) topPt - unitPt / 2 else topPt + heightPt + unitPt / 2
         texts.moveFocusAt(current.pageId, xPt, yPt)
     }
 

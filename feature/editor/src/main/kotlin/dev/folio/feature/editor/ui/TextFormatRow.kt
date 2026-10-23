@@ -49,10 +49,27 @@ private val INLINE_BUTTONS =
         FormatButton(FormatAction.LINK, FolioIcons.Link, "Link"),
     )
 
+// In a table: rows and columns at the caret's cell, then the caret column's alignment (again: back to none).
+private val TABLE_BUTTONS =
+    listOf(
+        FormatButton(FormatAction.TABLE_ROW_ADD, FolioIcons.BetweenHorizontalEnd, "Add row below"),
+        FormatButton(FormatAction.TABLE_ROW_REMOVE, FolioIcons.FoldVertical, "Remove row"),
+        FormatButton(FormatAction.TABLE_COLUMN_ADD, FolioIcons.BetweenVerticalEnd, "Add column right"),
+        FormatButton(FormatAction.TABLE_COLUMN_REMOVE, FolioIcons.FoldHorizontal, "Remove column"),
+    )
+
+private val ALIGN_BUTTONS =
+    listOf(
+        FormatButton(FormatAction.TABLE_ALIGN_LEFT, FolioIcons.TextAlignStart, "Align column left"),
+        FormatButton(FormatAction.TABLE_ALIGN_CENTER, FolioIcons.TextAlignCenter, "Center column"),
+        FormatButton(FormatAction.TABLE_ALIGN_RIGHT, FolioIcons.TextAlignEnd, "Align column right"),
+    )
+
 /**
  * The formatting bar (07-text-engine.md#editing): row 2 while a text block is focused, whatever the tool (A-045).
  * A bottom-docked toolbox slides above the on-screen keyboard, so the bar sits above it; with a hardware keyboard
- * it stays at the options row. [style] is the focused block's style; undo and redo stay in the edit pill.
+ * it stays at the options row. [style] is the focused block's style; undo and redo stay in the edit pill. In a
+ * [table] the block styles and the table button give way to the table's row, column and alignment buttons.
  */
 @Composable
 internal fun TextFormatRow(
@@ -60,16 +77,25 @@ internal fun TextFormatRow(
     onFormat: (FormatAction) -> Unit,
     modifier: Modifier = Modifier,
     vertical: Boolean = false,
+    table: Boolean = false,
 ) {
     val orientation = if (vertical) PillOrientation.Vertical else PillOrientation.Horizontal
     PillGroup(modifier, orientation = orientation) {
         val scroll = rememberScrollState()
         val content: @Composable () -> Unit = {
-            STYLE_BUTTONS.forEach { b -> ToolButton(b.icon, b.label, selected = style == b.style, onClick = { onFormat(b.action) }) }
+            if (table) {
+                TABLE_BUTTONS.forEach { b -> FolioIconButton(b.icon, b.label, onClick = { onFormat(b.action) }) }
+                PillDivider(vertical = vertical)
+                ALIGN_BUTTONS.forEach { b -> FolioIconButton(b.icon, b.label, onClick = { onFormat(b.action) }) }
+            } else {
+                STYLE_BUTTONS.forEach { b -> ToolButton(b.icon, b.label, selected = style == b.style, onClick = { onFormat(b.action) }) }
+            }
             PillDivider(vertical = vertical)
             INLINE_BUTTONS.forEach { b -> FolioIconButton(b.icon, b.label, onClick = { onFormat(b.action) }) }
-            PillDivider(vertical = vertical)
-            FolioIconButton(FolioIcons.Table, "Table", onClick = { onFormat(FormatAction.TABLE) })
+            if (!table) {
+                PillDivider(vertical = vertical)
+                FolioIconButton(FolioIcons.Table, "Table", onClick = { onFormat(FormatAction.TABLE) })
+            }
         }
         if (vertical) {
             Column(

@@ -17,6 +17,7 @@ import dev.folio.core.model.edit.TextEdit
 import dev.folio.core.storage.session.DocumentSession
 import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.edit.FlowTextDiff
+import dev.folio.core.text.edit.TableEditing
 import dev.folio.core.text.flow.FlowLayout
 import dev.folio.core.text.flow.FlowSearch
 import dev.folio.core.text.flow.FocusedBlock
@@ -116,7 +117,7 @@ class EditorText internal constructor(
         inputs = next
         // The focused block's id changes when undo or redo parses the text again: the block at the same place gets the focus.
         mutableFocus.update { it?.resolvedIn(layouts) }
-        val focused = mutableFocus.value?.let { FocusedBlock(it.flowId, it.blockId) }
+        val focused = mutableFocus.value?.shownIn(layouts)
         if (relaid || focused != shown) {
             shown = focused
             val pages = keepUnchanged(current.pages, PageTexts.of(doc, layouts))
@@ -155,25 +156,35 @@ class EditorText internal constructor(
     }
 
     /**
-     * Puts the focus where block editing left the caret ([result] of flow [flowId]). A keystroke whose [typed] text is
-     * what the block source became keeps the focus as it is: the field owns its caret. Anything else (a split, a
-     * merge, a shortcut) gives the field the new block and caret.
+     * Puts the focus where block editing left the caret ([result] of flow [flowId]). A keystroke ([edit]) whose text is
+     * what the block source (or the table cell) became keeps the focus revision: the field owns its caret. Anything
+     * else (a split, a merge, a shortcut, a cell text that got escaped) gives the field the new block and caret.
      */
     internal fun focusAfter(
         flowId: FlowId,
         result: EditResult,
-        typed: FieldEdit.Typed? = null,
+        edit: FieldEdit? = null,
     ) {
         val caret = result.selection.focus
         val index = result.document.indexOf(caret.blockId)
         if (index < 0) return
-        // The echo of a keystroke: the block source is what the field typed.
-        val echo = typed != null && result.document.blocks[index].source == typed.source
+        val source = result.document.blocks[index].source
+        // The echo of a keystroke: the block source, or the cell's text, is what the field typed.
+        val echo =
+            when (edit) {
+                is FieldEdit.Typed -> source == edit.source
+                is FieldEdit.Cell -> TableEditing.spanOf(source, edit.cell).let { source.substring(it.start, it.end) } == edit.text
+                else -> false
+            }
         mutableFocus.update { before ->
-            if (echo && before?.blockId == caret.blockId) {
-                before.copy(blockIndex = index)
-            } else {
-                TextFocus(flowId, caret.blockId, index, caret.offset, (before?.revision ?: 0) + 1)
+            val kept = before?.takeIf { echo && it.blockId == caret.blockId }
+            when {
+                kept == null -> TextFocus(flowId, caret.blockId, index, caret.offset, (before?.revision ?: 0) + 1)
+
+                // Writing a cell back pads the table: the caret offset follows, so the field stays on its cell.
+                edit is FieldEdit.Cell -> kept.copy(blockIndex = index, caret = caret.offset)
+
+                else -> kept.copy(blockIndex = index)
             }
         }
     }

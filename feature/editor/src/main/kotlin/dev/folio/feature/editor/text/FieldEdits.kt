@@ -4,11 +4,15 @@ import dev.folio.core.text.edit.BlockEditing
 import dev.folio.core.text.edit.BlockStyle
 import dev.folio.core.text.edit.BlockStyles
 import dev.folio.core.text.edit.Caret
+import dev.folio.core.text.edit.CellSpan
 import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.edit.Formatting
+import dev.folio.core.text.edit.TableEditing
 import dev.folio.core.text.edit.TextSelection
+import dev.folio.core.text.markdown.BlockContent
 import dev.folio.core.text.markdown.MarkdownDocument
 import dev.folio.core.text.markdown.SpanKind
+import dev.folio.core.text.markdown.TableAlign
 
 /**
  * The document and selection after this edit of block [blockId] in [doc] (a move of the caret returns [doc] itself);
@@ -20,10 +24,84 @@ internal fun FieldEdit.applyTo(
 ): EditResult? {
     val index = doc.indexOf(blockId)
     if (index < 0) return null
+    val block = doc.blocks[index]
+    val table = block.content is BlockContent.Table
     return when (this) {
-        is FieldEdit.Typed -> typed(doc, blockId)
-        is FieldEdit.Key -> key(doc, blockId, doc.blocks[index].source.length)
-        is FieldEdit.Format -> format(doc, blockId, doc.blocks[index].source.length)
+        is FieldEdit.Typed -> {
+            typed(doc, blockId)
+        }
+
+        is FieldEdit.Cell -> {
+            TableEditing.setCell(doc, Caret(blockId, TableEditing.spanOf(block.source, cell).start), text, caret)
+        }
+
+        is FieldEdit.Key -> {
+            if (cell != null &&
+                table
+            ) {
+                cellKey(doc, blockId, TableEditing.spanOf(block.source, cell))
+            } else {
+                key(doc, blockId, block.source.length)
+            }
+        }
+
+        is FieldEdit.Format -> {
+            if (cell != null &&
+                table
+            ) {
+                cellFormat(doc, blockId, TableEditing.spanOf(block.source, cell))
+            } else {
+                format(doc, blockId, block.source.length)
+            }
+        }
+    }
+}
+
+private val TABLE_ALIGNS =
+    mapOf(
+        FormatAction.TABLE_ALIGN_LEFT to TableAlign.LEFT,
+        FormatAction.TABLE_ALIGN_CENTER to TableAlign.CENTER,
+        FormatAction.TABLE_ALIGN_RIGHT to TableAlign.RIGHT,
+    )
+
+// In a cell: the table buttons, inline markers and links on the cell's selection; block styles and a new table do nothing.
+private fun FieldEdit.Format.cellFormat(
+    doc: MarkdownDocument,
+    blockId: Long,
+    span: CellSpan,
+): EditResult? {
+    val first = Caret(blockId, span.start + start.coerceIn(0, span.end - span.start))
+    val selection = TextSelection(first, Caret(blockId, (span.start + end).coerceIn(first.offset, span.end)))
+    val inline = INLINE_KINDS[action]
+    val align = TABLE_ALIGNS[action]
+    return when {
+        inline != null -> Formatting.toggleInline(doc, selection, inline)
+        align != null -> TableEditing.align(doc, first, align)
+        action == FormatAction.LINK -> Formatting.link(doc, selection)
+        action == FormatAction.TABLE_ROW_ADD -> TableEditing.addRow(doc, first)
+        action == FormatAction.TABLE_ROW_REMOVE -> TableEditing.removeRow(doc, first)
+        action == FormatAction.TABLE_COLUMN_ADD -> TableEditing.addColumn(doc, first)
+        action == FormatAction.TABLE_COLUMN_REMOVE -> TableEditing.removeColumn(doc, first)
+        else -> null
+    }
+}
+
+// In a cell: Enter one row down, Tab and Shift+Tab to the next and previous cell, arrows across cell edges. Backspace
+// at the start and Delete at the end of a cell do nothing: the table's structure changes through its buttons.
+private fun FieldEdit.Key.cellKey(
+    doc: MarkdownDocument,
+    blockId: Long,
+    span: CellSpan,
+): EditResult? {
+    val first = Caret(blockId, span.start + start.coerceIn(0, span.end - span.start))
+    val last = Caret(blockId, (span.start + end).coerceIn(first.offset, span.end))
+    return when (key) {
+        FieldKey.ENTER, FieldKey.SOFT_ENTER -> TableEditing.enter(doc, first)
+        FieldKey.TAB -> TableEditing.nextCell(doc, first)
+        FieldKey.SHIFT_TAB -> TableEditing.previousCell(doc, first)
+        FieldKey.LEFT -> TableEditing.left(doc, first)?.let { EditResult(doc, TextSelection.at(it)) }
+        FieldKey.RIGHT -> TableEditing.right(doc, last)?.let { EditResult(doc, TextSelection.at(it)) }
+        FieldKey.BACKSPACE, FieldKey.DELETE -> null
     }
 }
 

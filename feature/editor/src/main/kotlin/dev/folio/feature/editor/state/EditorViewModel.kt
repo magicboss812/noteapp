@@ -68,6 +68,14 @@ data class EditorUiState(
     val view: ViewInfo = ViewInfo(),
     /** Style of the focused text block (row 2 is then the formatting bar), null while no block has focus. */
     val textStyle: BlockStyle? = null,
+    /** True while the focused block is a table: the formatting bar shows the table buttons instead of block styles. */
+    val textInTable: Boolean = false,
+)
+
+// What the formatting bar needs of the focused block: its style and whether it is a table.
+private data class TextBar(
+    val style: BlockStyle,
+    val table: Boolean,
 )
 
 /** What the info pill shows: the page at the view center ([pageIndex], 0-based) and the zoom (100 = fit width). */
@@ -176,7 +184,7 @@ class EditorViewModel
                             val textStyle =
                                 session.textController
                                     ?.field
-                                    ?.map { spec -> spec?.let { BlockStyles.of(it.block) } }
+                                    ?.map { spec -> spec?.let { TextBar(BlockStyles.of(it.block), it.cell != null) } }
                                     ?.distinctUntilChanged() ?: flowOf(null)
                             val view = combine(session.readMode, session.view, textStyle, ::Triple)
                             combine(
@@ -199,7 +207,8 @@ class EditorViewModel
                                     saveState = h.third,
                                     readMode = v.first,
                                     view = v.second,
-                                    textStyle = v.third,
+                                    textStyle = v.third?.style,
+                                    textInTable = v.third?.table == true,
                                 )
                             }
                         }

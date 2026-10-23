@@ -44,6 +44,7 @@ class EditorScreenScreenshotTest {
         optionsHidden: Boolean = false,
         readMode: Boolean = false,
         textStyle: BlockStyle? = null,
+        textInTable: Boolean = false,
     ) {
         val controller = FakeCanvasController(pages = 2)
         val docks = ToolbarDocks(landscape = placement, portrait = placement, optionsHidden = optionsHidden)
@@ -65,6 +66,7 @@ class EditorScreenScreenshotTest {
                         readMode = readMode,
                         view = ViewInfo(pageIndex = 0, zoomPercent = 100),
                         textStyle = textStyle,
+                        textInTable = textInTable,
                     ),
                     onBack = {},
                     onSelectTool = {},
@@ -119,6 +121,13 @@ class EditorScreenScreenshotTest {
     fun editor_landscapeTextFocused_formattingBarReplacesRow2() {
         showReady(textStyle = BlockStyle.HEADING_2)
         compose.onRoot().captureRoboImage("src/test/screenshots/Editor_textFormatBar.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeTableFocused_formattingBarShowsTableButtons() {
+        showReady(textStyle = BlockStyle.PARAGRAPH, textInTable = true)
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_textFormatBar_table.png")
     }
 
     @Test

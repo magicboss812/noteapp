@@ -6,6 +6,7 @@ import android.content.Context
 import android.graphics.Color
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -20,6 +21,7 @@ import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.pageOriginViewX
 import dev.folio.core.render.viewport.pageOriginViewY
 import dev.folio.core.testing.ModelFixtures
+import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.flow.BlockPlacement
 import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.layout.BlockLayouter
@@ -222,6 +224,59 @@ class LiveTextFieldTest {
         input().commitText("c", 1)
 
         assertThat(edits).containsExactly(FieldEdit.Typed("abc", 3))
+    }
+
+    @Test
+    fun show_tableCell_showsOnlyTheCellTextOverItsColumn() {
+        val spec = spec(TABLE, caret = TABLE.indexOf("yz") + 1)
+        val cell = checkNotNull(spec.cell)
+
+        show(spec)
+
+        val scale = viewport.scale
+        assertThat(field.text.toString()).isEqualTo("yz")
+        assertThat(field.selectionEnd).isEqualTo(1)
+        assertThat(field.gravity and Gravity.RELATIVE_HORIZONTAL_GRAVITY_MASK).isEqualTo(Gravity.END)
+        assertThat(field.layoutParams.width).isEqualTo((cell.widthPt * scale).toInt())
+        assertThat(field.translationX).isWithin(0.5f).of((viewport.pageOriginViewX(0) + (40f + cell.leftPt) * scale).toFloat())
+    }
+
+    @Test
+    fun typing_inATableCell_reportsTheCellText() {
+        show(spec(TABLE, caret = TABLE.indexOf("yz") + 2))
+
+        input().commitText("w", 1)
+
+        assertThat(edits).containsExactly(FieldEdit.Cell(TableCell(1, 1), "yzw", 3))
+    }
+
+    @Test
+    fun tab_inATableCell_reportsTabForThatCell() {
+        show(spec(TABLE, caret = TABLE.indexOf("x")))
+
+        press(KeyEvent.KEYCODE_TAB)
+
+        assertThat(edits).containsExactly(FieldEdit.Key(FieldKey.TAB, 0, 0, TableCell(1, 0)))
+    }
+
+    @Test
+    fun right_atTheEndOfATableCell_reportsRightForThatCell() {
+        show(spec(TABLE, caret = TABLE.indexOf("x") + 1))
+
+        val handled = press(KeyEvent.KEYCODE_DPAD_RIGHT)
+
+        assertThat(handled).isTrue()
+        assertThat(edits).containsExactly(FieldEdit.Key(FieldKey.RIGHT, 1, 1, TableCell(1, 0)))
+    }
+
+    @Test
+    fun show_otherCellSameRevision_showsThatCellsText() {
+        show(spec(TABLE, caret = TABLE.indexOf("x"), revision = 1))
+
+        show(spec(TABLE, caret = TABLE.indexOf("bb"), revision = 1))
+
+        assertThat(field.text.toString()).isEqualTo("bb")
+        assertThat(field.selectionEnd).isEqualTo(0)
     }
 
     @Test
@@ -506,5 +561,8 @@ class LiveTextFieldTest {
 
     private companion object {
         const val DIM_ALPHA = 102
+
+        // Second column right-aligned.
+        const val TABLE = "| a   | bb  |\n| --- | --: |\n| x   | yz  |"
     }
 }
