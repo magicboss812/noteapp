@@ -1,24 +1,13 @@
 package dev.folio.feature.editor.ui
 
 import android.content.res.Configuration
-import androidx.compose.animation.AnimatedContent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -26,16 +15,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
@@ -43,19 +28,19 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.feature.editor.canvas.CanvasHost
-import dev.folio.feature.editor.state.DockMode
+import dev.folio.feature.editor.canvas.findActivity
 import dev.folio.feature.editor.state.EditorSession
 import dev.folio.feature.editor.state.EditorStatus
 import dev.folio.feature.editor.state.EditorTool
@@ -93,6 +78,8 @@ fun EditorRoute(
         onPopover = viewModel::showPopover,
         onClearPage = viewModel::clearCurrentPage,
         onPlaceToolbar = viewModel::placeToolbar,
+        onHideOptions = viewModel::setOptionsHidden,
+        onReadMode = viewModel::setReadMode,
         onUndo = viewModel::undo,
         onRedo = viewModel::redo,
         onHelp = viewModel::showHelp,
@@ -133,10 +120,11 @@ private fun EditorCanvas(
 }
 
 /**
- * Stateless editor screen (10-editor-ui.md#screen-structure): the toolbar docked at the placement stored for
- * the current orientation (10-editor-ui.md#toolbar-docking) around the [canvas] slot, which is only
- * composed once the document is open; the tool options row and its popovers float over it. The canvas
- * keeps its place in the composition across dock changes, so its view is never recreated.
+ * Stateless editor screen (10-editor-ui.md#screen-structure): the [canvas] slot fills the window (composed
+ * once the document is open) and the chrome floats over it, with the toolbox at the placement stored for
+ * the current orientation (10-editor-ui.md#toolbar-docking); the options popovers open beside the toolbox.
+ * The canvas keeps its place and size across dock changes and read mode, so its view is never recreated or
+ * resized by the chrome. In read mode the system bars hide and Back leaves read mode first.
  */
 @Composable
 fun EditorScreen(
@@ -148,6 +136,8 @@ fun EditorScreen(
     onPopover: (OptionsPopover?) -> Unit = {},
     onClearPage: () -> Unit = {},
     onPlaceToolbar: (ScreenOrientation, ToolbarPlacement) -> Unit = { _, _ -> },
+    onHideOptions: (Boolean) -> Unit = {},
+    onReadMode: (Boolean) -> Unit = {},
     onUndo: () -> Unit = {},
     onRedo: () -> Unit = {},
     onHelp: (Boolean) -> Unit = {},
@@ -170,10 +160,25 @@ fun EditorScreen(
         }
     val stored = state.docks.placement(orientation)
     val drag = remember { ToolbarDrag() }
+    val metrics = remember { ChromeMetrics() }
     LaunchedEffect(stored) { drag.pending = null }
     val placement = drag.pending ?: stored
-    val canvasPadding = canvasPadding(placement.mode)
     val gestures = rememberToolbarGestures(drag, placement, orientation, onPlaceToolbar)
+    val actions =
+        ChromeActions(
+            onBack = onBack,
+            onSelectTool = onSelectTool,
+            onOptionsChange = onOptionsChange,
+            onPopover = onPopover,
+            onUndo = onUndo,
+            onRedo = onRedo,
+            onReadMode = onReadMode,
+            onToggleOptions = { onHideOptions(!state.docks.optionsHidden) },
+            onRetrySave = onRetrySave,
+            pages = pageChrome,
+        )
+    BackHandler(enabled = state.readMode) { onReadMode(false) }
+    SystemBarsHidden(state.readMode)
     // Hardware keys reach the registry from the screen root; it holds focus while no popover or field does.
     val keyFocus = remember { FocusRequester() }
     val ready = state.status == EditorStatus.READY
@@ -189,7 +194,7 @@ fun EditorScreen(
             .fillMaxSize()
             .background(colors.canvas),
     ) {
-        Box(Modifier.fillMaxSize().padding(canvasPadding), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             when (state.status) {
                 EditorStatus.OPENING -> {
                     Unit
@@ -210,28 +215,36 @@ fun EditorScreen(
                 }
             }
         }
-        EditorChrome(state, placement, drag, gestures, onBack, onSelectTool, onOptionsChange, onPopover, onUndo, onRedo, pageChrome)
-        if (state.status == EditorStatus.READY) {
-            PageSurfaces(state.pages, pageThumbnail, pageActions, Modifier.padding(canvasPadding))
+        EditorChrome(state, placement, drag, gestures, metrics, actions)
+        if (ready) {
+            val safe = Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
+            PageSurfaces(state.pages, pageThumbnail, pageActions, safe)
             OptionsPopoverLayer(
                 state.popover,
                 state.options,
                 onOptionsChange,
                 onPopover,
                 onClearPage,
-                modifier = Modifier.padding(canvasPadding),
+                modifier = Modifier.besideToolbox(placement.mode, metrics),
                 anchor = placement.mode.popoverAnchor,
             )
             if (state.showHelp) ShortcutHelp(shortcutGroups, onClose = { onHelp(false) })
-            SaveIndicator(
-                state.saveState,
-                onRetrySave,
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(FolioTheme.space.s12),
-            )
         }
+    }
+}
+
+// Hides the status and navigation bars while [hidden] (read mode); a swipe from an edge shows them for a moment.
+@Composable
+private fun SystemBarsHidden(hidden: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(view, hidden) {
+        val window = view.context.findActivity()?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        if (hidden && controller != null) {
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose { if (hidden) controller?.show(WindowInsetsCompat.Type.systemBars()) }
     }
 }
 
@@ -274,226 +287,6 @@ private fun PageSurfaces(
     if (settingsRef != null) {
         PageSettingsSheet(PageSettings(settingsRef), actions.onApplySettings, actions.onCloseSettings)
     }
-}
-
-/** Grip callbacks of the toolbar in one orientation. */
-private class ToolbarGestures(
-    val startDocked: (gripInRoot: Offset) -> Unit,
-    val startFloating: (Offset) -> Unit,
-    val move: (Offset) -> Unit,
-    val release: () -> Unit,
-    val toggleCollapsed: () -> Unit,
-)
-
-@Composable
-private fun rememberToolbarGestures(
-    drag: ToolbarDrag,
-    placement: ToolbarPlacement,
-    orientation: ScreenOrientation,
-    onPlaceToolbar: (ScreenOrientation, ToolbarPlacement) -> Unit,
-): ToolbarGestures {
-    val density = LocalDensity.current
-    // The grip leads a horizontal pill, after its 4 dp end padding (PillGroup).
-    val gripInset = with(density) { FolioTheme.space.s4.toPx() }
-    val edgePx = with(density) { EDGE_SNAP.toPx() }
-    val current by rememberUpdatedState(placement)
-    val place by rememberUpdatedState { p: ToolbarPlacement -> onPlaceToolbar(orientation, p) }
-    return remember(drag, gripInset, edgePx) {
-        ToolbarGestures(
-            // The preview pill starts with its grip under the finger (the grip leads the pill, inside its padding).
-            startDocked = { gripInRoot -> drag.start(gripInRoot - drag.areaOrigin - Offset(gripInset, 0f)) },
-            startFloating = { _ -> drag.start(drag.topLeft(current).let { Offset(it.x.toFloat(), it.y.toFloat()) }) },
-            move = drag::move,
-            release = { drag.end(current, edgePx)?.let { if (it != current) place(it) } },
-            toggleCollapsed = { place(current.copy(collapsed = !current.collapsed)) },
-        )
-    }
-}
-
-@Composable
-private fun EditorChrome(
-    state: EditorUiState,
-    placement: ToolbarPlacement,
-    drag: ToolbarDrag,
-    gestures: ToolbarGestures,
-    onBack: () -> Unit,
-    onSelectTool: (EditorTool) -> Unit,
-    onOptionsChange: ((ToolOptions) -> ToolOptions) -> Unit,
-    onPopover: (OptionsPopover?) -> Unit,
-    onUndo: () -> Unit,
-    onRedo: () -> Unit,
-    pageChrome: PageChrome,
-) {
-    val space = FolioTheme.space
-    val motion = FolioTheme.motion
-    val slidePx = dockSlidePx()
-    val mode = placement.mode
-    val ready = state.status == EditorStatus.READY
-    val dragging by remember(drag) { derivedStateOf { drag.offset != null } }
-    // Row 2: the undo pill and the options pill, spread across the top, stacked on a rail, or side by side when floating.
-    val options: @Composable (Modifier, Modifier, Row2Layout) -> Unit = { rowModifier, pillModifier, layout ->
-        if (ready) ToolRow2(state, onOptionsChange, onPopover, onUndo, onRedo, layout, rowModifier, pillModifier)
-    }
-    val dockedGrip: @Composable (Boolean) -> Unit = { vertical ->
-        ToolbarGrip(gestures.startDocked, gestures.move, gestures.release, vertical = vertical)
-    }
-    val safe = WindowInsets.safeDrawing
-    // One root: the docked chrome, then the floating area above it.
-    Box(Modifier.fillMaxSize()) {
-        AnimatedContent(
-            targetState = mode,
-            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (dragging && mode != DockMode.FLOATING) DRAG_DIM else 1f },
-            transitionSpec = { dockTransition(motion, slidePx) },
-            label = "toolbarDock",
-        ) { shown ->
-            when (shown) {
-                DockMode.TOP -> {
-                    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        EditorToolbarRow1(
-                            tool = state.tool,
-                            onHome = onBack,
-                            onSelectTool = onSelectTool,
-                            modifier = Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
-                            pages = pageChrome,
-                            grip = { dockedGrip(false) },
-                        )
-                        options(
-                            Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Horizontal)),
-                            Modifier.padding(horizontal = space.chromeInset),
-                            Row2Layout.SPREAD,
-                        )
-                    }
-                }
-
-                DockMode.LEFT, DockMode.RIGHT -> {
-                    val left = shown == DockMode.LEFT
-                    val outer = if (left) WindowInsetsSides.Start else WindowInsetsSides.End
-                    Row(Modifier.fillMaxSize(), horizontalArrangement = if (left) Arrangement.Start else Arrangement.End) {
-                        val rail: @Composable () -> Unit = {
-                            EditorToolbarRow1(
-                                tool = state.tool,
-                                onHome = onBack,
-                                onSelectTool = onSelectTool,
-                                modifier = Modifier.windowInsetsPadding(safe.only(outer + WindowInsetsSides.Vertical)),
-                                vertical = true,
-                                pages = pageChrome,
-                                grip = { dockedGrip(true) },
-                            )
-                        }
-                        val optionsRail: @Composable () -> Unit = {
-                            options(
-                                Modifier.windowInsetsPadding(safe.only(WindowInsetsSides.Vertical)),
-                                Modifier.padding(bottom = space.chromeInset),
-                                Row2Layout.RAIL,
-                            )
-                        }
-                        // Row 1 is the outer rail, row 2 the inner one (10-editor-ui.md#toolbar-docking).
-                        if (left) {
-                            rail()
-                            optionsRail()
-                        } else {
-                            optionsRail()
-                            rail()
-                        }
-                    }
-                }
-
-                DockMode.FLOATING -> {
-                    Box(Modifier.fillMaxSize().windowInsetsPadding(safe)) {
-                        FloatingToolbar(
-                            tool = state.tool,
-                            collapsed = placement.collapsed,
-                            onSelectTool = onSelectTool,
-                            onExpand = gestures.toggleCollapsed,
-                            grip = {
-                                ToolbarGrip(gestures.startFloating, gestures.move, gestures.release, onDoubleTap = gestures.toggleCollapsed)
-                            },
-                            modifier = Modifier.offset { drag.topLeft(placement) }.floatingPill(drag),
-                            options = { options(Modifier, Modifier, Row2Layout.ROW) },
-                        )
-                    }
-                }
-            }
-        }
-        // The area the floating pill moves in; while a docked toolbar is dragged, a preview pill follows the finger.
-        Box(
-            Modifier.fillMaxSize().windowInsetsPadding(safe).onGloballyPositioned {
-                drag.areaOrigin = it.positionInRoot()
-                drag.areaSize = it.size
-            },
-        ) {
-            if (dragging && mode != DockMode.FLOATING) {
-                FloatingToolbar(
-                    tool = state.tool,
-                    collapsed = false,
-                    onSelectTool = {},
-                    onExpand = {},
-                    grip = { ToolbarGrip(onDragStart = {}, onDrag = {}, onDragEnd = {}) },
-                    modifier = Modifier.offset { drag.topLeft(placement) }.floatingPill(drag),
-                )
-            }
-        }
-    }
-}
-
-// How row 2 lays out the undo pill and the options pill (see ToolRow2).
-private enum class Row2Layout { SPREAD, RAIL, ROW }
-
-// Row 2: the undo pill and the options pill, spread across the top, stacked on a rail, or side by side when floating.
-@Composable
-private fun ToolRow2(
-    state: EditorUiState,
-    onOptionsChange: OptionsChange,
-    onPopover: (OptionsPopover?) -> Unit,
-    onUndo: () -> Unit,
-    onRedo: () -> Unit,
-    layout: Row2Layout,
-    rowModifier: Modifier = Modifier,
-    pillModifier: Modifier = Modifier,
-) {
-    val inset = FolioTheme.space.chromeInset
-    val vertical = layout == Row2Layout.RAIL
-    val history: @Composable (Modifier) -> Unit = { UndoRedoPill(state.canUndo, state.canRedo, onUndo, onRedo, it, vertical) }
-    val tools: @Composable (Modifier) -> Unit = {
-        ToolOptionsRow(state.tool, state.options, onOptionsChange, onPopover, it, pillModifier, vertical)
-    }
-    when (layout) {
-        Row2Layout.SPREAD -> {
-            Box(rowModifier.fillMaxWidth()) {
-                history(Modifier.align(Alignment.CenterStart).padding(horizontal = inset))
-                tools(Modifier.align(Alignment.TopCenter))
-            }
-        }
-
-        Row2Layout.RAIL -> {
-            Column(rowModifier) {
-                history(Modifier.padding(top = inset))
-                tools(Modifier)
-            }
-        }
-
-        Row2Layout.ROW -> {
-            Row(rowModifier, horizontalArrangement = Arrangement.spacedBy(inset)) {
-                history(Modifier)
-                tools(Modifier)
-            }
-        }
-    }
-}
-
-// Docked toolbar opacity while its preview pill is dragged.
-private const val DRAG_DIM = 0.4f
-
-/** Canvas area for a toolbar docked at [mode]: below row 1, beside a side rail, or the whole window. */
-@Composable
-private fun canvasPadding(mode: DockMode): PaddingValues {
-    val insets = WindowInsets.safeDrawing.asPaddingValues()
-    val direction = LocalLayoutDirection.current
-    return PaddingValues(
-        start = if (mode == DockMode.LEFT) insets.calculateStartPadding(direction) + TOOLBAR_ROW1_HEIGHT else 0.dp,
-        top = insets.calculateTopPadding() + if (mode == DockMode.TOP) TOOLBAR_ROW1_HEIGHT else 0.dp,
-        end = if (mode == DockMode.RIGHT) insets.calculateEndPadding(direction) + TOOLBAR_ROW1_HEIGHT else 0.dp,
-    )
 }
 
 @Composable

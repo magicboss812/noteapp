@@ -1,6 +1,5 @@
 package dev.folio.feature.editor.ui
 
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -16,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.core.graphics.createBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.folio.core.model.Page
 import dev.folio.core.model.PageId
@@ -87,7 +87,7 @@ private fun renderThumbnail(
     val widthPt = page.spec.widthPt
     val scale = THUMB_WIDTH_PX / widthPt
     val heightPx = (page.spec.heightPt * scale).toInt().coerceAtLeast(1)
-    val bitmap = Bitmap.createBitmap(THUMB_WIDTH_PX, heightPx, Bitmap.Config.ARGB_8888)
+    val bitmap = createBitmap(THUMB_WIDTH_PX, heightPx)
     val content = body?.takeIf { it.id == page.id }?.let(PageContent::of)
     // One renderer per call: it is not thread-safe and the render dispatcher runs two threads.
     PageRenderer().draw(

@@ -20,6 +20,9 @@ enum class CanvasTool {
 
     /** Erases with [CanvasController.eraserOptions]. */
     ERASER,
+
+    /** Pans and zooms like a finger, the eraser end too; no ink and no hover ring (read mode, 10-editor-ui.md#read-mode). */
+    NAVIGATE,
 }
 
 /** Viewport actions the editor asks of the canvas host (keyboard shortcuts, later page navigation UI). */
@@ -86,4 +89,7 @@ interface CanvasController {
 
     /** Asks the session to decode [ids] (visible pages and neighbors); [document] updates when they arrive. */
     fun loadPages(ids: Collection<PageId>)
+
+    /** The [viewport] settled (once per gesture, main thread): the chrome's page indicator and zoom update from it. */
+    fun viewportSettled() = Unit
 }

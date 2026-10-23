@@ -40,16 +40,18 @@ private val POPOVER_RAIL_TOP = 8.dp
 private val GAMMA_STEPS = ((PressureCurve.MAX_GAMMA - PressureCurve.MIN_GAMMA) * PressureCurve.GAMMA_STEPS_PER_UNIT).toInt() - 1
 
 /**
- * Where options popovers open: below row 2 when docked top, as a flyout next to the options rail when
+ * Where options popovers open inside the area beside the toolbox (the layer's modifier leaves the toolbox
+ * out): above row 2 when docked bottom, below it when docked top, as a flyout next to the options rail when
  * docked to a side, in the canvas center when floating (10-editor-ui.md#toolbar-docking).
  */
 internal enum class PopoverAnchor(
     val alignment: Alignment,
     val padding: PaddingValues,
 ) {
-    BelowRow(Alignment.TopCenter, PaddingValues(top = POPOVER_TOP)),
-    RightOfRail(Alignment.TopStart, PaddingValues(start = POPOVER_TOP, top = POPOVER_RAIL_TOP)),
-    LeftOfRail(Alignment.TopEnd, PaddingValues(end = POPOVER_TOP, top = POPOVER_RAIL_TOP)),
+    AboveRow(Alignment.BottomCenter, PaddingValues(bottom = POPOVER_GAP)),
+    BelowRow(Alignment.TopCenter, PaddingValues(top = POPOVER_GAP)),
+    RightOfRail(Alignment.TopStart, PaddingValues(start = POPOVER_GAP, top = POPOVER_RAIL_TOP)),
+    LeftOfRail(Alignment.TopEnd, PaddingValues(end = POPOVER_GAP, top = POPOVER_RAIL_TOP)),
     Center(Alignment.Center, PaddingValues()),
 }
 

@@ -5,6 +5,7 @@ import android.view.MotionEvent.ACTION_DOWN
 import android.view.MotionEvent.ACTION_MOVE
 import android.view.MotionEvent.ACTION_UP
 import android.view.MotionEvent.BUTTON_STYLUS_PRIMARY
+import android.view.MotionEvent.TOOL_TYPE_ERASER
 import android.view.MotionEvent.TOOL_TYPE_STYLUS
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -56,18 +57,49 @@ class StylusToolsTest {
     private val calls = ArrayList<String>()
     private var capabilities = StylusCapabilities.NONE.copy(pressure = true, hover = true)
     private var preferences = StylusPreferences.DEFAULT
+    private var tool = CanvasTool.PEN
     private val tools =
         StylusTools(
             NamedTarget("pen", calls),
             NamedTarget("eraser", calls),
             buttonErases = { StylusFeatures.buttonErases(it, capabilities, preferences) },
-        ) { CanvasTool.PEN }
+            navigate = NamedTarget("navigate", calls),
+        ) { tool }
 
-    /** A stylus gesture; [buttonAtDown] holds the stylus button at touch down only. */
-    private fun gesture(buttonAtDown: Int) {
-        tools.onStylusDown(event(ACTION_DOWN, 0, 100f to 100f, toolType = TOOL_TYPE_STYLUS, buttonState = buttonAtDown), 0, eraser = false)
-        tools.onStylusMove(event(ACTION_MOVE, 10, 100f to 200f, toolType = TOOL_TYPE_STYLUS), 0)
-        tools.onStylusUp(event(ACTION_UP, 20, 100f to 200f, toolType = TOOL_TYPE_STYLUS), 0)
+    /** A stylus gesture; [buttonAtDown] holds the stylus button at touch down only; [eraserEnd] for TOOL_TYPE_ERASER. */
+    private fun gesture(
+        buttonAtDown: Int,
+        eraserEnd: Boolean = false,
+    ) {
+        val type = if (eraserEnd) TOOL_TYPE_ERASER else TOOL_TYPE_STYLUS
+        tools.onStylusDown(event(ACTION_DOWN, 0, 100f to 100f, toolType = type, buttonState = buttonAtDown), 0, eraser = eraserEnd)
+        tools.onStylusMove(event(ACTION_MOVE, 10, 100f to 200f, toolType = type), 0)
+        tools.onStylusUp(event(ACTION_UP, 20, 100f to 200f, toolType = type), 0)
+    }
+
+    @Test
+    fun readMode_tipEraserEndAndButton_allNavigate() {
+        capabilities = capabilities.copy(primaryButton = true)
+        tool = CanvasTool.NAVIGATE
+
+        gesture(buttonAtDown = 0)
+        gesture(buttonAtDown = 0, eraserEnd = true)
+        gesture(buttonAtDown = BUTTON_STYLUS_PRIMARY)
+
+        assertThat(calls.distinct()).containsExactly("navigate down", "navigate move", "navigate up").inOrder()
+        assertThat(calls).hasSize(9)
+        assertThat(tools.erases(event(ACTION_DOWN, 0, 1f to 1f, toolType = TOOL_TYPE_ERASER), eraserEnd = true)).isFalse()
+    }
+
+    @Test
+    fun readModeLeft_eraserEndErasesAgain() {
+        tool = CanvasTool.NAVIGATE
+        gesture(buttonAtDown = 0)
+        tool = CanvasTool.PEN
+
+        gesture(buttonAtDown = 0, eraserEnd = true)
+
+        assertThat(calls.takeLast(3)).containsExactly("eraser down", "eraser move", "eraser up").inOrder()
     }
 
     @Test

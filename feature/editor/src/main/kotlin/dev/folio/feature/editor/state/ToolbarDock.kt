@@ -2,8 +2,8 @@ package dev.folio.feature.editor.state
 
 import androidx.compose.runtime.Immutable
 
-/** Where the editor toolbar sits (10-editor-ui.md#toolbar-docking). */
-enum class DockMode { TOP, LEFT, RIGHT, FLOATING }
+/** Where the editor toolbox sits (10-editor-ui.md#toolbar-docking); BOTTOM is the default (A-037). */
+enum class DockMode { BOTTOM, TOP, LEFT, RIGHT, FLOATING }
 
 /** Writing hand; side docking defaults to the opposite edge of the window from the hand's reach. */
 enum class Handedness { RIGHT, LEFT }
@@ -21,7 +21,7 @@ val Handedness.sideDock: DockMode
  */
 @Immutable
 data class ToolbarPlacement(
-    val mode: DockMode = DockMode.TOP,
+    val mode: DockMode = DockMode.BOTTOM,
     val floatX: Float = DEFAULT_FLOAT_X,
     val floatY: Float = DEFAULT_FLOAT_Y,
     /** Floating pill collapsed to the current tool (double-tap the grip). */
@@ -37,12 +37,16 @@ data class ToolbarPlacement(
     }
 }
 
-/** Toolbar placements of both orientations and the handedness setting (stored together). */
+/**
+ * Toolbar placements of both orientations, the handedness setting and whether the tool options row is
+ * hidden by row 1's chevron ([optionsHidden], one choice for every dock), stored together.
+ */
 @Immutable
 data class ToolbarDocks(
     val handedness: Handedness = Handedness.RIGHT,
     val landscape: ToolbarPlacement = ToolbarPlacement(),
     val portrait: ToolbarPlacement = ToolbarPlacement(),
+    val optionsHidden: Boolean = false,
 ) {
     /** The placement for [orientation]. */
     fun placement(orientation: ScreenOrientation): ToolbarPlacement =
@@ -57,7 +61,7 @@ data class ToolbarDocks(
     /** Switches to [hand]; side-docked toolbars move to the new hand's side. */
     fun withHandedness(hand: Handedness): ToolbarDocks {
         fun ToolbarPlacement.moved() = if (mode == DockMode.LEFT || mode == DockMode.RIGHT) copy(mode = hand.sideDock) else this
-        return ToolbarDocks(hand, landscape.moved(), portrait.moved())
+        return copy(handedness = hand, landscape = landscape.moved(), portrait = portrait.moved())
     }
 
     /** Docks the toolbar of [orientation] at the side of the current handedness ("Side" in toolbar settings). */
@@ -70,8 +74,8 @@ internal object DockSnap {
     /**
      * Placement after releasing the floating pill with its top-left at ([leftPx], [topPx]) and size
      * [pillWidthPx] x [pillHeightPx] inside a [containerWidthPx] x [containerHeightPx] area. Within [edgePx] of
-     * the left, top or right edge it docks there (the nearest edge wins; there is no bottom dock), otherwise it
-     * floats where it was released, clamped inside the area. [current] keeps its collapsed state.
+     * an edge it docks there (the nearest edge wins), otherwise it floats where it was released, clamped
+     * inside the area. [current] keeps its collapsed state.
      */
     @Suppress("LongParameterList") // One rectangle in one container; a wrapper type would only be built to be unpacked.
     fun release(
@@ -91,11 +95,13 @@ internal object DockSnap {
         val toLeft = left
         val toTop = top
         val toRight = freeX - left
-        val nearest = minOf(toLeft, toTop, toRight)
+        val toBottom = freeY - top
+        val nearest = minOf(minOf(toLeft, toTop), minOf(toRight, toBottom))
         val mode =
             when {
                 nearest > edgePx -> DockMode.FLOATING
                 nearest == toTop -> DockMode.TOP
+                nearest == toBottom -> DockMode.BOTTOM
                 nearest == toLeft -> DockMode.LEFT
                 else -> DockMode.RIGHT
             }

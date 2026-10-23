@@ -2,6 +2,7 @@ package dev.folio.feature.editor.state
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import androidx.core.graphics.createBitmap
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
@@ -143,10 +144,9 @@ internal class ThumbnailGenerator(
             val heightPt = page.spec.heightPt
             val scale = longSidePx / max(widthPt, heightPt)
             val bitmap =
-                Bitmap.createBitmap(
+                createBitmap(
                     (widthPt * scale).toInt().coerceAtLeast(1),
                     (heightPt * scale).toInt().coerceAtLeast(1),
-                    Bitmap.Config.ARGB_8888,
                 )
             return try {
                 PageRenderer().draw(

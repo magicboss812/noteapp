@@ -26,7 +26,8 @@ internal data class GestureConfig(
  * Finger and mouse pan and zoom on the [viewport] (06-ink-input.md#input-routing), fed by InputRouter:
  * one finger (or a mouse drag) pans after the touch slop and flings with an [OverScroller]; two fingers
  * pinch-zoom around their midpoint and pan with it; the wheel scrolls, Ctrl + wheel zooms at the cursor.
- * A gesture that starts with another pointer type is ignored until the next ACTION_DOWN; extra non-finger
+ * A gesture that starts with another pointer type is ignored until the next ACTION_DOWN (except a read
+ * mode stylus, see [onTouchEvent]); extra non-finger
  * pointers and third fingers are ignored. [onChanged] runs after every viewport change; [postFrame]
  * schedules a fling step on the next frame.
  */
@@ -56,11 +57,17 @@ internal class FingerGestures(
     /** True while a fling animation moves the viewport. */
     val isFlinging: Boolean get() = !scroller.isFinished
 
-    /** Handles one event; returns true while a finger gesture is tracked. */
-    fun onTouchEvent(event: MotionEvent): Boolean {
+    /**
+     * Handles one event; returns true while a finger gesture is tracked. [stylus]: the event belongs to a
+     * stylus gesture that navigates (read mode, [StylusNavigation]); its down starts a pan like one finger.
+     */
+    fun onTouchEvent(
+        event: MotionEvent,
+        stylus: Boolean = false,
+    ): Boolean {
         // HOT PATH: per MotionEvent; no allocation (the VelocityTracker is reused).
         when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> onDown(event)
+            MotionEvent.ACTION_DOWN -> onDown(event, stylus)
             MotionEvent.ACTION_POINTER_DOWN -> onPointerDown(event)
             MotionEvent.ACTION_MOVE -> onMove(event)
             MotionEvent.ACTION_POINTER_UP -> onPointerUp(event)
@@ -107,10 +114,18 @@ internal class FingerGestures(
         mode = Mode.NONE
     }
 
-    private fun onDown(event: MotionEvent) {
+    private fun onDown(
+        event: MotionEvent,
+        stylus: Boolean,
+    ) {
         stopFling()
-        val tool = event.getToolType(0)
-        if (tool != MotionEvent.TOOL_TYPE_FINGER && tool != MotionEvent.TOOL_TYPE_MOUSE) {
+        val accepted =
+            when (event.getToolType(0)) {
+                MotionEvent.TOOL_TYPE_FINGER, MotionEvent.TOOL_TYPE_MOUSE -> true
+                MotionEvent.TOOL_TYPE_STYLUS, MotionEvent.TOOL_TYPE_ERASER -> stylus
+                else -> false
+            }
+        if (!accepted) {
             mode = Mode.IGNORED
             return
         }

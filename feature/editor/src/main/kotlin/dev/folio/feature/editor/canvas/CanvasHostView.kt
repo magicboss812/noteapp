@@ -154,13 +154,17 @@ class CanvasHostView internal constructor(
             pen,
             eraser,
             buttonErases = { event -> StylusFeatures.buttonErases(event, router.capabilities, controller.stylusPreferences) },
+            navigate = StylusNavigation(gestures),
         ) { controller.activeTool }
     private val hoverRing = HoverRingView(context)
     private val hoverCursor =
         HoverCursor(
             hoverRing,
             controller.viewport,
-            enabled = { StylusFeatures.hoverCursor(router.capabilities, controller.stylusPreferences) },
+            enabled = {
+                controller.activeTool != CanvasTool.NAVIGATE &&
+                    StylusFeatures.hoverCursor(router.capabilities, controller.stylusPreferences)
+            },
             radiusPt = ::hoverRadiusPt,
             minRadiusPx = MIN_HOVER_RING_DP * resources.displayMetrics.density,
         )
@@ -462,7 +466,7 @@ class CanvasHostView internal constructor(
         // HOT PATH: per hover event; the icon is created once.
         val tool = event.getToolType(pointerIndex)
         val stylus = tool == MotionEvent.TOOL_TYPE_STYLUS || tool == MotionEvent.TOOL_TYPE_ERASER
-        if (stylus && StylusFeatures.hoverCursor(router.capabilities, controller.stylusPreferences)) return noPointerIcon
+        if (stylus && hoverCursor.isEnabled) return noPointerIcon
         return super.onResolvePointerIcon(event, pointerIndex)
     }
 
@@ -551,7 +555,10 @@ class CanvasHostView internal constructor(
         contentTiles.prefetch(visible, scale, baseBucket)
         lastVisible = visible
         requestedBucket = viewport.bucketIndex
-        if (idle) settleStartNs = if (backgroundTiles.isSettled && contentTiles.isSettled) 0L else PerfMonitor.clock.monotonicNs()
+        if (idle) {
+            settleStartNs = if (backgroundTiles.isSettled && contentTiles.isSettled) 0L else PerfMonitor.clock.monotonicNs()
+            controller.viewportSettled()
+        }
         if (contentTiles.pendingCount == 0) contentTiles.warmUp(visible)
         handoff.check()
     }
@@ -703,7 +710,8 @@ class CanvasHostView internal constructor(
     }
 }
 
-private tailrec fun Context.findActivity(): Activity? =
+/** The activity behind this context (the editor window), or null. */
+internal tailrec fun Context.findActivity(): Activity? =
     when (this) {
         is Activity -> this
         is ContextWrapper -> baseContext.findActivity()

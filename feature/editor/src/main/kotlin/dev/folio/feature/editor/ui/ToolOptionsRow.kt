@@ -41,8 +41,8 @@ import kotlinx.collections.immutable.persistentListOf
 
 private val OPTIONS_SLIDE = 8.dp
 
-/** Row 2 pill (44 dp) plus the ~6 dp popover gap of DESIGN.md section 7: popovers open below (or beside) it. */
-internal val POPOVER_TOP = 50.dp
+/** Gap between the toolbox and a popover (DESIGN.md section 7: ~6 dp from row 2). */
+internal val POPOVER_GAP = 6.dp
 
 /** Names of the three width presets. */
 internal val WIDTH_LABELS = listOf("Small", "Medium", "Large")

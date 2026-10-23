@@ -14,8 +14,11 @@ import dev.folio.feature.editor.state.EditorStatus
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.EditorUiState
 import dev.folio.feature.editor.state.OptionsPopover
+import dev.folio.feature.editor.state.PagesUi
 import dev.folio.feature.editor.state.ToolbarDocks
 import dev.folio.feature.editor.state.ToolbarPlacement
+import dev.folio.feature.editor.state.ViewInfo
+import kotlinx.collections.immutable.toImmutableList
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,13 +40,29 @@ class EditorScreenScreenshotTest {
         popover: OptionsPopover? = null,
         placement: ToolbarPlacement = ToolbarPlacement(),
         dark: Boolean = false,
+        optionsHidden: Boolean = false,
+        readMode: Boolean = false,
     ) {
         val controller = FakeCanvasController(pages = 2)
-        val docks = ToolbarDocks(landscape = placement, portrait = placement)
+        val docks = ToolbarDocks(landscape = placement, portrait = placement, optionsHidden = optionsHidden)
+        val pages =
+            PagesUi(
+                pages =
+                    controller.document.value.pages
+                        .toImmutableList(),
+            )
         compose.setContent {
             FolioTheme(darkTheme = dark) {
                 EditorScreen(
-                    EditorUiState(EditorStatus.READY, tool = tool, popover = popover, docks = docks),
+                    EditorUiState(
+                        EditorStatus.READY,
+                        tool = tool,
+                        popover = popover,
+                        docks = docks,
+                        pages = pages,
+                        readMode = readMode,
+                        view = ViewInfo(pageIndex = 0, zoomPercent = 100),
+                    ),
                     onBack = {},
                     onSelectTool = {},
                 ) {
@@ -59,21 +78,49 @@ class EditorScreenScreenshotTest {
 
     @Test
     @Config(qualifiers = PAD7_LANDSCAPE)
-    fun editor_landscapeLinedA4_toolbarAboveFitWidthPage() {
+    fun editor_landscapeLinedA4_floatingPillsAndBottomToolboxOverPage() {
         showReady()
         compose.onRoot().captureRoboImage("src/test/screenshots/Editor_landscape.png")
     }
 
     @Test
     @Config(qualifiers = PAD7_PORTRAIT)
-    fun editor_portraitLinedA4_toolsPillScrollsWithFade() {
+    fun editor_portraitLinedA4_infoPillAboveBottomToolbox() {
         showReady(EditorTool.HIGHLIGHTER)
         compose.onRoot().captureRoboImage("src/test/screenshots/Editor_portrait.png")
     }
 
     @Test
     @Config(qualifiers = PAD7_LANDSCAPE)
-    fun editor_landscapeHighlighterColorPickerOpen_popoverBelowOptionsRow() {
+    fun editor_landscapeOptionsHidden_row1OnlyWithChevronUp() {
+        showReady(optionsHidden = true)
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_optionsHidden.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeDockedTop_toolboxBetweenCornerPills() {
+        showReady(placement = ToolbarPlacement(DockMode.TOP))
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_dockTop_landscape.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_PORTRAIT)
+    fun editor_portraitDockedTopDark_toolboxBelowNavColumn() {
+        showReady(placement = ToolbarPlacement(DockMode.TOP), dark = true)
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_dockTop_portrait.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeReadMode_onlyExitPillOverPage() {
+        showReady(readMode = true)
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_readMode.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeHighlighterColorPickerOpen_popoverAboveOptionsRow() {
         showReady(EditorTool.HIGHLIGHTER, OptionsPopover.ColorPicker(EditorTool.HIGHLIGHTER, 0))
         compose.onRoot().captureRoboImage("src/test/screenshots/Editor_colorPickerOpen.png")
     }

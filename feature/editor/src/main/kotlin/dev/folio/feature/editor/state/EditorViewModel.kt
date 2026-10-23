@@ -57,6 +57,17 @@ data class EditorUiState(
     val pages: PagesUi = PagesUi(),
     /** Whether edits are on disk (the save dot). */
     val saveState: SaveState = SaveState.Saved,
+    /** Read mode: chrome hidden, the stylus only navigates (10-editor-ui.md#read-mode). */
+    val readMode: Boolean = false,
+    /** Page indicator and zoom of the info pill. */
+    val view: ViewInfo = ViewInfo(),
+)
+
+/** What the info pill shows: the page at the view center ([pageIndex], 0-based) and the zoom (100 = fit width). */
+@Immutable
+data class ViewInfo(
+    val pageIndex: Int = 0,
+    val zoomPercent: Int = 100,
 )
 
 /** Popover or dialog opened from the tool options row (10-editor-ui.md#tool-options). */
@@ -149,7 +160,14 @@ class EditorViewModel
                                     ::PagesUi,
                                 )
                             val overlays = combine(mutablePopover, mutableHelp, pages, ::Triple)
-                            combine(session.tool, session.options, history, overlays) { tool, options, h, (popover, help, pagesUi) ->
+                            val view = combine(session.readMode, session.view, ::Pair)
+                            combine(
+                                session.tool,
+                                session.options,
+                                history,
+                                overlays,
+                                view,
+                            ) { tool, options, h, (popover, help, pagesUi), v ->
                                 EditorUiState(
                                     EditorStatus.READY,
                                     null,
@@ -161,6 +179,8 @@ class EditorViewModel
                                     help,
                                     pages = pagesUi,
                                     saveState = h.third,
+                                    readMode = v.first,
+                                    view = v.second,
                                 )
                             }
                         }
@@ -236,6 +256,24 @@ class EditorViewModel
             placement: ToolbarPlacement,
         ) {
             dockSaves.trySend(docks.updateAndGet { it.with(orientation, placement) })
+        }
+
+        /** Hides or shows the tool options row (row 1's chevron) and stores the choice. */
+        fun setOptionsHidden(hidden: Boolean) {
+            if (hidden) mutablePopover.value = null
+            dockSaves.trySend(docks.updateAndGet { it.copy(optionsHidden = hidden) })
+        }
+
+        /** Enters or leaves read mode (10-editor-ui.md#read-mode); entering closes popovers and page surfaces. */
+        fun setReadMode(on: Boolean) {
+            val session = mutableSession.value ?: return
+            if (on) {
+                mutablePopover.value = null
+                mutableSurface.value = PageSurface.NONE
+                mutableSettingsPage.value = null
+                mutableHelp.value = false
+            }
+            session.setReadMode(on)
         }
 
         /** Undoes the last step (toolbar button). */

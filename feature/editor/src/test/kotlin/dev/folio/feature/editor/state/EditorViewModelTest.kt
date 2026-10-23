@@ -367,6 +367,55 @@ class EditorViewModelTest {
         }
 
     @Test
+    fun setOptionsHidden_inStateAndStored_closesPopover() =
+        editorTest {
+            val vm = viewModel(createDoc("Chevron"))
+            vm.opened()
+            vm.showPopover(OptionsPopover.PenSettings)
+
+            vm.setOptionsHidden(true)
+
+            val hidden = vm.awaitState { it.docks.optionsHidden }
+            assertThat(hidden.popover).isNull()
+            assertThat(ToolbarDockStore.decode(settings.raw(ToolbarDockStore.KEY)!!).optionsHidden).isTrue()
+        }
+
+    @Test
+    fun setReadMode_stylusNavigatesAndOverlaysClose_leavingRestoresTheTool() =
+        editorTest {
+            val vm = viewModel(createDoc("Read"))
+            val session = vm.opened()
+            vm.selectTool(EditorTool.ERASER)
+            vm.showPages(PageSurface.PANEL)
+            vm.showPopover(OptionsPopover.ClearPage)
+
+            vm.setReadMode(true)
+
+            val reading = vm.awaitState { it.readMode }
+            assertThat(reading.popover).isNull()
+            assertThat(reading.pages.surface).isEqualTo(PageSurface.NONE)
+            assertThat(session.activeTool).isEqualTo(CanvasTool.NAVIGATE)
+
+            vm.setReadMode(false)
+
+            assertThat(vm.awaitState { !it.readMode }.tool).isEqualTo(EditorTool.ERASER)
+            assertThat(session.activeTool).isEqualTo(CanvasTool.ERASER)
+        }
+
+    @Test
+    fun viewportSettled_infoPillShowsPageAndZoom() =
+        editorTest {
+            val vm = viewModel(createDoc("Info"))
+            val session = vm.opened()
+            session.viewport.setPages(session.document.value.pages, VIEW_W, VIEW_H)
+            session.viewport.zoomBy(2f, VIEW_W / 2f, 0f)
+
+            session.viewportSettled()
+
+            assertThat(vm.awaitState { it.view.zoomPercent != 100 }.view).isEqualTo(ViewInfo(pageIndex = 0, zoomPercent = 200))
+        }
+
+    @Test
     fun cleared_releasesSession_reopenSeesPackedEdit() =
         editorTest {
             val path = createDoc("Leave")
@@ -481,5 +530,9 @@ class EditorViewModelTest {
 
     private companion object {
         const val DENSITY = 2.75f
+
+        // Pad 7 landscape window, px.
+        const val VIEW_W = 3200f
+        const val VIEW_H = 2136f
     }
 }

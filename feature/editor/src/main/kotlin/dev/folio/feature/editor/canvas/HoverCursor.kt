@@ -37,6 +37,9 @@ internal class HoverCursor(
     private val radiusPt: (MotionEvent) -> Float,
     private val minRadiusPx: Float,
 ) : HoverTarget {
+    /** Whether the ring shows while the pen hovers (the system pointer hides meanwhile). */
+    val isEnabled: Boolean get() = enabled()
+
     override fun onHover(event: MotionEvent) {
         // HOT PATH: per hover event (about 450 Hz); no allocation.
         if (!enabled()) {

@@ -12,7 +12,8 @@ import javax.inject.Inject
 
 /**
  * Persists [ToolbarDocks] as JSON in the app settings (one key). Missing fields read as defaults and
- * unreadable values fall back to defaults, like [ToolOptionsStore].
+ * unreadable values fall back to defaults, like [ToolOptionsStore]. Version 1 placements docked TOP (the
+ * old default) read as BOTTOM, the new default (A-037); version 2 keeps TOP.
  */
 class ToolbarDockStore
     @Inject
@@ -53,9 +54,12 @@ class ToolbarDockStore
         }
     }
 
+// Version 2 (P06-T12): BOTTOM dock and the default moved from TOP to BOTTOM.
+private const val DOCKS_VERSION = 2
+
 @Serializable
 private data class PlacementJson(
-    val mode: DockMode = DockMode.TOP,
+    val mode: DockMode = DockMode.BOTTOM,
     val floatX: Float = ToolbarPlacement.DEFAULT_FLOAT_X,
     val floatY: Float = ToolbarPlacement.DEFAULT_FLOAT_Y,
     val collapsed: Boolean = false,
@@ -63,16 +67,21 @@ private data class PlacementJson(
 
 @Serializable
 private data class DocksJson(
+    // Version 1 wrote no newer fields; a missing version is 1.
     val version: Int = 1,
     val handedness: Handedness = Handedness.RIGHT,
     val landscape: PlacementJson = PlacementJson(),
     val portrait: PlacementJson = PlacementJson(),
+    val optionsHidden: Boolean = false,
 )
 
 private fun ToolbarPlacement.toJson() = PlacementJson(mode, floatX, floatY, collapsed)
 
-private fun PlacementJson.toPlacement() = ToolbarPlacement(mode, floatX, floatY, collapsed)
+private fun PlacementJson.toPlacement(version: Int): ToolbarPlacement {
+    val migrated = if (version < DOCKS_VERSION && mode == DockMode.TOP) DockMode.BOTTOM else mode
+    return ToolbarPlacement(migrated, floatX, floatY, collapsed)
+}
 
-private fun ToolbarDocks.toJson() = DocksJson(handedness = handedness, landscape = landscape.toJson(), portrait = portrait.toJson())
+private fun ToolbarDocks.toJson() = DocksJson(DOCKS_VERSION, handedness, landscape.toJson(), portrait.toJson(), optionsHidden)
 
-private fun DocksJson.toDocks() = ToolbarDocks(handedness, landscape.toPlacement(), portrait.toPlacement())
+private fun DocksJson.toDocks() = ToolbarDocks(handedness, landscape.toPlacement(version), portrait.toPlacement(version), optionsHidden)

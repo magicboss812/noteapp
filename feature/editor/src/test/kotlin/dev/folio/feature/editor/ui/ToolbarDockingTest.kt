@@ -8,6 +8,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.unit.IntSize
@@ -35,6 +36,7 @@ class ToolbarDockingTest {
 
     private var docks by mutableStateOf(ToolbarDocks())
     private val placed = mutableListOf<Pair<ScreenOrientation, ToolbarPlacement>>()
+    private val readModeCalls = mutableListOf<Boolean>()
 
     private fun show(initial: ToolbarPlacement) {
         docks = ToolbarDocks(landscape = initial)
@@ -48,6 +50,8 @@ class ToolbarDockingTest {
                         placed += orientation to placement
                         docks = docks.with(orientation, placement)
                     },
+                    onHideOptions = { docks = docks.copy(optionsHidden = it) },
+                    onReadMode = { readModeCalls += it },
                 ) { Box(it) }
             }
         }
@@ -62,8 +66,39 @@ class ToolbarDockingTest {
     }
 
     @Test
-    fun dragTopGrip_releasedMidCanvas_floatsThere() {
+    fun dragBottomGrip_toTopEdge_docksTop() {
         show(ToolbarPlacement())
+
+        dragGrip(Offset(0f, -3000f))
+
+        assertThat(placed.single().second.mode).isEqualTo(DockMode.TOP)
+    }
+
+    @Test
+    fun chevron_hidesThenShowsToolOptions() {
+        show(ToolbarPlacement())
+
+        compose.onNodeWithContentDescription("Hide tool options").performClick()
+        compose.waitForIdle()
+        assertThat(docks.optionsHidden).isTrue()
+
+        compose.onNodeWithContentDescription("Show tool options").performClick()
+        compose.waitForIdle()
+        assertThat(docks.optionsHidden).isFalse()
+    }
+
+    @Test
+    fun readModeButton_asksToEnterReadMode() {
+        show(ToolbarPlacement())
+
+        compose.onNodeWithContentDescription("Read mode").performClick()
+
+        assertThat(readModeCalls).containsExactly(true)
+    }
+
+    @Test
+    fun dragTopGrip_releasedMidCanvas_floatsThere() {
+        show(ToolbarPlacement(DockMode.TOP))
 
         dragGrip(Offset(-1500f, 900f))
 

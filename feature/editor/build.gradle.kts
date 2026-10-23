@@ -25,6 +25,8 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
+    implementation(libs.activity.compose) // BackHandler leaves read mode
+    implementation(libs.core.ktx) // WindowInsetsControllerCompat hides the system bars in read mode
     testImplementation(projects.core.testing)
     testImplementation(libs.room.runtime) // in-memory index of the real storage stack in EditorViewModelTest
     androidTestImplementation(libs.bundles.android.test)

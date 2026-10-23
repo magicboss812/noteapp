@@ -33,18 +33,27 @@ class ToolbarDockTest {
     }
 
     @Test
-    fun release_nearBottom_floatsBecauseThereIsNoBottomDock() {
-        val placed = release(200f, 740f)
+    fun release_nearBottom_docksBottom() {
+        assertThat(release(200f, 740f).mode).isEqualTo(DockMode.BOTTOM)
+        assertThat(release(200f, 700f).mode).isEqualTo(DockMode.BOTTOM)
+        // 48 px snap distance: 49 px above the bottom edge floats.
+        assertThat(release(200f, 691f).mode).isEqualTo(DockMode.FLOATING)
+        // Near the bottom-right corner the closer edge wins.
+        assertThat(release(390f, 720f).mode).isEqualTo(DockMode.RIGHT)
+    }
 
-        assertThat(placed.mode).isEqualTo(DockMode.FLOATING)
-        assertThat(placed.floatY).isEqualTo(1f)
+    @Test
+    fun placement_default_isBottomWithOptionsShown() {
+        assertThat(ToolbarPlacement().mode).isEqualTo(DockMode.BOTTOM)
+        assertThat(ToolbarDocks().optionsHidden).isFalse()
+        assertThat(ToolbarDocks(optionsHidden = true).withHandedness(Handedness.LEFT).optionsHidden).isTrue()
     }
 
     @Test
     fun release_outsideArea_clampedInside_keepsCollapsed() {
         val placed = release(250f, 5000f, floating.copy(collapsed = true))
 
-        assertThat(placed).isEqualTo(ToolbarPlacement(DockMode.FLOATING, floatX = 0.625f, floatY = 1f, collapsed = true))
+        assertThat(placed).isEqualTo(ToolbarPlacement(DockMode.BOTTOM, floatX = 0.625f, floatY = 1f, collapsed = true))
         assertThat(release(-500f, 300f).mode).isEqualTo(DockMode.LEFT)
     }
 

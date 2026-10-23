@@ -30,7 +30,6 @@ updated: 2026-10-23
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- USER-CHECK intake 2026-10-23: all P04/P05 checks answered and cleared; feedback in FEEDBACK.md Converted.
-- A-037 (user decisions): editor chrome without app bar, floating pills, BOTTOM dock as default, row 2 collapse chevron, tool settings panels, read mode without ink; spec in 10-editor-ui.md. New tasks P06-T12, P06-T13 run before P06-T01.
-- Polish additions: P11-T03 (library/editor transitions, drawers, sheets), P11-T11 (tag filter with empty query, Deselect all, card "..." inset).
-- Next: P06-T12 Editor chrome without an app bar (opus high; read the phase-06 header first). Then P06-T13, then P06-T01. `FolioIcons.kt` is generated (A-027).
+- P06-T12a committed: chrome without app bar (EditorChrome.kt: corner pills, info pill, docked toolbox, chevron, read mode), BOTTOM dock + v2 store migration, read mode routes the stylus to FingerGestures (CanvasTool.NAVIGATE), viewportSettled -> ViewInfo; unit + screenshot tests green.
+- Next: P06-T12b device check (read mode jank with 1500 strokes, stylus pans without ink), USER-CHECK line, close task; then P06-T13, then P06-T01.
+- USER-CHECK intake 2026-10-23 done (A-037, P11-T03, P11-T11 additions). `FolioIcons.kt` is generated (A-027).

@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 /**
  * One editor pane (02-modules.md#editor-state): wraps the [documentSession] and adds the active tool,
@@ -72,8 +73,19 @@ class EditorSession(
     override val activeBrush: BrushSpec
         get() = if (mutableTool.value == EditorTool.HIGHLIGHTER) highlighterBrush else penBrush
 
+    private val mutableReadMode = MutableStateFlow(false)
+
+    /** Read mode (10-editor-ui.md#read-mode): chrome hidden, the stylus only navigates (chrome state). */
+    val readMode: StateFlow<Boolean> = mutableReadMode.asStateFlow()
+
+    /** Enters or leaves read mode; the next stylus down reads it through [activeTool]. */
+    fun setReadMode(on: Boolean) {
+        mutableReadMode.value = on
+    }
+
     // Unbuilt tools never become active (selectTool refuses them); PEN is the safe fallback.
-    override val activeTool: CanvasTool get() = mutableTool.value.canvasTool ?: CanvasTool.PEN
+    override val activeTool: CanvasTool
+        get() = if (mutableReadMode.value) CanvasTool.NAVIGATE else mutableTool.value.canvasTool ?: CanvasTool.PEN
 
     override val eraserOptions: EraserOptions get() = mutableOptions.value.eraser
 
@@ -84,6 +96,17 @@ class EditorSession(
     /** Asks the canvas host to run [command]; dropped while no host is attached. */
     fun sendCanvasCommand(command: CanvasCommand) {
         canvasCommands.tryEmit(command)
+    }
+
+    private val mutableView = MutableStateFlow(ViewInfo())
+
+    /** Page indicator and zoom of the info pill (chrome state), updated when the viewport settles. */
+    val view: StateFlow<ViewInfo> = mutableView.asStateFlow()
+
+    @MainThread
+    override fun viewportSettled() {
+        // Equal values do not emit, so a settle without a page or zoom change recomposes nothing.
+        mutableView.value = ViewInfo(viewport.pageIndexAt(viewport.viewHeightPx / 2f), (viewport.zoom * PERCENT).roundToInt())
     }
 
     /** Whether undo has a step (chrome state). */
@@ -245,6 +268,7 @@ class EditorSession(
     private companion object {
         const val TAG = "EditorSession"
         const val COMMAND_BUFFER = 16
+        const val PERCENT = 100f
         val BRUSH_VERSION = BrushCatalog.DEFAULT.latestVersion
 
         // Where a page added next to a PDF page starts: blank white A4 with the default lined template.

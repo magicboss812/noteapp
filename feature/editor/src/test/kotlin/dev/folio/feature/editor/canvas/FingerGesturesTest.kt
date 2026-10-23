@@ -64,6 +64,18 @@ class FingerGesturesTest {
     }
 
     @Test
+    fun drag_stylusInReadMode_pansLikeOneFinger() {
+        gestures.onTouchEvent(event(ACTION_DOWN, 0, 1000f to 1500f, toolType = TOOL_TYPE_STYLUS), stylus = true)
+        gestures.onTouchEvent(event(ACTION_MOVE, 100, 1000f to 1400f, toolType = TOOL_TYPE_STYLUS), stylus = true)
+        gestures.onTouchEvent(event(ACTION_MOVE, 200, 1000f to 1200f, toolType = TOOL_TYPE_STYLUS), stylus = true)
+
+        assertThat(viewport.offsetYPx).isWithin(1e-3).of(-300.0)
+        // The next plain stylus gesture is ignored again.
+        gestures.onTouchEvent(event(ACTION_UP, 300, 1000f to 1200f, toolType = TOOL_TYPE_STYLUS))
+        assertThat(gestures.onTouchEvent(event(ACTION_DOWN, 400, 1000f to 1500f, toolType = TOOL_TYPE_STYLUS))).isFalse()
+    }
+
+    @Test
     fun pinch_spreadToDoubleSpan_doublesZoomKeepingTheMidpointFixed() {
         val docX = (1000 - viewport.offsetXPx) / viewport.scale
         val docY = (1600 - viewport.offsetYPx) / viewport.scale

@@ -1,11 +1,14 @@
 package dev.folio.feature.editor.ui
 
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
@@ -13,9 +16,9 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -39,6 +42,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import dev.folio.core.designsystem.component.FolioIconButton
+import dev.folio.core.designsystem.component.PillDivider
 import dev.folio.core.designsystem.component.PillGroup
 import dev.folio.core.designsystem.component.ToolButton
 import dev.folio.core.designsystem.icon.FolioIcons
@@ -188,8 +193,9 @@ private class GripPosition {
 }
 
 /**
- * Floating toolbar (10-editor-ui.md#toolbar-docking): a compact pill with the [grip] and the tools, or only
- * the current tool when [collapsed] (tap it to expand); the [options] row hangs below it.
+ * Floating toolbar (10-editor-ui.md#toolbar-docking): a compact pill with the [grip], the tools and the
+ * chevron that hides the [options] row hanging below it ([onToggleOptions] null: no chevron, the drag
+ * preview), or only the current tool when [collapsed] (tap it to expand).
  */
 @Composable
 internal fun FloatingToolbar(
@@ -199,18 +205,34 @@ internal fun FloatingToolbar(
     onExpand: () -> Unit,
     grip: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    optionsHidden: Boolean = false,
+    onToggleOptions: (() -> Unit)? = null,
     options: @Composable () -> Unit = {},
 ) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(FolioTheme.space.chromeInset)) {
+    val motion = FolioTheme.motion
+    Column(modifier) {
         PillGroup {
             grip()
             if (collapsed) {
                 ToolButton(icon = tool.icon, contentDescription = "${tool.label}, expand toolbar", selected = true, onClick = onExpand)
             } else {
                 ToolsPill(tool, onSelectTool)
+                if (onToggleOptions != null) {
+                    PillDivider()
+                    FolioIconButton(
+                        icon = DockMode.FLOATING.chevron(optionsHidden),
+                        contentDescription = if (optionsHidden) "Show tool options" else "Hide tool options",
+                        onClick = onToggleOptions,
+                    )
+                }
             }
         }
-        if (!collapsed) options()
+        AnimatedVisibility(
+            visible = !collapsed && !optionsHidden,
+            enter = fadeIn(motion.standard()) + expandVertically(motion.standard(), expandFrom = Alignment.Top),
+            exit = fadeOut(motion.fast()) + shrinkVertically(motion.standard(), shrinkTowards = Alignment.Top),
+            label = "floatingOptions",
+        ) { Box(Modifier.padding(top = FolioTheme.space.chromeInset)) { options() } }
     }
 }
 
@@ -218,6 +240,7 @@ internal fun FloatingToolbar(
 internal val DockMode.popoverAnchor: PopoverAnchor
     get() =
         when (this) {
+            DockMode.BOTTOM -> PopoverAnchor.AboveRow
             DockMode.TOP -> PopoverAnchor.BelowRow
             DockMode.LEFT -> PopoverAnchor.RightOfRail
             DockMode.RIGHT -> PopoverAnchor.LeftOfRail
@@ -234,6 +257,7 @@ internal fun AnimatedContentTransitionScope<DockMode>.dockTransition(
 ): ContentTransform {
     val enter =
         when (targetState) {
+            DockMode.BOTTOM -> slideInVertically(motion.spring()) { slidePx } + fadeIn(motion.standard())
             DockMode.TOP -> slideInVertically(motion.spring()) { -slidePx } + fadeIn(motion.standard())
             DockMode.LEFT -> slideInHorizontally(motion.spring()) { -slidePx } + fadeIn(motion.standard())
             DockMode.RIGHT -> slideInHorizontally(motion.spring()) { slidePx } + fadeIn(motion.standard())
@@ -241,6 +265,7 @@ internal fun AnimatedContentTransitionScope<DockMode>.dockTransition(
         }
     val exit =
         when (initialState) {
+            DockMode.BOTTOM -> slideOutVertically(motion.spring()) { slidePx } + fadeOut(motion.fast())
             DockMode.TOP -> slideOutVertically(motion.spring()) { -slidePx } + fadeOut(motion.fast())
             DockMode.LEFT -> slideOutHorizontally(motion.spring()) { -slidePx } + fadeOut(motion.fast())
             DockMode.RIGHT -> slideOutHorizontally(motion.spring()) { slidePx } + fadeOut(motion.fast())
