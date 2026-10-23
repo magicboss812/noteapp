@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T01
+next: P06-T02
 updated: 2026-10-23
 
 ## Completed
@@ -13,7 +13,7 @@ updated: 2026-10-23
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13
+- P06: T12, T13, T01
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -30,6 +30,6 @@ updated: 2026-10-23
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the highlighter panel, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T13 done: tool settings panels (pen, highlighter, eraser, lasso) toggled by tapping the selected tool or row 2's details button; row 2 slimmed; tapping the selected width/color opens its popover; lasso mode + filters stored (P07-T03 applies them).
-- P06-T12 USER-CHECK answered (checked) and removed. Panel parts live in ui/PanelParts.kt for later tools (shape, text, table).
-- Next: P06-T01 Markdown block model and parser. Device-tester tip: tool row y 1963 px, mode pill y 171 px in landscape. `FolioIcons.kt` is generated (A-027).
+- P06-T01 done: `core/text/.../markdown` (BlockSplitter, BlockParser, MarkdownDocument.parse/replaceBlock/toMarkdown/plainText); source+gap per block keeps round trip byte exact; 60-case corpus in testdata/format/markdown/corpus.md; 41 unit tests green.
+- Facts for T03/T06: `[[Title]]` is detected in InlineCollector (commonmark handles `[` first); list level = indent/2; extra blank lines are Empty blocks; spans carry source + plain ranges.
+- Next: P06-T02 Font system (opus high). Device-tester tip: tool row y 1963 px, mode pill y 171 px in landscape. `FolioIcons.kt` is generated (A-027).

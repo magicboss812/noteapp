@@ -48,6 +48,7 @@ Indent step: 1 grid column on grid/dotted templates, 6 mm on lined/blank.
 - CommonMark + GFM tables, strikethrough (`~~`), task lists (`- [ ]`, `- [x]`), GFM alerts for callouts (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`).
 - Folio inline extensions: `==highlight==`, inline math `$...$` (not preceded by a digit, to keep "$5" literal; `\$` escapes), block math `$$` on its own lines, links to notes stored as `[Title](folio://doc/<uuid>)` (the `[[` shortcut in the editor inserts them).
 - Enter creates a new block; Shift+Enter inserts a hard line break (stored as trailing backslash).
+- Block splitting (`core/text/.../markdown`): each list item, heading, rule, fenced code, `$$` math and table is its own block; paragraph/quote/item continuation lines stay in the block. One blank line between blocks is the plain separator (kept as the block's `gap`); each further blank line is an empty paragraph block (1U). List level = leading spaces / 2.
 - Serialization must be lossless for everything Folio produces (round-trip tests). Foreign Markdown opens as-is; unknown syntax renders as text.
 
 ## Block styles
