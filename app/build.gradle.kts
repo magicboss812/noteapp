@@ -41,11 +41,9 @@ dependencies {
     implementation(libs.work.runtime.ktx) // Configuration.Provider: WorkManager starts on first use, not at launch
     implementation(libs.coroutines.android)
     debugImplementation(libs.serialization.json)
-    // core:text: the P01 spike-fonts screen (app/src/debug/.../spikes, STATUS D-002).
     debugImplementation(projects.core.model) // debug `open blank:N` builds a NewDocumentSpec (P03-T02)
     debugImplementation(projects.core.render)
     debugImplementation(projects.core.ink) // debug `tool eraser,...` parses EraserOptions (P03-T08)
-    debugImplementation(projects.core.text)
     testImplementation(projects.core.testing)
     androidTestImplementation(libs.bundles.android.test)
 }

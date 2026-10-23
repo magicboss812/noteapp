@@ -1,13 +1,12 @@
 package dev.folio.app.debug
 
-import dev.folio.app.spikes.SpikeFontsView
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /**
  * What `state` reports. The app navigator shows the library entry (storage onboarding or library) or
- * the editor opened by `open`; a debug-only screen such as `spike-fonts` may cover both.
+ * the editor opened by `open`; a debug-only screen may cover both.
  */
 internal class DebugAppState(
     /** Library access facts (`library` key), null when unavailable. */
@@ -34,10 +33,10 @@ internal class DebugAppState(
     val zoom: Float? get() = canvasZoom()
 
     /**
-     * Routes `route` accepts: `library` pops to the library and removes any overlay, `spike-fonts` is a
-     * P01 probe screen (D-002). The editor is reached through `open`.
+     * Routes `route` accepts: `library` pops to the library and removes any overlay (the P01 spike
+     * screens are gone, D-002). The editor is reached through `open`.
      */
-    val knownRoutes: Set<String> = setOf(LIBRARY, SpikeFontsView.ROUTE)
+    val knownRoutes: Set<String> = setOf(LIBRARY)
 
     /** Called after every successful [navigate] with the new route; the hooks show the screen. */
     var onNavigate: (String) -> Unit = {}

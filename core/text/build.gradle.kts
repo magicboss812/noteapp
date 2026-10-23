@@ -9,6 +9,11 @@ android {
     defaultConfig.testApplicationId = "dev.folio.notes.debug.test"
 }
 
+// The grid invariant suite runs on Robolectric and on the tablet (P06-T03).
+extensions.configure<com.android.build.api.dsl.LibraryExtension> {
+    listOf("test", "androidTest").forEach { sourceSets.getByName(it).kotlin.srcDir("src/sharedTest/kotlin") }
+}
+
 dependencies {
     implementation(projects.core.model)
     implementation(projects.core.common)

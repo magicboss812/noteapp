@@ -48,6 +48,14 @@ A flow's Markdown is split into blocks. Block = the unit of parsing, layout cach
 | Horizontal rule | 1U, line drawn at the box center |
 Indent step: 1 grid column on grid/dotted templates, 6 mm on lined/blank.
 
+### Block layout
+- `BlockLayouter.layout(block, widthPt, FlowTextStyle, LayoutGrid)` returns a `BlockLayout` (line count, box units, baselines and line tops in pt from the block's top-left, text and marker left edges, `BlockDecoration`). Results are cached (LRU, 2048 entries) by block source text, width, flow style (family, body cap, alignment, palette) and grid (U, indent step); block ids are not part of the key. Uncached layouts are traced as `text:layout`.
+- Lists (A-040): the marker gutter of a level-n item starts at n x step (at most half the width), the text at (n+1) x step. Bullets are centered in the gutter, numbers end-aligned 0.25U before the text; the marker is laid out on one line on the item's first baseline. Task items draw no marker: a 0.7U checkbox in the gutter whose bottom sits on the first baseline.
+- Quote: text at 1 step, bar 0.12U wide at 0.25 step. Callout: a bold title line ("Note", "Tip", "Warning", ...) above the body; the renderer adds the icon from `QuoteBar.callout`. Code: insets of 0.5U left and right, background over the whole block. Empty paragraph and rule: one body line box, rule at its center.
+- Alignment applies to paragraphs (start, center, justified) and headings (start, center); lists, quotes, code and tables stay start-aligned.
+- Until P06-T07/T08, math blocks lay out as code-styled source and tables as one line per row with cells joined by " | "; both keep whole line boxes.
+- Regression suite (`src/sharedTest`, runs on Robolectric and on the tablet): 20 fonts x every block style x body S/M/L/1.2 x lined and graph grids; baselines are measured from the glyph runs actually drawn onto a recording canvas at zoom 1, 2 and 4 on the Pad 7 fit-width scale.
+
 ## Markdown dialect
 - CommonMark + GFM tables, strikethrough (`~~`), task lists (`- [ ]`, `- [x]`), GFM alerts for callouts (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`).
 - Folio inline extensions: `==highlight==`, inline math `$...$` (not preceded by a digit, to keep "$5" literal; `\$` escapes), block math `$$` on its own lines, links to notes stored as `[Title](folio://doc/<uuid>)` (the `[[` shortcut in the editor inserts them).

@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T03
+next: P06-T04
 updated: 2026-10-23
 
 ## Completed
@@ -13,7 +13,7 @@ updated: 2026-10-23
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02
+- P06: T12, T13, T01, T02, T03
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -23,13 +23,12 @@ updated: 2026-10-23
 
 ## Deferred (id: reason)
 - D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P06-T04, P07-T05, P10-T01, P11-T10; D-028 -> P11-T10; D-029 -> P06-T04.
-- D-002 P01-T08: spike route spike-fonts + core:text spike/ (remove in P06-T03; spike-ink/spike-stylus went in P03-T09); USER-CHECKs answered (A-008).
-- D-004 P01-REVIEW: `GridParagraph.draw` allocates a Compose canvas wrapper per call; cache it or mark HOT PATH before P06-T05 paints text into tiles.
+- D-004 P01-REVIEW: `GridText.draw` (core/text layout/BlockLayout.kt) allocates a Compose canvas wrapper per call; cache it or mark HOT PATH before P06-T05 paints text into tiles.
 - D-014 P03-T09: tilt shading has no off switch (A-025): dry rendering applies tilt whenever stored inputs carry tilt; the P11-T01 setting needs a stored per-stroke choice (or dropping tilt at commit) so wet and dry ink agree; the pen panel gets its tilt row then (P06-T13).
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the highlighter panel, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T02 done: `core/text/.../fonts`: FontRegistry (instance: bundled + imported, `resolve`/`codeFamily` fallback chain; `FontRegistry.bundled`/`Bundled`), TextFontFamily (was BundledFontFamily), FontMetricsCache per family+weight with x-height, TextSizing (BodySize, TextRole, `derive` -> size/cap/boxUnits), FontFileInfo (OpenType name table), CustomFontStore (app `fonts/` + library `.fonts/`, not wired into Hilt yet: P06-T10).
-- D-006 decided as A-039: free body cap 0.30..1.80, box = max(role min, ceil(cap/0.66)) U; no vertical placement. Cap height error 0.0000 % (Robolectric) for 20 fonts x roles x sizes.
-- T03 facts: layout should take `TextSizing.derive(...)` (boxUnits gives k); markdown facts from T01: `[[Title]]` in InlineCollector, list level = indent/2, extra blank lines are Empty blocks.
-- Next: P06-T03 Grid line-box layout (opus high). Device-tester tip: tool row y 1963 px, mode pill y 171 px in landscape.
+- P06-T03 done: `core/text/.../layout`: `BlockLayouter(resolver, metrics, registry).layout(MarkdownBlock, widthPt, FlowTextStyle, LayoutGrid)` -> cached `BlockLayout` (lineCount, boxUnits, heightPt, baselinePt/lineTopPt in pt from block top-left, textLeftPt, markerLeftPt, `BlockDecoration`); `draw(canvas, leftPt, topPt, scale)` paints text + marker only, decorations are the renderer's job (T05). `LayoutGrid.of(GridUnit)` gives U + indent step.
+- Grid invariant suite in `core/text/src/sharedTest` (Robolectric + device, A-040): device max rendered error 0.0078 px at zoom 4 (limit 0.5). Spike code and spike-fonts route deleted; app no longer depends on core:text.
+- T04 facts: a flow stacks BlockLayouts by heightPt (each block top on a rule); math/table layouts are placeholders until T07/T08.
+- Next: P06-T04 Flows and frames. Device-tester tip: tool row y 1963 px, mode pill y 171 px in landscape.

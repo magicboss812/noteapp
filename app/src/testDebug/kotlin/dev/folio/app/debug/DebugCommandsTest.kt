@@ -131,24 +131,15 @@ class DebugCommandsTest {
     }
 
     @Test
-    fun route_spikeFonts_navigatesAndNotifiesListener() {
+    fun route_library_navigatesAndNotifiesListener() {
         val shown = mutableListOf<String>()
         state.onNavigate = { shown += it }
-
-        assertThat(commands.execute("route", "spike-fonts").ok).isTrue()
-
-        assertThat(state.screen).isEqualTo("spike-fonts")
-        assertThat(shown).containsExactly("spike-fonts")
-    }
-
-    @Test
-    fun route_library_removesOverlay() {
-        commands.execute("route", "spike-fonts")
 
         assertThat(commands.execute("route", "library").ok).isTrue()
 
         assertThat(state.overlay).isNull()
         assertThat(state.screen).isEqualTo("library")
+        assertThat(shown).containsExactly("library")
     }
 
     @Test
@@ -162,7 +153,8 @@ class DebugCommandsTest {
     }
 
     @Test
-    fun route_removedSpikeInkAndCanvas_areUnknown() {
+    fun route_removedSpikeScreensAndCanvas_areUnknown() {
+        assertThat(commands.execute("route", "spike-fonts").ok).isFalse()
         assertThat(commands.execute("route", "spike-ink").ok).isFalse()
         assertThat(commands.execute("route", "spike-stylus").ok).isFalse()
         assertThat(commands.execute("route", "canvas").ok).isFalse()

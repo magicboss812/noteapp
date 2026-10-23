@@ -1,8 +1,6 @@
 package dev.folio.app.debug
 
 import android.content.Intent
-import android.view.View
-import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.annotation.MainThread
 import androidx.lifecycle.Lifecycle
@@ -11,8 +9,6 @@ import dagger.Lazy
 import dev.folio.app.DebugHooks
 import dev.folio.app.nav.AppNavigator
 import dev.folio.app.nav.AppRoute
-import dev.folio.app.spikes.SpikeFontsView
-import dev.folio.app.spikes.spikeFontsCommand
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.storage.library.LibraryAccess
@@ -47,7 +43,6 @@ internal class AppDebugHooks
         private var navigator: AppNavigator? = null
         private val canvas: CanvasDebug =
             CanvasDebug(sessions::get, documents::get, scope) { path ->
-                if (state.overlay != null) state.navigate(DebugAppState.LIBRARY) // the editor must not be covered
                 navigator?.openEditor(path)
             }
         private val state =
@@ -59,10 +54,8 @@ internal class AppDebugHooks
                 canvasZoom = { canvas.zoom },
                 canvas = { canvas.json() },
             ).also { it.onNavigate = { route -> showRoute(route) } }
-        private var activity: ComponentActivity? = null
         private var overlay: FrameTimeOverlay? = null
         private var overlayVisible = false
-        private var spike: View? = null // the shown spike screen, if any
 
         override val editorCanvas: EditorCanvasListener get() = canvas
         private val commands =
@@ -70,7 +63,6 @@ internal class AppDebugHooks
                 state,
                 extra =
                     mapOf(
-                        SpikeFontsView.ROUTE to { arg -> spikeFontsCommand(spike as? SpikeFontsView, arg) },
                         "open" to canvas::open,
                         "zoom-anim" to canvas::zoomAnim,
                         "scroll-page" to canvas::scrollPage,
@@ -87,36 +79,22 @@ internal class AppDebugHooks
             navigator: AppNavigator,
         ) {
             val created = FrameTimeOverlay(activity).also { it.install() }
-            this.activity = activity
             this.navigator = navigator
             overlay = created
-            spike = null
             created.setVisible(overlayVisible)
-            state.overlay?.let { showRoute(it) } // a recreated activity shows the spike screen again
             activity.lifecycle.addObserver(
                 LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_DESTROY) {
                         created.dispose()
                         if (overlay === created) overlay = null
-                        if (this.activity === activity) {
-                            this.activity = null
-                            spike = null
-                        }
                     }
                 },
             )
         }
 
-        // `library` pops the navigator to the library; spike screens cover the app content (D-002).
+        // `library` pops the navigator to the library.
         private fun showRoute(route: String) {
             if (route == DebugAppState.LIBRARY) navigator?.toLibrary()
-            val host = activity ?: return
-            spike?.let { (it.parent as? ViewGroup)?.removeView(it) }
-            spike = if (route == SpikeFontsView.ROUTE) SpikeFontsView(host, dispatchers) else null
-            spike?.let {
-                host.addContentView(it, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-                overlay?.bringToFront()
-            }
         }
 
         override fun handleIntent(intent: Intent) {
