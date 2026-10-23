@@ -1,5 +1,6 @@
 package dev.folio.core.text.layout
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.Paragraph
 import androidx.compose.ui.text.font.FontFamily
@@ -76,6 +77,16 @@ internal class GridText(
 
     fun lineForOffset(offset: Int): Int = paragraph.getLineForOffset(offset)
 
+    /** Character nearest to [xPt] (from the text's left edge) on the middle of [line]. */
+    fun offsetAt(
+        xPt: Float,
+        line: Int,
+    ): Int {
+        val l = line.coerceIn(0, paragraph.lineCount - 1)
+        val middle = (paragraph.getLineTop(l) + paragraph.getLineBottom(l)) / 2f
+        return paragraph.getOffsetForPosition(Offset(xPt * refScale, middle))
+    }
+
     fun baselinePt(line: Int): Float = (paragraph.getLineBaseline(line) + shiftPx) / refScale
 
     /** Right edge of the ink advance of [line] (start-aligned text). */
@@ -151,6 +162,15 @@ class BlockLayout internal constructor(
 
     /** Line that shows character [offset] of [plainText] (0 for blocks without text). */
     fun lineForOffset(offset: Int): Int = text?.lineForOffset(offset) ?: 0
+
+    /**
+     * Offset into [plainText] of the character nearest to [xPt] (from the block's left edge) on [line]; 0 for blocks
+     * without text. A point left of the text gives the start of the line, one right of it the end.
+     */
+    fun plainOffsetAt(
+        xPt: Float,
+        line: Int,
+    ): Int = text?.offsetAt(xPt - textLeftPt, line) ?: 0
 
     /** Baseline of the marker label, null without a marker. */
     fun markerBaselinePt(): Float? = marker?.baselinePt(0)

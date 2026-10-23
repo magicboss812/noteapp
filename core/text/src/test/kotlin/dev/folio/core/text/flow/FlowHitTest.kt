@@ -84,6 +84,70 @@ class FlowHitTest {
         assertThat(layout.hit(PageId("other"), bodyRect.left + 5f, midLine(0))).isNull()
     }
 
+    private fun offsetAt(
+        layout: FlowLayout,
+        xPt: Float,
+        line: Int = 0,
+        yPt: Float = midLine(line),
+    ): Int = layout.sourceOffsetAt(checkNotNull(layout.hit(page, xPt, yPt)), xPt)
+
+    @Test
+    fun sourceOffsetAt_tapLeftOfAndRightOfALine_isItsStartAndEnd() {
+        val layout = layoutOf("Hello world")
+
+        assertThat(offsetAt(layout, bodyRect.left + 1f)).isEqualTo(0)
+        assertThat(offsetAt(layout, bodyRect.right - 1f)).isEqualTo(11)
+    }
+
+    @Test
+    fun sourceOffsetAt_tapsMovingRight_neverMoveTheCaretLeft() {
+        val layout = layoutOf("Hello **brave** new world")
+        val offsets = (0..60).map { offsetAt(layout, bodyRect.left + it * (bodyRect.widthPt - 1f) / 60f) }
+
+        assertThat(offsets).isInOrder()
+        assertThat(offsets.first()).isEqualTo(0)
+        assertThat(offsets.last()).isEqualTo(25)
+        assertThat(offsets.toSet().size).isGreaterThan(5)
+    }
+
+    @Test
+    fun sourceOffsetAt_heading_neverLandsInTheHashes() {
+        val layout = layoutOf("## Title")
+
+        assertThat(offsetAt(layout, bodyRect.left + 1f)).isEqualTo(3)
+        assertThat(offsetAt(layout, bodyRect.right - 1f)).isEqualTo(8)
+    }
+
+    @Test
+    fun sourceOffsetAt_laterLineOfAWrappedBlock_isPastTheFirstLine() {
+        val layout = layoutOf("word ".repeat(400).trim())
+
+        val first = offsetAt(layout, bodyRect.left + 1f, line = 0)
+        val third = offsetAt(layout, bodyRect.left + 1f, line = 2)
+
+        assertThat(first).isEqualTo(0)
+        assertThat(third).isGreaterThan(20)
+    }
+
+    @Test
+    fun sourceOffsetAt_belowTheLastBlock_isTheEndOfItsSource() {
+        val layout = layoutOf("Alpha\n\nBeta")
+
+        assertThat(offsetAt(layout, bodyRect.left + 1f, yPt = midLine(10))).isEqualTo(4)
+    }
+
+    @Test
+    fun sourceOffsetAt_emptyFlow_isZero() {
+        assertThat(offsetAt(layoutOf(""), bodyRect.left + 1f)).isEqualTo(0)
+    }
+
+    @Test
+    fun sourceOffsetAt_unknownBlock_isZero() {
+        val layout = layoutOf("Alpha")
+
+        assertThat(layout.sourceOffsetAt(BlockHit(0, 7, 0, pastEnd = false), bodyRect.left)).isEqualTo(0)
+    }
+
     @Test
     fun placementOf_secondBlock_isOneUnitBelowTheFrameTop() {
         val layout = layoutOf("Alpha\n\nBeta")

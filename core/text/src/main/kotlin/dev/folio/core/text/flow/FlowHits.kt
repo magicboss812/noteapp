@@ -1,6 +1,7 @@
 package dev.folio.core.text.flow
 
 import dev.folio.core.model.PageId
+import dev.folio.core.text.edit.SourceOffsets
 
 /** The block under a point: [slot] of the layout, the block's [blockIndex], the [line] of that block, [pastEnd] below the last block. */
 data class BlockHit(
@@ -56,6 +57,28 @@ private fun FlowLayout.hitIn(
             val line = if (pastEnd) layout.lineCount - 1 else firstLine(slice) + ((yPt - top) / (layout.boxUnits * unitPt)).toInt()
             BlockHit(frame, slice.blockIndex, line.coerceAtLeast(0), pastEnd)
         }
+    }
+}
+
+/**
+ * Offset into the source of the hit block of the caret for a tap at [xPt] on the hit line: the character nearest the
+ * tap, with markers and link targets that the rendered text leaves out skipped (`SourceOffsets`). The end of the
+ * source for a tap past the last block and for blocks that show no text of their own.
+ */
+fun FlowLayout.sourceOffsetAt(
+    hit: BlockHit,
+    xPt: Float,
+): Int {
+    val block = markdown.blocks.getOrNull(hit.blockIndex) ?: return 0
+    val layout = layoutOf(hit.blockIndex)
+    val visible = SourceOffsets.visibleText(block.content)
+    return if (layout == null || visible == null || hit.pastEnd) {
+        block.source.length
+    } else {
+        // A callout lays out its title and a line break before the text.
+        val title = layout.plainText.length - visible.length
+        val plain = layout.plainOffsetAt(xPt - slots[hit.slot].rect.left, hit.line) - title
+        SourceOffsets.fromPlain(block, plain.coerceAtLeast(0))
     }
 }
 
