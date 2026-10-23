@@ -30,7 +30,7 @@ updated: 2026-10-24
 - D-034 P06-T07: math blocks are always centered; 07-text-engine.md#math names a left alignment setting (A-047).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T07 done except its device run (Blocked). Math map: 07-text-engine.md#math-as-built; `MathFormulas` (cache, inline fit) + `BlockLayouter.mathBlock` -> `BlockLayout.maths`/`mathErrors`; `MathPlacement.draw`; error popup in `LiveTextField.showMathError`.
+- P06-T08a done (table layout, painting, `TableEditing` ops, taps; 07-text-engine.md#tables-as-built, A-048). Next: T08b = editor cell field (`TextFieldSpec` cell from `TableEditing.cellAt`, `FocusedBlock.cell`, `FieldEdits` table keys -> `TableEditing`) and the table mini toolbar in `TextFormatRow` + screenshot.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`).
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]` seeds a body flow (use `open lined:N` with an unused N). Test APK installs need the user's Allow on the tablet.
 - Next: P06-T08 Tables (then T09, T10, T18, T14, T16, T17, T11). Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.

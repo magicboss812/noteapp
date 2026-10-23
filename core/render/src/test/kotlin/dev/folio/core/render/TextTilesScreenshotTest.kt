@@ -10,6 +10,7 @@ import com.google.common.truth.Truth.assertWithMessage
 import dev.folio.core.model.TemplateKind
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.testing.ModelFixtures
+import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.layout.BlockDecoration
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,6 +32,48 @@ class TextTilesScreenshotTest {
 
     @Test
     fun screenshot_mathCorpus_grid() = captureMath(TemplateKind.GRID)
+
+    @Test
+    fun screenshot_tables_lined() = captureTables(TemplateKind.LINED)
+
+    @Test
+    fun screenshot_tables_grid() = captureTables(TemplateKind.GRID)
+
+    @Test
+    fun draw_tableBorders_onTheRowRulesAndColumnEdges() {
+        val pages = TextPages()
+        val content = pages.content("| a | b |\n| --- | --- |\n| 1 | 2 |")
+        val run = content.text.runs.single()
+        val table = checkNotNull(run.layout.table)
+        val bitmap = render(pages, content, RenderTarget.SCREEN_CONTENT)
+
+        // Below the header, halfway across the first column: the row border on the rule.
+        val x = ((run.leftPt + table.columnLeftPt(1) / 2f) * SCALE).toInt()
+        val y = ((run.topPt + run.layout.lineTopPt(1)) * SCALE).toInt()
+        assertThat(Color.alpha(bitmap.getPixel(x, y))).isGreaterThan(0)
+        // A column edge halfway down the body row.
+        val edge = ((run.leftPt + table.columnLeftPt(1)) * SCALE).toInt()
+        val middle = ((run.topPt + run.layout.lineTopPt(1) + run.layout.unitPt / 2f) * SCALE).toInt()
+        assertThat(Color.alpha(bitmap.getPixel(edge, middle))).isGreaterThan(0)
+    }
+
+    @Test
+    fun draw_tableHiddenCell_leavesThatCellBlank_bordersStay() {
+        val pages = TextPages()
+        val content = pages.content("| a | b |\n| --- | --- |\n| 1 | 2 |")
+        val run = content.text.runs.single()
+        val table = checkNotNull(run.layout.table)
+        val hidden = PageContent.of(pages.page(), PageText.of(listOf(run.copy(hiddenCell = table.cellIndex(1, 1)))))
+        val shown = render(pages, content, RenderTarget.SCREEN_CONTENT)
+        val blank = render(pages, hidden, RenderTarget.SCREEN_CONTENT)
+
+        val cellTop = run.topPt + run.layout.lineTopPt(1) + 1f
+        val cellBottom = run.topPt + run.layout.lineTopPt(2) - 1f
+        val left = ((run.leftPt + table.columnLeftPt(1)) * SCALE).toInt() + 2
+        val right = ((run.leftPt + table.columnLeftPt(2)) * SCALE).toInt() - 2
+        assertThat(inkBounds(shown, cellTop, cellBottom, left, right)).isNotNull()
+        assertThat(inkBounds(blank, cellTop, cellBottom, left, right)).isNull()
+    }
 
     @Test
     fun draw_blockMath_formulaInkFollowsTheTextColor() {
@@ -128,6 +171,15 @@ class TextTilesScreenshotTest {
         ).captureRoboImage("src/test/screenshots/TextTiles_${kind}_math.png")
     }
 
+    private fun captureTables(kind: TemplateKind) {
+        val pages = TextPages(kind)
+        render(
+            pages,
+            pages.content(TABLE_CORPUS),
+            RenderTarget.EXPORT_RASTER,
+        ).captureRoboImage("src/test/screenshots/TextTiles_${kind}_tables.png")
+    }
+
     private fun render(
         pages: TextPages,
         content: PageContent,
@@ -139,17 +191,22 @@ class TextTilesScreenshotTest {
         return bitmap
     }
 
-    /** Pixel box of every non-transparent pixel between page y [fromPt] and [toPt] (null when there is none). */
+    /**
+     * Pixel box of every non-transparent pixel between page y [fromPt] and [toPt] and pixel columns [fromX] until
+     * [toX] (null when there is none).
+     */
     private fun inkBounds(
         bitmap: Bitmap,
         fromPt: Float = 0f,
         toPt: Float = Float.MAX_VALUE,
+        fromX: Int = 0,
+        toX: Int = Int.MAX_VALUE,
     ): Ink? {
         val top = (fromPt * SCALE).toInt().coerceAtLeast(0)
         val bottom = (toPt * SCALE).toInt().coerceAtMost(bitmap.height)
         var ink: Ink? = null
         for (y in top until bottom) {
-            for (x in 0 until bitmap.width) {
+            for (x in fromX.coerceAtLeast(0) until toX.coerceAtMost(bitmap.width)) {
                 if (Color.alpha(bitmap.getPixel(x, y)) == 0) continue
                 val old = ink
                 ink =
@@ -194,6 +251,18 @@ class TextTilesScreenshotTest {
                 "\\begin{pmatrix} ax + by \\\\ cx + dy \\end{pmatrix}\n\$\$\n\n" +
                 "\$\$\n\\frac{\\notacommand\n\$\$\n\n" +
                 "Text after the formulas."
+
+        /** Table corpus page (P06-T08): alignments, wrapping cells, inline formatting and math, missing cells. */
+        const val TABLE_CORPUS =
+            "Tables sit on the grid.\n\n" +
+                "| Item | Qty | Price | Note |\n" +
+                "| :-- | :-: | --: | --- |\n" +
+                "| Apples | 3 | 1.20 | **fresh** from the market |\n" +
+                "| Pears | 12 | 0.80 | a much longer note that wraps over several lines inside its cell |\n" +
+                "| Plums | 7 | 2.50 | `code`, *italic* and \$x^2\$ |\n\n" +
+                "| Only a header |\n| --- |\n\n" +
+                "| a | b | c |\n| --- | --- | --- |\n| 1 |\n| x \\| y | | z |\n\n" +
+                "Text after the tables."
         val LONG_PARAGRAPH = "lorem ipsum dolor sit amet ".repeat(20).trim()
 
         val INLINE_AND_LISTS =

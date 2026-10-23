@@ -159,13 +159,19 @@ class BlockEditingTest {
     }
 
     @Test
-    fun enter_tableRow_addsAnEmptyRowBelow() {
-        assertThat(enter("| a |\n| --- |\n| b^ |")).isEqualTo("| a |\n| --- |\n| b |\n| ^ |")
+    fun enter_lastTableRow_addsAnEmptyRowBelow() {
+        assertThat(enter("| a |\n| --- |\n| b^ |")).isEqualTo("| a   |\n| --- |\n| b   |\n| ^    |")
+    }
+
+    @Test
+    fun enter_tableRowAboveTheLast_movesToTheSameColumnBelow() {
+        assertThat(enter("| a | b |\n| --- | --- |\n| 1 | 2^ |\n| 3 | 4 |"))
+            .isEqualTo("| a   | b   |\n| --- | --- |\n| 1   | 2   |\n| 3   | ^4   |")
     }
 
     @Test
     fun enter_emptyLastTableRow_endsTheTable() {
-        assertThat(enter("| a |\n| --- |\n| b |\n| ^ |")).isEqualTo("| a |\n| --- |\n| b |\n\n^\n")
+        assertThat(enter("| a |\n| --- |\n| b |\n| ^ |")).isEqualTo("| a   |\n| --- |\n| b   |\n\n^\n")
     }
 
     // Shift+Enter

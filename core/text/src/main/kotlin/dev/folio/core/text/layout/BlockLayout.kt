@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.Paragraph
 import androidx.compose.ui.text.font.FontFamily
 import dev.folio.core.text.markdown.CalloutType
+import dev.folio.core.text.markdown.TableAlign
 import dev.folio.core.text.math.MathLayout
 import androidx.compose.ui.graphics.Canvas as ComposeCanvas
 
@@ -37,6 +38,109 @@ sealed interface BlockDecoration {
         val sizePt: Float,
         val checked: Boolean,
     ) : BlockDecoration
+
+    /** Cell borders on the row rules and column edges, and the header tint, of [BlockLayout.table]. */
+    data object Table : BlockDecoration
+}
+
+/**
+ * The cells of a table block (07-text-engine.md#tables) in pt from the block's top-left. Row 0 is the header; row r
+ * spans lines [rowFirstLine] (r) until [rowFirstLine] (r + 1) of the block, and its cells are numbered
+ * r x [columns] + column ([cellIndex]). Each cell's text starts [paddingPt] inside its column with its baselines on
+ * the rules of its row.
+ */
+@Suppress("TooManyFunctions") // small geometry queries for painting, taps and the cell field
+class TableLayout internal constructor(
+    // Left edge of every column, then the right edge of the last one.
+    private val edgesPt: FloatArray,
+    // First line of every row, then the block's line count.
+    private val rowStarts: IntArray,
+    private val cells: Array<GridText>,
+    /** Horizontal padding between a column edge and its text. */
+    val paddingPt: Float,
+    /** Alignment of every column. */
+    val aligns: List<TableAlign>,
+    /** Font of the header row (bold); body cells use [BlockLayout.face]. */
+    val headerFace: BlockFace,
+) {
+    /** Number of columns (at least 1). */
+    val columns: Int get() = edgesPt.size - 1
+
+    /** Number of rows including the header. */
+    val rows: Int get() = rowStarts.size - 1
+
+    /** Left edge of [column]; [columns] gives the right edge of the table. */
+    fun columnLeftPt(column: Int): Float = edgesPt[column]
+
+    /** First line of [row]; [rows] gives the block's line count. */
+    fun rowFirstLine(row: Int): Int = rowStarts[row]
+
+    /** Number of lines of [row]: the most any of its cells wraps to. */
+    fun rowLineCount(row: Int): Int = rowStarts[row + 1] - rowStarts[row]
+
+    /** Index of the cell in [row] and [column]. */
+    fun cellIndex(
+        row: Int,
+        column: Int,
+    ): Int = row * columns + column
+
+    /** Row that shows block line [line] (clamped to the table). */
+    fun rowOfLine(line: Int): Int {
+        var row = 0
+        while (row < rows - 1 && rowStarts[row + 1] <= line) row++
+        return row
+    }
+
+    /** Column under [xPt] (from the block's left edge), clamped to the table. */
+    fun columnAt(xPt: Float): Int {
+        var column = 0
+        while (column < columns - 1 && edgesPt[column + 1] <= xPt) column++
+        return column
+    }
+
+    /** The text cell [index] lays out (its plain text). */
+    fun cellText(index: Int): String = cells[index].plain
+
+    /** Offset into [cellText] of the character nearest [xPt] (from the block's left edge) on block line [line]. */
+    fun cellOffsetAt(
+        index: Int,
+        xPt: Float,
+        line: Int,
+    ): Int {
+        val row = index / columns
+        return cells[index].offsetAt(xPt - textLeftPt(index), line - rowStarts[row])
+    }
+
+    /** Number of lines the text of cell [index] wraps to. */
+    fun cellLineCount(index: Int): Int = cells[index].lineCount
+
+    /** Baseline of line [line] of cell [index], from the top of the cell's row. */
+    fun cellBaselinePt(
+        index: Int,
+        line: Int,
+    ): Float = cells[index].baselinePt(line)
+
+    /** Left edge of the text of cell [index]. */
+    fun textLeftPt(index: Int): Float = edgesPt[index % columns] + paddingPt
+
+    /** Width of the text of cell [index]: its column less the padding on both sides. */
+    fun textWidthPt(index: Int): Float = edgesPt[index % columns + 1] - edgesPt[index % columns] - 2f * paddingPt
+
+    // HOT PATH: once per table and tile render.
+    internal fun draw(
+        target: TextCanvas,
+        leftPt: Float,
+        topPt: Float,
+        scale: Float,
+        color: Color,
+        lineHeightPt: Float,
+        hiddenCell: Int,
+    ) {
+        for (i in cells.indices) {
+            if (i == hiddenCell) continue
+            cells[i].draw(target, leftPt + textLeftPt(i), topPt + rowStarts[i / columns] * lineHeightPt, scale, color)
+        }
+    }
 }
 
 /**
@@ -94,6 +198,8 @@ class MathPlacement internal constructor(
     val leftPt: Float,
     val baselinePt: Float,
     val tall: Boolean,
+    /** Table cell the formula sits in ([TableLayout.cellIndex]), -1 outside tables. */
+    val cell: Int = -1,
 ) {
     val widthPt: Float get() = layout.box.widthPx * ptPerPx
     val ascentPt: Float get() = layout.box.ascentPx * ptPerPx
@@ -132,11 +238,15 @@ class MathPlacement internal constructor(
     }
 }
 
-/** LaTeX of [plainStart]..[plainEnd] of a block's plain text that did not parse, with the parser's [message]. */
+/**
+ * LaTeX of [plainStart]..[plainEnd] of a block's plain text that did not parse, with the parser's [message]. In a
+ * table the offsets are in the text of [cell] ([TableLayout.cellIndex]); -1 outside tables.
+ */
 data class MathError(
     val plainStart: Int,
     val plainEnd: Int,
     val message: String,
+    val cell: Int = -1,
 )
 
 /**
@@ -228,6 +338,8 @@ class BlockLayout internal constructor(
     val maths: List<MathPlacement> = emptyList(),
     /** LaTeX that did not parse; its source is shown in red monospace. */
     val mathErrors: List<MathError> = emptyList(),
+    /** The cells of a table block (which has no [plainText] of its own), null for other blocks. */
+    val table: TableLayout? = null,
 ) {
     /** Height in U: always lineCount x boxUnits. */
     val heightUnits: Int get() = lineCount * boxUnits
@@ -274,14 +386,18 @@ class BlockLayout internal constructor(
         color: Color = Color.Black,
     ) = draw(TextCanvas().bind(canvas), leftPt, topPt, scale, color, color.toArgb(), drawMath = true)
 
-    /** [draw] through a reusable [target] with a plain ARGB color: the page renderer's path (no Compose types needed). */
+    /**
+     * [draw] through a reusable [target] with a plain ARGB color: the page renderer's path (no Compose types needed).
+     * Table cell [hiddenCell] is left out (the live field draws it); -1 draws every cell.
+     */
     fun paint(
         target: TextCanvas,
         leftPt: Float,
         topPt: Float,
         scale: Float,
         argb: Int,
-    ) = draw(target, leftPt, topPt, scale, Color(argb), argb, drawMath = true)
+        hiddenCell: Int = -1,
+    ) = draw(target, leftPt, topPt, scale, Color(argb), argb, drawMath = true, hiddenCell)
 
     /** Text and marker only, without [maths] (the grid suite records text baselines alone). */
     internal fun drawText(
@@ -300,11 +416,16 @@ class BlockLayout internal constructor(
         color: Color,
         argb: Int,
         drawMath: Boolean,
+        hiddenCell: Int = -1,
     ) {
         text?.draw(target, leftPt + textLeftPt, topPt, scale, color)
         marker?.draw(target, leftPt + markerLeftPt, topPt, scale, color)
+        table?.draw(target, leftPt, topPt, scale, color, boxUnits * unitPt, hiddenCell)
         if (!drawMath || maths.isEmpty()) return
         val canvas = target.native()
-        for (i in maths.indices) maths[i].draw(canvas, leftPt, topPt, scale, argb, target.dots(argb))
+        for (i in maths.indices) {
+            val math = maths[i]
+            if (math.cell < 0 || math.cell != hiddenCell) math.draw(canvas, leftPt, topPt, scale, argb, target.dots(argb))
+        }
     }
 }

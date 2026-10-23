@@ -100,6 +100,19 @@ class FlowHitTest {
     }
 
     @Test
+    fun sourceOffsetAt_tableCell_landsInTheTappedCellText() {
+        val source = "| a | bb |\n| --- | --- |\n| one | two |"
+        val layout = layoutOf(source)
+        val table = checkNotNull(layout.layoutOf(0)?.table)
+        val secondColumn = bodyRect.left + table.columnLeftPt(1)
+
+        assertThat(offsetAt(layout, bodyRect.left + 1f, line = 1)).isEqualTo(source.indexOf("one"))
+        assertThat(offsetAt(layout, secondColumn - 1f, line = 1)).isEqualTo(source.indexOf("one") + 3)
+        assertThat(offsetAt(layout, secondColumn + 1f, line = 0)).isEqualTo(source.indexOf("bb"))
+        assertThat(offsetAt(layout, bodyRect.right - 1f, line = 1)).isEqualTo(source.indexOf("two") + 3)
+    }
+
+    @Test
     fun sourceOffsetAt_tapsMovingRight_neverMoveTheCaretLeft() {
         val layout = layoutOf("Hello **brave** new world")
         val offsets = (0..60).map { offsetAt(layout, bodyRect.left + it * (bodyRect.widthPt - 1f) / 60f) }

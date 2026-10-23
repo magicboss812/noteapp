@@ -63,6 +63,20 @@ class PageTextTest {
     }
 
     @Test
+    fun of_focusedTableCell_keepsTheTableRun_hidesOnlyThatCell_focusedBlockLeavesOut() {
+        val d = doc("Alpha\n\n| a | b |\n| --- | --- |\n| 1 | 2 |", body)
+        val layouts = PageTexts.layouts(d, layouter)
+        val table = checkNotNull(layouts[flowId]).markdown.blocks[1].id
+
+        val cellRuns = checkNotNull(PageTexts.of(d, layouts, FocusedBlock(flowId, table, cell = 3))[PageId("p1")]).runs
+        val blockRuns = checkNotNull(PageTexts.of(d, layouts, FocusedBlock(flowId, table))[PageId("p1")]).runs
+
+        assertThat(cellRuns).hasSize(2)
+        assertThat(cellRuns.map { it.hiddenCell }).containsExactly(-1, 3).inOrder()
+        assertThat(blockRuns).hasSize(1)
+    }
+
+    @Test
     fun runs_blockContinuedInAnotherFrame_startsMidBlockAtTheSlotTop() {
         val first = FlowFrame(ObjectId("a"), flowId, RectPt(100f, bodyRect.top, 300f, bodyRect.top + 2 * unitPt), 0, FrameRole.BOX, false)
         val secondTop = bodyRect.top + 6 * unitPt

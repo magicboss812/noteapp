@@ -52,11 +52,13 @@ class FlowLayout internal constructor(
     /**
      * Runs to paint for slot [frame] (07-text-engine.md#rendering): one per slice, positioned from the slot's top at
      * `topUnit` x U, minus the top of the slice's first line so a block continued from another frame starts mid-block.
-     * The slices of block [skipBlock] are left out (the focused block, which its live field draws).
+     * The slices of block [skipBlock] are left out (the focused block, which its live field draws); when it is a table
+     * and [skipCell] is a cell index, only that cell is left out of its runs.
      */
     fun runs(
         frame: Int,
         skipBlock: Int = NO_BLOCK,
+        skipCell: Int = NO_CELL,
     ): List<TextRun> {
         val slot = slots.getOrNull(frame) ?: return emptyList()
         val slices = slices(frame)
@@ -65,10 +67,23 @@ class FlowLayout internal constructor(
         val out = ArrayList<TextRun>(slices.size)
         for (slice in slices) {
             val layout = layouts[slice.blockIndex]
-            if (layout != null && slice.blockIndex != skipBlock) {
+            val skipped = slice.blockIndex == skipBlock
+            val hiddenCell = if (skipped && layout?.table != null) skipCell else NO_CELL
+            if (layout != null && (!skipped || hiddenCell != NO_CELL)) {
                 val first = firstLine(slice)
                 val top = slot.rect.top + slice.topUnit * slot.grid.unitPt - layout.lineTopPt(first)
-                out += TextRun(slot.frameId, layout, first, lineCount(slice), slot.rect.left, top, slot.rect.widthPt, codeBackground)
+                out +=
+                    TextRun(
+                        slot.frameId,
+                        layout,
+                        first,
+                        lineCount(slice),
+                        slot.rect.left,
+                        top,
+                        slot.rect.widthPt,
+                        codeBackground,
+                        hiddenCell,
+                    )
             }
         }
         return out
@@ -116,6 +131,9 @@ class FlowLayout internal constructor(
     companion object {
         /** [runs] argument for "skip nothing". */
         const val NO_BLOCK = -1
+
+        /** [runs] argument for "no table cell". */
+        const val NO_CELL = -1
     }
 }
 
@@ -181,7 +199,13 @@ class FlowLayouter(
 
         private const val TRACE_FLOW = "text:flow"
 
-        /** The block's distribution needs: headings stay whole and keep with the next block, math and rules stay whole. */
+        // Header and two body rows: the least a table needs to break (never right after the header).
+        private const val MIN_SPLIT_TABLE_ROWS = 3
+
+        /**
+         * The block's distribution needs: headings stay whole and keep with the next block, math and rules stay whole,
+         * tables split between body rows.
+         */
         fun itemOf(
             content: BlockContent,
             layout: BlockLayout,
@@ -195,8 +219,17 @@ class FlowLayouter(
                     FlowItem.whole(layout.heightUnits)
                 }
 
-                // Until P06-T08 a table is one text line per row (a wrapped row may split); T08 breaks between rows.
-                is BlockContent.Paragraph, is BlockContent.ListItem, is BlockContent.Quote, is BlockContent.Code, is BlockContent.Table -> {
+                // A table breaks between body rows only; the header stays with the first row.
+                is BlockContent.Table -> {
+                    val table = layout.table
+                    if (table == null || table.rows < MIN_SPLIT_TABLE_ROWS) {
+                        FlowItem.whole(layout.heightUnits)
+                    } else {
+                        FlowItem(layout.heightUnits, IntArray(table.rows - 2) { table.rowFirstLine(it + 2) * layout.boxUnits })
+                    }
+                }
+
+                is BlockContent.Paragraph, is BlockContent.ListItem, is BlockContent.Quote, is BlockContent.Code -> {
                     FlowItem.lines(layout.lineCount, layout.boxUnits)
                 }
             }

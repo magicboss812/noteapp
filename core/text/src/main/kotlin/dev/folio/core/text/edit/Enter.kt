@@ -13,10 +13,10 @@ internal object Enter {
         val index = doc.indexOf(caret.blockId)
         val block = doc.blocks[index]
         val offset = caret.offset.coerceIn(0, block.source.length)
-        return when (val content = block.content) {
+        return when (block.content) {
             is BlockContent.Code -> code(doc, index, offset)
             is BlockContent.Math -> math(doc, index, offset)
-            is BlockContent.Table -> table(doc, index, offset, content.header.size)
+            is BlockContent.Table -> TableEditing.enter(doc, caret) ?: split(doc, index, offset, 0)
             is BlockContent.ListItem -> ListEnter.apply(doc, index, offset) ?: split(doc, index, offset, 0)
             is BlockContent.Quote -> quote(doc, index, offset)
             is BlockContent.Paragraph -> paragraph(doc, index, offset)
@@ -91,29 +91,6 @@ internal object Enter {
         return rewrite(doc, index, text, text.length - lastRow.length + CELL_CARET)
     }
 
-    private fun table(
-        doc: MarkdownDocument,
-        index: Int,
-        offset: Int,
-        columns: Int,
-    ): EditResult {
-        val source = doc.blocks[index].source
-        val lines = source.split('\n')
-        val line = source.take(offset).count { it == '\n' }
-        val lastLine = lines.size - 1
-        val emptyLastRow = line == lastLine && lines.size > MIN_TABLE_LINES && BlockMarkers.cells(lines[lastLine]).all { it.isEmpty() }
-        if (emptyLastRow) {
-            // Enter on the empty row ends the table.
-            val kept = lines.dropLast(1).joinToString("\n")
-            return appendEmpty(doc, index, "$kept\n\n", kept.length + 2)
-        }
-        // Enter anywhere else adds a row below the current one (below the delimiter when in the header).
-        val after = maxOf(line, 1)
-        val insertAt = lines.take(after + 1).sumOf { it.length + 1 } - 1
-        val row = BlockMarkers.emptyRow(columns)
-        return rewrite(doc, index, source.substring(0, insertAt) + "\n" + row + source.substring(insertAt), insertAt + 1 + CELL_CARET)
-    }
-
     private fun code(
         doc: MarkdownDocument,
         index: Int,
@@ -181,5 +158,4 @@ internal object Enter {
 
     /** The caret in a fresh table row: after the first cell's leading space. */
     private const val CELL_CARET = 2
-    private const val MIN_TABLE_LINES = 2
 }

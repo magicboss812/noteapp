@@ -2,6 +2,8 @@ package dev.folio.core.text.flow
 
 import dev.folio.core.model.PageId
 import dev.folio.core.text.edit.SourceOffsets
+import dev.folio.core.text.edit.TableCell
+import dev.folio.core.text.edit.TableEditing
 
 /** The block under a point: [slot] of the layout, the block's [blockIndex], the [line] of that block, [pastEnd] below the last block. */
 data class BlockHit(
@@ -72,7 +74,17 @@ fun FlowLayout.sourceOffsetAt(
     val block = markdown.blocks.getOrNull(hit.blockIndex) ?: return 0
     val layout = layoutOf(hit.blockIndex)
     val visible = SourceOffsets.visibleText(block.content)
-    return if (layout == null || visible == null || hit.pastEnd) {
+    val table = layout?.table
+    return if (table != null && !hit.pastEnd) {
+        // A table: the cell under the tap, then the character in its text.
+        val x = xPt - slots[hit.slot].rect.left
+        val row = table.rowOfLine(hit.line)
+        val column = table.columnAt(x)
+        val index = table.cellIndex(row, column)
+        val span = TableEditing.spanOf(block.source, TableCell(row, column))
+        val plain = table.cellOffsetAt(index, x, hit.line)
+        SourceOffsets.fromCellPlain(block.source, span.start, span.end, table.cellText(index), plain)
+    } else if (layout == null || visible == null || hit.pastEnd) {
         block.source.length
     } else {
         // A callout lays out its title and a line break before the text.

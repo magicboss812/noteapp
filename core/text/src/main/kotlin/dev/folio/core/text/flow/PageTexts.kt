@@ -7,11 +7,15 @@ import dev.folio.core.model.PageId
 import dev.folio.core.model.TextFlow
 import dev.folio.core.text.markdown.MarkdownDocument
 
-/** The block a live text field draws (07-text-engine.md#editing): its runs are left out of the page text. */
+/**
+ * The block a live text field draws (07-text-engine.md#editing): its runs are left out of the page text, or in a
+ * table only its [cell] ([dev.folio.core.text.layout.TableLayout.cellIndex]; -1 leaves the whole block out).
+ */
 data class FocusedBlock(
     val flowId: FlowId,
     /** [dev.folio.core.text.markdown.MarkdownBlock.id] in the document the layouts were made from. */
     val blockId: Long,
+    val cell: Int = FlowLayout.NO_CELL,
 )
 
 /**
@@ -55,10 +59,11 @@ object PageTexts {
         val runs = LinkedHashMap<PageId, MutableList<TextRun>>()
         for ((flowId, layout) in layouts) {
             val skip = if (focused?.flowId == flowId) layout.markdown.indexOf(focused.blockId) else FlowLayout.NO_BLOCK
+            val cell = focused?.cell ?: FlowLayout.NO_CELL
             for (i in layout.slots.indices) {
                 val slot = layout.slots[i]
                 val isFrame = doc.page(slot.pageId)?.objects?.firstOrNull { it.id == slot.frameId } is FlowFrame
-                if (isFrame) runs.getOrPut(slot.pageId) { ArrayList() } += layout.runs(i, skip)
+                if (isFrame) runs.getOrPut(slot.pageId) { ArrayList() } += layout.runs(i, skip, cell)
             }
         }
         return runs.mapValues { (_, list) -> PageText.of(list) }

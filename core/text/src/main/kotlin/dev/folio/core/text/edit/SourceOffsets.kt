@@ -25,6 +25,27 @@ object SourceOffsets {
         return if (found < 0) fallback(block, offset) else found
     }
 
+    /**
+     * Offset into the table [source] of the caret before character [plainOffset] of a cell's visible text [plain],
+     * the cell's Markdown being `source[start, end)`; the end of the cell at or past the end of its text.
+     */
+    fun fromCellPlain(
+        source: String,
+        start: Int,
+        end: Int,
+        plain: String,
+        plainOffset: Int,
+    ): Int {
+        if (plainOffset >= plain.length) return end
+        var at = start
+        for (i in 0..plainOffset.coerceAtLeast(0)) {
+            val found = find(source, at, plain[i])
+            if (found < 0 || found >= end) return (start + plainOffset).coerceAtMost(end)
+            at = if (i == plainOffset) found else found + 1
+        }
+        return at
+    }
+
     // Walks the source in step with the visible text; -1 when the text is not a subsequence of the source.
     private fun locate(
         block: MarkdownBlock,

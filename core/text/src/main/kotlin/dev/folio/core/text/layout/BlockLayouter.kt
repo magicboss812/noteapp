@@ -2,6 +2,7 @@ package dev.folio.core.text.layout
 
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Paragraph
+import androidx.compose.ui.text.ParagraphIntrinsics
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.SpanStyle
@@ -18,6 +19,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
 import dev.folio.core.common.Outcome
 import dev.folio.core.common.PerfMonitor
+import dev.folio.core.text.fonts.DerivedSize
 import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.fonts.FontRegistry
 import dev.folio.core.text.fonts.TextFontFamily
@@ -29,6 +31,7 @@ import dev.folio.core.text.markdown.InlineText
 import dev.folio.core.text.markdown.ListKind
 import dev.folio.core.text.markdown.MarkdownBlock
 import dev.folio.core.text.markdown.SpanKind
+import dev.folio.core.text.markdown.TableAlign
 import dev.folio.core.text.math.MathRenderer
 import kotlin.math.ceil
 import kotlin.math.max
@@ -43,9 +46,10 @@ import kotlin.math.roundToInt
  * first out. Thread-safe.
  *
  * Alignment: CENTER applies to paragraphs and headings, JUSTIFIED to paragraphs; other blocks
- * start-align. Tables are laid out as source text until P06-T08. Formulas go through [math]
+ * start-align; table columns take their own alignment. Formulas go through [math]
  * (07-text-engine.md#math); without a renderer inline math is italic source and math blocks are code.
  */
+@Suppress("TooManyFunctions") // one builder per block kind plus the shared grid text steps
 class BlockLayouter(
     private val resolver: FontFamily.Resolver,
     private val metrics: FontMetricsCache,
@@ -363,16 +367,113 @@ class BlockLayouter(
         )
     }
 
+    /** A table cell measured but not yet broken into lines: its text, the formulas shown in it and those that failed. */
+    private class TableCellText(
+        val intrinsics: ParagraphIntrinsics,
+        val plain: String,
+        val shown: List<InlineFormula>,
+        val failed: List<InlineFormula>,
+    )
+
+    /**
+     * Table (07-text-engine.md#tables): columns share the width in proportion to their unwrapped content (at least
+     * [TableColumns.MIN_COLUMN_PT] each), every row is as many body lines as its tallest cell, the header is bold.
+     */
     private fun table(
         g: Geometry,
         style: FlowTextStyle,
         family: TextFontFamily,
         table: BlockContent.Table,
     ): BlockLayout {
-        val header = table.header.joinToString(CELL_SEPARATOR) { it.plain }
-        if (table.rows.isEmpty()) return textBlock(g, style, family, TextRole.BODY, InlineText(header), TextAlign.Start)
-        val body = table.rows.joinToString("\n") { row -> row.joinToString(CELL_SEPARATOR) { it.plain } }
-        return textBlock(g, style, family, TextRole.BODY, InlineText(body), TextAlign.Start, prefix = header)
+        val size = TextSizing.derive(metrics, family, TextRole.BODY, style.bodyCap, g.unitPt)
+        val columns = max(1, table.header.size)
+        val aligns = List(columns) { table.aligns.getOrNull(it) ?: TableAlign.NONE }
+        val rows = listOf(table.header) + table.rows
+        val cells = tableCells(rows, aligns, size, g, style, family)
+        val paddingPt = CELL_PAD_UNITS * g.unitPt
+        // Widest word and unwrapped width of every column, padding included.
+        val least = FloatArray(columns)
+        val natural = FloatArray(columns)
+        for ((i, cell) in cells.withIndex()) {
+            val c = i % columns
+            least[c] = max(least[c], ceil(cell.intrinsics.minIntrinsicWidth) / g.refScale + 2f * paddingPt)
+            natural[c] = max(natural[c], ceil(cell.intrinsics.maxIntrinsicWidth) / g.refScale + 2f * paddingPt)
+        }
+        // Grid templates (indent step = U) put the column borders on grid lines.
+        val snap = if (g.grid.indentStepPt == g.unitPt) g.unitPt else 0f
+        val edges = TableColumns.edges(TableColumns.widths(least, natural, g.widthPt), snap)
+        val texts =
+            Array(cells.size) { i ->
+                val c = i % columns
+                gridText(cells[i].intrinsics, cells[i].plain, size.boxUnits, g, edges[c + 1] - edges[c] - 2f * paddingPt)
+            }
+        val rowStarts = IntArray(rows.size + 1)
+        for (r in rows.indices) {
+            var lines = 1
+            for (c in 0 until columns) lines = max(lines, texts[r * columns + c].lineCount)
+            rowStarts[r + 1] = rowStarts[r] + lines
+        }
+        val lineHeightPt = size.boxUnits * g.unitPt
+        val maths = ArrayList<MathPlacement>()
+        val errors = ArrayList<MathError>()
+        for ((i, cell) in cells.withIndex()) {
+            val left = edges[i % columns] + paddingPt
+            val top = rowStarts[i / columns] * lineHeightPt
+            for ((p, f) in cell.shown.withIndex()) {
+                val rect = texts[i].placeholderPt(p) ?: continue
+                maths += MathPlacement(checkNotNull(f.layout), f.scale / g.refScale, left + rect.left, top + rect.bottom, f.tall, cell = i)
+            }
+            for (f in cell.failed) errors += MathError(f.span.plainStart, f.span.plainEnd, checkNotNull(f.error), cell = i)
+        }
+        val geometry = TableLayout(edges, rowStarts, texts, paddingPt, aligns, BlockFace(family.fontFamily, bold = true))
+        return BlockLayout(
+            text = null,
+            marker = null,
+            unitPt = g.unitPt,
+            boxUnits = size.boxUnits,
+            lineCount = rowStarts[rows.size],
+            textLeftPt = 0f,
+            markerLeftPt = 0f,
+            fontSizePt = size.fontSizePt,
+            decoration = BlockDecoration.Table,
+            face = BlockFace(family.fontFamily, bold = false),
+            maths = maths,
+            mathErrors = errors,
+            table = geometry,
+        )
+    }
+
+    // Every cell of [rows] measured unwrapped, row by row, each row [aligns] long (missing cells empty).
+    private fun tableCells(
+        rows: List<List<InlineText>>,
+        aligns: List<TableAlign>,
+        size: DerivedSize,
+        g: Geometry,
+        style: FlowTextStyle,
+        family: TextFontFamily,
+    ): List<TableCellText> {
+        val boxPx = (size.boxUnits * g.pitchPx).toFloat()
+        return rows.flatMapIndexed { r, row ->
+            List(aligns.size) { c ->
+                val inline = row.getOrNull(c) ?: InlineText("")
+                val formulas = formulas?.inline(inline, size.fontSizePt * g.refScale, boxPx).orEmpty()
+                val spans = spanStyles(inline, 0, size.capFraction, g, style, family, formulas)
+                val shown = formulas.filter { it.layout != null }
+                val intrinsics =
+                    intrinsics(
+                        inline.plain,
+                        spans,
+                        family,
+                        bold = r == 0,
+                        size.fontSizePt,
+                        size.boxUnits,
+                        g,
+                        cellAlign(aligns[c]),
+                        shown.map { it.placeholder(0) },
+                    )
+                TableCellText(intrinsics, inline.plain, shown, formulas.filter { it.error != null })
+            }
+        }
     }
 
     private fun gridText(
@@ -386,7 +487,26 @@ class BlockLayouter(
         widthPt: Float,
         textAlign: TextAlign,
         placeholders: List<AnnotatedString.Range<Placeholder>> = emptyList(),
-    ): GridText {
+    ): GridText =
+        gridText(
+            intrinsics(plain, spans, family, bold, fontSizePt, boxUnits, g, textAlign, placeholders),
+            plain,
+            boxUnits,
+            g,
+            widthPt,
+        )
+
+    private fun intrinsics(
+        plain: String,
+        spans: List<AnnotatedString.Range<SpanStyle>>,
+        family: TextFontFamily,
+        bold: Boolean,
+        fontSizePt: Float,
+        boxUnits: Int,
+        g: Geometry,
+        textAlign: TextAlign,
+        placeholders: List<AnnotatedString.Range<Placeholder>>,
+    ): ParagraphIntrinsics {
         // Line height is a whole px count: Compose rounds line heights up, so a fraction would drift per line (A-006).
         val lineHeightPx = (boxUnits * g.pitchPx).toFloat()
         val style =
@@ -400,16 +520,25 @@ class BlockLayouter(
                 textMotion = TextMotion.Animated, // linear, subpixel metrics: line breaks never change with zoom
                 platformStyle = PlatformTextStyle(includeFontPadding = false),
             )
-        val paragraph =
-            Paragraph(
-                text = plain,
-                style = style,
-                constraints = Constraints(maxWidth = max(1, ceil(widthPt * g.refScale).toInt())),
-                density = UNIT_DENSITY,
-                fontFamilyResolver = resolver,
-                spanStyles = spans,
-                placeholders = placeholders,
-            )
+        return ParagraphIntrinsics(
+            text = plain,
+            style = style,
+            spanStyles = spans,
+            placeholders = placeholders,
+            density = UNIT_DENSITY,
+            fontFamilyResolver = resolver,
+        )
+    }
+
+    private fun gridText(
+        intrinsics: ParagraphIntrinsics,
+        plain: String,
+        boxUnits: Int,
+        g: Geometry,
+        widthPt: Float,
+    ): GridText {
+        val lineHeightPx = (boxUnits * g.pitchPx).toFloat()
+        val paragraph = Paragraph(intrinsics, Constraints(maxWidth = max(1, ceil(widthPt * g.refScale).toInt())))
         return GridText(paragraph, plain, g.refScale, lineHeightPx - paragraph.getLineBaseline(0))
     }
 
@@ -465,7 +594,7 @@ class BlockLayouter(
         private const val QUOTE_BAR_LEFT = 0.25f
         private const val QUOTE_BAR_UNITS = 0.12f
         private const val CODE_INSET_UNITS = 0.5f
-        private const val CELL_SEPARATOR = "  |  "
+        private const val CELL_PAD_UNITS = 0.4f
 
         // Block math (07-text-engine.md#math): 1.15 x body size, fit to the width down to 0.6, half a line of air around it.
         private const val BLOCK_MATH_SIZE = 1.15f
@@ -529,5 +658,12 @@ class BlockLayouter(
             }
 
         private fun calloutTitle(type: CalloutType): String = type.name.lowercase().replaceFirstChar { it.uppercase() }
+
+        private fun cellAlign(align: TableAlign): TextAlign =
+            when (align) {
+                TableAlign.NONE, TableAlign.LEFT -> TextAlign.Start
+                TableAlign.CENTER -> TextAlign.Center
+                TableAlign.RIGHT -> TextAlign.End
+            }
     }
 }

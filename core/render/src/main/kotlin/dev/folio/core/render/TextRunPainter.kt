@@ -9,6 +9,7 @@ import androidx.annotation.WorkerThread
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.text.flow.TextRun
 import dev.folio.core.text.layout.BlockDecoration
+import dev.folio.core.text.layout.TableLayout
 import dev.folio.core.text.layout.TextCanvas
 import dev.folio.core.text.markdown.CalloutType
 import kotlin.math.max
@@ -16,7 +17,7 @@ import kotlin.math.min
 
 /**
  * Paints the text runs of a frame from cached block layouts (07-text-engine.md#rendering): block decorations (quote
- * and callout bars, code backgrounds, rules, task checkboxes) first, then the text and list marker. The canvas maps
+ * and callout bars, code backgrounds, rules, task checkboxes, table borders) first, then the text and list marker. The canvas maps
  * page pt to px. Not thread-safe: one per [PageRenderer].
  */
 internal class TextRunPainter {
@@ -27,7 +28,10 @@ internal class TextRunPainter {
     private val rect = RectF()
     private val path = Path()
 
-    /** Paints the runs of [runs] that reach [regionPt]; [scale] px per pt (only used for hairline widths). */
+    /**
+     * Paints the runs of [runs] that reach [regionPt]; [scale] px per pt (only used for hairline widths). Table borders
+     * are [borderArgb] (the template line color darkened by 20%).
+     */
     @WorkerThread
     fun draw(
         canvas: Canvas,
@@ -35,6 +39,7 @@ internal class TextRunPainter {
         regionPt: RectPt,
         scale: Float,
         textArgb: Int,
+        borderArgb: Int,
     ) {
         // HOT PATH: runs once per frame and tile render on a render thread; no allocation per run.
         if (runs.isEmpty()) return
@@ -42,7 +47,7 @@ internal class TextRunPainter {
         for (i in runs.indices) {
             val run = runs[i]
             if (!run.bounds.intersects(regionPt)) continue
-            decorate(canvas, run, scale, textArgb)
+            decorate(canvas, run, scale, textArgb, borderArgb)
             // A block continued in another frame shows only its own line boxes; the rest of the paragraph is clipped away.
             val clipped = run.partial
             if (clipped) {
@@ -50,7 +55,7 @@ internal class TextRunPainter {
                 val overhang = run.overhangPt
                 canvas.clipRect(run.leftPt - overhang, run.sliceTopPt, run.leftPt + run.widthPt + overhang, run.sliceBottomPt + overhang)
             }
-            run.layout.paint(target, run.leftPt, run.topPt, 1f, textArgb)
+            run.layout.paint(target, run.leftPt, run.topPt, 1f, textArgb, run.hiddenCell)
             if (clipped) canvas.restore()
         }
     }
@@ -63,6 +68,7 @@ internal class TextRunPainter {
         run: TextRun,
         scale: Float,
         textArgb: Int,
+        borderArgb: Int,
     ) {
         val layout = run.layout
         val unit = layout.unitPt
@@ -97,6 +103,43 @@ internal class TextRunPainter {
             is BlockDecoration.Checkbox -> {
                 if (run.firstLine == 0) checkbox(canvas, run.leftPt + d.leftPt, run.topPt + d.topPt, d, scale, textArgb)
             }
+
+            BlockDecoration.Table -> {
+                layout.table?.let { table(canvas, run, it, scale, textArgb, borderArgb) }
+            }
+        }
+    }
+
+    // The header tint, a border on the rule above every row shown and below the last, and the column edges over them.
+    private fun table(
+        canvas: Canvas,
+        run: TextRun,
+        table: TableLayout,
+        scale: Float,
+        textArgb: Int,
+        borderArgb: Int,
+    ) {
+        val layout = run.layout
+        val left = run.leftPt
+        val right = run.leftPt + table.columnLeftPt(table.columns)
+        if (run.firstLine == 0) {
+            fill.color = (textArgb and RGB_MASK) or HEADER_TINT_ALPHA
+            rect.set(left, run.topPt, right, run.topPt + layout.lineTopPt(table.rowFirstLine(1)))
+            canvas.drawRect(rect, fill)
+        }
+        line.color = borderArgb
+        line.strokeWidth = max(RULE_PT, 1f / scale)
+        line.strokeCap = Paint.Cap.SQUARE
+        val last = run.firstLine + run.lineCount
+        for (r in 0..table.rows) {
+            val rowLine = table.rowFirstLine(r)
+            if (rowLine < run.firstLine || rowLine > last) continue
+            val y = run.topPt + layout.lineTopPt(rowLine)
+            canvas.drawLine(left, y, right, y, line)
+        }
+        for (c in 0..table.columns) {
+            val x = run.leftPt + table.columnLeftPt(c)
+            canvas.drawLine(x, run.sliceTopPt, x, run.sliceBottomPt, line)
         }
     }
 
@@ -176,6 +219,8 @@ internal class TextRunPainter {
         const val MUTED_ARGB = 0xFF8E96A3.toInt()
         const val ACCENT_ARGB = 0xFF2F6FDE.toInt()
         const val WHITE_ARGB = 0xFFFFFFFF.toInt()
+        const val RGB_MASK = 0x00FFFFFF
+        const val HEADER_TINT_ALPHA = 0x0A shl 24 // 4%
 
         fun barArgb(type: CalloutType?): Int =
             when (type) {

@@ -17,6 +17,7 @@ import dev.folio.core.model.TemplateKind
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.render.template.TemplateAssets
 import dev.folio.core.render.template.TemplateRenderer
+import dev.folio.core.render.template.darken
 
 /** What [PageRenderer.draw] paints (05-canvas-rendering.md#page-renderer). */
 enum class RenderTarget(
@@ -77,7 +78,8 @@ class PageRenderer(
         }
         if (target.content && content != null) {
             try {
-                drawObjects(canvas, content, regionPt, scale, textArgb(page.background.paperArgb))
+                val borderArgb = darken(page.background.template.lineArgb, TABLE_BORDER_DARKEN)
+                drawObjects(canvas, content, regionPt, scale, textArgb(page.background.paperArgb), borderArgb)
             } finally {
                 text.release()
             }
@@ -101,13 +103,14 @@ class PageRenderer(
         regionPt: RectPt,
         scale: Float,
         textArgb: Int,
+        borderArgb: Int,
     ) {
         for (i in content.objectsIn(regionPt)) {
             when (val o = content[i]) {
                 is InkStroke -> ink.draw(canvas, o, content, i, toDevice)
 
                 // Unfocused text is painted at its frame's place in the z-order from the cached block layouts (P06-T05).
-                is FlowFrame -> text.draw(canvas, content.text.runsOf(o.id), regionPt, scale, textArgb)
+                is FlowFrame -> text.draw(canvas, content.text.runsOf(o.id), regionPt, scale, textArgb, borderArgb)
 
                 // Painters for these arrive with their features (P07); a sticky note paints its own flow there.
                 is Shape, is ImageObject, is StickyNote, is Attachment -> Unit
@@ -124,6 +127,7 @@ class PageRenderer(
         }
 
         private const val DARK_PAPER_LUMA = 110f
+        private const val TABLE_BORDER_DARKEN = 0.2f // 07-text-engine.md#tables
         private const val DARK_TEXT_ARGB = 0xFF1B1D22.toInt()
         private const val LIGHT_TEXT_ARGB = 0xFFE6E6EA.toInt()
 
