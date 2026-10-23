@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-/** One document in the placeholder list. */
+/** One document in the library lists. */
 @Immutable
 data class LibraryDocItem(
     /** Library-relative path; opens the editor. */
@@ -41,6 +41,9 @@ data class LibraryDocItem(
     /** Containing folder ("" = root). */
     val folder: String,
     val pageCount: Int,
+    val modifiedMs: Long = 0L,
+    val createdMs: Long = 0L,
+    val favorite: Boolean = false,
 )
 
 /**
@@ -63,7 +66,11 @@ class LibraryEntryViewModel
     ) : ViewModel() {
         private val mutableState = MutableStateFlow<LibraryAccessState>(LibraryAccessState.Checking)
         private val mutableDocuments = MutableStateFlow<ImmutableList<LibraryDocItem>>(persistentListOf())
+        private val mutableFolders = MutableStateFlow<ImmutableList<LibraryFolderItem>>(persistentListOf())
         private var listing: Job? = null
+
+        /** Folders for the sidebar tree; empty until the library is ready. */
+        val folders: StateFlow<ImmutableList<LibraryFolderItem>> = mutableFolders.asStateFlow()
 
         /** Current access state. */
         val state: StateFlow<LibraryAccessState> = mutableState.asStateFlow()
@@ -92,7 +99,10 @@ class LibraryEntryViewModel
                 mutableState.value = checked
                 if (checked is LibraryAccessState.Ready) {
                     scanner.get().incrementalScan()
-                    if (listing == null) listing = launch { allDocuments().collect { mutableDocuments.value = it } }
+                    if (listing == null) {
+                        listing = launch { allDocuments().collect { mutableDocuments.value = it } }
+                        launch { library.get().folderTree().collect { mutableFolders.value = folderItems(it.map { f -> f.path }) } }
+                    }
                 }
             }
         }
@@ -111,7 +121,7 @@ class LibraryEntryViewModel
             }
         }
 
-        private fun DocumentRow.toItem() = LibraryDocItem(path, title, folderPath, pageCount)
+        private fun DocumentRow.toItem() = LibraryDocItem(path, title, folderPath, pageCount, modifiedMs, createdMs, favorite)
 
         private companion object {
             const val ROOT = ""

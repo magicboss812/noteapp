@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P05
-next: P05-T01
+next: P05-T02
 updated: 2026-10-23
 
 ## Completed
@@ -12,7 +12,7 @@ updated: 2026-10-23
 - P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 PASS 2026-10-23 (T09 after fix: CanvasHost collectors on the main dispatcher); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green.
 
 ## Current phase progress
-- P05: (none yet)
+- P05: T01
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -28,11 +28,11 @@ updated: 2026-10-23
 - D-002 P01-T08: spike route spike-fonts + core:text spike/ (remove in P06-T03; spike-ink/spike-stylus went in P03-T09); USER-CHECKs answered (A-008).
 - D-004 P01-REVIEW: `GridParagraph.draw` allocates a Compose canvas wrapper per call; cache it or mark HOT PATH before P06-T05 paints text into tiles.
 - D-006 P01-S3 (user feedback): decide BACKLOG B-12 (free font size tied to the rules, top/middle/bottom placement in the line box) in P06-T02 before building size styles.
-- D-007 P02-REVIEW: repositories do not refuse open documents (favorite/rename/move/delete of an open doc); add an open-documents check with a typed error in P05-T01.
+- D-007 P02-REVIEW: repositories do not refuse open documents (favorite/rename/move/delete of an open doc); add an open-documents check with a typed error -> P05-T02 (first menu actions that call these).
 - D-014 P03-T09: tilt shading has no off switch (A-025): dry rendering applies tilt whenever stored inputs carry tilt; the P11-T01 setting needs a stored per-stroke choice (or dropping tilt at commit) so wet and dry ink agree.
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P04 closed: REVIEW fixes in dd40694, intake in a6fd75d, full qa green, tag p04-done.
-- Next: P05-T01 (D-007 open-documents check belongs to it). 2026-10-23 device session: P02-T06 confirmed by you; P04-T05..T09 device checks PASS (T09 needed a main-thread fix in CanvasHost, see docs/notes/gotchas.md).
-- FEEDBACK.md turns into tasks at every REVIEW. `FolioIcons.kt` is generated (A-027): `./gradlew :tools:icongen:run`.
+- P05-T01 done: library home (sidebar/rail/drawer, greeting, tabs, sort, grid/list, select toggle, New menu) in feature/library; cards are plain NoteCard (title + timestamp) until T02.
+- Wired later: folder pills (T03), search button (T05), settings gear + `profile.name` greeting key (P11 settings), Tags/Bin tabs show empty text (T04/T06), New menu Folder/Import entries are disabled (T03, P08).
+- Next: P05-T02 (now also owns D-007). FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).

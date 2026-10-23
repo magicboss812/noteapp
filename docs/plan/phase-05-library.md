@@ -16,8 +16,9 @@ Verify: `./gradlew :feature:library:verifyRoborazziDebug`
 Model: sonnet high
 Implements: R-ORG-04
 Read: 11-design-system.md#cards
-Do: NoteCard (meta line, title, preview = cover thumbnail or text excerpt, overflow menu: rename, move, duplicate, favorite, tags, export, delete), FolderCard (tint, stacked sheets, count), multi-select with batch move/delete/favorite. The cover is the stored `thumbs/` cover written by `ThumbnailGenerator` (D-028). FolderCard: the back sheet currently overlaps the folder name (P04 nit); fix it.
+Do: NoteCard (meta line, title, preview = cover thumbnail or text excerpt, overflow menu: rename, move, duplicate, favorite, tags, export, delete), FolderCard (tint, stacked sheets, count), multi-select with batch move/delete/favorite. The cover is the stored `thumbs/` cover written by `ThumbnailGenerator` (D-028). FolderCard: the back sheet currently overlaps the folder name (P04 nit); fix it. D-007: the repositories refuse favorite/rename/move/delete of an open document with a typed error (open-documents check); the menu actions show it as a snackbar.
 Accept:
+- [ ] unit: favorite/rename/move/delete of an open document returns the typed error and leaves file and index untouched
 - [ ] screenshot: grid with mixed cards (cover from stored thumb; folder name not overlapped by the back sheet); selection mode
 - [ ] unit: preview choice logic
 Verify: module tests + screenshots

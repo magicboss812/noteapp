@@ -55,35 +55,6 @@ class LibraryEntryScreenshotTest {
     }
 
     @Test
-    fun entry_ready_showsLibraryPlaceholder() {
-        compose.setContent {
-            FolioTheme(darkTheme = true) {
-                LibraryEntryScreen(LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio-Debug"), onGrantAccess = {})
-            }
-        }
-        compose.onRoot().captureRoboImage("src/test/screenshots/LibraryEntry_ready.png")
-    }
-
-    @Test
-    fun entry_readyWithDocuments_listsThem() {
-        val docs =
-            persistentListOf(
-                LibraryDocItem("perf/lined-5.folio", "lined-5", "perf", 5),
-                LibraryDocItem("Lecture notes.folio", "Lecture notes", "", 1),
-            )
-        compose.setContent {
-            FolioTheme(darkTheme = false) {
-                LibraryEntryScreen(
-                    LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio-Debug"),
-                    onGrantAccess = {},
-                    documents = docs,
-                )
-            }
-        }
-        compose.onRoot().captureRoboImage("src/test/screenshots/LibraryEntry_readyDocuments.png")
-    }
-
-    @Test
     fun entry_afterRecovery_showsRecoverySnackbar() {
         val notice = recoveryNotice(listOf(RecoveryEvent.Recovered(DocId("a"), "Lecture notes.folio")))!!
         compose.mainClock.autoAdvance = false
@@ -96,7 +67,10 @@ class LibraryEntryScreenshotTest {
                     LibraryEntryScreen(
                         LibraryAccessState.Ready("/storage/emulated/0/Documents/Folio-Debug"),
                         onGrantAccess = {},
-                        documents = persistentListOf(LibraryDocItem("Lecture notes.folio", "Lecture notes", "", 1)),
+                        content =
+                            LibraryContent(
+                                documents = persistentListOf(LibraryDocItem("Lecture notes.folio", "Lecture notes", "", 1)),
+                            ),
                     )
                     FolioSnackbarHost(snackbars, Modifier.align(Alignment.BottomCenter).padding(FolioTheme.space.s16))
                 }

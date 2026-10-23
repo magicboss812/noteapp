@@ -5,25 +5,20 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -43,20 +38,24 @@ import dev.folio.core.designsystem.component.FolioButton
 import dev.folio.core.designsystem.component.FolioSnackbarHost
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.storage.library.LibraryAccessState
+import dev.folio.core.storage.repo.DocumentSort
+import dev.folio.feature.library.state.LibraryBrowseState
+import dev.folio.feature.library.state.LibraryBrowseViewModel
 import dev.folio.feature.library.state.LibraryDocItem
 import dev.folio.feature.library.state.LibraryEntryViewModel
+import dev.folio.feature.library.state.LibraryFolderItem
+import dev.folio.feature.library.state.LibraryTab
 import dev.folio.feature.library.state.NewNoteState
 import dev.folio.feature.library.state.NewNoteViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import java.time.ZoneId
+import java.time.ZoneOffset
 
-// Placeholder layout until the library screens (P05): one centered column on the library background.
 private val CONTENT_MAX_WIDTH = 560.dp
-private val ROW_MIN_HEIGHT = 56.dp
 
 // The library gradient reaches its last stop this far down (DESIGN.md bg.library, light top band).
 private val LIBRARY_BAND = 220.dp
-private const val HEADER_KEY = "header"
 
 // The new-note sheet is wider where the template gallery fits (tablet landscape).
 private val NEW_NOTE_WIDE = 640.dp
@@ -64,7 +63,7 @@ private val NEW_NOTE_NARROW = 520.dp
 private const val WIDE_SHEET_MIN_DP = 900
 
 /**
- * Library entry: onboarding while all-files access is missing, else the library (placeholder until P05);
+ * Library entry: onboarding while all-files access is missing, else the library home;
  * [onOpenDocument] opens a document by library path.
  */
 @Composable
@@ -72,11 +71,31 @@ fun LibraryEntryRoute(
     onOpenDocument: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LibraryEntryViewModel = hiltViewModel(),
+    browseViewModel: LibraryBrowseViewModel = hiltViewModel(),
     newNoteViewModel: NewNoteViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle()
+    val folders by viewModel.folders.collectAsStateWithLifecycle()
+    val browse by browseViewModel.state.collectAsStateWithLifecycle()
     val newNote by newNoteViewModel.state.collectAsStateWithLifecycle()
+    // Re-read when the list changes, so the date line and the card timestamps follow the clock.
+    val content =
+        remember(browse, documents, folders) {
+            LibraryContent(browse, documents, folders, browseViewModel.nowMs(), ZoneId.systemDefault())
+        }
+    val actions =
+        remember(browseViewModel, onOpenDocument, newNoteViewModel) {
+            LibraryActions(
+                onSelectTab = browseViewModel::selectTab,
+                onSetSort = browseViewModel::setSort,
+                onToggleViewMode = browseViewModel::toggleViewMode,
+                onToggleSelectMode = browseViewModel::toggleSelectMode,
+                onToggleSidebar = browseViewModel::toggleSidebar,
+                onOpenDocument = onOpenDocument,
+                onNewNote = newNoteViewModel::show,
+            )
+        }
     val context = LocalContext.current
     val notice by viewModel.recoveryNotice.collectAsStateWithLifecycle()
     val snackbars = remember { SnackbarHostState() }
@@ -98,9 +117,8 @@ fun LibraryEntryRoute(
                 val uri = Uri.parse("package:${context.packageName}")
                 context.startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, uri))
             },
-            documents = documents,
-            onOpenDocument = onOpenDocument,
-            onNewNote = newNoteViewModel::show,
+            content = content,
+            actions = actions,
         )
         FolioSnackbarHost(
             snackbars,
@@ -121,15 +139,36 @@ fun LibraryEntryRoute(
     }
 }
 
+/** Everything the library home shows besides the access state; the defaults draw an empty library. */
+@Immutable
+data class LibraryContent(
+    val browse: LibraryBrowseState = LibraryBrowseState(),
+    val documents: ImmutableList<LibraryDocItem> = persistentListOf(),
+    val folders: ImmutableList<LibraryFolderItem> = persistentListOf(),
+    val nowMs: Long = 0L,
+    val zone: ZoneId = ZoneOffset.UTC,
+)
+
+/** What the library home reports; every default is a no-op so previews and tests pass only what they check. */
+@Immutable
+data class LibraryActions(
+    val onSelectTab: (LibraryTab) -> Unit = {},
+    val onSetSort: (DocumentSort) -> Unit = {},
+    val onToggleViewMode: () -> Unit = {},
+    val onToggleSelectMode: () -> Unit = {},
+    val onToggleSidebar: () -> Unit = {},
+    val onOpenDocument: (String) -> Unit = {},
+    val onNewNote: () -> Unit = {},
+)
+
 /** Stateless entry screen. */
 @Composable
 fun LibraryEntryScreen(
     state: LibraryAccessState,
     onGrantAccess: () -> Unit,
     modifier: Modifier = Modifier,
-    documents: ImmutableList<LibraryDocItem> = persistentListOf(),
-    onOpenDocument: (String) -> Unit = {},
-    onNewNote: () -> Unit = {},
+    content: LibraryContent = LibraryContent(),
+    actions: LibraryActions = LibraryActions(),
 ) {
     val colors = FolioTheme.colors
     val bandPx = with(LocalDensity.current) { LIBRARY_BAND.toPx() }
@@ -145,7 +184,20 @@ fun LibraryEntryScreen(
             }
 
             is LibraryAccessState.Ready -> {
-                LibraryPlaceholder(state.rootPath, documents, onOpenDocument, onNewNote)
+                LibraryHome(
+                    browse = content.browse,
+                    documents = content.documents,
+                    folders = content.folders,
+                    nowMs = content.nowMs,
+                    zone = content.zone,
+                    onSelectTab = actions.onSelectTab,
+                    onSetSort = actions.onSetSort,
+                    onToggleViewMode = actions.onToggleViewMode,
+                    onToggleSelectMode = actions.onToggleSelectMode,
+                    onToggleSidebar = actions.onToggleSidebar,
+                    onOpenDocument = actions.onOpenDocument,
+                    newActions = NewActions(note = actions.onNewNote),
+                )
             }
 
             is LibraryAccessState.Failed -> {
@@ -190,74 +242,6 @@ private fun StorageOnboarding(
             modifier = Modifier.widthIn(max = CONTENT_MAX_WIDTH),
         )
         FolioButton("Allow file access", onClick = onGrantAccess)
-    }
-}
-
-@Composable
-private fun LibraryHeader(
-    rootPath: String,
-    modifier: Modifier = Modifier,
-    horizontalAlignment: Alignment.Horizontal = Alignment.Start,
-) {
-    Column(modifier, horizontalAlignment = horizontalAlignment) {
-        Text(text = "Library", style = FolioTheme.type.display, color = FolioTheme.colors.textPrimary)
-        Text(text = rootPath, style = FolioTheme.type.body, color = FolioTheme.colors.textSecondary)
-    }
-}
-
-@Composable
-private fun LibraryPlaceholder(
-    rootPath: String,
-    documents: ImmutableList<LibraryDocItem>,
-    onOpenDocument: (String) -> Unit,
-    onNewNote: () -> Unit,
-) {
-    if (documents.isEmpty()) {
-        CenteredColumn {
-            LibraryHeader(rootPath, horizontalAlignment = Alignment.CenterHorizontally)
-            FolioButton("New note", onClick = onNewNote)
-        }
-        return
-    }
-    val space = FolioTheme.space
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
-        contentPadding = PaddingValues(space.s24),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        item(key = HEADER_KEY) {
-            Column(
-                Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxWidth().padding(bottom = space.s24),
-                verticalArrangement = Arrangement.spacedBy(space.s16),
-            ) {
-                LibraryHeader(rootPath)
-                FolioButton("New note", onClick = onNewNote)
-            }
-        }
-        items(documents, key = { it.path }) { doc -> DocumentRow(doc, onOpenDocument) }
-    }
-}
-
-@Composable
-private fun DocumentRow(
-    doc: LibraryDocItem,
-    onOpenDocument: (String) -> Unit,
-) {
-    val colors = FolioTheme.colors
-    Column(
-        modifier =
-            Modifier
-                .widthIn(max = CONTENT_MAX_WIDTH)
-                .fillMaxWidth()
-                .heightIn(min = ROW_MIN_HEIGHT)
-                .clickable(onClickLabel = "Open") { onOpenDocument(doc.path) }
-                .padding(vertical = FolioTheme.space.s8),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(text = doc.title, style = FolioTheme.type.cardTitle, color = colors.textPrimary)
-        val folder = doc.folder.ifEmpty { "Library" }
-        val pages = if (doc.pageCount == 1) "1 page" else "${doc.pageCount} pages"
-        Text(text = "$folder · $pages", style = FolioTheme.type.caption, color = colors.textTertiary)
     }
 }
 
