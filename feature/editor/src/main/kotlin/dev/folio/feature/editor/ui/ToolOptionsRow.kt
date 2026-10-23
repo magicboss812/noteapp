@@ -34,9 +34,11 @@ import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
 import dev.folio.feature.editor.state.EditorTool
+import dev.folio.feature.editor.state.LassoMode
+import dev.folio.feature.editor.state.LassoOptions
 import dev.folio.feature.editor.state.OptionsPopover
-import dev.folio.feature.editor.state.PEN_KINDS
 import dev.folio.feature.editor.state.ToolOptions
+import dev.folio.feature.editor.state.hasSettings
 import kotlinx.collections.immutable.persistentListOf
 
 private val OPTIONS_SLIDE = 8.dp
@@ -51,9 +53,9 @@ private val ERASER_MODES = persistentListOf("Stroke", "Partial")
 /** Edits the tool options: receives the change to apply to the current options. */
 internal typealias OptionsChange = ((ToolOptions) -> ToolOptions) -> Unit
 
-/** Whether [this] tool has a row 2 (10-editor-ui.md#tool-options). */
+/** Whether [this] tool has a row 2 (10-editor-ui.md#tool-options); today exactly the tools with a settings panel. */
 internal val EditorTool.hasOptions: Boolean
-    get() = this == EditorTool.PEN || this == EditorTool.HIGHLIGHTER || this == EditorTool.ERASER
+    get() = hasSettings
 
 /** Row 2 left pill: undo and redo, disabled while there is no step (10-editor-ui.md#toolbar). */
 @Composable
@@ -72,10 +74,12 @@ internal fun UndoRedoPill(
 }
 
 /**
- * Toolbar row 2 (10-editor-ui.md#tool-options): the options pill of [tool], floating over the canvas. It
- * scrolls with fade edges when it does not fit. Long-press a width or color to edit it. [vertical] lays it
- * out as the inner rail of a side-docked toolbar (10-editor-ui.md#toolbar-docking). [pillModifier] places
- * the pill itself, so the space around it stays free for canvas touches.
+ * Toolbar row 2 (10-editor-ui.md#tool-options): the options pill of [tool] (mode or kind | widths | colors |
+ * details), floating over the canvas. It scrolls with fade edges when it does not fit. Tapping the selected
+ * width or color again (or a long-press) edits it; the details button calls [onSettings], which toggles the
+ * tool settings panel like tapping the selected tool again. [vertical] lays it out as the inner rail of a
+ * side-docked toolbar (10-editor-ui.md#toolbar-docking). [pillModifier] places the pill itself, so the space
+ * around it stays free for canvas touches.
  */
 @Composable
 internal fun ToolOptionsRow(
@@ -86,6 +90,7 @@ internal fun ToolOptionsRow(
     modifier: Modifier = Modifier,
     pillModifier: Modifier = Modifier,
     vertical: Boolean = false,
+    onSettings: (EditorTool) -> Unit = {},
 ) {
     val motion = FolioTheme.motion
     val slidePx = with(LocalDensity.current) { OPTIONS_SLIDE.roundToPx() }
@@ -111,8 +116,11 @@ internal fun ToolOptionsRow(
                     when (shown) {
                         EditorTool.PEN -> PenOptionsContent(options, onChange, onPopover, vertical)
                         EditorTool.HIGHLIGHTER -> HighlighterOptionsContent(options, onChange, onPopover, vertical)
-                        else -> EraserOptionsContent(options.eraser, onChange, onPopover, vertical)
+                        EditorTool.LASSO -> LassoOptionsContent(options.lasso, onChange)
+                        else -> EraserOptionsContent(options.eraser, onChange, vertical)
                     }
+                    Divider(vertical)
+                    FolioIconButton(FolioIcons.SlidersHorizontal, "${shown.label} settings", onClick = { onSettings(shown) })
                 }
                 if (vertical) {
                     Column(
@@ -137,20 +145,9 @@ private fun PenOptionsContent(
     onPopover: (OptionsPopover?) -> Unit,
     vertical: Boolean,
 ) {
-    val pen = options.pen
-    PEN_KINDS.forEach { kind ->
-        ToolButton(
-            icon = kind.icon,
-            contentDescription = kind.label,
-            selected = kind == pen.kind,
-            onClick = { onChange { it.copy(pen = it.pen.copy(kind = kind)) } },
-        )
-    }
-    Divider(vertical)
     WidthPresetChips(EditorTool.PEN, options, onChange, onPopover)
     Divider(vertical)
     ColorDots(EditorTool.PEN, options, onChange, onPopover)
-    FolioIconButton(FolioIcons.SlidersHorizontal, "Pen settings", onClick = { onPopover(OptionsPopover.PenSettings) })
 }
 
 @Suppress("MultipleEmitters") // Pill items for the caller's Row or Column, which differ by dock mode.
@@ -164,13 +161,6 @@ private fun HighlighterOptionsContent(
     WidthPresetChips(EditorTool.HIGHLIGHTER, options, onChange, onPopover)
     Divider(vertical)
     ColorDots(EditorTool.HIGHLIGHTER, options, onChange, onPopover)
-    Divider(vertical)
-    ToolButton(
-        icon = FolioIcons.Minus,
-        contentDescription = "Always straight",
-        selected = options.highlighter.alwaysStraight,
-        onClick = { onChange { it.copy(highlighter = it.highlighter.copy(alwaysStraight = !it.highlighter.alwaysStraight)) } },
-    )
 }
 
 @Suppress("MultipleEmitters") // Pill items for the caller's Row or Column, which differ by dock mode.
@@ -178,7 +168,6 @@ private fun HighlighterOptionsContent(
 private fun EraserOptionsContent(
     eraser: EraserOptions,
     onChange: OptionsChange,
-    onPopover: (OptionsPopover?) -> Unit,
     vertical: Boolean,
 ) {
     SegmentedTabs(
@@ -197,14 +186,21 @@ private fun EraserOptionsContent(
             ring = true,
         )
     }
-    Divider(vertical)
-    ToolButton(
-        icon = FolioIcons.Highlighter,
-        contentDescription = "Erase highlighter only",
-        selected = eraser.highlighterOnly,
-        onClick = { onChange { it.copy(eraser = it.eraser.copy(highlighterOnly = !it.eraser.highlighterOnly)) } },
-    )
-    FolioIconButton(FolioIcons.BrushCleaning, "Clear page", onClick = { onPopover(OptionsPopover.ClearPage) })
+}
+
+@Composable
+private fun LassoOptionsContent(
+    lasso: LassoOptions,
+    onChange: OptionsChange,
+) {
+    LassoMode.entries.forEach { mode ->
+        ToolButton(
+            icon = if (mode == LassoMode.FREEFORM) FolioIcons.Lasso else FolioIcons.Square,
+            contentDescription = if (mode == LassoMode.FREEFORM) "Freeform lasso" else "Rectangle lasso",
+            selected = mode == lasso.mode,
+            onClick = { onChange { it.copy(lasso = it.lasso.copy(mode = mode)) } },
+        )
+    }
 }
 
 @Composable
@@ -216,18 +212,22 @@ private fun WidthPresetChips(
 ) {
     val presets = options.widths(tool)
     presets.widthsPt.forEachIndexed { index, widthPt ->
+        val editor = OptionsPopover.WidthEditor(tool, index)
         WidthChip(
             strokeWidth = WidthScale.glyph(widthPt, presets.widthsPt[1]),
             contentDescription = "${WIDTH_LABELS[index]} width",
             selected = index == presets.selected,
-            onClick = { onChange { it.withWidths(tool, it.widths(tool).select(index)) } },
-            onLongClick = { onPopover(OptionsPopover.WidthEditor(tool, index)) },
+            // Tapping the selected preset again edits it (DESIGN.md section 7, popover).
+            onClick = {
+                if (index == presets.selected) onPopover(editor) else onChange { it.withWidths(tool, it.widths(tool).select(index)) }
+            },
+            onLongClick = { onPopover(editor) },
         )
     }
 }
 
 @Composable
-private fun ColorDots(
+internal fun ColorDots(
     tool: EditorTool,
     options: ToolOptions,
     onChange: OptionsChange,
@@ -235,12 +235,16 @@ private fun ColorDots(
 ) {
     val swatches = options.swatches(tool)
     swatches.colors.forEachIndexed { index, argb ->
+        val picker = OptionsPopover.ColorPicker(tool, index)
         ColorDot(
             color = Color(argb),
             contentDescription = "Color ${index + 1} #${hexOf(argb)}",
             selected = index == swatches.selected,
-            onClick = { onChange { it.withSwatches(tool, it.swatches(tool).select(index)) } },
-            onLongClick = { onPopover(OptionsPopover.ColorPicker(tool, index)) },
+            // Tapping the selected color again edits it (DESIGN.md section 7, popover).
+            onClick = {
+                if (index == swatches.selected) onPopover(picker) else onChange { it.withSwatches(tool, it.swatches(tool).select(index)) }
+            },
+            onLongClick = { onPopover(picker) },
         )
     }
     FolioIconButton(FolioIcons.CirclePlus, "Add color", onClick = { onPopover(OptionsPopover.ColorPicker(tool, null)) })
@@ -249,7 +253,7 @@ private fun ColorDots(
 @Composable
 private fun Divider(vertical: Boolean) = PillDivider(vertical = vertical)
 
-private val BrushKind.icon
+internal val BrushKind.icon
     get() =
         when (this) {
             BrushKind.BALLPOINT -> FolioIcons.Pen
@@ -259,7 +263,7 @@ private val BrushKind.icon
             BrushKind.HIGHLIGHTER -> FolioIcons.Highlighter
         }
 
-private val BrushKind.label: String
+internal val BrushKind.label: String
     get() =
         when (this) {
             BrushKind.BALLPOINT -> "Ballpoint pen"

@@ -9,6 +9,7 @@ import dev.folio.core.model.BrushKind
 import dev.folio.core.storage.settings.SettingsStore
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
@@ -97,12 +98,19 @@ private data class EraserJson(
 )
 
 @Serializable
+private data class LassoJson(
+    val mode: LassoMode = LassoMode.FREEFORM,
+    val filters: Set<LassoFilter> = LassoFilter.entries.toSet(),
+)
+
+@Serializable
 private data class ToolOptionsJson(
     val version: Int = 1,
     val pen: PenJson = PenJson(),
     val highlighter: HighlighterJson = HighlighterJson(),
     val eraser: EraserJson = EraserJson(),
     val recentColors: List<Int> = emptyList(),
+    val lasso: LassoJson = LassoJson(),
 )
 
 private fun Swatches.toJson() = SwatchesJson(colors, selected)
@@ -119,6 +127,7 @@ private fun ToolOptions.toJson() =
         highlighter = HighlighterJson(highlighter.widths.toJson(), highlighter.swatches.toJson(), highlighter.alwaysStraight),
         eraser = EraserJson(eraser.mode, eraser.radiusPt, eraser.highlighterOnly),
         recentColors = recentColors,
+        lasso = LassoJson(lasso.mode, lasso.filters),
     )
 
 private fun ToolOptionsJson.toOptions(): ToolOptions {
@@ -139,5 +148,6 @@ private fun ToolOptionsJson.toOptions(): ToolOptions {
             ),
         eraser = EraserOptions(eraser.mode, eraser.radiusPt, eraser.highlighterOnly),
         recentColors = recentColors.take(ToolOptions.MAX_RECENT_COLORS).toImmutableList(),
+        lasso = LassoOptions(lasso.mode, lasso.filters.toImmutableSet()),
     )
 }

@@ -14,6 +14,9 @@ import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
 import dev.folio.feature.editor.state.EditorTool
+import dev.folio.feature.editor.state.LassoFilter
+import dev.folio.feature.editor.state.LassoMode
+import dev.folio.feature.editor.state.LassoOptions
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.PenOptions
 import dev.folio.feature.editor.state.ToolOptions
@@ -57,7 +60,7 @@ class ToolOptionsScreenshotTest {
     }
 
     @Test
-    fun row_penDefaults_kindsWidthsColorsAddSettings() {
+    fun row_penDefaults_widthsColorsAddDetails() {
         row(EditorTool.PEN)
         compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_pen.png")
     }
@@ -69,23 +72,59 @@ class ToolOptionsScreenshotTest {
     }
 
     @Test
-    fun row_highlighterAlwaysStraight_toggleSelected() {
-        val options = ToolOptions().let { it.copy(highlighter = it.highlighter.copy(alwaysStraight = true)) }
-        row(EditorTool.HIGHLIGHTER, options)
+    fun row_highlighter_widthsColorsDetails() {
+        row(EditorTool.HIGHLIGHTER)
         compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_highlighter.png")
     }
 
     @Test
-    fun row_eraserPartialLargeHighlighterOnly_modeSizeToggleClear() {
+    fun row_eraserPartialLarge_modeSizesDetails() {
         val eraser = EraserOptions(EraserMode.PARTIAL, EraserOptions.SIZES_PT[2], highlighterOnly = true)
         row(EditorTool.ERASER, ToolOptions(eraser = eraser))
         compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_eraser.png")
     }
 
     @Test
-    fun popover_penSettings_pressureAndWidthSliders() {
-        show { PenSettingsPopover(ToolOptions().let { it.copy(pen = it.pen.withPressureGamma(1.4f)) }, onChange = {}) }
-        compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_penSettings.png")
+    fun row_lassoRectangle_modesDetails() {
+        row(EditorTool.LASSO, ToolOptions(lasso = LassoOptions(LassoMode.RECTANGLE)))
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_lasso.png")
+    }
+
+    private fun panel(
+        tool: EditorTool,
+        options: ToolOptions = ToolOptions(),
+        dark: Boolean = false,
+    ) = show(dark) { ToolSettingsPanel(tool, options, onChange = {}, onPopover = {}) }
+
+    @Test
+    fun panel_penFountain_previewKindsSlidersColors() {
+        panel(EditorTool.PEN, custom.let { it.copy(pen = it.pen.withPressureGamma(1.4f)) })
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolSettings_pen.png")
+    }
+
+    @Test
+    fun panel_penDark_previewKindsSlidersColors() {
+        panel(EditorTool.PEN, dark = true)
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolSettings_penDark.png")
+    }
+
+    @Test
+    fun panel_highlighterAlwaysStraight_switchOn() {
+        val options = ToolOptions().let { it.copy(highlighter = it.highlighter.copy(alwaysStraight = true)) }
+        panel(EditorTool.HIGHLIGHTER, options)
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolSettings_highlighter.png")
+    }
+
+    @Test
+    fun panel_eraserHighlighterOnly_sizeSwitchClearPage() {
+        panel(EditorTool.ERASER, ToolOptions(eraser = EraserOptions(radiusPt = 17f, highlighterOnly = true)))
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolSettings_eraser.png")
+    }
+
+    @Test
+    fun panel_lassoWithoutImages_filterChips() {
+        panel(EditorTool.LASSO, ToolOptions(lasso = LassoOptions().toggle(LassoFilter.IMAGES)))
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolSettings_lasso.png")
     }
 
     @Test

@@ -8,9 +8,11 @@ import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.collections.immutable.toImmutableSet
 
 /** Brush kinds of the pen tool, in options-row order (the highlighter is its own tool). */
 val PEN_KINDS: ImmutableList<BrushKind> =
@@ -145,6 +147,42 @@ data class HighlighterOptions(
     fun brush(version: Int): BrushSpec = BrushSpec(BrushKind.HIGHLIGHTER, swatches.argb, widths.widthPt, version)
 }
 
+/** Path a lasso gesture draws (10-editor-ui.md#tool-options). */
+enum class LassoMode {
+    /** Follows the pen. */
+    FREEFORM,
+
+    /** Spans a rectangle from the first to the last point. */
+    RECTANGLE,
+}
+
+/** Object kinds a lasso may select (R-INK-04). */
+enum class LassoFilter {
+    INK,
+    SHAPES,
+    TEXT,
+    IMAGES,
+}
+
+/** Lasso tool options; stored now, the lasso (P07-T03) applies them. */
+@Immutable
+data class LassoOptions(
+    val mode: LassoMode = LassoMode.FREEFORM,
+    val filters: ImmutableSet<LassoFilter> = LassoFilter.entries.toImmutableSet(),
+) {
+    init {
+        require(filters.isNotEmpty()) { "at least one lasso filter" }
+    }
+
+    /** Turns [filter] on or off; the last filter on stays on, so the lasso always selects something. */
+    fun toggle(filter: LassoFilter): LassoOptions =
+        when {
+            filter !in filters -> copy(filters = (filters + filter).toImmutableSet())
+            filters.size == 1 -> this
+            else -> copy(filters = (filters - filter).toImmutableSet())
+        }
+}
+
 /** Last options of every tool (persisted by [ToolOptionsStore]) plus the color picker's recent colors. */
 @Immutable
 data class ToolOptions(
@@ -153,6 +191,7 @@ data class ToolOptions(
     val eraser: EraserOptions = EraserOptions.DEFAULT,
     /** Most recent custom colors first, at most [MAX_RECENT_COLORS]. */
     val recentColors: ImmutableList<Int> = persistentListOf(),
+    val lasso: LassoOptions = LassoOptions(),
 ) {
     /** [argb] moves to the front of [recentColors]. */
     fun withRecentColor(argb: Int): ToolOptions =

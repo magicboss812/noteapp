@@ -240,12 +240,12 @@ class EditorViewModelTest {
         editorTest {
             val vm = viewModel(createDoc("Esc"))
             vm.opened()
-            vm.showPopover(OptionsPopover.PenSettings)
+            vm.showPopover(OptionsPopover.ToolSettings(EditorTool.PEN))
             assertThat(vm.onKey(KeyEvent.KEYCODE_SLASH, ctrl = true, shift = false, alt = false)).isTrue()
-            assertThat(vm.awaitState { it.showHelp }.popover).isEqualTo(OptionsPopover.PenSettings)
+            assertThat(vm.awaitState { it.showHelp }.popover).isEqualTo(OptionsPopover.ToolSettings(EditorTool.PEN))
 
             assertThat(vm.onKey(KeyEvent.KEYCODE_ESCAPE, ctrl = false, shift = false, alt = false)).isTrue()
-            assertThat(vm.awaitState { !it.showHelp }.popover).isEqualTo(OptionsPopover.PenSettings)
+            assertThat(vm.awaitState { !it.showHelp }.popover).isEqualTo(OptionsPopover.ToolSettings(EditorTool.PEN))
             assertThat(vm.onKey(KeyEvent.KEYCODE_ESCAPE, ctrl = false, shift = false, alt = false)).isTrue()
             assertThat(vm.awaitState { it.popover == null }.showHelp).isFalse()
             assertThat(vm.onKey(KeyEvent.KEYCODE_ESCAPE, ctrl = false, shift = false, alt = false)).isFalse()
@@ -300,16 +300,43 @@ class EditorViewModelTest {
         }
 
     @Test
-    fun selectTool_selectedPenAgain_opensPenSettings_otherToolCloses() =
+    fun selectTool_selectedToolAgain_togglesItsPanel_otherToolCloses() =
         editorTest {
             val vm = viewModel(createDoc("Popover"))
             vm.opened()
 
             vm.selectTool(EditorTool.PEN)
-            assertThat(vm.awaitState { it.popover != null }.popover).isEqualTo(OptionsPopover.PenSettings)
+            assertThat(vm.awaitState { it.popover != null }.popover).isEqualTo(OptionsPopover.ToolSettings(EditorTool.PEN))
+            vm.selectTool(EditorTool.PEN)
+            assertThat(vm.awaitState { it.popover == null }.tool).isEqualTo(EditorTool.PEN)
 
             vm.selectTool(EditorTool.ERASER)
             assertThat(vm.awaitState { it.tool == EditorTool.ERASER }.popover).isNull()
+            vm.selectTool(EditorTool.ERASER)
+            assertThat(vm.awaitState { it.popover != null }.popover).isEqualTo(OptionsPopover.ToolSettings(EditorTool.ERASER))
+
+            vm.selectTool(EditorTool.HIGHLIGHTER)
+            assertThat(vm.awaitState { it.tool == EditorTool.HIGHLIGHTER }.popover).isNull()
+        }
+
+    @Test
+    fun panelChange_storedForItsTool_andReadByTheNextEditor() =
+        editorTest {
+            val doc = createDoc("Panel")
+            val vm = viewModel(doc)
+            vm.opened()
+            vm.selectTool(EditorTool.ERASER)
+            vm.selectTool(EditorTool.ERASER)
+            vm.awaitState { it.popover == OptionsPopover.ToolSettings(EditorTool.ERASER) }
+
+            // What the eraser panel's slider and switch send.
+            vm.updateOptions { it.copy(eraser = it.eraser.copy(radiusPt = 17f, highlighterOnly = true)) }
+
+            val expected = ToolOptions().eraser.copy(radiusPt = 17f, highlighterOnly = true)
+            assertThat(vm.awaitState { it.options.eraser == expected }.status).isEqualTo(EditorStatus.READY)
+            store.clear()
+            awaitReleases()
+            assertThat(viewModel(doc).awaitState { it.status == EditorStatus.READY }.options.eraser).isEqualTo(expected)
         }
 
     @Test
@@ -371,7 +398,7 @@ class EditorViewModelTest {
         editorTest {
             val vm = viewModel(createDoc("Chevron"))
             vm.opened()
-            vm.showPopover(OptionsPopover.PenSettings)
+            vm.showPopover(OptionsPopover.ToolSettings(EditorTool.PEN))
 
             vm.setOptionsHidden(true)
 

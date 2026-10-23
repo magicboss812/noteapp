@@ -124,3 +124,14 @@ class ToolOptionsTest {
         const val CUSTOM = 0xFF123456.toInt()
     }
 }
+
+class LassoOptionsTest {
+    @Test
+    fun toggle_onAndOff_lastFilterStaysOn() {
+        val inkOnly = LassoOptions().toggle(LassoFilter.SHAPES).toggle(LassoFilter.TEXT).toggle(LassoFilter.IMAGES)
+
+        assertThat(inkOnly.filters).containsExactly(LassoFilter.INK)
+        assertThat(inkOnly.toggle(LassoFilter.INK)).isEqualTo(inkOnly)
+        assertThat(inkOnly.toggle(LassoFilter.TEXT).filters).containsExactly(LassoFilter.INK, LassoFilter.TEXT)
+    }
+}

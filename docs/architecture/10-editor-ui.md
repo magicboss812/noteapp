@@ -25,12 +25,12 @@ No opaque bar anywhere: every control is a separate floating pill over the canva
 - Tools are also reachable by keyboard (Alt+1..9, 0) and remember their last options.
 
 ## Tool options
-Row 2 holds only mode/kind | widths | colors | details (sliders icon); the rest lives in the tool settings panel (A-037), opened by tapping the selected tool again or the details button. Panel: 340 dp wide, centered title + close chip, stroke preview, kind cards, slider block, 44 dp setting rows, colors last, destructive text in `danger` (DESIGN.md section 7). It anchors next to row 2 (bottom/top dock), as a flyout (side rails) or centered (floating); no scrim, one outside tap closes. Tools without a panel row below keep their whole content in row 2.
+Row 2 holds only mode/kind | widths | colors | details (sliders icon); the rest lives in the tool settings panel (A-037), opened by tapping the selected tool again or the details button. Panel: 340 dp wide, centered title + close chip, stroke preview, kind cards, slider block, 44 dp setting rows, colors last, destructive text in `danger` (DESIGN.md section 7). It anchors next to row 2 (bottom/top dock), as a flyout (side rails) or centered (floating); no scrim, one outside tap closes. Tools without a panel row below keep their whole content in row 2. Tapping the selected width or color in row 2 again opens its width or color popover (long-press too). The tilt shading row appears once tilt can be switched off per stroke (D-014); lasso options are stored now and applied by the lasso (P07-T03).
 | Tool | Row 2 content | Settings panel |
 |---|---|---|
 | Pen | 3 width presets (line glyphs of increasing thickness), 5 color dots, add color (+), details | brush kind cards (ballpoint, fountain, pencil, marker), width slider, pressure curve slider, tilt shading toggle if supported, colors |
 | Highlighter | 3 widths, 5 colors, add color, details | width slider, "always straight" toggle, colors |
-| Eraser | mode (stroke / partial), 3 sizes, details | size slider, highlighter-only toggle, Clear page (danger) |
+| Eraser | mode (stroke / partial), 3 sizes, details | size slider (2-32 pt), highlighter-only toggle, Clear page (danger, asks first) |
 | Lasso | freeform / rectangle, details | filter chips (ink, shapes, text, images) |
 | Shape | kind (line, arrow, rectangle, ellipse, triangle, polygon), stroke color, width, dashed, fill (none / tint / solid) |
 | Text | font family, size S/M/L, bold, italic, highlight, heading 1-3, bullets, numbers, checklist, math, code, link, alignment |

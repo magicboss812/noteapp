@@ -257,7 +257,18 @@ private fun Toolbox(
     val hidden = state.docks.optionsHidden
     val ready = state.status == EditorStatus.READY
     val options: @Composable (Modifier, Boolean) -> Unit = { pillModifier, vertical ->
-        if (ready) ToolOptionsRow(state.tool, state.options, actions.onOptionsChange, actions.onPopover, Modifier, pillModifier, vertical)
+        if (ready) {
+            ToolOptionsRow(
+                state.tool,
+                state.options,
+                actions.onOptionsChange,
+                actions.onPopover,
+                Modifier,
+                pillModifier,
+                vertical,
+                onSettings = actions.onSelectTool,
+            )
+        }
     }
     val row1: @Composable (Modifier, Boolean) -> Unit = { rowModifier, vertical ->
         ToolsRow(

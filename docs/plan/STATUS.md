@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T13
+next: P06-T01
 updated: 2026-10-23
 
 ## Completed
@@ -13,23 +13,23 @@ updated: 2026-10-23
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12
+- P06: T12, T13
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
 
 ## USER-CHECK (human verification; non-blocking)
-- P06-T12: open a note -> no top bar; nav + undo pills top-left, read mode/split/more top-right, page/zoom pill bottom-left, toolbox at the bottom; tap the chevron at the end of the tools row (row 2 hides/returns), drag the grip to the top/left/right edge and back; enter read mode (open-book icon) and leave it (pill or Back) -> reads like Notewise, transitions smooth, pen only scrolls in read mode.
+- P06-T13: in a note tap the selected pen again (or row 2's sliders button) -> panel with preview, kind cards, width + pressure sliders, colors; eraser panel: size, highlighter-only, Clear page; row 2 only widths | colors | details -> holds the pen settings like Notewise, row 2 lighter.
 
 ## Deferred (id: reason)
 - D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P06-T04, P07-T05, P10-T01, P11-T10; D-028 -> P11-T10; D-029 -> P06-T04.
 - D-002 P01-T08: spike route spike-fonts + core:text spike/ (remove in P06-T03; spike-ink/spike-stylus went in P03-T09); USER-CHECKs answered (A-008).
 - D-004 P01-REVIEW: `GridParagraph.draw` allocates a Compose canvas wrapper per call; cache it or mark HOT PATH before P06-T05 paints text into tiles.
 - D-006 P01-S3 (user feedback): decide BACKLOG B-12 (free font size tied to the rules, top/middle/bottom placement in the line box) in P06-T02 before building size styles.
-- D-014 P03-T09: tilt shading has no off switch (A-025): dry rendering applies tilt whenever stored inputs carry tilt; the P11-T01 setting needs a stored per-stroke choice (or dropping tilt at commit) so wet and dry ink agree.
-- D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
+- D-014 P03-T09: tilt shading has no off switch (A-025): dry rendering applies tilt whenever stored inputs carry tilt; the P11-T01 setting needs a stored per-stroke choice (or dropping tilt at commit) so wet and dry ink agree; the pen panel gets its tilt row then (P06-T13).
+- D-024 P04-T03: highlighter "always straight" is stored and toggled in the highlighter panel, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T12 done (59c6ccd + T12b): chrome without app bar, BOTTOM dock (v2 store migration), chevron, read mode (stylus navigates, bars hidden, Back leaves); device PASS except read-mode jank 1.9-2.1% in debug (~1.5 frames/toggle, on par with tool switches) -> A-038, D-031 -> P11-T05.
-- Side finding D-030 -> P11-T06: packer false "changed externally" conflict copy after seed-strokes (same size, mtime). Autosave dot now sits in the chrome under page surfaces (P11-T10 only needs its screenshot).
-- Next: P06-T13 tool settings panels and a slim options row (sonnet high), then P06-T01. Device-tester tip: tool row y 1963 px, mode pill y 171 px in landscape. `FolioIcons.kt` is generated (A-027).
+- P06-T13 done: tool settings panels (pen, highlighter, eraser, lasso) toggled by tapping the selected tool or row 2's details button; row 2 slimmed; tapping the selected width/color opens its popover; lasso mode + filters stored (P07-T03 applies them).
+- P06-T12 USER-CHECK answered (checked) and removed. Panel parts live in ui/PanelParts.kt for later tools (shape, text, table).
+- Next: P06-T01 Markdown block model and parser. Device-tester tip: tool row y 1963 px, mode pill y 171 px in landscape. `FolioIcons.kt` is generated (A-027).

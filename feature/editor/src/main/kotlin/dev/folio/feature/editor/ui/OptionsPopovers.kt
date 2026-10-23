@@ -37,7 +37,7 @@ import java.util.Locale
 private val POPOVER_RAIL_TOP = 8.dp
 
 // Slider stops between the pressure curve ends (0.05 apart).
-private val GAMMA_STEPS = ((PressureCurve.MAX_GAMMA - PressureCurve.MIN_GAMMA) * PressureCurve.GAMMA_STEPS_PER_UNIT).toInt() - 1
+internal val GAMMA_STEPS = ((PressureCurve.MAX_GAMMA - PressureCurve.MIN_GAMMA) * PressureCurve.GAMMA_STEPS_PER_UNIT).toInt() - 1
 
 /**
  * Where options popovers open inside the area beside the toolbox (the layer's modifier leaves the toolbox
@@ -56,8 +56,8 @@ internal enum class PopoverAnchor(
 }
 
 /**
- * Popovers of the options row (10-editor-ui.md#tool-options) at [anchor]; a tap outside closes them and
- * the canvas takes no input meanwhile. "Clear page" asks in a dialog.
+ * Popovers of the options row and the tool settings panels (10-editor-ui.md#tool-options) at [anchor]; a tap
+ * outside closes them (no scrim) and the canvas takes no input meanwhile. "Clear page" asks in a dialog.
  */
 @Composable
 internal fun OptionsPopoverLayer(
@@ -101,8 +101,8 @@ internal fun OptionsPopoverLayer(
             ) {
                 val card = Modifier.padding(anchor.padding)
                 when (popover) {
-                    OptionsPopover.PenSettings -> {
-                        PenSettingsPopover(options, onChange, card)
+                    is OptionsPopover.ToolSettings -> {
+                        ToolSettingsPanel(popover.tool, options, onChange, onPopover, card)
                     }
 
                     is OptionsPopover.WidthEditor -> {
@@ -118,34 +118,6 @@ internal fun OptionsPopoverLayer(
                     }
                 }
             }
-        }
-    }
-}
-
-/** Pen settings: pressure curve and the selected width preset. Tilt has no switch yet (D-014). */
-@Composable
-internal fun PenSettingsPopover(
-    options: ToolOptions,
-    onChange: OptionsChange,
-    modifier: Modifier = Modifier,
-) {
-    val pen = options.pen
-    PopoverCard("Pen settings", modifier) {
-        LabeledSlider(
-            label = "Pressure curve",
-            valueText = "%.2f".format(Locale.ROOT, pen.pressureGamma),
-            value = pen.pressureGamma,
-            onValueChange = { gamma -> onChange { it.copy(pen = it.pen.withPressureGamma(gamma)) } },
-            valueRange = PressureCurve.MIN_GAMMA..PressureCurve.MAX_GAMMA,
-            steps = GAMMA_STEPS,
-        )
-        Text(
-            text = "Below 1, light pressure already draws thick lines. Above 1, press harder for thick lines.",
-            style = FolioTheme.type.caption,
-            color = FolioTheme.colors.textSecondary,
-        )
-        WidthSlider("Width", pen.kindWidths.widthPt) { widthPt ->
-            onChange { it.withWidths(EditorTool.PEN, it.widths(EditorTool.PEN).run { set(selected, widthPt) }) }
         }
     }
 }
@@ -171,13 +143,14 @@ internal fun PopoverCard(
     title: String,
     modifier: Modifier = Modifier,
     width: Dp = FolioTheme.space.popoverWidth,
+    onClose: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    FolioPopover(title, modifier.pointerInput(Unit) { detectTapGestures {} }, width = width, content = content)
+    FolioPopover(title, modifier.pointerInput(Unit) { detectTapGestures {} }, width = width, onClose = onClose, content = content)
 }
 
 @Composable
-private fun WidthSlider(
+internal fun WidthSlider(
     label: String,
     widthPt: Float,
     onWidth: (Float) -> Unit,
@@ -191,7 +164,7 @@ private fun WidthSlider(
 }
 
 @Composable
-private fun LabeledSlider(
+internal fun LabeledSlider(
     label: String,
     valueText: String,
     value: Float,

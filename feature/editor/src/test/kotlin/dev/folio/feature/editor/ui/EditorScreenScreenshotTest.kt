@@ -177,8 +177,22 @@ class EditorScreenScreenshotTest {
     @Test
     @Config(qualifiers = PAD7_LANDSCAPE)
     fun editor_landscapeDockedLeftPenSettings_flyoutBesideOptionsRail() {
-        showReady(popover = OptionsPopover.PenSettings, placement = ToolbarPlacement(DockMode.LEFT))
+        showReady(popover = OptionsPopover.ToolSettings(EditorTool.PEN), placement = ToolbarPlacement(DockMode.LEFT))
         compose.onRoot().captureRoboImage("src/test/screenshots/Editor_dockLeft_flyout.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeBottomDockPenPanel_aboveRow2() {
+        showReady(popover = OptionsPopover.ToolSettings(EditorTool.PEN))
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_penPanel_bottom.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_PORTRAIT)
+    fun editor_portraitBottomDockEraserPanel_aboveRow2() {
+        showReady(EditorTool.ERASER, popover = OptionsPopover.ToolSettings(EditorTool.ERASER))
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_eraserPanel_portrait.png")
     }
 
     @Test

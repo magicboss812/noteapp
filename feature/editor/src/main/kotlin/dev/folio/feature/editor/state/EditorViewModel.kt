@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,8 +73,10 @@ data class ViewInfo(
 
 /** Popover or dialog opened from the tool options row (10-editor-ui.md#tool-options). */
 sealed interface OptionsPopover {
-    /** Pen settings: pressure curve and the selected width preset. */
-    data object PenSettings : OptionsPopover
+    /** Tool settings panel of [tool] (tapping the selected tool again, or row 2's details button). */
+    data class ToolSettings(
+        val tool: EditorTool,
+    ) : OptionsPopover
 
     /** Edits width preset [index] of [tool] (long-press on a width preset). */
     data class WidthEditor(
@@ -227,12 +230,15 @@ class EditorViewModel
             }
         }
 
-        /** Selects [tool] if it is built. */
+        /** Selects [tool] if it is built; tapping the selected tool again opens or closes its settings panel. */
         fun selectTool(tool: EditorTool) {
             val session = mutableSession.value ?: return
-            if (tool == session.tool.value && tool == EditorTool.PEN) {
-                // Tapping the selected pen again opens its settings (10-editor-ui.md#toolbar).
-                mutablePopover.value = OptionsPopover.PenSettings
+            if (tool == session.tool.value) {
+                // 10-editor-ui.md#toolbar: the panel toggles; a tool without one ignores the tap.
+                if (tool.hasSettings) {
+                    val panel = OptionsPopover.ToolSettings(tool)
+                    mutablePopover.update { if (it == panel) null else panel }
+                }
             } else if (tool.available) {
                 // Closed before the tool changes, so no state shows the new tool under the old popover.
                 mutablePopover.value = null

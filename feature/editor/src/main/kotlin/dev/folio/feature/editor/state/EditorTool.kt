@@ -24,3 +24,7 @@ enum class EditorTool(
     /** False while the tool is not built yet: the toolbar shows it disabled. */
     val available: Boolean get() = canvasTool != null
 }
+
+/** Whether [this] tool has a tool settings panel (10-editor-ui.md#tool-options): tapping it again when selected opens it. */
+val EditorTool.hasSettings: Boolean
+    get() = this == EditorTool.PEN || this == EditorTool.HIGHLIGHTER || this == EditorTool.ERASER || this == EditorTool.LASSO

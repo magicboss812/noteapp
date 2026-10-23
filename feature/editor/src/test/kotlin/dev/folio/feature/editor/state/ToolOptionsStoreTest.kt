@@ -23,7 +23,9 @@ class ToolOptionsStoreTest {
             HighlighterOptions().let {
                 it.copy(widths = it.widths.select(2), swatches = it.swatches.replace(1, 0xFFABCDEF.toInt()), alwaysStraight = true)
             }
-        return ToolOptions(pen, highlighter, EraserOptions(EraserMode.PARTIAL, EraserOptions.SIZES_PT[2], highlighterOnly = true))
+        // Panel-only values: an eraser radius between the row 2 sizes and narrowed lasso filters.
+        val lasso = LassoOptions(LassoMode.RECTANGLE).toggle(LassoFilter.TEXT).toggle(LassoFilter.IMAGES)
+        return ToolOptions(pen, highlighter, EraserOptions(EraserMode.PARTIAL, 17f, highlighterOnly = true), lasso = lasso)
             .withRecentColor(0xFF0A0B0C.toInt())
     }
 
@@ -57,6 +59,7 @@ class ToolOptionsStoreTest {
         assertThat(ToolOptionsStore.decode("""{"pen":{"kind":"HIGHLIGHTER"}}""")).isEqualTo(ToolOptions())
         assertThat(ToolOptionsStore.decode("""{"pen":{"swatches":{"colors":[],"selected":0}}}""")).isEqualTo(ToolOptions())
         assertThat(ToolOptionsStore.decode("""{"eraser":{"radiusPt":-1}}""")).isEqualTo(ToolOptions())
+        assertThat(ToolOptionsStore.decode("""{"lasso":{"filters":[]}}""")).isEqualTo(ToolOptions())
     }
 
     @Test
