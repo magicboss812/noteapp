@@ -50,7 +50,7 @@ description: Execute exactly one task from docs/plan/STATUS.md end to end (load 
 2. Fix every blocking finding (commits tagged `[PNN-REVIEW]`). Non-blocking findings: fix if cheap, else STATUS Deferred with id. A blocking finding that needs a user decision: Blocked item with `[STOP]`, commit, stop.
 3. Intake (one commit `[PNN-REVIEW]`). Every `docs/plan/FEEDBACK.md` `Open` entry and every STATUS `Deferred` item that does not name an existing, unfinished task id becomes work:
    - Clearly inside an unfinished task's scope: add it to that task's `Do:`/`Accept:` and rewrite the Deferred line to `-> <task-id>`.
-   - Otherwise a new task block in the target phase file (default phase 11, inserted before P11-T07 so the final audit stays last, numbered from P11-T08 up), with `Model:` (sonnet high: UI, settings, wiring; sonnet xhigh: ink, rendering, text layout, perf, file format; opus high: design system or cross-cutting) and `Accept:` items. Delete the Deferred line.
+   - Otherwise a new task block in the target phase file (default phase 11, inserted before P11-T07 so the final audit stays last, numbered from P11-T08 up), with `Model:` (opus medium: UI, settings, wiring, build config; opus high: ink, rendering, text layout, perf, file format, design system or cross-cutting) and `Accept:` items. Delete the Deferred line.
    - Done already: delete it. Needs a user decision: Blocked item without `[STOP]`.
    - Move each FEEDBACK entry to `Converted` with its task ids. If intake added tasks to the current phase, set `next:` to the first of them and stop; the REVIEW runs again after them.
 4. Run the full `./gradlew qa`. Run the maintain-memory compaction procedure. qa still red after 3 focused attempts: Blocked item with `[STOP]`, commit, stop.
