@@ -48,6 +48,7 @@ Read: 12-performance.md#measurement, .claude/rules/gradle.md
 Do: `benchmark` build type and `:benchmark` macrobenchmark module (startup, open note, draw, pan); Baseline Profile generation on the tablet; release build with R8 full mode and shrinkResources; signing from `keystore.properties` if present (user creates the keystore; add a Blocked item with the exact keytool command if missing). The benchmark build needs its own DebugHooksModule (`src/benchmark`, binds NoOpDebugHooks, D-001). Re-measure `ink:commit`; if p95 > 2 ms convert inputs (`StrokeBuilder.inputsOf`, `InkStroke.of`) off main (D-015, A-026).
 Accept:
 - [ ] device: macrobenchmarks run; cold start <= 700 ms (benchmark build)
+- [ ] device: read mode enter/exit (5 cycles, 1500 strokes) and tool switches <= 1% janky in the benchmark build; if not, cut the first-frame cost of the toggle (D-031, A-038)
 - [ ] device: `ink:commit` p95 <= 2 ms in the benchmark build (D-015)
 - [ ] release APK builds; size recorded in perf.md
 Verify: `instrumented.sh :benchmark connectedBenchmarkAndroidTest`
@@ -56,10 +57,10 @@ Verify: `instrumented.sh :benchmark connectedBenchmarkAndroidTest`
 Model: sonnet xhigh
 Implements: R-FILE-01, R-FILE-02
 Read: 04-file-format.md#conflicts, #versioning
-Do: corrupted file handling (open read-only with message, never crash the library), low storage (pack fails gracefully, working copy kept, banner), external modifications while open, very large docs (500 pages), permission revoked while running, process death during every lifecycle state. Unpack: one fsync pass and a size-ratio zip-bomb bound instead of fsync per entry and a flat 8 GB cap (D-009). Forward compatibility (04#versioning): session packs keep unknown manifest keys (raw JSON), unknown proto fields and unknown object kinds (opaque) (D-010). `LibraryWatcher` event test (D-010).
+Do: corrupted file handling (open read-only with message, never crash the library), low storage (pack fails gracefully, working copy kept, banner), external modifications while open, very large docs (500 pages), permission revoked while running, process death during every lifecycle state. Unpack: one fsync pass and a size-ratio zip-bomb bound instead of fsync per entry and a flat 8 GB cap (D-009). Forward compatibility (04#versioning): session packs keep unknown manifest keys (raw JSON), unknown proto fields and unknown object kinds (opaque) (D-010). `LibraryWatcher` event test (D-010). False external-change conflicts (D-030): on the tablet the packer reported "changed externally (2080 B, base 2080 B)" right after `seed-strokes` and packed a "(conflict ...)" copy; the size matched, so the mtime check (A-022 quirk) misfires: compare content (hash) before declaring a conflict.
 Accept:
 - [ ] unit/instrumented: fault-injection suite green
-- [ ] unit: unknown manifest keys, proto fields and object kinds survive open + pack byte-equal; zip bomb rejected; watcher emits create/modify/delete (D-009, D-010)
+- [ ] unit: unknown manifest keys, proto fields and object kinds survive open + pack byte-equal; zip bomb rejected; watcher emits create/modify/delete (D-009, D-010); a working copy whose file only got a new mtime (same bytes) packs in place, no conflict copy (D-030)
 Verify: `./gradlew qa` + `instrumented.sh :core:storage`
 
 ### P11-T08 Dry ink detail at high zoom

@@ -193,3 +193,8 @@ Format:
 - Reason: P04-T10 USER-CHECK: "note UI doesn't look anything like Notewise, especially the top bar"; the user wants read mode/fullscreen transitions, more pen settings in the tap-again panel, and a hideable options row. The user chose: redesign now, read mode without ink, bottom default.
 - Impact: 10-editor-ui.md#screen-structure, #toolbar, #tool-options, #toolbar-docking, #pages, new #read-mode; phase-06-text-engine.md (P06-T12, P06-T13), phase-11-polish.md P11-T10.
 
+
+## A-038 2026-10-23 P06-T12: read mode jank is a relative debug check; the 1% budget is checked in the benchmark build
+- Change: P06-T12's "read mode enter/exit janky <= 1%" stays open as a debug-build relative check (measured 1.90-2.14%, about 1.5 janky frames per toggle, on par with a Pen/Eraser tap at about 1.1 per tap) and moves as an absolute budget to P11-T05 (benchmark build, D-031). Chrome visibility in read mode is layer-only (alpha modulated per draw, slid out of the window when hidden, never recomposed) and the chrome pads by bar insets that ignore visibility, so hiding the bars does not relayout it.
+- Reason: four device runs (AnimatedVisibility, layer-only fade, per-draw alpha + stable insets, stable callbacks; plus one with the bars kept visible) left the dropped-frame count per toggle unchanged; 12-performance.md takes final numbers from the benchmark build and has no budget for chrome transitions. Tool switching from P04 drops as many frames per interaction.
+- Impact: phase-11-polish.md P11-T05 Accept, docs/notes/perf.md (P06-T12 row), 10-editor-ui.md#read-mode unchanged.

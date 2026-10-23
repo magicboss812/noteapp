@@ -17,6 +17,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -164,19 +165,24 @@ fun EditorScreen(
     LaunchedEffect(stored) { drag.pending = null }
     val placement = drag.pending ?: stored
     val gestures = rememberToolbarGestures(drag, placement, orientation, onPlaceToolbar)
-    val actions =
-        ChromeActions(
-            onBack = onBack,
-            onSelectTool = onSelectTool,
-            onOptionsChange = onOptionsChange,
-            onPopover = onPopover,
-            onUndo = onUndo,
-            onRedo = onRedo,
-            onReadMode = onReadMode,
-            onToggleOptions = { onHideOptions(!state.docks.optionsHidden) },
-            onRetrySave = onRetrySave,
-            pages = pageChrome,
+    // One instance for the screen's life that forwards to the latest callbacks: a state change (read mode,
+    // tool, undo) then recomposes only the chrome that reads it, not every pill holding a callback.
+    val latest =
+        rememberUpdatedState(
+            ChromeActions(
+                onBack = onBack,
+                onSelectTool = onSelectTool,
+                onOptionsChange = onOptionsChange,
+                onPopover = onPopover,
+                onUndo = onUndo,
+                onRedo = onRedo,
+                onReadMode = onReadMode,
+                onToggleOptions = { onHideOptions(!state.docks.optionsHidden) },
+                onRetrySave = onRetrySave,
+                pages = pageChrome,
+            ),
         )
+    val actions = remember(latest) { ChromeActions.forwardingTo(latest) }
     BackHandler(enabled = state.readMode) { onReadMode(false) }
     SystemBarsHidden(state.readMode)
     // Hardware keys reach the registry from the screen root; it holds focus while no popover or field does.

@@ -2,36 +2,36 @@ package dev.folio.feature.editor.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -50,7 +51,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import dev.folio.core.designsystem.theme.FolioMotion
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.feature.editor.state.DockMode
 import dev.folio.feature.editor.state.EditorStatus
@@ -63,6 +63,9 @@ import kotlin.math.max
 
 /** Row 1 of a bottom-docked toolbox sits this far above the window's safe bottom (DESIGN.md section 8). */
 internal val TOOLBOX_BOTTOM = 25.dp
+
+// Hidden chrome sits this far outside the window (read mode), out of reach of touches.
+private const val HIDDEN_OFFSET_PX = 100_000f
 
 // Docked toolbar opacity while its preview pill is dragged.
 private const val DRAG_DIM = 0.4f
@@ -79,7 +82,29 @@ internal class ChromeActions(
     val onToggleOptions: () -> Unit,
     val onRetrySave: () -> Unit,
     val pages: PageChrome,
-)
+) {
+    internal companion object {
+        /** Actions that call whatever [latest] holds when invoked; the instance itself never changes. */
+        fun forwardingTo(latest: State<ChromeActions>): ChromeActions =
+            ChromeActions(
+                onBack = { latest.value.onBack() },
+                onSelectTool = { latest.value.onSelectTool(it) },
+                onOptionsChange = { latest.value.onOptionsChange(it) },
+                onPopover = { latest.value.onPopover(it) },
+                onUndo = { latest.value.onUndo() },
+                onRedo = { latest.value.onRedo() },
+                onReadMode = { latest.value.onReadMode(it) },
+                onToggleOptions = { latest.value.onToggleOptions() },
+                onRetrySave = { latest.value.onRetrySave() },
+                pages =
+                    PageChrome(
+                        onPanel = { latest.value.pages.onPanel() },
+                        onOverview = { latest.value.pages.onOverview() },
+                        onAdd = { latest.value.pages.onAdd() },
+                    ),
+            )
+    }
+}
 
 /**
  * Measured chrome sizes (px): the free [area] of the window, the nav column ([nav]: nav pill and edit pill),
@@ -162,25 +187,26 @@ internal fun EditorChrome(
     val motion = FolioTheme.motion
     val slidePx = dockSlidePx()
     val mode = placement.mode
-    val shown = !state.readMode
+    // Read mode moves the chrome out in the layer only: it stays composed, so leaving read mode composes nothing.
+    val shown by animateFloatAsState(if (state.readMode) 0f else 1f, motion.standard(), label = "chromeShown")
+    val shownFraction = { shown }
     val dragging by remember(drag) { derivedStateOf { drag.offset != null } }
-    val safe = WindowInsets.safeDrawing
+    val safe = chromeInsets
     Box(Modifier.fillMaxSize()) {
-        CornerPills(state, mode, metrics, actions)
-        AnimatedVisibility(
-            visible = shown,
-            modifier = Modifier.fillMaxSize(),
-            enter = chromeEnter(mode.edge, motion, slidePx),
-            exit = chromeExit(mode.edge, motion, slidePx),
-            label = "toolbox",
-        ) {
-            AnimatedContent(
-                targetState = mode,
-                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (dragging && mode != DockMode.FLOATING) DRAG_DIM else 1f },
-                transitionSpec = { dockTransition(motion, slidePx) },
-                label = "toolbarDock",
-            ) { dock -> Toolbox(state, dock, placement, drag, gestures, metrics, actions) }
-        }
+        CornerPills(state, mode, metrics, actions, shownFraction)
+        AnimatedContent(
+            targetState = mode,
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .chromeShown(shownFraction, mode.edge, slidePx)
+                    .graphicsLayer {
+                        alpha = if (dragging && mode != DockMode.FLOATING) DRAG_DIM else 1f
+                        compositingStrategy = CompositingStrategy.ModulateAlpha
+                    },
+            transitionSpec = { dockTransition(motion, slidePx) },
+            label = "toolbarDock",
+        ) { dock -> Toolbox(state, dock, placement, drag, gestures, metrics, actions) }
         // The area the floating pill moves in; while a docked toolbar is dragged, a preview pill follows the finger.
         Box(
             Modifier.fillMaxSize().windowInsetsPadding(safe).onGloballyPositioned {
@@ -227,7 +253,7 @@ private fun Toolbox(
 ) {
     val space = FolioTheme.space
     val density = LocalDensity.current
-    val safe = WindowInsets.safeDrawing
+    val safe = chromeInsets
     val hidden = state.docks.optionsHidden
     val ready = state.status == EditorStatus.READY
     val options: @Composable (Modifier, Boolean) -> Unit = { pillModifier, vertical ->
@@ -362,13 +388,13 @@ private fun CornerPills(
     mode: DockMode,
     metrics: ChromeMetrics,
     actions: ChromeActions,
+    shown: () -> Float,
 ) {
     val space = FolioTheme.space
     val motion = FolioTheme.motion
     val density = LocalDensity.current
     val slidePx = dockSlidePx()
     val ready = state.status == EditorStatus.READY
-    val shown = !state.readMode
     val rails = with(density) { metrics.rails.toDp() }
     val insetPx = with(density) { space.chromeInset.roundToPx() }
     val lifted = mode == DockMode.BOTTOM && metrics.infoLifted(insetPx)
@@ -380,52 +406,45 @@ private fun CornerPills(
     Box(
         Modifier
             .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .windowInsetsPadding(chromeInsets)
             .padding(start = if (mode == DockMode.LEFT) rails else 0.dp, end = if (mode == DockMode.RIGHT) rails else 0.dp)
             .onSizeChanged { metrics.area = it },
     ) {
-        AnimatedVisibility(
-            visible = shown,
-            modifier = Modifier.align(Alignment.TopStart),
-            enter = chromeEnter(Edge.TOP, motion, slidePx),
-            exit = chromeExit(Edge.TOP, motion, slidePx),
-            label = "navPills",
+        Column(
+            Modifier
+                .align(Alignment.TopStart)
+                .chromeShown(shown, Edge.TOP, slidePx)
+                .padding(space.chromeInset)
+                .onSizeChanged { metrics.nav = it },
+            verticalArrangement = Arrangement.spacedBy(space.chromeInset),
         ) {
-            Column(
-                Modifier.padding(space.chromeInset).onSizeChanged { metrics.nav = it },
-                verticalArrangement = Arrangement.spacedBy(space.chromeInset),
-            ) {
-                NavPill(actions.onBack, actions.pages, pagesEnabled = ready)
-                if (ready) UndoRedoPill(state.canUndo, state.canRedo, actions.onUndo, actions.onRedo)
-            }
+            NavPill(actions.onBack, actions.pages, pagesEnabled = ready)
+            if (ready) UndoRedoPill(state.canUndo, state.canRedo, actions.onUndo, actions.onRedo)
         }
         if (ready) {
-            AnimatedVisibility(
-                visible = shown,
-                modifier = Modifier.align(Alignment.TopEnd),
-                enter = chromeEnter(Edge.TOP, motion, slidePx),
-                exit = chromeExit(Edge.TOP, motion, slidePx),
-                label = "modePill",
-            ) { ModePill({ actions.onReadMode(true) }, Modifier.padding(space.chromeInset).onSizeChanged { metrics.mode = it }) }
-            AnimatedVisibility(
-                visible = shown,
-                modifier = Modifier.align(Alignment.BottomStart),
-                enter = chromeEnter(Edge.BOTTOM, motion, slidePx),
-                exit = chromeExit(Edge.BOTTOM, motion, slidePx),
-                label = "infoPill",
+            ModePill(
+                { actions.onReadMode(true) },
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .chromeShown(shown, Edge.TOP, slidePx)
+                    .padding(space.chromeInset)
+                    .onSizeChanged { metrics.mode = it },
+            )
+            Row(
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .chromeShown(shown, Edge.BOTTOM, slidePx)
+                    .padding(start = space.chromeInset, bottom = infoBottom)
+                    .onSizeChanged { metrics.info = it },
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    Modifier.padding(start = space.chromeInset, bottom = infoBottom).onSizeChanged { metrics.info = it },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val count = state.pages.pages.size
-                    InfoPill(
-                        page = (state.view.pageIndex + 1).coerceIn(1, max(count, 1)),
-                        pageCount = count,
-                        zoomPercent = state.view.zoomPercent,
-                    )
-                    SaveIndicator(state.saveState, actions.onRetrySave, Modifier.padding(horizontal = space.s12))
-                }
+                val count = state.pages.pages.size
+                InfoPill(
+                    page = (state.view.pageIndex + 1).coerceIn(1, max(count, 1)),
+                    pageCount = count,
+                    zoomPercent = state.view.zoomPercent,
+                )
+                SaveIndicator(state.saveState, actions.onRetrySave, Modifier.padding(horizontal = space.s12))
             }
         }
     }
@@ -449,7 +468,7 @@ internal fun Modifier.besideToolbox(
             DockMode.RIGHT -> PaddingValues(end = rails)
             DockMode.FLOATING -> PaddingValues()
         }
-    return windowInsetsPadding(WindowInsets.safeDrawing).padding(padding)
+    return windowInsetsPadding(chromeInsets).padding(padding)
 }
 
 // Window edge a piece of chrome leaves toward in read mode.
@@ -465,30 +484,34 @@ private val DockMode.edge: Edge
             DockMode.FLOATING -> Edge.NONE
         }
 
-private fun chromeEnter(
-    edge: Edge,
-    motion: FolioMotion,
-    slidePx: Int,
-): EnterTransition =
-    fadeIn(motion.standard()) +
-        when (edge) {
-            Edge.TOP -> slideInVertically(motion.standard()) { -slidePx }
-            Edge.BOTTOM -> slideInVertically(motion.standard()) { slidePx }
-            Edge.START -> slideInHorizontally(motion.standard()) { -slidePx }
-            Edge.END -> slideInHorizontally(motion.standard()) { slidePx }
-            Edge.NONE -> EnterTransition.None
-        }
+/**
+ * Insets the chrome keeps clear of: system bars as if shown, cutout and IME. Read mode hides the bars, but
+ * these stay put, so the chrome never relayouts per frame of the bars' animation (A-037).
+ */
+@OptIn(ExperimentalLayoutApi::class) // systemBarsIgnoringVisibility: no stable equivalent in foundation-layout
+internal val chromeInsets: WindowInsets
+    @Composable get() = WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout).union(WindowInsets.ime)
 
-private fun chromeExit(
+/**
+ * Read mode visibility in the layer only (no composition per frame or on show): [shown] (read in the layer)
+ * runs from 1 (shown) to 0 (hidden); the chrome fades and slides [slidePx] toward [edge]. Alpha modulates
+ * each draw instead of an offscreen buffer (the toolbox layer spans the window). Fully hidden it sits far
+ * outside the window, so it takes no touches and the canvas gets them.
+ */
+private fun Modifier.chromeShown(
+    shown: () -> Float,
     edge: Edge,
-    motion: FolioMotion,
     slidePx: Int,
-): ExitTransition =
-    fadeOut(motion.standard()) +
+): Modifier =
+    graphicsLayer {
+        val visible = shown()
+        alpha = visible
+        compositingStrategy = CompositingStrategy.ModulateAlpha
+        val away = if (visible == 0f) HIDDEN_OFFSET_PX else (1f - visible) * slidePx
         when (edge) {
-            Edge.TOP -> slideOutVertically(motion.standard()) { -slidePx }
-            Edge.BOTTOM -> slideOutVertically(motion.standard()) { slidePx }
-            Edge.START -> slideOutHorizontally(motion.standard()) { -slidePx }
-            Edge.END -> slideOutHorizontally(motion.standard()) { slidePx }
-            Edge.NONE -> ExitTransition.None
+            Edge.TOP -> translationY = -away
+            Edge.BOTTOM, Edge.NONE -> translationY = away
+            Edge.START -> translationX = -away
+            Edge.END -> translationX = away
         }
+    }

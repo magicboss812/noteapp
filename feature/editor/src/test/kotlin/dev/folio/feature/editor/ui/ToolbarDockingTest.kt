@@ -5,9 +5,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
@@ -37,21 +39,26 @@ class ToolbarDockingTest {
     private var docks by mutableStateOf(ToolbarDocks())
     private val placed = mutableListOf<Pair<ScreenOrientation, ToolbarPlacement>>()
     private val readModeCalls = mutableListOf<Boolean>()
+    private var readMode by mutableStateOf(false)
+    private var backs = 0
 
     private fun show(initial: ToolbarPlacement) {
         docks = ToolbarDocks(landscape = initial)
         compose.setContent {
             FolioTheme(darkTheme = false) {
                 EditorScreen(
-                    state = EditorUiState(EditorStatus.READY, docks = docks),
-                    onBack = {},
+                    state = EditorUiState(EditorStatus.READY, docks = docks, readMode = readMode),
+                    onBack = { backs++ },
                     onSelectTool = {},
                     onPlaceToolbar = { orientation, placement ->
                         placed += orientation to placement
                         docks = docks.with(orientation, placement)
                     },
                     onHideOptions = { docks = docks.copy(optionsHidden = it) },
-                    onReadMode = { readModeCalls += it },
+                    onReadMode = {
+                        readModeCalls += it
+                        readMode = it
+                    },
                 ) { Box(it) }
             }
         }
@@ -94,6 +101,27 @@ class ToolbarDockingTest {
         compose.onNodeWithContentDescription("Read mode").performClick()
 
         assertThat(readModeCalls).containsExactly(true)
+    }
+
+    @Test
+    fun readMode_hiddenChromeTakesNoTouches_exitPillLeaves() {
+        show(ToolbarPlacement())
+        // The Home cell: 8 dp inset + 4 dp pill padding + half a 44 dp cell, at 2.75 px per dp.
+        val home = Offset(34f * 2.75f, 30f * 2.75f)
+        compose.onRoot().performTouchInput { click(home) }
+        assertThat(backs).isEqualTo(1)
+
+        compose.onNodeWithContentDescription("Read mode").performClick()
+        compose.waitForIdle()
+        compose.onRoot().performTouchInput { click(home) }
+        compose.waitForIdle()
+        assertThat(backs).isEqualTo(1)
+
+        compose.onNodeWithContentDescription("Leave read mode").performClick()
+        compose.waitForIdle()
+        assertThat(readModeCalls).containsExactly(true, false).inOrder()
+        compose.onRoot().performTouchInput { click(home) }
+        assertThat(backs).isEqualTo(2)
     }
 
     @Test
