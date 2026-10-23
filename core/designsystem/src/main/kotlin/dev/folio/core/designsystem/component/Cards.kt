@@ -51,6 +51,7 @@ private val FRONT_PAGE_TOP = 22.dp
 private const val POCKET_FRACTION = 0.5f
 private const val POCKET_ALPHA = 0.55f
 private const val COUNT_ALPHA = 0.45f
+private const val OVERFLOW_ALPHA = 0.7f
 private const val BACK_PAGE_ALPHA = 0.35f
 
 /**
@@ -173,6 +174,8 @@ fun FolderCard(
     modifier: Modifier = Modifier,
     latestTitle: String? = null,
     latestPreview: String? = null,
+    onLongClick: (() -> Unit)? = null,
+    onOverflow: (() -> Unit)? = null,
 ) {
     val space = FolioTheme.space
     val shape = FolioTheme.shapes.card
@@ -183,14 +186,29 @@ fun FolderCard(
                 .size(CardSize)
                 .clip(shape)
                 .background(color.color)
-                .clickable(onClick = onClick),
+                .combinedClickable(onLongClick = onLongClick, onClick = onClick),
     ) {
         Column(Modifier.fillMaxWidth().height(HEADER_HEIGHT).padding(horizontal = space.s12, vertical = space.s8)) {
-            Text(
-                text = if (noteCount == 1) "1 note" else "$noteCount notes",
-                style = FolioTheme.type.caption,
-                color = onColor.copy(alpha = COUNT_ALPHA),
-            )
+            Row(Modifier.fillMaxWidth().height(space.s16), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (noteCount == 1) "1 note" else "$noteCount notes",
+                    style = FolioTheme.type.caption,
+                    color = onColor.copy(alpha = COUNT_ALPHA),
+                )
+                Box(Modifier.weight(1f))
+                if (onOverflow != null) {
+                    // Same overhang as the note card: the 44 dp target must not push the title down.
+                    Box(Modifier.size(space.s16), contentAlignment = Alignment.Center) {
+                        FolioIconButton(
+                            FolioIcons.Ellipsis,
+                            contentDescription = "More",
+                            onClick = onOverflow,
+                            modifier = Modifier.offset(x = OVERFLOW_OVERHANG),
+                            tint = onColor.copy(alpha = OVERFLOW_ALPHA),
+                        )
+                    }
+                }
+            }
             Text(text = name, style = FolioTheme.type.cardTitle, color = onColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {

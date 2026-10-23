@@ -33,9 +33,10 @@ class LibraryHomeScreenshotTest {
     private val now = ZonedDateTime.of(2026, 10, 23, 9, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli()
     private val folders =
         persistentListOf(
-            LibraryFolderItem("Physics", "Physics", 0),
-            LibraryFolderItem("Physics/Lab", "Lab", 1),
-            LibraryFolderItem("Recipes", "Recipes", 0),
+            LibraryFolderItem("Physics", "Physics", 0, tint = "sky"),
+            LibraryFolderItem("Physics/Lab", "Lab", 1, tint = "wine"),
+            LibraryFolderItem("Physics/Optics", "Optics", 1),
+            LibraryFolderItem("Recipes", "Recipes", 0, tint = "orange"),
         )
     private val docs =
         persistentListOf(
@@ -96,6 +97,36 @@ class LibraryHomeScreenshotTest {
     @Config(qualifiers = LANDSCAPE)
     fun home_binTabEmpty() =
         capture("LibraryHome_binEmpty", dark = false, documents = true, browse = LibraryBrowseState(tab = LibraryTab.BIN))
+
+    @Test
+    @Config(qualifiers = LANDSCAPE)
+    fun home_folderViewGrid_breadcrumbAndSubfolders() =
+        capture("LibraryHome_folderGrid", dark = false, documents = true, browse = LibraryBrowseState(folder = "Physics"))
+
+    @Test
+    @Config(qualifiers = LANDSCAPE)
+    fun home_folderViewList_dark() =
+        capture(
+            "LibraryHome_folderListDark",
+            dark = true,
+            documents = true,
+            browse = LibraryBrowseState(folder = "Physics", viewMode = LibraryViewMode.LIST),
+        )
+
+    @Test
+    @Config(qualifiers = PORTRAIT)
+    fun home_nestedFolderPortrait_emptyFolder() =
+        capture("LibraryHome_folderNestedPortrait", dark = false, documents = true, browse = LibraryBrowseState(folder = "Physics/Lab"))
+
+    @Test
+    @Config(qualifiers = LANDSCAPE)
+    fun home_rootFolderListWithTints() =
+        capture(
+            "LibraryHome_rootFoldersListTints",
+            dark = false,
+            documents = true,
+            browse = LibraryBrowseState(viewMode = LibraryViewMode.LIST),
+        )
 
     private fun capture(
         name: String,

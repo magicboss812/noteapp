@@ -23,6 +23,7 @@ import javax.inject.Inject
  * Note menu and batch actions (through [LibraryDocOps]) and the cover thumbnails of the cards. Snackbar texts arrive
  * on [messages]; covers are decoded once per file version and kept in a small LRU.
  */
+@Suppress("TooManyFunctions") // one facade for the note and folder menus; each function hands off to an ops class
 @HiltViewModel
 class LibraryOpsViewModel
     @Inject
@@ -33,6 +34,7 @@ class LibraryOpsViewModel
         private val dispatchers: FolioDispatchers,
     ) : ViewModel() {
         private val ops by lazy { LibraryDocOps(documents.get(), library.get()) }
+        private val folderOps by lazy { LibraryFolderOps(library.get()) }
         private val mutableMessages = Channel<String>(Channel.BUFFERED)
         private val decoded = LruCache<String, ImageBitmap>(COVER_CACHE_SIZE)
 
@@ -62,6 +64,33 @@ class LibraryOpsViewModel
 
         /** Moves [paths] to the bin. */
         fun delete(paths: Collection<String>) = run { ops.delete(paths.toList()) }
+
+        /** Creates folder [name] inside [parent] ("" = root). */
+        fun createFolder(
+            parent: String,
+            name: String,
+        ) = run { folderOps.create(parent, name) }
+
+        /** Renames the folder at [path]. */
+        fun renameFolder(
+            path: String,
+            name: String,
+        ) = run { folderOps.rename(path, name) }
+
+        /** Sets the color of the folder at [path]. */
+        fun setFolderTint(
+            path: String,
+            tint: String?,
+        ) = run { folderOps.setTint(path, tint) }
+
+        /** Moves the folder at [path] into [parent]. */
+        fun moveFolder(
+            path: String,
+            parent: String,
+        ) = run { folderOps.move(path, parent) }
+
+        /** Moves the folder at [path] to the bin. */
+        fun deleteFolder(path: String) = run { folderOps.delete(path) }
 
         /** The decoded cover of [doc], or null when it has none or the file cannot be read. */
         suspend fun cover(doc: LibraryDocItem): ImageBitmap? {

@@ -5,6 +5,18 @@ import dev.folio.core.storage.repo.DocumentOpenException
 import dev.folio.core.storage.repo.DocumentRepository
 import dev.folio.core.storage.repo.LibraryRepository
 
+/** Snackbar text for a refused or failed action on [name]: an open document is named, anything else is "Could not <verb>". */
+internal fun failureText(
+    verb: String,
+    name: String,
+    failure: Outcome.Failure,
+): String =
+    if (failure.cause is DocumentOpenException) {
+        "“$name” is open in the editor. Close it first."
+    } else {
+        "Could not $verb “$name”."
+    }
+
 /**
  * The note menu and batch actions on closed documents. Every function returns the text for a snackbar, or null when
  * nothing needs saying; a document that is open in the editor is refused by the repositories (D-007) and named here.
@@ -55,13 +67,7 @@ class LibraryDocOps(
 
             else -> {
                 val (path, result) = failed.first()
-                val name = nameOf(path)
-                val reason =
-                    if ((result as Outcome.Failure).cause is DocumentOpenException) {
-                        "“$name” is open in the editor. Close it first."
-                    } else {
-                        "Could not $verb “$name”."
-                    }
+                val reason = failureText(verb, nameOf(path), result as Outcome.Failure)
                 if (paths.size == 1) reason else "${paths.size - failed.size} of ${paths.size} done. $reason"
             }
         }

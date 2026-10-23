@@ -115,11 +115,12 @@ DESIGN section 8 (Library), built in P05. Landscape:
 - Sidebar 280 dp `sidebar` (collapses to an 80 dp rail; grid reflows 4 -> 5 columns): nav pills 250 x 42 dp, selected `navSelected` + accent icon/label; Home, folders, Favorites, Tags header with "+", Bin; settings gear bottom left.
 - Content: `library` gradient band with the dot grid at the top. Header: serif greeting ("Hello, <name>" or "Your notes") ~108 dp from the top, date subtitle in textSecondary, filter chip row (All, Favorites, Tags, Bin; selected `accentContainer` + accent label) with sort, view toggle and select toggle at its right end; search capsule 48 dp top right; FAB 48 dp `accentFill` bottom right.
 - Grid: 195 dp square cards, 24 dp gutter, 16 dp inset. List view: 2 columns of 100 dp rows.
+- Folders (A-032): the All tab shows the notes directly in the current folder, with its subfolders as cards first. Inside a folder a breadcrumb (home, then one entry per folder, the last in accent) replaces the chip row. Favorites stays flat across folders. The sidebar Home and folder pills open the root or that folder.
 - Portrait: the sidebar becomes a modal drawer opened from a menu button left of the greeting.
 
 ## Cards
 - NoteCard: 195 dp square, radius 16, 1 dp border. Header 66 dp `surfaceHeader`: timestamp caption (textTertiary) at 12 dp inset, serif cardTitle below (2 lines, ellipsis), overflow "..." top right; 1 dp divider; preview fills the rest edge to edge (cover thumbnail, or mini-Markdown textPreview in caption type on paper white). Selected: 2 dp accent border. Favorite star and tags show in the header meta line.
-- FolderCard: 195 dp square, radius 16, no border, folder color fill. Header 66 dp: count caption (title color at 45%) then serif title; two stacked page previews (back dark, front white, radius 8) with the lower 40% under a translucent lighter pocket.
+- FolderCard: 195 dp square, radius 16, no border, folder color fill. Header 66 dp: count caption (title color at 45%) with the overflow "..." (rename, color, move, delete) at its right, then serif title; two stacked page previews (back dark, front white, radius 8) with the lower 40% under a translucent lighter pocket.
 - List mode: 100 dp rows, 100 dp thumbnail (radius 10, 1 dp border), count over sans title, overflow at the end.
 
 ## Sticky notes

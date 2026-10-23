@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P05
-next: P05-T03
+next: P05-T04
 updated: 2026-10-23
 
 ## Completed
@@ -12,12 +12,13 @@ updated: 2026-10-23
 - P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 PASS 2026-10-23 (T09 after fix: CanvasHost collectors on the main dispatcher); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green.
 
 ## Current phase progress
-- P05: T01, T02
+- P05: T01, T02, T03
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
 
 ## USER-CHECK (human verification; non-blocking)
+- P05-T03: library "+" -> Folder; open it, create subfolders; card "..." -> Color, Rename, Move (own subtree greyed), Delete (goes to the bin) -> breadcrumb, colors and cards read well; folders survive a relaunch.
 - P05-T02: library home -> long-press a card to select several, use Move/Favorite/Delete in the bar; card menu Rename/Move/Duplicate/Favorite/Delete; with a note open in the editor its menu actions show "is open in the editor" -> covers (after a first save) and text excerpts read well.
 - P04-T10: open the library placeholder and a note on the tablet -> toolbar, options row, popovers, colors and type read as Notewise; differences go to docs/plan/FEEDBACK.md.
 - P04-T06: toolbar Pages (drawer), Overview (grid) and Add page buttons; long-press and drag a panel row to reorder; row menu, page settings -> panels and sheet read well, order survives reopening.
@@ -33,6 +34,6 @@ updated: 2026-10-23
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P05-T02 done: NoteCard previews (stored cover, else excerpt), overflow menu, multi-select bar (move/favorite/delete), FolderCard sheet fix; D-007 guard (`OpenDocuments`, typed `DocumentOpenException`) in core:storage, also covers folder rename/move/delete.
-- Menu Tags and Export rows are disabled placeholders (T04 tag editor, P09 export). FolderCard is not on the home grid yet (T03); its golden is in the component catalog and NoteCards_mixedRow.
-- Next: P05-T03 (folders). FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).
+- P05-T03 done: folders on the home grid (cards + list rows, overflow, color/rename/move dialogs, breadcrumb, sidebar pills open folders), `LibraryFolderOps` over `LibraryRepository`; A-032; device check PASS (nested School/Physics/Lab on disk).
+- State: `LibraryBrowseState.folder`, helpers in `state/LibraryBrowse.kt`; new notes are created in the current folder. Bin tab and restore UI are still empty placeholders (T06).
+- Next: P05-T04 (tags). Menu Tags and Export rows are disabled placeholders. FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).

@@ -105,7 +105,12 @@ class LibraryEntryViewModel
                     scanner.get().incrementalScan()
                     if (listing == null) {
                         listing = launch { allDocuments().collect { mutableDocuments.value = it } }
-                        launch { library.get().folderTree().collect { mutableFolders.value = folderItems(it.map { f -> f.path }) } }
+                        launch {
+                            library.get().folderTree().collect { rows ->
+                                mutableFolders.value =
+                                    folderItems(rows.map { it.path }, rows.associate { it.path to it.tint })
+                            }
+                        }
                     }
                 }
             }

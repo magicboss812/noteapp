@@ -46,11 +46,16 @@ import dev.folio.feature.library.state.LibraryDocItem
 import dev.folio.feature.library.state.LibraryFolderItem
 import dev.folio.feature.library.state.LibraryTab
 import dev.folio.feature.library.state.LibraryViewMode
+import dev.folio.feature.library.state.breadcrumb
+import dev.folio.feature.library.state.childFolders
 import dev.folio.feature.library.state.dateSubtitle
+import dev.folio.feature.library.state.existingFolder
+import dev.folio.feature.library.state.folderSummaries
 import dev.folio.feature.library.state.greeting
 import dev.folio.feature.library.state.label
 import dev.folio.feature.library.state.visibleDocuments
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import java.time.ZoneId
 
@@ -93,13 +98,21 @@ internal fun LibraryHome(
     newActions: NewActions,
     modifier: Modifier = Modifier,
     notes: NoteActions = NoteActions(),
+    folderActions: FolderActions = FolderActions(),
     onSelectAll: (List<String>) -> Unit = {},
     onSearch: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
 ) {
-    val visible = visibleDocuments(documents, browse.tab, browse.sort)
+    // A folder renamed, moved or deleted elsewhere falls back to the root instead of showing an empty view.
+    val folder = existingFolder(folders, browse.folder)
+    val visible = visibleDocuments(documents, browse.tab, browse.sort, folder)
+    val subfolders =
+        remember(folders, documents, browse.tab, folder) {
+            if (browse.tab == LibraryTab.ALL) folderSummaries(childFolders(folders, folder), documents) else persistentListOf()
+        }
     var drawerOpen by rememberSaveable { mutableStateOf(false) }
     var movingSelection by remember { mutableStateOf(false) }
+    var creatingFolder by remember { mutableStateOf(false) }
     BoxWithConstraints(modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         val drawer = maxWidth < DRAWER_BELOW
         val sidebar: @Composable (Modifier) -> Unit = { sidebarModifier ->
@@ -112,7 +125,12 @@ internal fun LibraryHome(
                     drawerOpen = false
                     onSelectTab(it)
                 },
+                onOpenFolder = {
+                    drawerOpen = false
+                    folderActions.onOpen(it)
+                },
                 modifier = sidebarModifier,
+                currentFolder = folder,
                 onOpenSettings = onOpenSettings,
             )
         }
@@ -126,19 +144,21 @@ internal fun LibraryHome(
                         onMenu = if (drawer) ({ drawerOpen = true }) else null,
                         onSearch = onSearch,
                     )
-                    LibraryControls(browse, onSelectTab, onSetSort, onToggleViewMode, onToggleSelectMode)
+                    LibraryControls(browse, folder, onSelectTab, folderActions.onOpen, onSetSort, onToggleViewMode, onToggleSelectMode)
                     LibraryDocuments(
                         documents = visible,
                         folders = folders,
+                        subfolders = subfolders,
                         viewMode = browse.viewMode,
                         selectMode = browse.selectMode,
                         selected = browse.selected,
                         nowMs = nowMs,
                         zone = zone,
-                        emptyTitle = emptyTitle(browse.tab),
-                        emptyHint = emptyHint(browse.tab),
+                        emptyTitle = emptyTitle(browse.tab, folder),
+                        emptyHint = emptyHint(browse.tab, folder),
                         onOpenDocument = onOpenDocument,
                         notes = notes,
+                        folderActions = folderActions,
                     )
                 }
                 if (browse.selectMode) {
@@ -157,7 +177,10 @@ internal fun LibraryHome(
                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = FAB_BOTTOM),
                     )
                 } else {
-                    NewButton(newActions, Modifier.align(Alignment.BottomEnd).padding(end = FAB_SIDE, bottom = FAB_BOTTOM))
+                    NewButton(
+                        newActions.copy(folder = { creatingFolder = true }),
+                        Modifier.align(Alignment.BottomEnd).padding(end = FAB_SIDE, bottom = FAB_BOTTOM),
+                    )
                 }
             }
         }
@@ -172,6 +195,19 @@ internal fun LibraryHome(
                 onDismiss = { movingSelection = false },
             )
         }
+        if (creatingFolder) {
+            NameDialog(
+                heading = "New folder",
+                fieldLabel = "Folder name",
+                confirmLabel = "Create",
+                initial = "",
+                onConfirm = {
+                    creatingFolder = false
+                    folderActions.onCreate(folder, it)
+                },
+                onDismiss = { creatingFolder = false },
+            )
+        }
         if (drawer && drawerOpen) {
             Box(Modifier.fillMaxSize().background(FolioTheme.colors.scrim).clickable(onClickLabel = "Close menu") { drawerOpen = false })
             sidebar(Modifier)
@@ -179,21 +215,33 @@ internal fun LibraryHome(
     }
 }
 
-private fun emptyTitle(tab: LibraryTab) =
+private fun emptyTitle(
+    tab: LibraryTab,
+    folder: String,
+) = if (tab == LibraryTab.ALL && folder.isNotEmpty()) {
+    "This folder is empty"
+} else {
     when (tab) {
         LibraryTab.ALL -> "No notes yet"
         LibraryTab.FAVORITES -> "No favorites yet"
         LibraryTab.TAGS -> "No tags yet"
         LibraryTab.BIN -> "The bin is empty"
     }
+}
 
-private fun emptyHint(tab: LibraryTab) =
+private fun emptyHint(
+    tab: LibraryTab,
+    folder: String,
+) = if (tab == LibraryTab.ALL && folder.isNotEmpty()) {
+    "Tap the plus button to add a note or a folder."
+} else {
     when (tab) {
         LibraryTab.ALL -> "Tap the plus button to start a note."
         LibraryTab.FAVORITES -> "Mark a note as favorite and it shows up here."
         LibraryTab.TAGS -> "Tags you add to notes show up here."
         LibraryTab.BIN -> "Deleted notes stay here for 30 days."
     }
+}
 
 @Composable
 private fun LibraryHeader(
@@ -226,7 +274,9 @@ private fun LibraryHeader(
 @Composable
 private fun LibraryControls(
     browse: LibraryBrowseState,
+    folder: String,
     onSelectTab: (LibraryTab) -> Unit,
+    onOpenFolder: (String) -> Unit,
     onSetSort: (DocumentSort) -> Unit,
     onToggleViewMode: () -> Unit,
     onToggleSelectMode: () -> Unit,
@@ -238,8 +288,13 @@ private fun LibraryControls(
         Modifier.fillMaxWidth().padding(horizontal = HEADER_SIDE, vertical = space.s16),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SegmentedTabs(tabs, browse.tab.ordinal, onSelect = { onSelectTab(LibraryTab.entries[it]) })
-        Box(Modifier.weight(1f))
+        if (folder.isNotEmpty() && browse.tab == LibraryTab.ALL) {
+            // Inside a folder the chips give way to the breadcrumb (DESIGN folder view).
+            FolderBreadcrumb(breadcrumb(folder), onOpenFolder, Modifier.weight(1f))
+        } else {
+            SegmentedTabs(tabs, browse.tab.ordinal, onSelect = { onSelectTab(LibraryTab.entries[it]) })
+            Box(Modifier.weight(1f))
+        }
         SortMenu(browse.sort, onSetSort)
         FolioIconButton(
             icon = if (browse.viewMode == LibraryViewMode.GRID) FolioIcons.List else FolioIcons.LayoutGrid,

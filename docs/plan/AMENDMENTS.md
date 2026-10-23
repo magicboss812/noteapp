@@ -163,3 +163,8 @@ Format:
 - Reason: the editor instrumented test runs the real storage stack on a temp library inside the test app and needs the same fixtures as the Robolectric tests.
 - Impact: 02-modules.md (core:testing rows), architecture-boundaries rule wording.
 
+## A-032 2026-10-23 P05-T03: library All tab shows one folder level, folder cards carry an overflow
+- Change: the All tab lists the notes directly in the current folder plus its subfolders as cards (a breadcrumb replaces the chips inside a folder); Favorites stays flat across folders. The FolderCard header gets the overflow "..." (rename, color, move, delete); the folder tint is a lowercase FolderColor name in `.folder.json`.
+- Reason: nested folders need a browsable view; a flat All tab would hide the structure.
+- Impact: 11-design-system.md#library-screen and #cards.
+

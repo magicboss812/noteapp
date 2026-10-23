@@ -76,6 +76,27 @@ class LibraryBrowseViewModelTest {
         }
 
     @Test
+    fun openFolder_showsAllTabAtThatFolderAndDropsTheSelection() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.selectTab(LibraryTab.BIN)
+            vm.toggleSelected("a.folio")
+            advanceUntilIdle()
+
+            vm.openFolder("Physics/Lab")
+            advanceUntilIdle()
+
+            assertThat(vm.state.value.tab).isEqualTo(LibraryTab.ALL)
+            assertThat(vm.state.value.folder).isEqualTo("Physics/Lab")
+            assertThat(vm.state.value.selectMode).isFalse()
+            assertThat(vm.state.value.selected).isEmpty()
+
+            vm.openFolder("")
+            advanceUntilIdle()
+            assertThat(vm.state.value.folder).isEqualTo("")
+        }
+
+    @Test
     fun toggleSelected_entersSelectModeAndTogglesPath() =
         runTest(dispatcher) {
             val vm = viewModel()

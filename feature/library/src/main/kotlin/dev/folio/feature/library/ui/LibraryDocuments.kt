@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.folio.core.designsystem.component.CardSize
+import dev.folio.core.designsystem.component.FolderCard
 import dev.folio.core.designsystem.component.FolioIconButton
 import dev.folio.core.designsystem.component.NoteCard
 import dev.folio.core.designsystem.component.NoteCardCover
@@ -44,11 +45,14 @@ import dev.folio.core.designsystem.component.NoteCardTextPreview
 import dev.folio.core.designsystem.icon.FolioIcons
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.feature.library.state.CardPreview
+import dev.folio.feature.library.state.FolderSummary
 import dev.folio.feature.library.state.LibraryDocItem
 import dev.folio.feature.library.state.LibraryFolderItem
 import dev.folio.feature.library.state.LibraryViewMode
 import dev.folio.feature.library.state.cardPreview
 import dev.folio.feature.library.state.cardTimestamp
+import dev.folio.feature.library.state.folderColor
+import dev.folio.feature.library.state.tintName
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 import java.time.ZoneId
@@ -72,14 +76,26 @@ data class NoteActions(
     val loadCover: suspend (LibraryDocItem) -> ImageBitmap? = { null },
 )
 
+/** What the folder cards report; the defaults are no-ops so previews and tests pass only what they check. */
+data class FolderActions(
+    val onOpen: (String) -> Unit = {},
+    val onCreate: (parent: String, name: String) -> Unit = { _, _ -> },
+    val onRename: (path: String, name: String) -> Unit = { _, _ -> },
+    val onSetTint: (path: String, tint: String?) -> Unit = { _, _ -> },
+    val onMove: (path: String, parent: String) -> Unit = { _, _ -> },
+    val onDelete: (path: String) -> Unit = {},
+)
+
 /**
- * The documents of the current tab: 195 dp cards in a grid with a 24 dp gutter, or two columns of 100 dp rows
- * (11-design-system.md#library-screen). In select mode a tap ticks a note; a long press starts it.
+ * The folders and documents of the current tab: 195 dp cards in a grid with a 24 dp gutter, or two columns of 100 dp
+ * rows (11-design-system.md#library-screen). Folders come first. In select mode a tap ticks a note; a long press
+ * starts it.
  */
 @Composable
 internal fun LibraryDocuments(
     documents: ImmutableList<LibraryDocItem>,
     folders: ImmutableList<LibraryFolderItem>,
+    subfolders: ImmutableList<FolderSummary>,
     viewMode: LibraryViewMode,
     selectMode: Boolean,
     selected: ImmutableSet<String>,
@@ -89,15 +105,29 @@ internal fun LibraryDocuments(
     emptyHint: String,
     onOpenDocument: (String) -> Unit,
     notes: NoteActions,
+    folderActions: FolderActions,
     modifier: Modifier = Modifier,
 ) {
-    if (documents.isEmpty()) {
+    if (documents.isEmpty() && subfolders.isEmpty()) {
         EmptyState(emptyTitle, emptyHint, modifier)
         return
     }
     var menuFor by remember { mutableStateOf<String?>(null) }
     var renaming by remember { mutableStateOf<LibraryDocItem?>(null) }
     var moving by remember { mutableStateOf<LibraryDocItem?>(null) }
+    var folderMenuFor by remember { mutableStateOf<String?>(null) }
+    var folderDialog by remember { mutableStateOf<FolderDialog?>(null) }
+    val folderMenu: @Composable (FolderSummary) -> Unit = { summary ->
+        FolderMenu(
+            expanded = folderMenuFor == summary.folder.path,
+            onDismiss = { folderMenuFor = null },
+            onAction = { action ->
+                folderMenuFor = null
+                val dialog = action.dialogFor(summary.folder)
+                if (dialog == null) folderActions.onDelete(summary.folder.path) else folderDialog = dialog
+            },
+        )
+    }
     val inset = PaddingValues(start = FolioTheme.space.s16, end = FolioTheme.space.s16, top = FolioTheme.space.s8, bottom = FAB_CLEARANCE)
     val spacing = Arrangement.spacedBy(GUTTER)
     val open: (LibraryDocItem) -> Unit = { doc -> if (selectMode) notes.onToggleSelected(doc.path) else onOpenDocument(doc.path) }
@@ -108,13 +138,7 @@ internal fun LibraryDocuments(
             onDismiss = { menuFor = null },
             onAction = { action ->
                 menuFor = null
-                when (action) {
-                    NoteAction.Rename -> renaming = doc
-                    NoteAction.Move -> moving = doc
-                    NoteAction.Duplicate -> notes.onDuplicate(doc.path)
-                    NoteAction.ToggleFavorite -> notes.onSetFavorite(setOf(doc.path), !doc.favorite)
-                    NoteAction.Delete -> notes.onDelete(setOf(doc.path))
-                }
+                performNoteAction(action, doc, notes, onRename = { renaming = doc }, onMove = { moving = doc })
             },
         )
     }
@@ -127,6 +151,21 @@ internal fun LibraryDocuments(
                 verticalArrangement = spacing,
                 horizontalArrangement = spacing,
             ) {
+                items(subfolders, key = { "folder:${it.folder.path}" }) { summary ->
+                    Box {
+                        FolderCard(
+                            name = summary.folder.name,
+                            noteCount = summary.noteCount,
+                            color = folderColor(summary.folder.tint),
+                            onClick = { folderActions.onOpen(summary.folder.path) },
+                            latestTitle = summary.latest?.title,
+                            latestPreview = summary.latest?.textPreview?.takeIf { it.isNotBlank() },
+                            onLongClick = { folderMenuFor = summary.folder.path },
+                            onOverflow = { folderMenuFor = summary.folder.path },
+                        )
+                        folderMenu(summary)
+                    }
+                }
                 items(documents, key = { it.path }) { doc ->
                     val cover = rememberCover(doc, notes.loadCover)
                     Box {
@@ -154,6 +193,17 @@ internal fun LibraryDocuments(
                 verticalArrangement = Arrangement.spacedBy(FolioTheme.space.s16),
                 horizontalArrangement = spacing,
             ) {
+                items(subfolders, key = { "folder:${it.folder.path}" }) { summary ->
+                    Box {
+                        FolderListRow(
+                            summary = summary,
+                            onClick = { folderActions.onOpen(summary.folder.path) },
+                            onLongClick = { folderMenuFor = summary.folder.path },
+                            onOverflow = { folderMenuFor = summary.folder.path },
+                        )
+                        folderMenu(summary)
+                    }
+                }
                 items(documents, key = { it.path }) { doc ->
                     Box {
                         DocumentListRow(
@@ -172,6 +222,102 @@ internal fun LibraryDocuments(
         }
     }
     NoteDialogHost(renaming, moving, folders, notes, onCloseRename = { renaming = null }, onCloseMove = { moving = null })
+    FolderDialogHost(folderDialog, folders, folderActions, onClose = { folderDialog = null })
+}
+
+/** Runs a note menu entry; rename and move only open a dialog, so they are handed back through [onRename] and [onMove]. */
+private fun performNoteAction(
+    action: NoteAction,
+    doc: LibraryDocItem,
+    notes: NoteActions,
+    onRename: () -> Unit,
+    onMove: () -> Unit,
+) {
+    when (action) {
+        NoteAction.Rename -> onRename()
+        NoteAction.Move -> onMove()
+        NoteAction.Duplicate -> notes.onDuplicate(doc.path)
+        NoteAction.ToggleFavorite -> notes.onSetFavorite(setOf(doc.path), !doc.favorite)
+        NoteAction.Delete -> notes.onDelete(setOf(doc.path))
+    }
+}
+
+/** The dialog a folder menu entry opens; null for Delete, which acts at once. */
+private fun FolderAction.dialogFor(folder: LibraryFolderItem): FolderDialog? =
+    when (this) {
+        FolderAction.Rename -> FolderDialog.Rename(folder)
+        FolderAction.Color -> FolderDialog.Color(folder)
+        FolderAction.Move -> FolderDialog.Move(folder)
+        FolderAction.Delete -> null
+    }
+
+/** The folder dialog that is open; the folder is kept as it was when the menu entry was picked. */
+private sealed interface FolderDialog {
+    val folder: LibraryFolderItem
+
+    data class Rename(
+        override val folder: LibraryFolderItem,
+    ) : FolderDialog
+
+    data class Color(
+        override val folder: LibraryFolderItem,
+    ) : FolderDialog
+
+    data class Move(
+        override val folder: LibraryFolderItem,
+    ) : FolderDialog
+}
+
+@Composable
+private fun FolderDialogHost(
+    dialog: FolderDialog?,
+    folders: ImmutableList<LibraryFolderItem>,
+    actions: FolderActions,
+    onClose: () -> Unit,
+) {
+    when (dialog) {
+        null -> {
+            Unit
+        }
+
+        is FolderDialog.Rename -> {
+            NameDialog(
+                heading = "Rename folder",
+                fieldLabel = "Folder name",
+                confirmLabel = "Rename",
+                initial = dialog.folder.name,
+                onConfirm = {
+                    onClose()
+                    actions.onRename(dialog.folder.path, it)
+                },
+                onDismiss = onClose,
+            )
+        }
+
+        is FolderDialog.Color -> {
+            FolderColorDialog(
+                current = folderColor(dialog.folder.tint),
+                onPick = {
+                    onClose()
+                    actions.onSetTint(dialog.folder.path, tintName(it))
+                },
+                onDismiss = onClose,
+            )
+        }
+
+        is FolderDialog.Move -> {
+            MoveNotesDialog(
+                folders = folders,
+                currentFolder = dialog.folder.parent,
+                movingFolder = dialog.folder.path,
+                onMove = {
+                    onClose()
+                    actions.onMove(dialog.folder.path, it)
+                },
+                onDismiss = onClose,
+            )
+        }
+    }
 }
 
 /** The rename and move dialogs of the note menu; [onCloseRename] and [onCloseMove] clear the state that opened them. */

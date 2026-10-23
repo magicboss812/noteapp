@@ -42,8 +42,8 @@ private val SECTION_TOP = 16.dp
 
 /**
  * Sidebar (11-design-system.md#library-screen): 280 dp, or an 80 dp icon rail when [collapsed]. Home, Favorites and
- * Bin are the same views as the tabs; folder pills open a folder; the gear sits at the bottom. [onOpenSettings] and
- * [onOpenFolder] are null while their screens do not exist, which draws the pill without a click.
+ * Bin are the same views as the tabs; Home and the folder pills open a folder ([currentFolder] is marked); the gear
+ * sits at the bottom. [onOpenSettings] is null while that screen does not exist, which draws the button disabled.
  */
 @Composable
 internal fun LibrarySidebar(
@@ -52,8 +52,9 @@ internal fun LibrarySidebar(
     folders: ImmutableList<LibraryFolderItem>,
     onToggleCollapse: () -> Unit,
     onSelectTab: (LibraryTab) -> Unit,
+    onOpenFolder: (String) -> Unit,
     modifier: Modifier = Modifier,
-    onOpenFolder: ((String) -> Unit)? = null,
+    currentFolder: String = "",
     onOpenSettings: (() -> Unit)? = null,
 ) {
     val colors = FolioTheme.colors
@@ -79,7 +80,13 @@ internal fun LibrarySidebar(
             verticalArrangement = Arrangement.spacedBy(space.s4),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            NavPill(FolioIcons.House, "Home", tab == LibraryTab.ALL, collapsed, onClick = { onSelectTab(LibraryTab.ALL) })
+            NavPill(
+                FolioIcons.House,
+                "Home",
+                tab == LibraryTab.ALL && currentFolder.isEmpty(),
+                collapsed,
+                onClick = { onOpenFolder("") },
+            )
             NavPill(FolioIcons.Star, "Favorites", tab == LibraryTab.FAVORITES, collapsed, onClick = { onSelectTab(LibraryTab.FAVORITES) })
             if (!collapsed) {
                 if (folders.isNotEmpty()) SectionHeader("Folders")
@@ -87,9 +94,9 @@ internal fun LibrarySidebar(
                     NavPill(
                         icon = FolioIcons.Folder,
                         label = folder.name,
-                        selected = false,
+                        selected = tab == LibraryTab.ALL && folder.path == currentFolder,
                         collapsed = false,
-                        onClick = onOpenFolder?.let { open -> { open(folder.path) } },
+                        onClick = { onOpenFolder(folder.path) },
                         indent = FOLDER_INDENT * folder.depth,
                     )
                 }

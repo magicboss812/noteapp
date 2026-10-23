@@ -38,7 +38,16 @@ class LibraryBrowseViewModel
         /** Current browse state; defaults until the settings are read. */
         val state: StateFlow<LibraryBrowseState> =
             combine(settings.read(PREFS_KEY).map(::decode), settings.read(NAME_KEY), transient) { prefs, name, t ->
-                LibraryBrowseState(t.tab, prefs.sort, prefs.viewMode, t.selectMode, prefs.sidebarCollapsed, name.orEmpty(), t.selected)
+                LibraryBrowseState(
+                    t.tab,
+                    t.folder,
+                    prefs.sort,
+                    prefs.viewMode,
+                    t.selectMode,
+                    prefs.sidebarCollapsed,
+                    name.orEmpty(),
+                    t.selected,
+                )
             }.stateIn(viewModelScope, SharingStarted.Eagerly, LibraryBrowseState())
 
         /** Current wall-clock time for the date line and card timestamps. */
@@ -46,6 +55,10 @@ class LibraryBrowseViewModel
 
         /** Shows [tab]; leaves select mode because the selection belongs to the old list. */
         fun selectTab(tab: LibraryTab) = transient.update { it.copy(tab = tab, selectMode = false, selected = persistentSetOf()) }
+
+        /** Shows the All tab at [folder] ("" = library root); the selection belongs to the old folder and is dropped. */
+        fun openFolder(folder: String) =
+            transient.update { it.copy(tab = LibraryTab.ALL, folder = folder, selectMode = false, selected = persistentSetOf()) }
 
         /** Toggles select mode; leaving it drops the selection. */
         fun toggleSelectMode() = transient.update { it.copy(selectMode = !it.selectMode, selected = persistentSetOf()) }
@@ -91,6 +104,7 @@ class LibraryBrowseViewModel
 
         private data class Transient(
             val tab: LibraryTab = LibraryTab.ALL,
+            val folder: String = "",
             val selectMode: Boolean = false,
             val selected: PersistentSet<String> = persistentSetOf(),
         )

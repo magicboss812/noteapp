@@ -50,10 +50,24 @@ internal fun RenameNoteDialog(
     title: String,
     onRename: (String) -> Unit,
     onDismiss: () -> Unit,
+) = NameDialog("Rename note", "Note title", "Rename", title, onRename, onDismiss)
+
+/**
+ * One-field dialog: [heading] on top, the field described as [fieldLabel] for screen readers, starting with [initial];
+ * the confirm button reads [confirmLabel] and is enabled while the text is not blank.
+ */
+@Composable
+internal fun NameDialog(
+    heading: String,
+    fieldLabel: String,
+    confirmLabel: String,
+    initial: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
 ) {
     val colors = FolioTheme.colors
-    var text by rememberSaveable { mutableStateOf(title) }
-    DialogFrame("Rename note", onDismiss) {
+    var text by rememberSaveable { mutableStateOf(initial) }
+    DialogFrame(heading, onDismiss) {
         BasicTextField(
             value = text,
             onValueChange = { text = it },
@@ -67,33 +81,38 @@ internal fun RenameNoteDialog(
                     .background(colors.surfaceInset, FolioTheme.shapes.field)
                     .border(BorderStroke(FolioTheme.space.borderWidth, colors.border), FolioTheme.shapes.field)
                     .padding(horizontal = FolioTheme.space.s12)
-                    .semantics { contentDescription = "Note title" },
+                    .semantics { contentDescription = fieldLabel },
             decorationBox = { inner ->
                 Box(Modifier.heightIn(min = FolioTheme.space.touchTarget), contentAlignment = Alignment.CenterStart) { inner() }
             },
         )
         DialogButtons(
-            confirmLabel = "Rename",
+            confirmLabel = confirmLabel,
             confirmEnabled = text.isNotBlank(),
-            onConfirm = { onRename(text.trim()) },
+            onConfirm = { onConfirm(text.trim()) },
             onDismiss = onDismiss,
         )
     }
 }
 
-/** Move dialog: the library root and every folder of [folders]; [currentFolder] is marked and cannot be picked. */
+/**
+ * Move dialog: the library root and every folder of [folders]; [currentFolder] is marked and cannot be picked. When a
+ * folder is being moved, [movingFolder] is that folder: it and everything inside it are not valid targets.
+ */
 @Composable
 internal fun MoveNotesDialog(
     folders: ImmutableList<LibraryFolderItem>,
     currentFolder: String?,
     onMove: (String) -> Unit,
     onDismiss: () -> Unit,
+    movingFolder: String? = null,
 ) {
     val targets = listOf(LibraryFolderItem("", "Library", -1)) + folders
     DialogFrame("Move to", onDismiss) {
         LazyColumn(Modifier.heightIn(max = MOVE_LIST_MAX)) {
             items(targets, key = { it.path }) { target ->
-                FolderRow(target, enabled = target.path != currentFolder, onClick = { onMove(target.path) })
+                val insideMoving = movingFolder != null && (target.path == movingFolder || target.path.startsWith("$movingFolder/"))
+                FolderRow(target, enabled = target.path != currentFolder && !insideMoving, onClick = { onMove(target.path) })
             }
         }
         DialogButtons(confirmLabel = null, confirmEnabled = false, onConfirm = {}, onDismiss = onDismiss)
@@ -124,7 +143,7 @@ private fun FolderRow(
 }
 
 @Composable
-private fun DialogFrame(
+internal fun DialogFrame(
     title: String,
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
@@ -146,7 +165,7 @@ private fun DialogFrame(
 }
 
 @Composable
-private fun DialogButtons(
+internal fun DialogButtons(
     confirmLabel: String?,
     confirmEnabled: Boolean,
     onConfirm: () -> Unit,

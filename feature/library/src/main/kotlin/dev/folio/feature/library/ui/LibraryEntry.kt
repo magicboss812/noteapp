@@ -48,6 +48,7 @@ import dev.folio.feature.library.state.LibraryOpsViewModel
 import dev.folio.feature.library.state.LibraryTab
 import dev.folio.feature.library.state.NewNoteState
 import dev.folio.feature.library.state.NewNoteViewModel
+import dev.folio.feature.library.state.existingFolder
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import java.time.ZoneId
@@ -102,6 +103,15 @@ fun LibraryEntryRoute(
                 onOpenDocument = onOpenDocument,
                 onNewNote = newNoteViewModel::show,
                 onSelectAll = browseViewModel::selectAll,
+                folders =
+                    FolderActions(
+                        onOpen = browseViewModel::openFolder,
+                        onCreate = opsViewModel::createFolder,
+                        onRename = opsViewModel::renameFolder,
+                        onSetTint = opsViewModel::setFolderTint,
+                        onMove = opsViewModel::moveFolder,
+                        onDelete = opsViewModel::deleteFolder,
+                    ),
                 notes =
                     NoteActions(
                         onToggleSelected = browseViewModel::toggleSelected,
@@ -147,8 +157,8 @@ fun LibraryEntryRoute(
             NewNoteSheet(
                 form = editing.form,
                 onChange = newNoteViewModel::update,
-                // The placeholder has no folders yet: new notes go to the library root until P05.
-                onCreate = { newNoteViewModel.create(folder = "", onCreated = onOpenDocument) },
+                // New notes land in the folder on screen (the root while a stale folder is gone).
+                onCreate = { newNoteViewModel.create(folder = existingFolder(folders, browse.folder), onCreated = onOpenDocument) },
                 onClose = newNoteViewModel::dismiss,
                 creating = editing.creating,
                 error = editing.error,
@@ -180,6 +190,7 @@ data class LibraryActions(
     val onNewNote: () -> Unit = {},
     val onSelectAll: (List<String>) -> Unit = {},
     val notes: NoteActions = NoteActions(),
+    val folders: FolderActions = FolderActions(),
 )
 
 /** Stateless entry screen. */
@@ -219,6 +230,7 @@ fun LibraryEntryScreen(
                     onOpenDocument = actions.onOpenDocument,
                     newActions = NewActions(note = actions.onNewNote),
                     notes = actions.notes,
+                    folderActions = actions.folders,
                     onSelectAll = actions.onSelectAll,
                 )
             }
