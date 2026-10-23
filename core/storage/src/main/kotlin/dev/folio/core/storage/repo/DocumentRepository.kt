@@ -142,8 +142,18 @@ class DocumentRepository(
             }
         }.also { result -> if (result is Outcome.Success) reindex(removed = listOf(path), added = result.value) }
 
-    /** Moves the file into [folder] (collision -> " (2)"). */
+    /** Moves the file into [folder] (collision -> " (2)"); its own folder is a no-op. */
     suspend fun move(
+        path: String,
+        folder: String,
+    ): Outcome<String> =
+        if (FileNames.parentOf(path) == folder) {
+            Outcome.Success(path)
+        } else {
+            moveToOtherFolder(path, folder)
+        }
+
+    private suspend fun moveToOtherFolder(
         path: String,
         folder: String,
     ): Outcome<String> =
@@ -167,7 +177,10 @@ class DocumentRepository(
         io { trash.restore(entry) }
             .also { result ->
                 if (result is Outcome.Success) {
-                    if (entry.isFolder) scanner.incrementalScan() else scanner.indexFile(result.value)
+                    val parent = FileNames.parentOf(result.value)
+                    // Restoring may recreate removed parent folders: only a scan indexes those.
+                    val parentIndexed = parent.isEmpty() || parent in dao.folderPaths()
+                    if (entry.isFolder || !parentIndexed) scanner.incrementalScan() else scanner.indexFile(result.value)
                 }
             }.also { refreshBin() }
 

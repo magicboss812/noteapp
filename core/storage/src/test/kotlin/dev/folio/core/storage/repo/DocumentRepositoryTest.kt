@@ -79,6 +79,29 @@ class DocumentRepositoryTest : RepositoryTestBase() {
         }
 
     @Test
+    fun move_intoOwnFolder_keepsPath() =
+        runTest {
+            val doc = documents.create(spec("Lab", "Chemistry")).orThrow()
+
+            assertThat(documents.move(doc.path, "Chemistry").orThrow()).isEqualTo(doc.path)
+            assertThat(file(doc.path).exists()).isTrue()
+            assertThat(db.dao().document(doc.path)).isNotNull()
+        }
+
+    @Test
+    fun restore_folderDeletedMeanwhile_folderIsIndexedAgain() =
+        runTest {
+            val doc = documents.create(spec("Essay", "English")).orThrow()
+            val entry = documents.delete(doc.path).orThrow()
+            library.deleteFolder("English").orThrow()
+
+            documents.restore(entry).orThrow()
+
+            assertThat(library.folderTree().first().map { it.path }).contains("English")
+            assertThat(db.dao().document(doc.path)!!.folderPath).isEqualTo("English")
+        }
+
+    @Test
     fun deleteAndRestore_returnsToOriginalPath_evenIfFolderWasRemoved() =
         runTest {
             val doc = documents.create(spec("Essay", "English/2026")).orThrow()

@@ -1,5 +1,6 @@
 package dev.folio.feature.library.state
 
+import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.storage.repo.DocumentOpenException
 import dev.folio.core.storage.repo.DocumentRepository
@@ -14,8 +15,11 @@ internal fun failureText(
     if (failure.cause is DocumentOpenException) {
         "“$name” is open in the editor. Close it first."
     } else {
+        FolioLog.w(LIBRARY_TAG, "$verb $name failed: ${failure.message}", failure.cause)
         "Could not $verb “$name”."
     }
+
+internal const val LIBRARY_TAG = "Library"
 
 /**
  * The note menu and batch actions on closed documents. Every function returns the text for a snackbar, or null when

@@ -72,15 +72,20 @@ internal fun TagChip(
     val space = FolioTheme.space
     val background = if (selected) colors.accentContainer else colors.surface
     val content = if (selected) colors.accent else colors.textSecondary
-    Box(modifier.heightIn(min = space.touchTarget), contentAlignment = Alignment.Center) {
+    // The 44 dp box takes the touch; the 36 dp chip inside is only the look.
+    Box(
+        modifier
+            .heightIn(min = space.touchTarget)
+            .clickable(role = Role.Button, onClickLabel = clickLabel, onClick = onClick)
+            .semantics { this.selected = selected },
+        contentAlignment = Alignment.Center,
+    ) {
         Row(
             Modifier
                 .heightIn(min = CHIP_HEIGHT)
                 .clip(FolioTheme.shapes.stadium)
                 .background(background)
                 .border(space.borderWidth, if (selected) colors.accent else colors.border, FolioTheme.shapes.stadium)
-                .clickable(role = Role.Button, onClickLabel = clickLabel, onClick = onClick)
-                .semantics { this.selected = selected }
                 .padding(horizontal = space.s12),
             horizontalArrangement = Arrangement.spacedBy(space.s4),
             verticalAlignment = Alignment.CenterVertically,

@@ -3,6 +3,8 @@ package dev.folio.core.storage.work
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.folio.core.common.FolioDispatchers
+import dev.folio.core.common.FolioLog
+import dev.folio.core.common.Outcome
 import dev.folio.core.storage.repo.BinPurger
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -24,6 +26,7 @@ internal class WorkBinMaintenance
     ) : BinMaintenance {
         override suspend fun runAtStart() {
             withContext(dispatchers.io) { BinPurgeWorker.schedule(context) }
-            purger.purgeExpired()
+            val result = purger.purgeExpired()
+            if (result is Outcome.Failure) FolioLog.w("BinMaintenance", "purge at start failed: ${result.message}", result.cause)
         }
     }

@@ -107,6 +107,9 @@ data class FolioColors(
     val scrim: Color,
     val shadow: Color,
 ) {
+    /** Text on [searchHighlight]: the yellow is the same in both modes, so the ink is dark in both. */
+    val onSearchHighlight: Color get() = Color(0xFF2E2D2B)
+
     companion object {
         private const val SCRIM_ALPHA = 0.40f
         private const val DARK_DOTS_ALPHA = 0.06f

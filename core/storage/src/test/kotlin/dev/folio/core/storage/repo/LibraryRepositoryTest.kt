@@ -2,6 +2,7 @@ package dev.folio.core.storage.repo
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import dev.folio.core.common.Outcome
 import dev.folio.core.format.container.FolioContainerReader
 import dev.folio.core.format.container.FolioContainerWriter
 import dev.folio.core.format.container.FolioEntries
@@ -126,6 +127,28 @@ class LibraryRepositoryTest : RepositoryTestBase() {
 
             documents.restore(entry).orThrow()
             assertThat(db.dao().document("School/Physik/Waves.folio")).isNotNull()
+        }
+
+    @Test
+    fun renameFolder_sameNameOrCaseOnly_noSuffix() =
+        runTest {
+            val physics = library.createFolder("", "Physics").orThrow()
+            documents.create(spec("Waves", physics)).orThrow()
+
+            assertThat(library.renameFolder(physics, "Physics").orThrow()).isEqualTo("Physics")
+            assertThat(library.renameFolder(physics, "physics").orThrow()).isEqualTo("physics")
+            assertThat(db.dao().document("physics/Waves.folio")).isNotNull()
+            assertThat(library.folderTree().first().map { it.path }).containsExactly("physics")
+        }
+
+    @Test
+    fun moveFolder_intoOwnSubtree_fails() =
+        runTest {
+            val physics = library.createFolder("", "Physics").orThrow()
+            val sub = library.createFolder(physics, "Waves").orThrow()
+
+            assertThat(library.moveFolder(physics, sub)).isInstanceOf(Outcome.Failure::class.java)
+            assertThat(library.folderTree().first().map { it.path }).containsExactly("Physics", "Physics/Waves")
         }
 
     private fun addUnknownKeyAndEntry(path: String) {

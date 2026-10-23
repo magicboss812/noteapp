@@ -132,8 +132,26 @@ class LibraryRepository(
         name: String,
     ): Outcome<String> =
         openDocuments.refuseIfOpenUnder(path) ?: folderOp {
-            val target = FileNames.unique(fs, FileNames.parentOf(path), FileNames.stemOf(name), "")
-            fs.move(path, target).map { target }
+            val parent = FileNames.parentOf(path)
+            val newName = FileNames.stemOf(name)
+            val oldName = FileNames.nameOf(path)
+            when {
+                newName == oldName -> {
+                    Outcome.Success(path)
+                }
+
+                // Case-only change on the case-insensitive shared storage: go through a temp name.
+                newName.equals(oldName, ignoreCase = true) -> {
+                    val temp = FileNames.join(parent, ".rename-$oldName.tmp")
+                    val target = FileNames.join(parent, newName)
+                    fs.move(path, temp).flatMap { fs.move(temp, target) }.map { target }
+                }
+
+                else -> {
+                    val target = FileNames.unique(fs, parent, newName, "")
+                    fs.move(path, target).map { target }
+                }
+            }
         }
 
     /** Moves a folder into [parent]; returns the new path. */
@@ -142,9 +160,20 @@ class LibraryRepository(
         parent: String,
     ): Outcome<String> =
         openDocuments.refuseIfOpenUnder(path) ?: folderOp {
-            require(parent != path && !parent.startsWith("$path/")) { "cannot move a folder into itself" }
-            val target = FileNames.unique(fs, parent, FileNames.nameOf(path), "")
-            fs.move(path, target).map { target }
+            when {
+                parent == path || parent.startsWith("$path/") -> {
+                    Outcome.Failure("Cannot move a folder into itself.")
+                }
+
+                parent == FileNames.parentOf(path) -> {
+                    Outcome.Success(path)
+                }
+
+                else -> {
+                    val target = FileNames.unique(fs, parent, FileNames.nameOf(path), "")
+                    fs.move(path, target).map { target }
+                }
+            }
         }
 
     /** Sets the folder tint (`.folder.json`); null removes it. */

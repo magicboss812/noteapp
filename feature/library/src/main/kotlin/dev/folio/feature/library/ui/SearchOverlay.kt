@@ -33,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -52,6 +51,7 @@ import dev.folio.core.designsystem.component.FolioButton
 import dev.folio.core.designsystem.component.FolioButtonStyle
 import dev.folio.core.designsystem.component.FolioIconButton
 import dev.folio.core.designsystem.icon.FolioIcons
+import dev.folio.core.designsystem.theme.FolioColors
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.storage.repo.HighlightedText
 import dev.folio.feature.library.state.LibraryFolderItem
@@ -66,9 +66,6 @@ private val FILTER_HEIGHT = 36.dp
 private val INDENT = 12.dp
 private val MENU_MAX_HEIGHT = 320.dp
 private const val ROOT_LABEL = "Whole library"
-
-// searchHighlight is the same yellow in light and dark, so the text on it is dark in both (same ink as ColorSwatch.onColor).
-private val ON_HIGHLIGHT = Color(0xFF2E2D2B)
 
 /** What the search overlay reports; every default is a no-op so previews and tests pass only what they check. */
 data class SearchActions(
@@ -226,14 +223,19 @@ private fun FilterChip(
     val space = FolioTheme.space
     var expanded by remember { mutableStateOf(false) }
     Box {
-        Box(Modifier.heightIn(min = space.touchTarget), contentAlignment = Alignment.Center) {
+        // The 44 dp box takes the touch; the 36 dp pill inside is only the look.
+        Box(
+            Modifier
+                .heightIn(min = space.touchTarget)
+                .clickable(role = Role.Button, onClickLabel = description) { expanded = true },
+            contentAlignment = Alignment.Center,
+        ) {
             Row(
                 Modifier
                     .heightIn(min = FILTER_HEIGHT)
                     .clip(FolioTheme.shapes.stadium)
                     .background(if (active) colors.accentContainer else colors.surface)
                     .border(space.borderWidth, if (active) colors.accent else colors.border, FolioTheme.shapes.stadium)
-                    .clickable(role = Role.Button, onClickLabel = description) { expanded = true }
                     .padding(horizontal = space.s12),
                 horizontalArrangement = Arrangement.spacedBy(space.s4),
                 verticalAlignment = Alignment.CenterVertically,
@@ -353,7 +355,7 @@ private fun ResultRow(
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(space.s8), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = highlighted(item.title, colors.searchHighlight),
+                text = highlighted(item.title, colors),
                 style = FolioTheme.type.cardTitle,
                 color = colors.textPrimary,
                 maxLines = 1,
@@ -370,7 +372,7 @@ private fun ResultRow(
         }
         if (item.snippet.text.isNotEmpty()) {
             Text(
-                text = highlighted(item.snippet, colors.searchHighlight),
+                text = highlighted(item.snippet, colors),
                 style = FolioTheme.type.body,
                 color = colors.textSecondary,
                 maxLines = 2,
@@ -383,11 +385,10 @@ private fun ResultRow(
 /** [text] with its matched ranges on the search highlight background and in bold. */
 private fun highlighted(
     text: HighlightedText,
-    background: Color,
+    colors: FolioColors,
 ): AnnotatedString =
     buildAnnotatedString {
         append(text.text)
-        text.ranges.forEach {
-            addStyle(SpanStyle(color = ON_HIGHLIGHT, background = background, fontWeight = FontWeight.SemiBold), it.first, it.last + 1)
-        }
+        val style = SpanStyle(color = colors.onSearchHighlight, background = colors.searchHighlight, fontWeight = FontWeight.SemiBold)
+        text.ranges.forEach { addStyle(style, it.first, it.last + 1) }
     }

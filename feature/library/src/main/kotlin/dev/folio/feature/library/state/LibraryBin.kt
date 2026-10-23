@@ -1,6 +1,7 @@
 package dev.folio.feature.library.state
 
 import androidx.compose.runtime.Immutable
+import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.storage.repo.BinEntry
 import dev.folio.core.storage.repo.BinRetention
@@ -79,24 +80,30 @@ class LibraryBinOps(
         val entry = find(item) ?: return GONE
         return when (val result = documents.restore(entry)) {
             is Outcome.Success -> restoredText(item, result.value)
-            is Outcome.Failure -> "Could not restore “${item.name}”."
+            is Outcome.Failure -> failureText("restore", item.name, result)
         }
     }
 
     /** Deletes [item] for good (the user confirmed). */
     suspend fun deleteForever(item: LibraryBinItem): String? {
         val entry = find(item) ?: return GONE
-        return when (documents.deleteForever(entry)) {
+        return when (val result = documents.deleteForever(entry)) {
             is Outcome.Success -> "Deleted “${item.name}” forever."
-            is Outcome.Failure -> "Could not delete “${item.name}”."
+            is Outcome.Failure -> failureText("delete", item.name, result)
         }
     }
 
     /** Deletes everything in the bin (the user confirmed). */
     suspend fun emptyBin(): String? =
         when (val result = documents.emptyBin()) {
-            is Outcome.Success -> if (result.value == 1) "Deleted 1 item forever." else "Deleted ${result.value} items forever."
-            is Outcome.Failure -> "Could not empty the bin."
+            is Outcome.Success -> {
+                if (result.value == 1) "Deleted 1 item forever." else "Deleted ${result.value} items forever."
+            }
+
+            is Outcome.Failure -> {
+                FolioLog.w(LIBRARY_TAG, "empty bin failed: ${result.message}", result.cause)
+                "Could not empty the bin."
+            }
         }
 
     private fun find(item: LibraryBinItem): BinEntry? = documents.bin.value.firstOrNull { it.trashPath == item.trashPath }

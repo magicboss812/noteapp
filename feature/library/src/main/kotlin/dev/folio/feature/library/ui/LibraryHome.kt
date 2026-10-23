@@ -114,7 +114,10 @@ internal fun LibraryHome(
     // A folder renamed, moved or deleted elsewhere falls back to the root instead of showing an empty view.
     val folder = existingFolder(folders, browse.folder)
     val tags = remember(documents, browse.tag) { TagFilter.of(documents, browse.tag) }
-    val visible = visibleDocuments(documents, browse.tab, browse.sort, folder, tags.active)
+    val visible =
+        remember(documents, browse.tab, browse.sort, folder, tags.active) {
+            visibleDocuments(documents, browse.tab, browse.sort, folder, tags.active)
+        }
     val subfolders =
         remember(folders, documents, browse.tab, folder) {
             if (browse.tab == LibraryTab.ALL) folderSummaries(childFolders(folders, folder), documents) else persistentListOf()
