@@ -41,6 +41,7 @@ import dev.folio.core.render.viewport.ZoomBuckets
 import dev.folio.core.render.viewport.pageIndexAt
 import dev.folio.core.render.viewport.toPagePt
 import dev.folio.core.text.flow.PageText
+import dev.folio.feature.editor.text.TextFieldSpec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
@@ -192,6 +193,18 @@ class CanvasHostView internal constructor(
     /** Slot for the Compose overlay (focused text, selection, lasso, ...), above committed content. */
     val overlay = FrameLayout(context)
 
+    private val textField = TextFieldHost(context, overlay, controller.viewport, controller) { document }
+
+    /** The live text field once a block was focused, null before (tests and debug automation read its state). */
+    internal val liveTextField: LiveTextField? get() = textField.liveField
+
+    /** Runs the editor shortcut for a Ctrl or Alt chord typed in the live text field; true if one ran. */
+    var onShortcut: (keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean) -> Boolean
+        get() = textField.onShortcut
+        set(value) {
+            textField.onShortcut = value
+        }
+
     /** Wet ink layer, always on top. */
     val wetLayer: View get() = wet.view
 
@@ -273,6 +286,7 @@ class CanvasHostView internal constructor(
         backgroundTiles.retainPages(keep)
         contentTiles.retainPages(keep)
         refreshTiles()
+        textField.refresh()
     }
 
     /** Shows [next] as the text of the pages (computed off the main thread); tiles under changed text re-render. */
@@ -286,6 +300,9 @@ class CanvasHostView internal constructor(
         }
         refreshTiles()
     }
+
+    /** Shows the live text field for [spec] (the focused block), or removes it for null. */
+    fun setTextField(spec: TextFieldSpec?) = textField.show(spec)
 
     private fun textOf(id: PageId): PageText = pageTexts[id] ?: PageText.EMPTY
 
@@ -507,6 +524,7 @@ class CanvasHostView internal constructor(
         if (width == 0 || height == 0) return
         viewport.setPages(current, width.toFloat(), height.toFloat())
         onViewportChanged()
+        textField.refresh()
     }
 
     // A finger tap on a page focuses the text block under it; a tap beside the text frames ends the focus. Read mode only reads.
@@ -524,6 +542,7 @@ class CanvasHostView internal constructor(
     private fun onViewportChanged() {
         // HOT PATH: per gesture event and animation frame.
         invalidateLayers()
+        textField.place()
         val now = SystemClock.uptimeMillis()
         lastViewportChangeMs = now
         removeCallbacks(idleRequest)

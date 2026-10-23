@@ -34,7 +34,9 @@ import dev.folio.core.text.edit.TextSelection
 import dev.folio.core.text.flow.FlowLayouter
 import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.toTextStyle
+import dev.folio.core.text.markdown.MarkdownDocument
 import dev.folio.feature.editor.state.EditorSession
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -555,5 +557,231 @@ class EditorTextTest {
             assertThat(shown.length).isLessThan(markdown.length)
             assertThat(markdown).contains(shown)
             assertThat(doc.flows.getValue(body).markdown).isEqualTo(markdown)
+        }
+
+    // A block edit runner that applies the edit to the parsed flow without storing it, and can hold the edit at a gate.
+    private class RecordingRunner(
+        private val parsed: () -> MarkdownDocument,
+    ) {
+        val keys = ArrayList<String?>()
+        val applied = ArrayList<String?>()
+        val gate = CompletableDeferred<Unit>()
+        var reject = false
+
+        val run: BlockEditRunner = { _, key, edit ->
+            keys += key
+            val result = edit(parsed())
+            applied += result?.document?.toMarkdown()
+            gate.await()
+            if (reject) null else result
+        }
+    }
+
+    private suspend fun focusedFlow(
+        path: String,
+        test: TestScope,
+    ): Triple<EditorSession, EditorText, PageId> {
+        val (session, documentSession) = open(path, test)
+        val text = checkNotNull(session.text)
+        text.awaitReady()
+        val page =
+            documentSession.document.value.pages[0]
+                .id
+        return Triple(session, text, page)
+    }
+
+    @Test
+    fun edit_typedKeystrokes_updateTheFlowAndUndoAsOneStep() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, text, page) = focusedFlow(path, this)
+            val documentSession = session.documentSession
+            val texts = checkNotNull(session.textController)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            val revision = text.focus.value?.revision
+
+            texts.edit(FieldEdit.Typed("alphaX", 6))
+            yield()
+            texts.edit(FieldEdit.Typed("alphaXY", 7))
+            yield()
+
+            assertThat(markdown(documentSession)).isEqualTo("alphaXY\n\nbeta")
+            assertThat(text.focus.value?.revision).isEqualTo(revision)
+            assertThat(session.undo()).isTrue()
+            assertThat(markdown(documentSession)).isEqualTo("alpha\n\nbeta")
+        }
+
+    @Test
+    fun edit_enterInTheMiddle_splitsTheBlockAndFocusesTheSecondHalf() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, text, page) = focusedFlow(path, this)
+            val texts = checkNotNull(session.textController)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            val revision = checkNotNull(text.focus.value).revision
+
+            texts.edit(FieldEdit.Key(FieldKey.ENTER, 2, 2))
+            yield()
+
+            assertThat(markdown(session.documentSession)).isEqualTo("al\n\npha\n\nbeta")
+            val focus = checkNotNull(text.focus.value)
+            assertThat(focus.blockIndex).isEqualTo(1)
+            assertThat(focus.caret).isEqualTo(0)
+            assertThat(focus.revision).isGreaterThan(revision)
+            assertThat(text.fieldSource()).isEqualTo("pha")
+        }
+
+    @Test
+    fun edit_backspaceAtTheStartOfASecondBlock_mergesAndFocusesTheJoin() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, text, page) = focusedFlow(path, this)
+            val texts = checkNotNull(session.textController)
+            text.focusAt(page, bodyRect.left + 4f, secondLineY())
+
+            texts.edit(FieldEdit.Key(FieldKey.BACKSPACE, 0, 0))
+            yield()
+
+            assertThat(markdown(session.documentSession)).isEqualTo("alphabeta")
+            assertThat(text.focus.value?.blockIndex).isEqualTo(0)
+            assertThat(text.focus.value?.caret).isEqualTo(5)
+            assertThat(text.fieldSource()).isEqualTo("alphabeta")
+        }
+
+    @Test
+    fun edit_backspaceInsideAWord_changesNothing() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, text, page) = focusedFlow(path, this)
+            val texts = checkNotNull(session.textController)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            val before = text.focus.value
+
+            texts.edit(FieldEdit.Key(FieldKey.BACKSPACE, 2, 2))
+            yield()
+
+            assertThat(markdown(session.documentSession)).isEqualTo("alpha\n\nbeta")
+            assertThat(text.focus.value).isEqualTo(before)
+        }
+
+    @Test
+    fun edit_withoutFocus_isIgnored() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, _, _) = focusedFlow(path, this)
+            val texts = checkNotNull(session.textController)
+
+            texts.edit(FieldEdit.Typed("x", 1))
+            yield()
+
+            assertThat(markdown(session.documentSession)).isEqualTo("alpha\n\nbeta")
+        }
+
+    @Test
+    fun edit_typedWhileAnEarlierEditWaits_onlyTheNewestRuns() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (_, text, page) = focusedFlow(path, this)
+            val runner = RecordingRunner { checkNotNull(text.parsed(body)) }
+            val editor = TextEditor(text, runner.run, backgroundScope, main.testDispatcher)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+
+            editor.edit(FieldEdit.Typed("alphaA", 6))
+            editor.edit(FieldEdit.Typed("alphaAB", 7))
+            editor.edit(FieldEdit.Typed("alphaABC", 8))
+            runner.gate.complete(Unit)
+            yield()
+
+            assertThat(runner.applied.last()).isEqualTo("alphaABC\n\nbeta")
+            assertThat(runner.applied).doesNotContain("alphaA\n\nbeta")
+            assertThat(runner.keys.distinct()).hasSize(1)
+        }
+
+    @Test
+    fun edit_structuralKeyBetweenTypedEdits_keepsItsPlaceInTheOrder() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (_, text, page) = focusedFlow(path, this)
+            val runner = RecordingRunner { checkNotNull(text.parsed(body)) }
+            val editor = TextEditor(text, runner.run, backgroundScope, main.testDispatcher)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+
+            editor.edit(FieldEdit.Typed("alphaA", 6))
+            editor.edit(FieldEdit.Key(FieldKey.ENTER, 6, 6))
+            editor.edit(FieldEdit.Typed("alphaAB", 7))
+            runner.gate.complete(Unit)
+            yield()
+
+            assertThat(runner.keys.map { it != null }).isEqualTo(listOf(true, false, true))
+        }
+
+    @Test
+    fun edit_forABlockThatLostTheFocusMeanwhile_isStillAppliedAndKeepsTheNewFocus() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (_, text, page) = focusedFlow(path, this)
+            val runner = RecordingRunner { checkNotNull(text.parsed(body)) }
+            val editor = TextEditor(text, runner.run, backgroundScope, main.testDispatcher)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            editor.edit(FieldEdit.Typed("alphaA", 6))
+            yield() // the first edit is now held at the gate
+            editor.edit(FieldEdit.Typed("alphaAB", 7))
+
+            editor.focusAt(page, bodyRect.left + 4f, secondLineY())
+            runner.gate.complete(Unit)
+            yield()
+
+            assertThat(runner.applied).containsExactly("alphaA\n\nbeta", "alphaAB\n\nbeta").inOrder()
+            assertThat(text.focus.value?.blockIndex).isEqualTo(1)
+        }
+
+    @Test
+    fun edit_rejectedTypedEdit_makesTheFieldShowTheModelTextAgain() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (_, text, page) = focusedFlow(path, this)
+            val runner = RecordingRunner { checkNotNull(text.parsed(body)) }
+            runner.reject = true
+            runner.gate.complete(Unit)
+            val editor = TextEditor(text, runner.run, backgroundScope, main.testDispatcher)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            val revision = checkNotNull(text.focus.value).revision
+
+            editor.edit(FieldEdit.Typed("alphaZ", 6))
+            yield()
+
+            val focus = checkNotNull(text.focus.value)
+            assertThat(focus.revision).isEqualTo(revision + 1)
+            assertThat(focus.caret).isEqualTo(6)
+            assertThat(text.fieldSource()).isEqualTo("alpha")
+        }
+
+    @Test
+    fun moveFocusAt_lineOfTheNextBlock_movesTheFocusThere() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, text, page) = focusedFlow(path, this)
+            val texts = checkNotNull(session.textController)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+
+            val moved = texts.moveFocusAt(page, bodyRect.left + 4f, secondLineY())
+
+            assertThat(moved).isTrue()
+            assertThat(text.focus.value?.blockIndex).isEqualTo(1)
+        }
+
+    @Test
+    fun moveFocusAt_pointOutsideTheText_keepsTheFocus() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, text, page) = focusedFlow(path, this)
+            val texts = checkNotNull(session.textController)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            val before = text.focus.value
+
+            val moved = texts.moveFocusAt(page, bodyRect.left + 4f, bodyRect.bottom + 40f)
+
+            assertThat(moved).isFalse()
+            assertThat(text.focus.value).isEqualTo(before)
         }
 }

@@ -2,6 +2,7 @@ package dev.folio.feature.editor.text
 
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.PageId
+import dev.folio.core.text.edit.BlockEditing
 import dev.folio.core.text.edit.EditMarkers
 import dev.folio.core.text.flow.BlockPlacement
 import dev.folio.core.text.layout.BlockLayout
@@ -23,7 +24,8 @@ data class TextFocus(
 
 /**
  * What the live field shows for [focus]: the [block] source in the face and size of its [layout], at [placement] (the
- * first line box of the block, page pt). [dimmed] lists the marker ranges of the source as start/end pairs.
+ * first line box of the block, page pt). [dimmed] lists the marker ranges of the source as start/end pairs;
+ * [markerLength] is the length of the marker at the start of the source (a caret inside it counts as block start).
  */
 class TextFieldSpec(
     val focus: TextFocus,
@@ -31,12 +33,56 @@ class TextFieldSpec(
     val layout: BlockLayout,
     val placement: BlockPlacement,
     val dimmed: IntArray = EditMarkers.ranges(block),
+    val markerLength: Int = BlockEditing.markerLength(block),
 ) {
     /** Page the field sits on. */
     val pageId: PageId get() = placement.pageId
 }
 
-/** What the canvas host asks of the text engine: focus a block by tapping it, and the field to show for it. */
+/** Keys the live field leaves to the block structure instead of the text view (it sends them when they change blocks). */
+enum class FieldKey {
+    /** Enter: splits the block at the caret, a selection is deleted first. */
+    ENTER,
+
+    /** Shift+Enter: a line break inside the block. */
+    SOFT_ENTER,
+
+    /** Backspace at the start of the block or inside its marker. */
+    BACKSPACE,
+
+    /** Delete at the end of the block. */
+    DELETE,
+
+    /** Left at the start of the block: the end of the block before. */
+    LEFT,
+
+    /** Right at the end of the block: the start of the block after. */
+    RIGHT,
+
+    /** Tab: a list item one level deeper. */
+    TAB,
+
+    /** Shift+Tab: a list item one level shallower. */
+    SHIFT_TAB,
+}
+
+/** A change the live field reports; the controller turns it into one edit of the focused block's flow. */
+sealed interface FieldEdit {
+    /** The field's text after a keystroke or a paste: the block source is now [source], the caret at [caret]. */
+    data class Typed(
+        val source: String,
+        val caret: Int,
+    ) : FieldEdit
+
+    /** A structural [key] with the selection [start] to [end] (both offsets of the block source, [start] <= [end]). */
+    data class Key(
+        val key: FieldKey,
+        val start: Int,
+        val end: Int,
+    ) : FieldEdit
+}
+
+/** What the canvas host asks of the text engine: focus a block by tapping it, the field to show for it, its edits. */
 interface TextController {
     /** The live field to show, null while no block has focus or its place is not known. Emits on the `text` dispatcher. */
     val field: Flow<TextFieldSpec?>
@@ -51,6 +97,19 @@ interface TextController {
         yPt: Float,
     ): Boolean
 
+    /** Like [focusAt], but a point on no text frame leaves the focus where it is (arrow keys at the edge of the flow). */
+    fun moveFocusAt(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ): Boolean
+
     /** Ends editing: the field goes away and the block is drawn by the page again. */
     fun blur()
+
+    /**
+     * Applies [edit] to the focused block. Edits run one after the other in the order given, a keystroke that is
+     * still waiting is replaced by the next; the field is told the outcome through [field]. Main thread.
+     */
+    fun edit(edit: FieldEdit)
 }

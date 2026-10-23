@@ -2,6 +2,7 @@ package dev.folio.core.text.edit
 
 import dev.folio.core.text.edit.BlockSplice.Range
 import dev.folio.core.text.markdown.BlockContent
+import dev.folio.core.text.markdown.MarkdownBlock
 import dev.folio.core.text.markdown.MarkdownDocument
 
 /**
@@ -21,7 +22,10 @@ object BlockEditing {
     fun markerLength(
         doc: MarkdownDocument,
         blockId: Long,
-    ): Int = BlockMarkers.length(doc.blocks[doc.indexOf(blockId)])
+    ): Int = markerLength(doc.blocks[doc.indexOf(blockId)])
+
+    /** Length of the marker at the start of [block]'s source. */
+    fun markerLength(block: MarkdownBlock): Int = BlockMarkers.length(block)
 
     /** Replaces the selection by [text] (typed or pasted Markdown, `\n` allowed); the caret ends after the text. */
     fun insert(

@@ -13,19 +13,21 @@ import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.testing.ModelFixtures
+import dev.folio.feature.editor.text.FieldEdit
 import dev.folio.feature.editor.text.TextController
 import dev.folio.feature.editor.text.TextFieldSpec
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 
-/** Text controller that records the taps it gets; [focusResult] is what every tap returns. */
+/** Text controller that records the taps, moves and edits it gets; [focusResult] is what every tap returns, [field] what is shown. */
 internal class FakeTextController : TextController {
-    override val field: Flow<TextFieldSpec?> = emptyFlow()
+    override val field = MutableStateFlow<TextFieldSpec?>(null)
     var focusResult = true
     val focusCalls = ArrayList<Triple<PageId, Float, Float>>()
+    val moveCalls = ArrayList<Triple<PageId, Float, Float>>()
+    val edits = ArrayList<FieldEdit>()
+    var blurCount = 0
 
     override fun focusAt(
         pageId: PageId,
@@ -36,7 +38,22 @@ internal class FakeTextController : TextController {
         return focusResult
     }
 
-    override fun blur() = Unit
+    override fun moveFocusAt(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ): Boolean {
+        moveCalls += Triple(pageId, xPt, yPt)
+        return focusResult
+    }
+
+    override fun blur() {
+        blurCount++
+    }
+
+    override fun edit(edit: FieldEdit) {
+        edits += edit
+    }
 }
 
 /** Controller over an in-memory document of [pages] lined A4 pages; commands apply synchronously. */

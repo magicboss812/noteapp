@@ -15,6 +15,7 @@ import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.EditFlow
 import dev.folio.core.model.edit.TextEdit
 import dev.folio.core.storage.session.DocumentSession
+import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.edit.FlowTextDiff
 import dev.folio.core.text.flow.FlowLayout
 import dev.folio.core.text.flow.FlowSearch
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,12 +61,13 @@ class TextSnapshot(
  * decoded: the first pass loads every page of a document that has flows (a note with text is small), and nothing is
  * published before it finishes ([awaitReady]).
  */
+@Suppress("TooManyFunctions") // focus, layout refresh and flow edits of one document share the parses and the snapshot
 class EditorText internal constructor(
     private val documentSession: DocumentSession,
     private val engine: TextEngine,
     private val dispatchers: FolioDispatchers,
     scope: CoroutineScope,
-) : TextController {
+) {
     private val parses = FlowParses()
     private val mutableSnapshot = MutableStateFlow(TextSnapshot.EMPTY)
     private val mutableFocus = MutableStateFlow<TextFocus?>(null)
@@ -79,9 +82,16 @@ class EditorText internal constructor(
     /** The block being edited, null while the live field is not shown. */
     val focus: StateFlow<TextFocus?> = mutableFocus.asStateFlow()
 
-    override val field: Flow<TextFieldSpec?> =
-        combine(mutableFocus, mutableSnapshot) { focus, snapshot -> snapshot.fieldOf(focus) }
-            .flowOn(dispatchers.text)
+    /**
+     * The live field to show: null while no block has focus, otherwise the field of the focused block. While the layout
+     * is a step behind the focus (a block just split off is not laid out yet) nothing is emitted, so the field stays.
+     * Emits on the `text` dispatcher.
+     */
+    val field: Flow<TextFieldSpec?> =
+        combine(mutableFocus, mutableSnapshot, ::Pair)
+            .transform { (focus, snapshot) ->
+                if (focus == null) emit(null) else snapshot.fieldOf(focus)?.let { emit(it) }
+            }.flowOn(dispatchers.text)
 
     init {
         scope.launch(dispatchers.text) {
@@ -116,7 +126,8 @@ class EditorText internal constructor(
         ready.complete(Unit)
     }
 
-    override fun focusAt(
+    /** Focuses the block at ([xPt], [yPt]) of page [pageId]; no block there ends editing. True if a block got focus. */
+    fun focusAt(
         pageId: PageId,
         xPt: Float,
         yPt: Float,
@@ -127,8 +138,49 @@ class EditorText internal constructor(
             focus != null
         }
 
-    override fun blur() {
+    /** Like [focusAt], but a point on no text frame leaves the focus alone. */
+    fun moveFocusAt(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ): Boolean {
+        val focus = mutableSnapshot.value.focusAt(pageId, xPt, yPt, mutableFocus.value?.revision ?: 0) ?: return false
+        mutableFocus.value = focus
+        return true
+    }
+
+    /** Ends editing. */
+    fun blur() {
         mutableFocus.value = null
+    }
+
+    /**
+     * Puts the focus where block editing left the caret ([result] of flow [flowId]). A keystroke whose [typed] text is
+     * what the block source became keeps the focus as it is: the field owns its caret. Anything else (a split, a
+     * merge, a shortcut) gives the field the new block and caret.
+     */
+    internal fun focusAfter(
+        flowId: FlowId,
+        result: EditResult,
+        typed: FieldEdit.Typed? = null,
+    ) {
+        val caret = result.selection.focus
+        val index = result.document.indexOf(caret.blockId)
+        if (index < 0) return
+        // The echo of a keystroke: the block source is what the field typed.
+        val echo = typed != null && result.document.blocks[index].source == typed.source
+        mutableFocus.update { before ->
+            if (echo && before?.blockId == caret.blockId) {
+                before.copy(blockIndex = index)
+            } else {
+                TextFocus(flowId, caret.blockId, index, caret.offset, (before?.revision ?: 0) + 1)
+            }
+        }
+    }
+
+    /** Makes the field show the model's text again, with the caret at [caret]: an edit of the focused block was rejected. */
+    internal fun resync(caret: Int) {
+        mutableFocus.update { it?.copy(caret = caret, revision = it.revision + 1) }
     }
 
     // Loads the pages that are not decoded yet, a few at a time, so a frame on any page takes part in the layout.

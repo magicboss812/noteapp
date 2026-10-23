@@ -33,6 +33,7 @@ import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
 import dev.folio.feature.editor.text.EditorText
 import dev.folio.feature.editor.text.TextController
+import dev.folio.feature.editor.text.TextEditor
 import dev.folio.feature.editor.text.TextEngine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -74,8 +75,6 @@ class EditorSession(
     override val pageTexts: Flow<Map<PageId, PageText>> =
         text?.snapshot?.map { it.canvas }?.distinctUntilChanged() ?: emptyFlow()
 
-    override val textController: TextController? get() = text
-
     /** The selected toolbar tool (chrome state; the canvas reads [activeTool] at stylus down). */
     val tool: StateFlow<EditorTool> = mutableTool.asStateFlow()
 
@@ -87,6 +86,8 @@ class EditorSession(
     override val renderDispatcher: CoroutineDispatcher get() = dispatchers.render
     override val mainDispatcher: CoroutineDispatcher =
         (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
+
+    override val textController: TextController? = text?.let { TextEditor(it, ::editText, scope, mainDispatcher) }
 
     // Built once per options change, not per stylus down.
     private var penBrush = initialOptions.pen.brush(BRUSH_VERSION)

@@ -110,7 +110,7 @@ fun EditorRoute(
         pageThumbnail = { page, thumbModifier -> session?.let { SessionPageThumbnail(it, page, thumbModifier) } },
         onRetrySave = viewModel::retrySave,
     ) { canvasModifier ->
-        session?.let { EditorCanvas(it, canvasListener, canvasModifier) }
+        session?.let { EditorCanvas(it, canvasListener, canvasModifier, viewModel::onKey) }
     }
 }
 
@@ -119,8 +119,9 @@ private fun EditorCanvas(
     session: EditorSession,
     listener: EditorCanvasListener?,
     modifier: Modifier = Modifier,
+    onKey: (keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean) -> Boolean = { _, _, _, _ -> false },
 ) {
-    CanvasHost(session, modifier, onHost = { listener?.shown(session, it) })
+    CanvasHost(session, modifier, onHost = { listener?.shown(session, it) }, onKey = onKey)
     DisposableEffect(session, listener) { onDispose { listener?.gone(session) } }
 }
 
