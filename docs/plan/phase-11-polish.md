@@ -86,12 +86,23 @@ Verify: tests + device-tester
 Model: sonnet high
 Implements: R-PAGE-01, R-PAGE-02
 Read: 10-editor-ui.md#pages
-Do: what P04-T06/T08 left out (D-027, D-028): toolbar "More" menu, move page to another document, page buttons on the floating toolbar, the page indicator chip ("3 / 12", 10-editor-ui.md#pages); the page panel shows stored `thumbs/<page>.webp` instead of loading pages through the session LRU (no canvas-page eviction in long docs); thumbs still pending when the editor closes are written before the session closes. Deleting the last page stays refused.
+Do: what P04-T06/T08 left out (D-027, D-028): toolbar "More" menu, move page to another document, page buttons on the floating toolbar, the page indicator chip ("3 / 12", 10-editor-ui.md#pages); the page panel shows stored `thumbs/<page>.webp` instead of loading pages through the session LRU (no canvas-page eviction in long docs); thumbs still pending when the editor closes are written before the session closes. Deleting the last page stays refused. The autosave dot (bottom-left) sits below the pages panel and the overview, not on top of them (user feedback 2026-10-23).
 Accept:
 - [ ] unit: move page between documents (undoable in the source); pending thumbs flushed on close
-- [ ] screenshot: More menu; floating toolbar with page buttons; page indicator chip
+- [ ] screenshot: More menu; floating toolbar with page buttons; page indicator chip; pages panel and overview open with the autosave dot hidden behind them
 - [ ] device: 100-page note, open the page panel and scroll: canvas pages are not reloaded
 Verify: tests + screenshots + device-tester
+
+### P11-T11 Library robustness and polish follow-ups
+Model: sonnet high
+Implements: R-ORG-01, R-ORG-04, R-FILE-01
+Read: 09-storage-library.md#repositories, #trash, #search, 11-design-system.md#library-screen
+Do: P05 REVIEW leftovers. `DocumentSessions.refuseIfOpen` reads the open set outside the sessions lock (a note opened mid-move can pack to the old path): hold the lock for guarded operations or refuse `open()` on paths being changed; a session that is releasing counts as closed, so "is open in the editor" does not show for ~1 s after back. One `Mutex` around bin restore, delete forever, empty and purge. Search: snippet from the body column so title-only hits do not repeat the title; `titleHit` folds accents like unicode61 (NFD). `LibraryEntryViewModel.allDocuments()` uses one all-documents query instead of N+1 folder flows. Bin tab: "days left" refreshes on resume (or a daily tick); fix the wrong "lazy" comment in `LibraryBinViewModel`; hide the inert sort, view and select controls on the Bin tab. Portrait card grid: center or stretch so the right margin is not ragged.
+Accept:
+- [ ] unit: open during a guarded move is refused or waits; released session is not reported open; concurrent purge + restore on one entry leaves a consistent bin
+- [ ] unit: title-only hit snippet does not repeat the title; "cafe" ranks "Café" as a title hit; LibrarySearchViewModel filters, saves the query before close and resets on close; `bin-purge` job queued with KEEP
+- [ ] screenshot: Bin tab without sort/view/select; 12-notes grid portrait with even margins
+Verify: `./gradlew :core:storage:testDebugUnitTest :feature:library:testDebugUnitTest :feature:library:verifyRoborazziDebug`
 
 ### P11-T07 Final audit and handover
 Model: opus high

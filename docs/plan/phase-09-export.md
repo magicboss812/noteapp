@@ -53,8 +53,9 @@ Verify: tests + device-tester
 Model: sonnet high
 Implements: R-FILE-03
 Read: 10-editor-ui.md#export-dialog
-Do: export sheet (format, pages, dpi, margin for infinite, destination), share sheet via FileProvider, `.folio` export = packed copy (optionally without thumbnails).
+Do: export sheet (format, pages, dpi, margin for infinite, destination), share sheet via FileProvider, `.folio` export = packed copy (optionally without thumbnails). `.folio` import (A-036): `DocumentRepository.importFolio(uri)` copies a picked file into the current folder after validation (new docId when the id already exists in the library, name collision -> " (2)"), and enables the library New menu "Import .folio" entry.
 Accept:
+- [ ] unit: importFolio copies and indexes a valid file, gives a new docId on id collision, rejects a corrupted file with a typed error
 - [ ] screenshot: export sheet
 - [ ] device: each format produced from the editor menu
 Verify: screenshots + device-tester

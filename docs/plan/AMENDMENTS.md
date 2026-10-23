@@ -183,3 +183,8 @@ Format:
 - Reason: a shared element would move the editor's page area, which hosts the ink SurfaceView and tile views; shared bounds render in an overlay layer that SurfaceViews do not follow. Not tried on the tablet; revisit in P11 polish if the user wants the card to morph.
 - Impact: 11-design-system.md#motion (card -> editor line).
 
+## A-036 2026-10-23 P05 REVIEW: `.folio` import moves to P09-T06; no Tags header in the sidebar
+- Change: `DocumentRepository.importFolio` and the enabled "Import .folio" entry of the library New menu are built in P09-T06 next to `.folio` export (the P05 menu shows the entry disabled). The sidebar has no Tags header with "+": tags are browsed in the Tags tab and assigned in the card Tags dialog.
+- Reason: import shares the SAF picker, docId-collision and validation work with export; a sidebar tag list would duplicate the Tags tab chips.
+- Impact: 09-storage-library.md#repositories, 11-design-system.md#library-screen, phase-09-export.md P09-T06.
+

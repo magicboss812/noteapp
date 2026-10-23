@@ -112,7 +112,7 @@ Easing: standard = CubicBezier(0.2, 0, 0, 1); emphasized decelerate = CubicBezie
 
 ## Library screen
 DESIGN section 8 (Library), built in P05. Landscape:
-- Sidebar 280 dp `sidebar` (collapses to an 80 dp rail; grid reflows 4 -> 5 columns): nav pills 250 x 42 dp, selected `navSelected` + accent icon/label; Home, folders, Favorites, Tags header with "+", Bin; settings gear bottom left.
+- Sidebar 280 dp `sidebar` (collapses to an 80 dp rail; grid reflows 4 -> 5 columns): nav pills 250 x 42 dp, selected `navSelected` + accent icon/label; Home, folders, Favorites, Bin (no Tags header: tags live in the Tags tab and the card Tags dialog, A-036); settings gear bottom left.
 - Content: `library` gradient band with the dot grid at the top. Header: serif greeting ("Hello, <name>" or "Your notes") ~108 dp from the top, date subtitle in textSecondary, filter chip row (All, Favorites, Tags, Bin; selected `accentContainer` + accent label) with sort, view toggle and select toggle at its right end; search capsule 48 dp top right; FAB 48 dp `accentFill` bottom right.
 - Grid: 195 dp square cards, 24 dp gutter, 16 dp inset. List view: 2 columns of 100 dp rows.
 - Folders (A-032): the All tab shows the notes directly in the current folder, with its subfolders as cards first. Inside a folder a breadcrumb (home, then one entry per folder, the last in accent) replaces the chip row. Favorites stays flat across folders. The sidebar Home and folder pills open the root or that folder.

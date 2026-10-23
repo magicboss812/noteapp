@@ -4,9 +4,9 @@ Claude turns `Open` entries into task blocks at every phase REVIEW (next-task sk
 Format: `- YYYY-MM-DD <what bothers you or what you want> [now]` (the date and `[now]` are optional).
 
 ## Open
-- 2026-10-23 (device-tester, P04 device checks) the autosave dot (bottom-left) is drawn on top of the open pages panel and the overview; it should sit below them.
 
 ## Converted
+- 2026-10-23 (device-tester, P04 device checks) the autosave dot (bottom-left) is drawn on top of the open pages panel and the overview; it should sit below them -> P11-T10.
 - 2026-10-01 UI does not look like Notewise; capture the real app and redo the design before P04-T05 -> P04-T10.
 - 2026-09-30 dry strokes look slightly blocky when zoomed in; more detail or a setting -> D-018 -> P11-T08.
 - 2026-10-02 (P04-T03 USER-CHECK) the eraser ring disappears while pressing; it must stay visible while erasing -> P07-T09.
