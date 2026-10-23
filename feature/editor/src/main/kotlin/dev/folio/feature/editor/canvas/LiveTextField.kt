@@ -211,6 +211,7 @@ internal class LiveTextField(
         synced = null
         sent.clear()
         appliedDims = null
+        if (error != null) setError(null, null)
         if (visibility != GONE) {
             // The insets controller hides the keyboard even when the focus then lands on another view of the window.
             windowInsetsController?.hide(WindowInsets.Type.ime())
@@ -279,7 +280,20 @@ internal class LiveTextField(
                 if (replaced) setSelection(length())
             }
         }
-        if (TextUtils.equals(text, source)) dim(spec, replaced)
+        if (TextUtils.equals(text, source)) {
+            dim(spec, replaced)
+            showMathError(spec)
+        }
+    }
+
+    // Invalid LaTeX in the block (07-text-engine.md#math): the parser's message as the field's error popup, without
+    // the icon (it would narrow the text). Typing hides it; the model's answer for the new source shows it again.
+    private fun showMathError(spec: TextFieldSpec) {
+        val message =
+            spec.layout.mathErrors
+                .firstOrNull()
+                ?.message
+        if (!TextUtils.equals(error, message)) setError(message, null)
     }
 
     private fun replaceText(source: String): Boolean {

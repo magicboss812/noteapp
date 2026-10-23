@@ -16,9 +16,13 @@ data class TextPalette(
     val link: Color,
     val highlight: Color,
     val codeBackground: Color,
+    /** Source of LaTeX that does not parse (07-text-engine.md#math). */
+    val mathError: Color = MATH_ERROR,
 ) {
     companion object {
-        /** Ink-on-paper defaults: blue links, marker yellow, light gray code. */
+        private val MATH_ERROR = Color(0xFFD0342C)
+
+        /** Ink-on-paper defaults: blue links, marker yellow, light gray code, red invalid LaTeX. */
         val Paper = TextPalette(link = Color(0xFF2F6FDE), highlight = Color(0x66FFE14D), codeBackground = Color(0x1F000000))
     }
 }

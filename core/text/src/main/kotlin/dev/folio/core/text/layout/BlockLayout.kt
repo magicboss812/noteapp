@@ -1,10 +1,14 @@
 package dev.folio.core.text.layout
 
+import android.graphics.Paint
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.Paragraph
 import androidx.compose.ui.text.font.FontFamily
 import dev.folio.core.text.markdown.CalloutType
+import dev.folio.core.text.math.MathLayout
 import androidx.compose.ui.graphics.Canvas as ComposeCanvas
 
 /** Non-text geometry of a block in pt relative to the block's top-left; the page renderer draws it (P06-T05). */
@@ -60,7 +64,80 @@ class TextCanvas {
     }
 
     internal fun compose(): ComposeCanvas = checkNotNull(wrapped) { "TextCanvas.bind was not called" }
+
+    internal fun native(): android.graphics.Canvas = checkNotNull(native) { "TextCanvas.bind was not called" }
+
+    /** Paint of the tall-formula dots, recolored per draw (this canvas belongs to one thread). */
+    internal fun dots(argb: Int): Paint {
+        val paint = dotPaint ?: Paint(Paint.ANTI_ALIAS_FLAG).also { dotPaint = it }
+        paint.color = argb
+        paint.alpha = TALL_DOT_ALPHA
+        return paint
+    }
+
+    private var dotPaint: Paint? = null
+
+    private companion object {
+        const val TALL_DOT_ALPHA = 0x80
+    }
 }
+
+/**
+ * A formula of a block (07-text-engine.md#math): the left edge of its box and its baseline in pt from the block's
+ * top-left, its [ascentPt] and [depthPt] as drawn. [tall] marks inline math that needed more than the minimum scale
+ * to fit the line box and is drawn with a dotted underline (use block math instead).
+ */
+class MathPlacement internal constructor(
+    private val layout: MathLayout,
+    /** pt per px of [layout]: the fit scale divided by the layout's reference scale. */
+    private val ptPerPx: Float,
+    val leftPt: Float,
+    val baselinePt: Float,
+    val tall: Boolean,
+) {
+    val widthPt: Float get() = layout.box.widthPx * ptPerPx
+    val ascentPt: Float get() = layout.box.ascentPx * ptPerPx
+    val depthPt: Float get() = layout.box.depthPx * ptPerPx
+
+    // HOT PATH: once per formula and tile render.
+    internal fun draw(
+        canvas: android.graphics.Canvas,
+        leftPt: Float,
+        topPt: Float,
+        scale: Float,
+        argb: Int,
+        dots: Paint,
+    ) {
+        val save = canvas.save()
+        canvas.translate((leftPt + this.leftPt) * scale, (topPt + baselinePt) * scale)
+        val k = scale * ptPerPx
+        canvas.scale(k, k)
+        layout.draw(canvas, 0f, 0f, argb)
+        canvas.restoreToCount(save)
+        if (tall) {
+            val y = (topPt + baselinePt + depthPt) * scale
+            val step = TALL_DOT_STEP_PT * scale
+            var x = (leftPt + this.leftPt) * scale + step / 2f
+            val right = (leftPt + this.leftPt + widthPt) * scale
+            while (x < right) {
+                canvas.drawCircle(x, y, step * TALL_DOT_RADIUS, dots)
+                x += step
+            }
+        }
+    }
+
+    private companion object {
+        const val TALL_DOT_STEP_PT = 2f
+        const val TALL_DOT_RADIUS = 0.25f // of the step
+    }
+}
+
+/** LaTeX of [plainStart]..[plainEnd] of a block's plain text that did not parse, with the parser's [message]. */
+data class MathError(
+    val plainStart: Int,
+    val plainEnd: Int,
+    val message: String,
+)
 
 /**
  * Text laid out at the grid-pitch reference scale [refScale] px per pt and shifted by [shiftPx] so
@@ -88,6 +165,12 @@ internal class GridText(
     }
 
     fun baselinePt(line: Int): Float = (paragraph.getLineBaseline(line) + shiftPx) / refScale
+
+    /** Box of placeholder [index] in pt from the text's top-left (bottom = its baseline), null when it is not shown. */
+    fun placeholderPt(index: Int): Rect? =
+        paragraph.placeholderRects.getOrNull(index)?.let {
+            Rect(it.left / refScale, (it.top + shiftPx) / refScale, it.right / refScale, (it.bottom + shiftPx) / refScale)
+        }
 
     /** Right edge of the ink advance of [line] (start-aligned text). */
     fun lineRightPt(line: Int): Float = paragraph.getLineRight(line) / refScale
@@ -141,6 +224,10 @@ class BlockLayout internal constructor(
     val decoration: BlockDecoration,
     /** The font of the text (null for blocks without text); a live field resolves it with [typeface]. */
     val face: BlockFace? = null,
+    /** Inline formulas in text order, or the one formula of a math block. */
+    val maths: List<MathPlacement> = emptyList(),
+    /** LaTeX that did not parse; its source is shown in red monospace. */
+    val mathErrors: List<MathError> = emptyList(),
 ) {
     /** Height in U: always lineCount x boxUnits. */
     val heightUnits: Int get() = lineCount * boxUnits
@@ -185,7 +272,7 @@ class BlockLayout internal constructor(
         topPt: Float,
         scale: Float,
         color: Color = Color.Black,
-    ) = draw(TextCanvas().bind(canvas), leftPt, topPt, scale, color)
+    ) = draw(TextCanvas().bind(canvas), leftPt, topPt, scale, color, color.toArgb(), drawMath = true)
 
     /** [draw] through a reusable [target] with a plain ARGB color: the page renderer's path (no Compose types needed). */
     fun paint(
@@ -194,16 +281,30 @@ class BlockLayout internal constructor(
         topPt: Float,
         scale: Float,
         argb: Int,
-    ) = draw(target, leftPt, topPt, scale, Color(argb))
+    ) = draw(target, leftPt, topPt, scale, Color(argb), argb, drawMath = true)
 
+    /** Text and marker only, without [maths] (the grid suite records text baselines alone). */
+    internal fun drawText(
+        canvas: android.graphics.Canvas,
+        leftPt: Float,
+        topPt: Float,
+        scale: Float,
+    ) = draw(TextCanvas().bind(canvas), leftPt, topPt, scale, Color.Black, Color.Black.toArgb(), drawMath = false)
+
+    // HOT PATH: once per block and tile render.
     private fun draw(
         target: TextCanvas,
         leftPt: Float,
         topPt: Float,
         scale: Float,
         color: Color,
+        argb: Int,
+        drawMath: Boolean,
     ) {
         text?.draw(target, leftPt + textLeftPt, topPt, scale, color)
         marker?.draw(target, leftPt + markerLeftPt, topPt, scale, color)
+        if (!drawMath || maths.isEmpty()) return
+        val canvas = target.native()
+        for (i in maths.indices) maths[i].draw(canvas, leftPt, topPt, scale, argb, target.dots(argb))
     }
 }

@@ -1,8 +1,8 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T07
-updated: 2026-10-23
+next: P06-T08
+updated: 2026-10-24
 
 ## Completed
 - P00 done 2026-09-27 (tag p00-done): AGP 9.4.1/Kotlin 2.4.20/Gradle 9.8.0, compileSdk 37.2, minSdk 35 (device SDK 36); qa green; instrumented smoke 1/1 on Pad 7; cold launch 786 ms; A-001..A-004.
@@ -13,12 +13,13 @@ updated: 2026-10-23
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15
+- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07 (blocked: device run)
 
 ## Blocked (needs user; stops dependent tasks)
-- (none)
+- P06-T07 device: test APK refused 2026-10-24 (`INSTALL_FAILED_USER_RESTRICTED`, Gradle still SUCCESS, no tests ran). User: keep the tablet unlocked and tap Allow on the "Install via USB" prompt (or turn on "USB debugging (Security settings)"), then the next session runs `bash scripts/device/instrumented.sh :core:text` -> GridInvariantInstrumentedTest 20 fonts, 0 violations, Formulas 136. Robolectric run of the same suite passes.
 
 ## USER-CHECK (human verification; non-blocking)
+- P06-T07: in a note type `Area $\pi r^2$ and $\frac{a}{b}$`, a `$$` block with `\int_0^1 x^2 dx` and `$\notacommand$`, then tap elsewhere -> formulas sit on the lines, the bad one is red source; tapping it shows its source with an error popup.
 - P06-T15: draw several strokes (pen and highlighter) and lift the pen; then focus a text block (debug `seed-text 300`), zoom in and out while editing -> no stroke blinks after pen-up; the edited text scales with the page during the zoom.
 
 ## Deferred (id: reason)
@@ -26,9 +27,10 @@ updated: 2026-10-23
 - D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 - D-014 P03-T09: tilt shading has no off switch (A-025): dry rendering applies tilt whenever stored inputs carry tilt; the P11-T01 setting needs a stored per-stroke choice (or dropping tilt at commit) so wet and dry ink agree; the pen panel gets its tilt row then (P06-T13).
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the highlighter panel, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
+- D-034 P06-T07: math blocks are always centered; 07-text-engine.md#math names a left alignment setting (A-047).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T06 done (a-g). Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` (session `TextController`: edit/select/format queue) -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`) while `EditorUiState.textStyle != null`.
-- Device: tap-to-caret `text:caret` p95 29.4 ms; HyperOS steals stylus over a focused editor, so stylus hover/down over the field ends editing (A-045). Debug `seed-text n[,page]` seeds a body flow (use `open lined:N` with an unused N).
-- Models: Opus 5.5 (A-045): opus medium for UI/wiring, opus high for layout/ink/render/perf. P06 order: T07, T08, T09, T10, T18 (seamless focus), T14 (selection), T16 (baseline lift), T17 (move text boxes), T11. Wet ink now leaves in the run loop of the invalidate (A-046).
-- Next: P06-T07 Math. Tool row y 1963 px, mode pill y 171 px in landscape.
+- P06-T07 done except its device run (Blocked). Math map: 07-text-engine.md#math-as-built; `MathFormulas` (cache, inline fit) + `BlockLayouter.mathBlock` -> `BlockLayout.maths`/`mathErrors`; `MathPlacement.draw`; error popup in `LiveTextField.showMathError`.
+- Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`).
+- Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]` seeds a body flow (use `open lined:N` with an unused N). Test APK installs need the user's Allow on the tablet.
+- Next: P06-T08 Tables (then T09, T10, T18, T14, T16, T17, T11). Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.

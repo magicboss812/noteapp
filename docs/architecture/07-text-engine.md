@@ -53,7 +53,7 @@ Indent step: 1 grid column on grid/dotted templates, 6 mm on lined/blank.
 - Lists (A-040): the marker gutter of a level-n item starts at n x step (at most half the width), the text at (n+1) x step. Bullets are centered in the gutter, numbers end-aligned 0.25U before the text; the marker is laid out on one line on the item's first baseline. Task items draw no marker: a 0.7U checkbox in the gutter whose bottom sits on the first baseline.
 - Quote: text at 1 step, bar 0.12U wide at 0.25 step. Callout: a bold title line ("Note", "Tip", "Warning", ...) above the body; the renderer adds the icon from `QuoteBar.callout`. Code: insets of 0.5U left and right, background over the whole block. Empty paragraph and rule: one body line box, rule at its center.
 - Alignment applies to paragraphs (start, center, justified) and headings (start, center); lists, quotes, code and tables stay start-aligned.
-- Until P06-T07/T08, math blocks lay out as code-styled source and tables as one line per row with cells joined by " | "; both keep whole line boxes.
+- Until P06-T08, tables lay out as one line per row with cells joined by " | " in whole line boxes. Math: see #math-as-built.
 - Regression suite (`src/sharedTest`, runs on Robolectric and on the tablet): 20 fonts x every block style x body S/M/L/1.2 x lined and graph grids; baselines are measured from the glyph runs actually drawn onto a recording canvas at zoom 1, 2 and 4 on the Pad 7 fit-width scale.
 
 ## Markdown dialect
@@ -127,6 +127,13 @@ Indent step: 1 grid column on grid/dotted templates, 6 mm on lined/blank.
 - Block math: font size 1.15 x body; scale to fit the frame width (min 0.6); occupies ceil((ascent + depth + 0.5U) / U) lines; formula vertically centered in that span, horizontally centered (setting: left).
 - Editing: tapping a formula in the focused block shows its source; invalid LaTeX renders the source in red monospace with the parser error on long-press.
 - Caches: MathBox per (latex, size, color).
+
+### Math (as built)
+- `JLatexMathRenderer` is provided by `TextModule` and passed to `BlockLayouter(math = ...)`; without a renderer (tests, tools) inline math is italic source and math blocks lay out as code. Formulas are cached per (LaTeX, size px, display), LRU 512, in `MathFormulas`; they are laid out black and `MathLayout.draw(..., argb)` recolors them to the text color (`TeXIcon.setForeground`), so the cache has no color in its key. Draw is synchronized per layout (2 render threads).
+- Inline math is laid out at the font size of its role (a formula in a heading is heading size) and the fit uses the role's line box instead of U: s = min(1, 0.78 box / ascent, 0.30 box / depth), box = box units x U (U for body text). The placeholder (`AboveBaseline`, height min(ascent x s, box)) reserves the space; `BlockLayout.maths` holds a `MathPlacement` per formula with its baseline on the line's rule. A tall formula (s < 0.55) is drawn at 0.55 with a dotted underline (dots every 2 pt at the depth, half alpha).
+- Block math: 1.15 x body size, scaled to the width down to 0.6 (a wider formula hangs out to the right from the left edge), ceil((h + 0.5U) / U) lines of 1U, centered both ways. Left alignment is not built (D-034). Its `BlockLayout` carries the code face and size, so the live field edits the source in monospace.
+- Invalid LaTeX: the source in red monospace (`TextPalette.mathError`): an inline span, or the whole block as a code block in red. `BlockLayout.mathErrors` keeps the ranges and parser messages. Tapping a formula focuses its block and the live field shows the source; when the block holds invalid LaTeX the field shows the first parser message as its error popup (`EditText.setError`, no icon) instead of a long-press tooltip (A-047).
+- Grid suite: the math corpus (inline formulas in paragraphs, headings, lists, quotes, a tall one, invalid ones, three math blocks) runs in every font; it checks each formula baseline against its rule within 0.5 px at zoom 1, 2 and 4 and the 0.78/0.30 limits.
 
 ## Tables
 - GFM tables with alignment row. Column widths: proportional to the max unwrapped content width, min 12 mm, sum = frame width minus indent.

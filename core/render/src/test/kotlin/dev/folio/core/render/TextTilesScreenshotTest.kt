@@ -27,6 +27,27 @@ class TextTilesScreenshotTest {
     fun screenshot_textBlockStyles_dotted() = capture(TemplateKind.DOTTED)
 
     @Test
+    fun screenshot_mathCorpus_lined() = captureMath(TemplateKind.LINED)
+
+    @Test
+    fun screenshot_mathCorpus_grid() = captureMath(TemplateKind.GRID)
+
+    @Test
+    fun draw_blockMath_formulaInkFollowsTheTextColor() {
+        val pages = TextPages()
+        val content = pages.content("\$\$\n\\sum_{i=1}^{n} i\n\$\$")
+        val run = content.text.runs.single()
+        val formula = run.layout.maths.single()
+
+        val bitmap = render(pages, content, RenderTarget.SCREEN_CONTENT)
+
+        val y = ((run.topPt + formula.baselinePt - formula.ascentPt / 2f) * SCALE).toInt()
+        val inked = (0 until bitmap.width).map { bitmap.getPixel(it, y) }.filter { Color.alpha(it) == OPAQUE }
+        assertThat(inked).isNotEmpty()
+        assertThat(inked.distinct()).containsExactly(PageRenderer.textArgb(Color.WHITE))
+    }
+
+    @Test
     fun draw_screenContent_paintsTextInsideTheRunBounds() {
         val pages = TextPages()
         val content = pages.content("Alpha")
@@ -98,6 +119,15 @@ class TextTilesScreenshotTest {
         }
     }
 
+    private fun captureMath(kind: TemplateKind) {
+        val pages = TextPages(kind)
+        render(
+            pages,
+            pages.content(MATH_CORPUS),
+            RenderTarget.EXPORT_RASTER,
+        ).captureRoboImage("src/test/screenshots/TextTiles_${kind}_math.png")
+    }
+
     private fun render(
         pages: TextPages,
         content: PageContent,
@@ -146,6 +176,24 @@ class TextTilesScreenshotTest {
         const val SCALE = 1.5f
         const val GAP_LINES = 6
         const val QUOTE_BAR = 0xFF8E96A3.toInt()
+        const val OPAQUE = 0xFF
+
+        /** Math corpus page (P06-T07): inline math in every context, a tall formula, invalid LaTeX, block math. */
+        const val MATH_CORPUS =
+            "# Math \$e^{i\\pi} + 1 = 0\$\n\n" +
+                "Inline \$x^2 + y^2 = z^2\$, \$\\frac{a}{b}\$, \$\\sqrt{2}\$, \$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\$ and " +
+                "\$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}\$ sit on the rules, " +
+                "with **bold** text around \$\\vec{F} = m\\vec{a}\$.\n\n" +
+                "A tall \$\\frac{1}{1 + \\frac{1}{x}}\$ formula is scaled down and underlined with dots.\n\n" +
+                "- Item with \$\\alpha + \\beta\$\n" +
+                "- [ ] Task with \$\\binom{n}{k}\$\n\n" +
+                "> Quote with \$\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1\$\n\n" +
+                "Invalid \$\\notacommand{x}\$ shows red source.\n\n" +
+                "\$\$\n\\int_0^1 x^2 \\, dx = \\frac{1}{3}\n\$\$\n\n" +
+                "\$\$\n\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} \\begin{pmatrix} x \\\\ y \\end{pmatrix} = " +
+                "\\begin{pmatrix} ax + by \\\\ cx + dy \\end{pmatrix}\n\$\$\n\n" +
+                "\$\$\n\\frac{\\notacommand\n\$\$\n\n" +
+                "Text after the formulas."
         val LONG_PARAGRAPH = "lorem ipsum dolor sit amet ".repeat(20).trim()
 
         val INLINE_AND_LISTS =

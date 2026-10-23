@@ -53,13 +53,21 @@ class JLatexMathRenderer(
         private val graphics = AndroidGraphics2D()
         private val texAscentPx = icon.trueIconHeight - icon.trueIconDepth
         private val padPx = paddingPx
+        private var drawnArgb = MathLayout.KEEP_COLOR
         override val box = MathBox(icon.trueIconWidth + 2 * paddingPx, texAscentPx + paddingPx, icon.trueIconDepth + paddingPx)
 
+        // HOT PATH: once per formula and tile render; a color object is only made when the color changes.
+        @Synchronized // the icon and the graphics adapter are shared by the render threads
         override fun draw(
             canvas: Canvas,
             xPx: Float,
             baselineYPx: Float,
+            argb: Int,
         ) {
+            if (argb != MathLayout.KEEP_COLOR && argb != drawnArgb) {
+                icon.setForeground(Color(argb))
+                drawnArgb = argb
+            }
             // paintIcon puts the TeX box top-left at its origin (no insets); the padding surrounds it.
             val save = canvas.save()
             canvas.translate(xPx + padPx, baselineYPx - texAscentPx)

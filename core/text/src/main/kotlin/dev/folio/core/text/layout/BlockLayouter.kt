@@ -2,6 +2,7 @@ package dev.folio.core.text.layout
 
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Paragraph
+import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -15,6 +16,7 @@ import androidx.compose.ui.text.style.TextMotion
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
+import dev.folio.core.common.Outcome
 import dev.folio.core.common.PerfMonitor
 import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.fonts.FontRegistry
@@ -27,6 +29,7 @@ import dev.folio.core.text.markdown.InlineText
 import dev.folio.core.text.markdown.ListKind
 import dev.folio.core.text.markdown.MarkdownBlock
 import dev.folio.core.text.markdown.SpanKind
+import dev.folio.core.text.math.MathRenderer
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -40,13 +43,15 @@ import kotlin.math.roundToInt
  * first out. Thread-safe.
  *
  * Alignment: CENTER applies to paragraphs and headings, JUSTIFIED to paragraphs; other blocks
- * start-align. Math blocks and tables are laid out as source text until P06-T07 / P06-T08.
+ * start-align. Tables are laid out as source text until P06-T08. Formulas go through [math]
+ * (07-text-engine.md#math); without a renderer inline math is italic source and math blocks are code.
  */
 class BlockLayouter(
     private val resolver: FontFamily.Resolver,
     private val metrics: FontMetricsCache,
     private val registry: FontRegistry = FontRegistry.Bundled,
     private val maxCached: Int = DEFAULT_CACHE_SIZE,
+    private val math: MathRenderer? = null,
 ) {
     private data class Key(
         val source: String,
@@ -59,6 +64,8 @@ class BlockLayouter(
         object : LinkedHashMap<Key, BlockLayout>(INITIAL_CAPACITY, LOAD_FACTOR, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Key, BlockLayout>): Boolean = size > maxCached
         }
+
+    private val formulas = math?.let(::MathFormulas)
 
     /** Number of cached layouts. */
     val cachedCount: Int get() = synchronized(cache) { cache.size }
@@ -80,6 +87,7 @@ class BlockLayouter(
     /** Drops every cached layout (fonts or palette changed). */
     fun clear() {
         synchronized(cache) { cache.clear() }
+        formulas?.clear()
     }
 
     /** Uncached layout of [content]. */
@@ -128,7 +136,7 @@ class BlockLayouter(
             }
 
             is BlockContent.Math -> {
-                code(g, style, content.latex)
+                mathBlock(g, style, family, content.latex)
             }
 
             is BlockContent.Table -> {
@@ -147,17 +155,6 @@ class BlockLayouter(
         val refScale: Float = pitchPx / grid.unitPt
     }
 
-    /** One body line box without text; a [rule] is drawn at its center. */
-    private fun empty(
-        g: Geometry,
-        style: FlowTextStyle,
-        rule: Boolean,
-    ): BlockLayout {
-        val units = TextSizing.boxUnits(TextRole.BODY, TextSizing.capFraction(TextRole.BODY, style.bodyCap))
-        val decoration = if (rule) BlockDecoration.Rule(yPt = units * g.unitPt / 2f) else BlockDecoration.None
-        return BlockLayout(null, null, g.unitPt, units, 1, 0f, 0f, 0f, decoration)
-    }
-
     private fun textBlock(
         g: Geometry,
         style: FlowTextStyle,
@@ -170,12 +167,16 @@ class BlockLayouter(
         marker: Marker? = null,
         decoration: BlockDecoration = BlockDecoration.None,
         prefix: String? = null,
+        sourceError: String? = null,
     ): BlockLayout {
         val size = TextSizing.derive(metrics, family, role, style.bodyCap, g.unitPt)
         val offset = prefix?.let { it.length + 1 } ?: 0
         val plain = if (prefix == null) inline.plain else "$prefix\n${inline.plain}"
-        val spans = spanStyles(inline, offset, size.capFraction, g, style, family)
+        val inlineMath = formulas?.inline(inline, size.fontSizePt * g.refScale, (size.boxUnits * g.pitchPx).toFloat()).orEmpty()
+        val spans = spanStyles(inline, offset, size.capFraction, g, style, family, inlineMath)
         if (prefix != null) spans.add(0, AnnotatedString.Range(SpanStyle(fontWeight = FontWeight.Bold), 0, prefix.length))
+        if (sourceError != null) spans.add(AnnotatedString.Range(SpanStyle(color = style.palette.mathError), 0, plain.length))
+        val shown = inlineMath.filter { it.layout != null }
         val text =
             gridText(
                 plain,
@@ -187,7 +188,19 @@ class BlockLayouter(
                 g,
                 widthPt = g.widthPt - leftPt - rightPt,
                 textAlign = textAlign,
+                placeholders = shown.map { it.placeholder(offset) },
             )
+        val maths =
+            shown.mapIndexedNotNull { i, f ->
+                val rect = text.placeholderPt(i) ?: return@mapIndexedNotNull null
+                MathPlacement(checkNotNull(f.layout), f.scale / g.refScale, leftPt + rect.left, rect.bottom, f.tall)
+            }
+        val errors =
+            if (sourceError != null) {
+                listOf(MathError(0, plain.length, sourceError))
+            } else {
+                inlineMath.mapNotNull { f -> f.error?.let { MathError(f.span.plainStart + offset, f.span.plainEnd + offset, it) } }
+            }
         // The label keeps its natural width on one line and is placed in the gutter (it may overhang a narrow one).
         val markerText =
             marker?.let { gridText(it.label, emptyList(), family, false, size.fontSizePt, size.boxUnits, g, g.widthPt, TextAlign.Start) }
@@ -199,7 +212,61 @@ class BlockLayouter(
                 max(0f, marker.leftPt + if (marker.centered) free / 2f else free)
             }
         val face = BlockFace(family.fontFamily, role.bold)
-        return BlockLayout(text, markerText, g.unitPt, size.boxUnits, text.lineCount, leftPt, markerLeft, size.fontSizePt, decoration, face)
+        return BlockLayout(
+            text,
+            markerText,
+            g.unitPt,
+            size.boxUnits,
+            text.lineCount,
+            leftPt,
+            markerLeft,
+            size.fontSizePt,
+            decoration,
+            face,
+            maths,
+            errors,
+        )
+    }
+
+    /** Math block (07-text-engine.md#math): 1.15 x body size, fit to the width, centered in whole 1U lines. */
+    private fun mathBlock(
+        g: Geometry,
+        style: FlowTextStyle,
+        family: TextFontFamily,
+        latex: String,
+    ): BlockLayout {
+        val body = TextSizing.derive(metrics, family, TextRole.BODY, style.bodyCap, g.unitPt)
+        val out = formulas?.layout(latex, body.fontSizePt * BLOCK_MATH_SIZE * g.refScale, display = true) ?: return code(g, style, latex)
+        val layout =
+            when (out) {
+                is Outcome.Failure -> return code(g, style, latex, out.errorMessage())
+                is Outcome.Success -> out.value
+            }
+        val box = layout.box
+        val widthPx = g.widthPt * g.refScale
+        val fit = if (box.widthPx > widthPx) max(MIN_BLOCK_SCALE, widthPx / box.widthPx) else 1f
+        val heightPx = (box.ascentPx + box.depthPx) * fit
+        val lines = max(1, ceil((heightPx + BLOCK_MATH_PAD_UNITS * g.pitchPx) / g.pitchPx).toInt())
+        val topPx = (lines * g.pitchPx - heightPx) / 2f
+        val leftPx = max(0f, (widthPx - box.widthPx * fit) / 2f)
+        val placement =
+            MathPlacement(layout, fit / g.refScale, leftPx / g.refScale, (topPx + box.ascentPx * fit) / g.refScale, tall = false)
+        // The live field edits the source in the code face.
+        val mono = registry.codeFamily(style.familyName)
+        val code = TextSizing.derive(metrics, mono, TextRole.CODE, style.bodyCap, g.unitPt)
+        return BlockLayout(
+            text = null,
+            marker = null,
+            unitPt = g.unitPt,
+            boxUnits = 1,
+            lineCount = lines,
+            textLeftPt = 0f,
+            markerLeftPt = 0f,
+            fontSizePt = code.fontSizePt,
+            decoration = BlockDecoration.None,
+            face = BlockFace(mono.fontFamily, bold = false),
+            maths = listOf(placement),
+        )
     }
 
     /** A list label in the gutter [leftPt]..[leftPt] + [widthPt]: centered (bullets) or end-aligned (numbers). */
@@ -273,10 +340,12 @@ class BlockLayouter(
         )
     }
 
+    /** A code block; [error] marks the source of a math block that does not parse (drawn red). */
     private fun code(
         g: Geometry,
         style: FlowTextStyle,
         code: String,
+        error: String? = null,
     ): BlockLayout {
         val inset = CODE_INSET_UNITS * g.unitPt
         val mono = registry.codeFamily(style.familyName)
@@ -290,6 +359,7 @@ class BlockLayouter(
             leftPt = inset,
             rightPt = inset,
             decoration = BlockDecoration.CodeBackground,
+            sourceError = error,
         )
     }
 
@@ -315,6 +385,7 @@ class BlockLayouter(
         g: Geometry,
         widthPt: Float,
         textAlign: TextAlign,
+        placeholders: List<AnnotatedString.Range<Placeholder>> = emptyList(),
     ): GridText {
         // Line height is a whole px count: Compose rounds line heights up, so a fraction would drift per line (A-006).
         val lineHeightPx = (boxUnits * g.pitchPx).toFloat()
@@ -337,6 +408,7 @@ class BlockLayouter(
                 density = UNIT_DENSITY,
                 fontFamilyResolver = resolver,
                 spanStyles = spans,
+                placeholders = placeholders,
             )
         return GridText(paragraph, plain, g.refScale, lineHeightPx - paragraph.getLineBaseline(0))
     }
@@ -348,35 +420,30 @@ class BlockLayouter(
         g: Geometry,
         style: FlowTextStyle,
         family: TextFontFamily,
+        formulas: List<InlineFormula>,
     ): MutableList<AnnotatedString.Range<SpanStyle>> {
-        val out = ArrayList<AnnotatedString.Range<SpanStyle>>(inline.spans.size + 1)
+        val out = ArrayList<AnnotatedString.Range<SpanStyle>>(inline.spans.size + 2)
         if (inline.spans.isEmpty()) return out
         val length = inline.plain.length
-        // Inline code: the monospace family at the code-to-body cap ratio of the surrounding role.
-        val code =
-            if (inline.spans.none { it.kind == SpanKind.CODE }) {
-                null
-            } else {
-                val mono = registry.codeFamily(family.name)
-                val cap = roleCap * TextRole.CODE.capFractionAtM / TextRole.BODY.capFractionAtM
-                val sizePt = TextSizing.fontSizePt(metrics.proportions(mono).capRatio, cap, g.unitPt)
-                SpanStyle(fontFamily = mono.fontFamily, fontSize = (sizePt * g.refScale).sp, background = style.palette.codeBackground)
-            }
+        // Inline code (and invalid LaTeX): the monospace family at the code-to-body cap ratio of the surrounding role.
+        val mono by lazy {
+            val mono = registry.codeFamily(family.name)
+            val cap = roleCap * TextRole.CODE.capFractionAtM / TextRole.BODY.capFractionAtM
+            val sizePt = TextSizing.fontSizePt(metrics.proportions(mono).capRatio, cap, g.unitPt)
+            SpanStyle(fontFamily = mono.fontFamily, fontSize = (sizePt * g.refScale).sp)
+        }
+        val code by lazy { mono.copy(background = style.palette.codeBackground) }
+        val invalidMath by lazy { mono.copy(color = style.palette.mathError) }
         for (span in inline.spans) {
             val start = span.plainStart.coerceIn(0, length)
             val end = span.plainEnd.coerceIn(start, length)
-            if (start == end) continue
             val spanStyle =
                 when (span.kind) {
-                    SpanKind.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
-                    SpanKind.ITALIC -> SpanStyle(fontStyle = FontStyle.Italic)
-                    SpanKind.STRIKE -> SpanStyle(textDecoration = TextDecoration.LineThrough)
-                    SpanKind.HIGHLIGHT -> SpanStyle(background = style.palette.highlight)
-                    SpanKind.CODE -> checkNotNull(code)
-                    SpanKind.LINK, SpanKind.DOC_LINK -> SpanStyle(color = style.palette.link, textDecoration = TextDecoration.Underline)
-                    SpanKind.MATH -> SpanStyle(fontStyle = FontStyle.Italic) // MathRenderer placeholders: P06-T07
+                    SpanKind.CODE -> code
+                    SpanKind.MATH -> mathStyle(formulas.firstOrNull { it.span === span }) { invalidMath }
+                    else -> markStyle(span.kind, style.palette)
                 }
-            out += AnnotatedString.Range(spanStyle, start + offset, end + offset)
+            if (start < end && spanStyle != null) out += AnnotatedString.Range(spanStyle, start + offset, end + offset)
         }
         return out
     }
@@ -400,8 +467,49 @@ class BlockLayouter(
         private const val CODE_INSET_UNITS = 0.5f
         private const val CELL_SEPARATOR = "  |  "
 
+        // Block math (07-text-engine.md#math): 1.15 x body size, fit to the width down to 0.6, half a line of air around it.
+        private const val BLOCK_MATH_SIZE = 1.15f
+        private const val MIN_BLOCK_SCALE = 0.6f
+        private const val BLOCK_MATH_PAD_UNITS = 0.5f
+
         /** 1 sp = 1 px so styles are given in layout px. */
         private val UNIT_DENSITY = Density(density = 1f, fontScale = 1f)
+
+        /** One body line box without text; a [rule] is drawn at its center. */
+        private fun empty(
+            g: Geometry,
+            style: FlowTextStyle,
+            rule: Boolean,
+        ): BlockLayout {
+            val units = TextSizing.boxUnits(TextRole.BODY, TextSizing.capFraction(TextRole.BODY, style.bodyCap))
+            val decoration = if (rule) BlockDecoration.Rule(yPt = units * g.unitPt / 2f) else BlockDecoration.None
+            return BlockLayout(null, null, g.unitPt, units, 1, 0f, 0f, 0f, decoration)
+        }
+
+        /** Math span style: italic source without a renderer, none where a placeholder takes the characters, [invalid] on error. */
+        private inline fun mathStyle(
+            formula: InlineFormula?,
+            invalid: () -> SpanStyle,
+        ): SpanStyle? =
+            when {
+                formula == null -> SpanStyle(fontStyle = FontStyle.Italic)
+                formula.layout != null -> null
+                else -> invalid()
+            }
+
+        /** Style of the Markdown marks (bold, italic, strike, highlight, links); null for code and math. */
+        private fun markStyle(
+            kind: SpanKind,
+            palette: TextPalette,
+        ): SpanStyle? =
+            when (kind) {
+                SpanKind.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
+                SpanKind.ITALIC -> SpanStyle(fontStyle = FontStyle.Italic)
+                SpanKind.STRIKE -> SpanStyle(textDecoration = TextDecoration.LineThrough)
+                SpanKind.HIGHLIGHT -> SpanStyle(background = palette.highlight)
+                SpanKind.LINK, SpanKind.DOC_LINK -> SpanStyle(color = palette.link, textDecoration = TextDecoration.Underline)
+                SpanKind.CODE, SpanKind.MATH -> null
+            }
 
         private fun headingRole(level: Int): TextRole =
             when (level) {

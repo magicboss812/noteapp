@@ -26,6 +26,7 @@ import dev.folio.core.text.layout.BlockLayouter
 import dev.folio.core.text.layout.FlowTextStyle
 import dev.folio.core.text.layout.LayoutGrid
 import dev.folio.core.text.markdown.MarkdownDocument
+import dev.folio.core.text.math.JLatexMathRenderer
 import dev.folio.feature.editor.text.FieldEdit
 import dev.folio.feature.editor.text.FieldKey
 import dev.folio.feature.editor.text.TextFieldSpec
@@ -66,9 +67,10 @@ class LiveTextFieldTest {
         caret: Int = 0,
         revision: Int = 1,
         widthPt: Float = 400f,
+        with: BlockLayouter = layouter,
     ): TextFieldSpec {
         val block = MarkdownDocument.parse(source).blocks.first()
-        val layout = layouter.layout(block, widthPt, FlowTextStyle(), grid)
+        val layout = with.layout(block, widthPt, FlowTextStyle(), grid)
         val focus = TextFocus(FlowId("body"), block.id, 0, caret, revision)
         return TextFieldSpec(focus, block, layout, BlockPlacement(0, PageId("p0"), 40f, 100f, widthPt))
     }
@@ -443,6 +445,28 @@ class LiveTextFieldTest {
 
         assertThat(field.visibility).isEqualTo(View.GONE)
         assertThat(field.spec).isNull()
+    }
+
+    @Test
+    fun show_invalidLatex_showsTheParserErrorAndHideClearsIt() {
+        val math = BlockLayouter(resolver, FontMetricsCache(resolver), math = JLatexMathRenderer(context))
+
+        show(spec("Bad \$\\notacommand{x}\$", with = math))
+
+        assertThat(field.error?.toString()).isNotEmpty()
+        field.hide()
+        assertThat(field.error).isNull()
+    }
+
+    @Test
+    fun show_fixedLatex_clearsTheError() {
+        val math = BlockLayouter(resolver, FontMetricsCache(resolver), math = JLatexMathRenderer(context))
+        show(spec("\$\\notacommand{x}\$", with = math))
+        assertThat(field.error).isNotNull()
+
+        show(spec("\$\\sqrt{x}\$", with = math))
+
+        assertThat(field.error).isNull()
     }
 
     @Test

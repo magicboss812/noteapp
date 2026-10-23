@@ -7,6 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertWithMessage
 import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.fonts.FontRegistry
+import dev.folio.core.text.math.JLatexMathRenderer
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -18,8 +19,9 @@ import org.junit.runner.RunWith
 class GridInvariantInstrumentedTest {
     @Test
     fun everyFontAndBlockStyle_atZoom124_baselinesWithinHalfPixelOfRules() {
-        val resolver = createFontFamilyResolver(InstrumentationRegistry.getInstrumentation().targetContext)
-        val layouter = BlockLayouter(resolver, FontMetricsCache(resolver))
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val resolver = createFontFamilyResolver(context)
+        val layouter = BlockLayouter(resolver, FontMetricsCache(resolver), math = JLatexMathRenderer(context))
 
         val results = FontRegistry.bundled.map { GridInvariantSuite.run(layouter, it.name) }
         GridInvariantSuite.table(results).lines().forEach { Log.i(TAG, it) }
@@ -29,6 +31,7 @@ class GridInvariantInstrumentedTest {
             result.violations.take(LOGGED_VIOLATIONS).forEach { Log.e(TAG, "${result.family}: $it") }
             assertWithMessage(result.family).that(result.violations).isEmpty()
             assertWithMessage("${result.family} runs").that(result.runs).isAtLeast(result.blocks)
+            assertWithMessage("${result.family} formulas").that(result.formulas).isEqualTo(GridInvariantSuite.EXPECTED_FORMULAS)
         }
     }
 

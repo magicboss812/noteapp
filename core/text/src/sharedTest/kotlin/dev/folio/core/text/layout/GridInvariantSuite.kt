@@ -21,6 +21,10 @@ class FamilyInvariant(
     val lines: Int,
     /** Text runs drawn (each one's baseline is checked). */
     val runs: Int,
+    /** Formulas placed (inline and block math). */
+    val formulas: Int,
+    /** Worst inline formula baseline error per zoom. */
+    val mathPx: FloatArray,
     /** From [BlockLayout.baselinePt] mapped to the screen. */
     val computedPx: FloatArray,
     /** From the y of every recorded drawText call through the canvas matrix. */
@@ -61,6 +65,23 @@ object GridInvariantSuite {
 
     private const val TOP_MARGIN_PT = 36f
 
+    /** Inline math in every inline context, formulas that need scaling, invalid LaTeX and block math (P06-T07). */
+    val MATH_CORPUS: List<String> =
+        listOf(
+            "## Euler: \$e^{i\\pi} + 1 = 0\$ in a heading",
+            "Fractions \$\\frac{a}{b}\$, roots \$\\sqrt{x^2 + 1}\$, sums \$\\sum_{i=1}^{n} x_i\$ and " +
+                "integrals \$\\int_0^\\infty e^{-x^2} dx\$ sit on the rules; so do \$\\vec{v}\$, \$\\hat{a}\$, \$a_{ij}^{(k)}\$ and " +
+                "a nested \$\\frac{1}{1 + \\frac{1}{x}}\$ that needs the minimum scale, with **bold \$x\$** and text after it.",
+            "- A list item with \$\\alpha + \\beta\$ math\n  - Nested \$\\binom{n}{k}\$",
+            "> A quote with \$\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1\$ inside.",
+            "Invalid inline LaTeX \$\\notacommand{x}\$ shows its source in red.",
+            "\$\$\n\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} \\begin{pmatrix} x \\\\ y \\end{pmatrix} = " +
+                "\\begin{pmatrix} ax + by \\\\ cx + dy \\end{pmatrix}\n\$\$",
+            "\$\$\n\\sum_{k=0}^{n} \\binom{n}{k} x^k y^{n-k} = (x + y)^n \\quad " +
+                "\\text{a wide formula that is scaled down to fit the width of the text column on the page}\n\$\$",
+            "\$\$\n\\frac{\\notacommand\n\$\$",
+        )
+
     /** Every block style (07-text-engine.md#blocks, #block-styles) with inline styles mixed into the lines. */
     val CORPUS: String =
         listOf(
@@ -83,7 +104,10 @@ object GridInvariantSuite {
             "\$\$\n\\int_0^1 x^2 \\, dx = \\frac{1}{3}\n\$\$",
             "| Name | Value |\n|---|---|\n| one | 1 |\n| two | 2 |",
             "---",
-        ).joinToString("\n\n")
+        ).plus(MATH_CORPUS).joinToString("\n\n")
+
+    /** Valid formulas of [CORPUS] (2 before [MATH_CORPUS], 15 in it), each placed once per grid and body size. */
+    val EXPECTED_FORMULAS: Int get() = (2 + 15) * GRIDS.size * BODY_CAPS.size
 
     /** Runs the corpus for [familyName] on every grid and body size. */
     fun run(
@@ -97,6 +121,8 @@ object GridInvariantSuite {
         val canvas = RecordingCanvas()
         var lines = 0
         var runs = 0
+        var formulas = 0
+        val mathPx = FloatArray(ZOOMS.size)
         var measured = 0
         for (grid in GRIDS) {
             for (bodyCap in BODY_CAPS) {
@@ -119,9 +145,14 @@ object GridInvariantSuite {
                             computed[z] = max(computed[z], error)
                             if (error > MAX_ERROR_PX) violations += "$where line $line zoom $zoom: computed error $error px"
                         }
+                        val placed = checkMath(layout, block.source, scale, "$where zoom $zoom", violations, mathPx, z)
+                        if (z == 0) formulas += placed
+                        if (placed > 0) layout.draw(canvas, 0f, topPt, scale) // draws the formulas without failing
                         canvas.baselines.clear()
-                        layout.draw(canvas, 0f, topPt, scale)
-                        val hasText = block.content !is BlockContent.Empty && block.content !is BlockContent.Rule
+                        // Formula glyphs sit on their own baselines (scripts, fractions); checkMath places the formulas.
+                        layout.drawText(canvas, 0f, topPt, scale)
+                        val shown = block.content is BlockContent.Math && placed > 0
+                        val hasText = block.content !is BlockContent.Empty && block.content !is BlockContent.Rule && !shown
                         if (hasText && canvas.baselines.isEmpty()) violations += "$where zoom $zoom: nothing drawn"
                         if (z == 0) runs += canvas.baselines.size
                         for (y in canvas.baselines) {
@@ -138,18 +169,62 @@ object GridInvariantSuite {
                 }
             }
         }
-        return FamilyInvariant(familyName, measured, lines, runs, computed, rendered, violations)
+        return FamilyInvariant(familyName, measured, lines, runs, formulas, mathPx, computed, rendered, violations)
+    }
+
+    /**
+     * Formulas of [layout] (07-text-engine.md#math): an inline formula's baseline lies on a rule of the block and fits
+     * the line box (ascent <= 0.78, depth <= 0.30 box unless flagged tall); a math block's formula lies inside its
+     * whole lines. A block with `$` in [source] must show formulas or report invalid LaTeX. Returns the formulas placed.
+     */
+    private fun checkMath(
+        layout: BlockLayout,
+        source: String,
+        scale: Float,
+        where: String,
+        violations: MutableList<String>,
+        worstPx: FloatArray,
+        zoom: Int,
+    ): Int {
+        if ('$' in source && layout.maths.isEmpty() && layout.mathErrors.isEmpty()) violations += "$where: no formula laid out"
+        val boxPt = layout.boxUnits * layout.unitPt
+        val block = source.startsWith("\$\$")
+        for (m in layout.maths) {
+            if (block) {
+                if (m.baselinePt - m.ascentPt < -EPSILON_PT || m.baselinePt + m.depthPt > layout.heightPt + EPSILON_PT) {
+                    violations +=
+                        "$where: block formula ${m.baselinePt - m.ascentPt}..${m.baselinePt + m.depthPt} outside ${layout.heightPt} pt"
+                }
+                continue
+            }
+            val n = (m.baselinePt / boxPt).roundToInt()
+            val error = abs(m.baselinePt - n * boxPt) * scale
+            worstPx[zoom] = max(worstPx[zoom], error)
+            if (n !in 1..layout.lineCount || error > MAX_ERROR_PX) violations += "$where: formula baseline is $error px off rule $n"
+            val fits = m.ascentPt <= ASCENT_MAX * boxPt + EPSILON_PT && m.depthPt <= DEPTH_MAX * boxPt + EPSILON_PT
+            if (!m.tall && !fits) violations += "$where: formula ${m.ascentPt} / ${m.depthPt} pt does not fit a $boxPt pt line box"
+        }
+        return layout.maths.size
     }
 
     /** A Markdown table of [results]: worst computed / rendered error per zoom. */
     fun table(results: List<FamilyInvariant>): String =
         buildString {
-            appendLine("| Font | Blocks | Lines | Runs | Computed px z1 / z2 / z4 | Rendered px z1 / z2 / z4 |")
-            appendLine("|---|---|---|---|---|---|")
+            appendLine(
+                "| Font | Blocks | Lines | Runs | Formulas | Computed px z1 / z2 / z4 | Rendered px z1 / z2 / z4 | Math px z1 / z2 / z4 |",
+            )
+            appendLine("|---|---|---|---|---|---|---|---|")
             for (r in results) {
-                appendLine("| ${r.family} | ${r.blocks} | ${r.lines} | ${r.runs} | ${px(r.computedPx)} | ${px(r.renderedPx)} |")
+                appendLine(
+                    "| ${r.family} | ${r.blocks} | ${r.lines} | ${r.runs} | ${r.formulas} | ${px(r.computedPx)} | " +
+                        "${px(r.renderedPx)} | ${px(r.mathPx)} |",
+                )
             }
         }
+
+    private const val ASCENT_MAX = 0.78f
+    private const val DEPTH_MAX = 0.30f
+    private const val EPSILON_PT = 0.01f
 
     private fun px(values: FloatArray): String = values.joinToString(" / ") { "%.4f".format(Locale.ROOT, it) }
 

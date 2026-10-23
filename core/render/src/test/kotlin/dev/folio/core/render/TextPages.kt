@@ -19,6 +19,7 @@ import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.PageTexts
 import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.layout.BlockLayouter
+import dev.folio.core.text.math.JLatexMathRenderer
 import kotlinx.collections.immutable.toPersistentList
 
 /**
@@ -29,7 +30,8 @@ internal class TextPages(
     kind: TemplateKind = TemplateKind.LINED,
 ) {
     private val resolver = createFontFamilyResolver(ApplicationProvider.getApplicationContext())
-    private val layouter = FlowLayouter(BlockLayouter(resolver, FontMetricsCache(resolver)))
+    private val math = JLatexMathRenderer(ApplicationProvider.getApplicationContext())
+    private val layouter = FlowLayouter(BlockLayouter(resolver, FontMetricsCache(resolver), math = math))
     private val background = ModelFixtures.LINED_BACKGROUND.let { it.copy(template = TemplatePresets.default(kind)) }
     private val flowId = FlowId("body")
 

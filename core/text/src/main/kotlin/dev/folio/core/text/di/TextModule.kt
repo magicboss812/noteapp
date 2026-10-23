@@ -13,6 +13,8 @@ import dev.folio.core.text.flow.FlowReflow
 import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.fonts.FontRegistry
 import dev.folio.core.text.layout.BlockLayouter
+import dev.folio.core.text.math.JLatexMathRenderer
+import dev.folio.core.text.math.MathRenderer
 import javax.inject.Singleton
 
 /** Hilt bindings of core:text: one layouter stack (and so one layout cache) for the whole app. */
@@ -29,13 +31,20 @@ internal object TextModule {
     @Singleton
     fun fontMetrics(resolver: FontFamily.Resolver): FontMetricsCache = FontMetricsCache(resolver)
 
+    @Provides
+    @Singleton
+    fun mathRenderer(
+        @ApplicationContext context: Context,
+    ): MathRenderer = JLatexMathRenderer(context)
+
     // Imported fonts join the registry with the font picker (P06-T10).
     @Provides
     @Singleton
     fun blockLayouter(
         resolver: FontFamily.Resolver,
         metrics: FontMetricsCache,
-    ): BlockLayouter = BlockLayouter(resolver, metrics, FontRegistry.Bundled)
+        math: MathRenderer,
+    ): BlockLayouter = BlockLayouter(resolver, metrics, FontRegistry.Bundled, math = math)
 
     @Provides
     @Singleton
