@@ -95,6 +95,67 @@ class MarkdownEditTest {
     }
 
     @Test
+    fun replaceBlocks_range_becomesOneBlockKeepingTheFirstId() {
+        val doc = MarkdownDocument.parse("a\n\nb\n\nc\n\nd")
+
+        val edited = doc.replaceBlocks(doc.blocks[1].id, doc.blocks[2].id, "bc")
+
+        assertThat(edited.blocks.map { it.source }).containsExactly("a", "bc", "d").inOrder()
+        assertThat(edited.blocks[1].id).isEqualTo(doc.blocks[1].id)
+        assertThat(edited.toMarkdown()).isEqualTo("a\n\nbc\n\nd")
+    }
+
+    @Test
+    fun replaceBlocks_gapGiven_replacesTheSeparatorAfterTheRange() {
+        val doc = MarkdownDocument.parse("a\n\nb\n\nc")
+
+        val edited = doc.replaceBlocks(doc.blocks[0].id, doc.blocks[1].id, "ab", gap = "\n")
+
+        assertThat(edited.toMarkdown()).isEqualTo("ab\nc")
+    }
+
+    @Test
+    fun replaceBlocks_untouchedBlocksBeforeAndAfter_areShared() {
+        val doc = MarkdownDocument.parse("a\n\nb\n\nc\n\nd")
+
+        val edited = doc.replaceBlocks(doc.blocks[1].id, doc.blocks[2].id, "bc")
+
+        assertThat(edited.blocks[0]).isSameInstanceAs(doc.blocks[0])
+        assertThat(edited.blocks[2]).isSameInstanceAs(doc.blocks[3])
+    }
+
+    @Test
+    fun replaceBlocks_unknownOrReversedIds_areProgrammerErrors() {
+        val doc = MarkdownDocument.parse("a\n\nb")
+
+        val reversed = runCatching { doc.replaceBlocks(doc.blocks[1].id, doc.blocks[0].id, "x") }
+
+        assertThat(reversed.exceptionOrNull()).isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+    @Test
+    fun withGap_changesOnlyTheSeparator() {
+        val doc = MarkdownDocument.parse("a\n\nb")
+
+        val edited = doc.withGap(0, "\n")
+
+        assertThat(edited.toMarkdown()).isEqualTo("a\nb")
+        assertThat(edited.blocks[0].id).isEqualTo(doc.blocks[0].id)
+        assertThat(edited.blocks[1]).isSameInstanceAs(doc.blocks[1])
+        assertThat(doc.withGap(0, "\n\n")).isSameInstanceAs(doc)
+    }
+
+    @Test
+    fun withEmptyBlock_isOneEmptyParagraphOfTheEmptyText() {
+        val doc = MarkdownDocument.withEmptyBlock()
+
+        assertThat(doc.blocks).hasSize(1)
+        assertThat(doc.blocks[0].content).isEqualTo(BlockContent.Empty)
+        assertThat(doc.toMarkdown()).isEmpty()
+        assertThat(doc.replaceBlock(doc.blocks[0].id, "hi").toMarkdown()).isEqualTo("hi")
+    }
+
+    @Test
     fun parse_largeFlow_parsesAllBlocksExactlyOnce() {
         val big = (1..2000).joinToString("\n\n") { "Paragraph $it with some words in it" }
 

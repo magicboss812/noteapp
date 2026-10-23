@@ -13,7 +13,7 @@ updated: 2026-10-23
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06a
+- P06: T12, T13, T01, T02, T03, T04, T05, T06a, T06b
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -28,6 +28,6 @@ updated: 2026-10-23
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the highlighter panel, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T06a done (A-043, D-032 closed): feature:editor `text/` has `TextEngine`, `EditorText` (snapshot of layouts + `PageText` per page, `editCommand`, `pageMarkdown`, `firstMatchPage`) and `FlowParses`; `EditorSession.editFlow/showSearchMatch/duplicatePages` use them; canvas tiles and thumbnails get `PageText`; the library search query rides the editor route.
-- T06b (next): pure block-editing logic with unit tests (split/merge, Markdown shortcuts, list continuation, indent, selection ops, copy/cut/paste as markdown, coalescing via `editFlow`; `FlowParses.adopt` keeps block ids). `FlowLayout.runs(frame, skipBlock)` and `FocusedBlock` in `PageTexts.of` exist for the focused-block skip.
-- T06c: live field overlay in the canvas host (dimmed markers, tap-to-caret `text:focus`, formatting bar, `isAutoHandwritingEnabled = false`), debug `seed-text`, screenshot test, device checks (pen ink over a focused block, tap-to-caret p95 <= 50 ms). Tool row y 1963 px, mode pill y 171 px in landscape.
+- T06a (A-043) wired the engine into the session; T06b done (A-044): core:text `edit/` has `BlockEditing` (insert/delete/copy/enter/softBreak/backspace/deleteForward/indent/shortcut/left/right), `BlockStyles`, `Formatting`, `FlowTextDiff`; every result equals a re-parse (property test).
+- `EditorSession.editText(flowId, coalesceKey) { doc -> EditResult? }` runs a block edit as one `EditFlow` (typing key `type:<flow>:<block>`, structural null; ids kept via `FlowParses.adopt`); `FlowLayout.runs(frame, skipBlock)` and `FocusedBlock` in `PageTexts.of` exist for the focused-block skip.
+- T06c (next): live field overlay in the canvas host (dimmed markers, tap-to-caret `text:focus`, formatting bar, `isAutoHandwritingEnabled = false`), debug `seed-text`, screenshot test, device checks (pen ink over a focused block, tap-to-caret p95 <= 50 ms). Tool row y 1963 px, mode pill y 171 px in landscape.

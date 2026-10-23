@@ -28,6 +28,9 @@ import dev.folio.core.testing.FakeClock
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.testing.TempDirFolioFs
 import dev.folio.core.testing.TestDispatchersRule
+import dev.folio.core.text.edit.BlockEditing
+import dev.folio.core.text.edit.Caret
+import dev.folio.core.text.edit.TextSelection
 import dev.folio.core.text.flow.FlowLayouter
 import dev.folio.core.text.flow.toTextStyle
 import dev.folio.feature.editor.state.EditorSession
@@ -179,6 +182,146 @@ class EditorTextTest {
             assertThat(undone.pages).hasSize(1)
             assertThat(undone.flows.getValue(body).markdown).isEqualTo(original)
             assertThat(documentSession.canUndo.value).isFalse()
+        }
+
+    private fun markdown(documentSession: DocumentSession) =
+        documentSession.document.value.flows
+            .getValue(body)
+            .markdown
+
+    @Test
+    fun editText_enterInTheMiddleOfABlock_splitsItAsOneUndoStep() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val first = checkNotNull(text.parsed(body)).blocks[0]
+
+            val result = session.editText(body) { BlockEditing.enter(it, TextSelection.at(Caret(first.id, 2))) }
+
+            assertThat(markdown(documentSession)).isEqualTo("al\n\npha\n\nbeta")
+            assertThat(result!!.document.blocks.map { it.source }).containsExactly("al", "pha", "beta").inOrder()
+            assertThat(text.parsed(body)!!.blocks.map { it.id }).isEqualTo(result.document.blocks.map { it.id })
+            assertThat(text.parsed(body)!!.blocks[0].id).isEqualTo(first.id)
+
+            assertThat(session.undo()).isTrue()
+            assertThat(markdown(documentSession)).isEqualTo("alpha\n\nbeta")
+            assertThat(documentSession.canUndo.value).isFalse()
+
+            assertThat(session.redo()).isTrue()
+            assertThat(markdown(documentSession)).isEqualTo("al\n\npha\n\nbeta")
+        }
+
+    @Test
+    fun editText_backspaceAtBlockStart_mergesAndUndoSplitsAgain() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val second = checkNotNull(text.parsed(body)).blocks[1]
+
+            val result = session.editText(body) { BlockEditing.backspace(it, TextSelection.at(Caret(second.id, 0))) }
+
+            assertThat(markdown(documentSession)).isEqualTo("alphabeta")
+            assertThat(result!!.selection.focus.offset).isEqualTo(5)
+            assertThat(session.undo()).isTrue()
+            assertThat(markdown(documentSession)).isEqualTo("alpha\n\nbeta")
+        }
+
+    @Test
+    fun editText_quickTypingInOneBlock_isOneUndoStep() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val first = checkNotNull(text.parsed(body)).blocks[0]
+
+            for (typedCount in 1..3) {
+                val typed =
+                    session.editText(body, "type:$body:${first.id}") {
+                        BlockEditing.setSource(
+                            it,
+                            first.id,
+                            "alpha" + "xyz".take(typedCount),
+                            5 + typedCount,
+                        )
+                    }
+                assertThat(typed).isNotNull()
+            }
+
+            assertThat(markdown(documentSession)).isEqualTo("alphaxyz\n\nbeta")
+            assertThat(session.undo()).isTrue()
+            assertThat(markdown(documentSession)).isEqualTo("alpha\n\nbeta")
+            assertThat(documentSession.canUndo.value).isFalse()
+        }
+
+    @Test
+    fun editText_structuralEditAfterTyping_isItsOwnUndoStep() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val first = checkNotNull(text.parsed(body)).blocks[0]
+            session.editText(body, "type:$body:${first.id}") { BlockEditing.setSource(it, first.id, "alphax", 6) }
+
+            session.editText(body) { BlockEditing.enter(it, TextSelection.at(Caret(first.id, 6))) }
+
+            assertThat(markdown(documentSession)).isEqualTo("alphax\n\n\n")
+            assertThat(session.undo()).isTrue()
+            assertThat(markdown(documentSession)).isEqualTo("alphax")
+            assertThat(session.undo()).isTrue()
+            assertThat(markdown(documentSession)).isEqualTo("alpha")
+        }
+
+    @Test
+    fun editText_resultThatKeepsTheText_executesNothing() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val first = checkNotNull(text.parsed(body)).blocks[0]
+
+            val result = session.editText(body) { BlockEditing.delete(it, TextSelection.at(Caret(first.id, 2))) }
+
+            assertThat(result).isNotNull()
+            assertThat(documentSession.canUndo.value).isFalse()
+        }
+
+    @Test
+    fun editText_declinedOrUnknownFlow_returnsNull() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha")
+            val (session, documentSession) = open(path, this)
+            checkNotNull(session.text).awaitReady()
+
+            assertThat(session.editText(body) { null }).isNull()
+            assertThat(session.editText(FlowId("nope")) { BlockEditing.enter(it, TextSelection.at(Caret(it.blocks[0].id, 0))) }).isNull()
+            assertThat(documentSession.canUndo.value).isFalse()
+        }
+
+    @Test
+    fun editText_pastingPastTheLastBodyFrame_addsAContinuationPageInTheSameUndoStep() =
+        runTest(main.testDispatcher) {
+            val original = paragraphs(5)
+            val path = note(1, listOf(0), original)
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val last = checkNotNull(text.parsed(body)).blocks.last()
+            val pasted = "\n\n" + paragraphs(3 * linesPerFrame)
+
+            val result = session.editText(body) { BlockEditing.insert(it, TextSelection.at(Caret(last.id, last.source.length)), pasted) }
+
+            assertThat(result).isNotNull()
+            assertThat(documentSession.document.value.pages.size).isGreaterThan(1)
+            assertThat(session.undo()).isTrue()
+            assertThat(documentSession.document.value.pages).hasSize(1)
+            assertThat(markdown(documentSession)).isEqualTo(original)
         }
 
     @Test

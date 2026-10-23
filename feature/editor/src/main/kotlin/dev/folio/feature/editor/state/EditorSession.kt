@@ -24,7 +24,10 @@ import dev.folio.core.render.template.TemplatePresets
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.pageIndexAt
 import dev.folio.core.storage.session.DocumentSession
+import dev.folio.core.text.edit.BlockEditing
+import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.flow.PageText
+import dev.folio.core.text.markdown.MarkdownDocument
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
@@ -223,6 +226,26 @@ class EditorSession(
     ): Boolean {
         val command = text?.editCommand(flowId, edits, coalesceKey) ?: return false
         return execute(command)
+    }
+
+    /**
+     * Runs the block edit [op] (see `BlockEditing` and `Formatting`) on the Markdown of flow [flowId] and stores the
+     * outcome as one flow edit, like [editFlow]. Typing passes a [coalesceKey] naming the block so a run of keystrokes
+     * is one undo step; structural edits (split, merge, style) pass null. Returns what [op] returned (its selection
+     * for the field), or null when [op] declined, the flow is unknown or the edit failed. A result that leaves the
+     * text as it is (only the selection moved) executes nothing.
+     */
+    suspend fun editText(
+        flowId: FlowId,
+        coalesceKey: String? = null,
+        op: (MarkdownDocument) -> EditResult?,
+    ): EditResult? {
+        val engine = text ?: return null
+        val before = engine.parsed(flowId)?.let(BlockEditing::ensureBlock) ?: return null
+        val result = op(before) ?: return null
+        val unchanged = result.document.toMarkdown() == document.value.flows[flowId]?.markdown
+        val command = if (unchanged) null else engine.editCommand(flowId, result.document, coalesceKey)
+        return if (unchanged || (command != null && execute(command))) result else null
     }
 
     /**

@@ -14,10 +14,12 @@ import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.EditFlow
 import dev.folio.core.model.edit.TextEdit
 import dev.folio.core.storage.session.DocumentSession
+import dev.folio.core.text.edit.FlowTextDiff
 import dev.folio.core.text.flow.FlowLayout
 import dev.folio.core.text.flow.FlowSearch
 import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.PageTexts
+import dev.folio.core.text.markdown.MarkdownDocument
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,6 +130,30 @@ class EditorText internal constructor(
                 null
             }
         }
+    }
+
+    /**
+     * The parse of flow [flowId] block editing starts from; its block ids stay the same until undo or redo changes the
+     * text. Null for an unknown flow.
+     */
+    fun parsed(flowId: FlowId): MarkdownDocument? =
+        documentSession.document.value.flows[flowId]
+            ?.let(parses::of)
+
+    /**
+     * [editCommand] for the flow to become `after.toMarkdown()`, where [after] was derived from [parsed] by block
+     * editing: one replacement of the changed middle of the text, and [after] is adopted so the block ids (the
+     * focused block among them) survive the edit. Null if the text does not change or the edit does not fit.
+     */
+    suspend fun editCommand(
+        flowId: FlowId,
+        after: MarkdownDocument,
+        coalesceKey: String? = null,
+    ): EditCommand? {
+        val flow = documentSession.document.value.flows[flowId] ?: return null
+        val edit = FlowTextDiff.between(flow.markdown, after.toMarkdown()) ?: return null
+        parses.adopt(flowId, after)
+        return editCommand(flowId, listOf(edit), coalesceKey)
     }
 
     /** Markdown of the flow text shown on a page of [doc] (page duplicates copy it), laid out fresh for [doc]. */

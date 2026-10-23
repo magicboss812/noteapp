@@ -38,36 +38,69 @@ class MarkdownDocument private constructor(
     fun replaceBlock(
         id: Long,
         newSource: String,
+    ): MarkdownDocument = replaceBlocks(id, id, newSource)
+
+    /**
+     * Replaces the blocks [firstId]..[lastId] (their sources and the separators between them) by [newSource] and
+     * re-parses only the result, like [replaceBlock]: the first resulting block keeps [firstId], and the last replaced
+     * block's separator (or [gap] when given) follows the new text. Merges, deletions across blocks and multi-block
+     * pastes use it.
+     */
+    fun replaceBlocks(
+        firstId: Long,
+        lastId: Long,
+        newSource: String,
+        gap: String? = null,
     ): MarkdownDocument {
-        val index = indexOf(id)
-        require(index >= 0) { "No block with id $id" }
-        val old = blocks[index]
-        if (newSource == old.source) return this
+        val from = indexOf(firstId)
+        val to = indexOf(lastId)
+        require(from >= 0) { "No block with id $firstId" }
+        require(to >= from) { "No block with id $lastId at or after block $firstId" }
+        val tail = blocks[to]
+        val endGap = gap ?: tail.gap
+        if (from == to && newSource == tail.source && endGap == tail.gap) return this
         // A cleared block stays one empty paragraph instead of turning its separator into extra blocks.
         val pieces =
             if (newSource.isBlank() && '\n' !in newSource) {
                 // An empty paragraph carries a single line terminator; its blank separator line would be one more block.
-                listOf(RawBlock(newSource, old.gap.substring(0, old.gap.indexOf('\n') + 1)))
+                listOf(RawBlock(newSource, endGap.substring(0, endGap.indexOf('\n') + 1)))
             } else {
-                BlockSplitter.split(newSource + old.gap)
+                BlockSplitter.split(newSource + endGap)
             }
         var next = nextId
         val replaced =
             pieces.mapIndexed { i, piece ->
-                val blockId = if (i == 0) id else next++
+                val blockId = if (i == 0) firstId else next++
                 MarkdownBlock(blockId, piece.source, piece.gap, parser.parse(piece.source))
             }
-        val list = ArrayList<MarkdownBlock>(blocks.size + replaced.size)
-        list.addAll(blocks.subList(0, index))
+        val list = ArrayList<MarkdownBlock>(blocks.size + replaced.size - (to - from))
+        list.addAll(blocks.subList(0, from))
         list.addAll(replaced)
-        list.addAll(blocks.subList(index + 1, blocks.size))
+        list.addAll(blocks.subList(to + 1, blocks.size))
         return MarkdownDocument(list, parser, next)
+    }
+
+    /**
+     * The same blocks with the separator after block [index] replaced by [gap]; the text of the flow changes only
+     * between the two blocks. Sources and ids are kept, nothing is re-parsed.
+     */
+    fun withGap(
+        index: Int,
+        gap: String,
+    ): MarkdownDocument {
+        if (blocks[index].gap == gap) return this
+        val list = ArrayList(blocks)
+        list[index] = blocks[index].copy(gap = gap)
+        return MarkdownDocument(list, parser, nextId)
     }
 
     /** Number of block parses done through this document's parser (shared by documents derived from it). */
     val parsedBlockCount: Int get() = parser.parseCount
 
     companion object {
+        /** One empty paragraph without a separator: the text `""`, which a caret can sit in (parsing `""` gives no block). */
+        fun withEmptyBlock(): MarkdownDocument = MarkdownDocument(listOf(MarkdownBlock(1L, "", "", BlockContent.Empty)), BlockParser(), 2L)
+
         /** Splits and parses [markdown]. Always lossless: `parse(x).toMarkdown() == x`. */
         fun parse(markdown: String): MarkdownDocument {
             val parser = BlockParser()
