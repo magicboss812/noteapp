@@ -7,7 +7,7 @@ paths:
 - One renderer: `PageRenderer.draw(canvas, page, regionPt, scale, target)` serves screen tiles, PNG export and PDF export. Targets differ by flags only.
 - Page space in points. Convert with `Viewport` helpers only.
 - Tiles: 512 px square, key (pageId, zoomBucket, tx, ty). Background (paper, template, PDF raster) and content tiles are cached separately.
-- During pan/zoom gestures only transform existing tiles. Re-render at the new bucket after 100 ms idle: visible tiles first, center-out.
+- During pan/zoom gestures transform existing tiles; only newly uncovered tiles at the current bucket are requested (throttled). Re-render at the new bucket after 100 ms idle: visible tiles first, center-out. Base tiles (low bucket) of visible pages are never evicted by the budget (A-026).
 - Invalidate by bounds via the page spatial index. "Invalidate all" only on page spec/background change.
 - Tile rendering on the `render` dispatcher (2 threads). Bitmaps come from and return to `BitmapPool`.
 - Tile cache memory <= 25% of `ActivityManager.largeMemoryClass`. Log evictions in debug builds.

@@ -15,7 +15,7 @@ updated: 2026-10-23
 - P05: (none yet)
 
 ## Blocked (needs user; stops dependent tasks)
-- P04-REVIEW (D-005, D-016): rule edits were denied headless; apply interactively. `.claude/rules/text-engine.md` line 9 -> "- Fixed line box via `TextStyle(lineHeight, LineHeightStyle(Alignment.Bottom, Trim.None))` laid out at the grid-pitch reference scale r = round(4*U)/U px per pt, then shifted by the measured `k*U*r - firstLineBaseline` (A-006). Never rely on font ascent/descent for placement." `.claude/rules/rendering.md` line 5 -> "- During pan/zoom gestures transform existing tiles; only newly uncovered tiles at the current bucket are requested (throttled). Re-render at the new bucket after 100 ms idle: visible tiles first, center-out. Base tiles (low bucket) of visible pages are never evicted by the budget (A-026)." Blocks nothing.
+- (none)
 
 ## USER-CHECK (human verification; non-blocking)
 - P04-T10: open the library placeholder and a note on the tablet -> toolbar, options row, popovers, colors and type read as Notewise; differences go to docs/plan/FEEDBACK.md.
@@ -24,7 +24,7 @@ updated: 2026-10-23
 - P04-T08: draw, then watch the small dot at the editor's bottom-left (green idle, orange while saving); force-quit mid-edit and reopen -> "Recovered unsaved changes." snackbar on the library.
 
 ## Deferred (id: reason)
-- D-001, D-015 -> P11-T05; D-009, D-010 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P06-T04, P07-T05, P10-T01, P11-T10; D-028 -> P05-T02, P11-T10; D-005, D-016 -> Blocked P04-REVIEW.
+- D-001, D-015 -> P11-T05; D-009, D-010 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P06-T04, P07-T05, P10-T01, P11-T10; D-028 -> P05-T02, P11-T10.
 - D-002 P01-T08: spike route spike-fonts + core:text spike/ (remove in P06-T03; spike-ink/spike-stylus went in P03-T09); USER-CHECKs answered (A-008).
 - D-004 P01-REVIEW: `GridParagraph.draw` allocates a Compose canvas wrapper per call; cache it or mark HOT PATH before P06-T05 paints text into tiles.
 - D-006 P01-S3 (user feedback): decide BACKLOG B-12 (free font size tied to the rules, top/middle/bottom placement in the line box) in P06-T02 before building size styles.
