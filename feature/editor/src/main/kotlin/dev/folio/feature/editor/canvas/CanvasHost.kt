@@ -10,10 +10,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.withContext
 
 /**
  * Embeds a [CanvasHostView] for [controller]. The document is collected into the view directly (no
  * recomposition per document change); [onHost] receives the view once created (debug automation).
+ * Collectors run on [CanvasController.mainDispatcher]: the session publishes from worker threads, and the
+ * effect dispatcher does not guarantee the main thread (Compose test rules resume on the emitter).
  */
 @Composable
 fun CanvasHost(
@@ -44,15 +47,15 @@ internal fun CanvasHost(
         val view = host
         LaunchedEffect(view) {
             if (view == null) return@LaunchedEffect
-            controller.document.collect { view.setDocument(it) }
+            withContext(controller.mainDispatcher) { controller.document.collect { view.setDocument(it) } }
         }
         LaunchedEffect(view) {
             if (view == null) return@LaunchedEffect
-            controller.viewCommands.collect { view.perform(it) }
+            withContext(controller.mainDispatcher) { controller.viewCommands.collect { view.perform(it) } }
         }
         LaunchedEffect(view) {
             if (view == null) return@LaunchedEffect
-            controller.pageJumps.collect { view.goToPage(it) }
+            withContext(controller.mainDispatcher) { controller.pageJumps.collect { view.goToPage(it) } }
         }
     }
 }

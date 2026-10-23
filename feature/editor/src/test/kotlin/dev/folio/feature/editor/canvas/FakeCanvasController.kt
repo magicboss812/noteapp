@@ -36,6 +36,9 @@ internal class FakeCanvasController(
     override var eraserOptions = EraserOptions.DEFAULT
     override var stylusPreferences = StylusPreferences.DEFAULT
     val loadRequests = ArrayList<PageId>()
+
+    /** The thread of every [loadPages] call (the view asks while applying a document, so it must be main). */
+    val loadThreads = ArrayList<Thread>()
     var accept = true
 
     /** When set, commits suspend until it completes (a session working off the main thread). */
@@ -51,6 +54,7 @@ internal class FakeCanvasController(
 
     override fun loadPages(ids: Collection<PageId>) {
         loadRequests += ids
+        loadThreads += Thread.currentThread()
     }
 
     override suspend fun commitStrokes(

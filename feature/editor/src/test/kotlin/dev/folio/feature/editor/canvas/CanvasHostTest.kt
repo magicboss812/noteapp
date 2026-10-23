@@ -421,4 +421,20 @@ class CanvasHostTest {
 
         assertThat(controller.loadRequests).contains(doc.pages[0].id)
     }
+
+    @Test
+    fun setDocument_publishedFromWorkerThread_appliedOnMainThread() {
+        show()
+
+        // DocumentSession.ensureLoaded publishes loaded pages from an IO worker (P04-T09 device failure:
+        // the view applied it there and its tile maps threw ConcurrentModificationException).
+        val doc = controller.document.value
+        val worker = Thread { controller.document.value = doc.copy(pageBodies = doc.pageBodies.remove(doc.pages[0].id)) }
+        worker.start()
+        worker.join()
+        settle()
+
+        assertThat(controller.loadRequests).contains(doc.pages[0].id)
+        assertThat(controller.loadThreads.toSet()).containsExactly(Looper.getMainLooper().thread)
+    }
 }
