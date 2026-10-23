@@ -224,7 +224,7 @@ internal fun LibraryHome(
                 onDismiss = { creatingFolder = false },
             )
         }
-        SearchOverlay(search, folders, searchActions, onOpenDocument)
+        SearchOverlay(search, folders, searchActions)
         if (drawer && drawerOpen) {
             Box(Modifier.fillMaxSize().background(FolioTheme.colors.scrim).clickable(onClickLabel = "Close menu") { drawerOpen = false })
             sidebar(Modifier)

@@ -88,7 +88,7 @@ class SearchScreenshotTest {
     ) {
         compose.setContent {
             FolioTheme(darkTheme = dark) {
-                SearchOverlay(state, folders, SearchActions(), onOpenDocument = {})
+                SearchOverlay(state, folders, SearchActions())
             }
         }
         compose.onNode(isDialog()).captureRoboImage("src/test/screenshots/$name.png")

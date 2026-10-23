@@ -57,16 +57,20 @@ import dev.folio.feature.editor.state.ShortcutRegistry
 import dev.folio.feature.editor.state.ToolOptions
 import dev.folio.feature.editor.state.ToolbarPlacement
 
-/** Editor destination for the document at library path [docPath]; [onBack] returns to the library. */
+/**
+ * Editor destination for the document at library path [docPath]; [onBack] returns to the library. A [searchQuery]
+ * (the library search the note was opened from) scrolls the editor to the page of its first match.
+ */
 @Composable
 fun EditorRoute(
     docPath: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     canvasListener: EditorCanvasListener? = null,
+    searchQuery: String? = null,
     density: Float = LocalDensity.current.density,
     viewModel: EditorViewModel =
-        hiltViewModel<EditorViewModel, EditorViewModel.Factory>(key = docPath) { it.create(docPath, density) },
+        hiltViewModel<EditorViewModel, EditorViewModel.Factory>(key = docPath) { it.create(docPath, density, searchQuery) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()

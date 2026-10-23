@@ -14,6 +14,7 @@ import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.PageOps
 import dev.folio.core.storage.session.DocumentSessions
 import dev.folio.core.storage.session.SaveState
+import dev.folio.feature.editor.text.TextEngine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -105,22 +106,26 @@ sealed interface OptionsPopover {
 class EditorViewModel
     @AssistedInject
     constructor(
-        @Assisted private val docPath: String,
+        @Assisted("docPath") private val docPath: String,
         @Assisted private val density: Float,
+        /** Library search query the note was opened from: the editor scrolls to the page of its first match. */
+        @Assisted("query") private val searchQuery: String?,
         private val sessions: DocumentSessions,
         private val dispatchers: FolioDispatchers,
         private val toolOptions: ToolOptionsStore,
         private val toolbarDocks: ToolbarDockStore,
+        private val textEngine: TextEngine,
     ) : ViewModel() {
         private val shortcuts = ShortcutRegistry()
 
         /** Creates the ViewModel of one editor destination. */
         @AssistedFactory
         interface Factory {
-            /** [density] sizes the pane's viewport (px per dp). */
+            /** [density] sizes the pane's viewport (px per dp); [query] is the library search the note was opened from, if any. */
             fun create(
-                docPath: String,
+                @Assisted("docPath") docPath: String,
                 density: Float,
+                @Assisted("query") query: String? = null,
             ): EditorViewModel
         }
 
@@ -211,9 +216,12 @@ class EditorViewModel
                                 sessions.release(result.value)
                                 throw e
                             }
-                        val session = EditorSession(result.value, density, dispatchers, viewModelScope, initial)
+                        val session = EditorSession(result.value, density, dispatchers, viewModelScope, initial, textEngine)
                         mutableSession.value = session
-                        ThumbnailGenerator(result.value, dispatchers, viewModelScope).start()
+                        ThumbnailGenerator(result.value, dispatchers, viewModelScope, text = session.text).start()
+                        searchQuery?.takeIf { it.isNotBlank() }?.let { query ->
+                            viewModelScope.launch { session.showSearchMatch(query) }
+                        }
                         // The session is the only writer while open; conflated so a slider drag stores its last value.
                         // Skips the loaded instance itself, not the first emission: an edit can land before this collects.
                         session.options

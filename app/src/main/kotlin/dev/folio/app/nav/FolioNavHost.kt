@@ -49,12 +49,22 @@ fun FolioNavHost(
         entryProvider = { route ->
             when (route) {
                 AppRoute.Library -> {
-                    NavEntry(route) { LibraryEntryRoute(onOpenDocument = navigator::openEditor) }
+                    NavEntry(route) {
+                        LibraryEntryRoute(
+                            onOpenDocument = { navigator.openEditor(it) },
+                            onOpenSearchResult = navigator::openEditor,
+                        )
+                    }
                 }
 
                 is AppRoute.Editor -> {
                     NavEntry(route) {
-                        EditorRoute(route.docPath, onBack = { navigator.back() }, canvasListener = canvasListener)
+                        EditorRoute(
+                            route.docPath,
+                            onBack = { navigator.back() },
+                            canvasListener = canvasListener,
+                            searchQuery = route.searchQuery,
+                        )
                     }
                 }
             }

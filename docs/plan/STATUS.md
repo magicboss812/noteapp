@@ -13,7 +13,7 @@ updated: 2026-10-23
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05
+- P06: T12, T13, T01, T02, T03, T04, T05, T06a
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -22,12 +22,12 @@ updated: 2026-10-23
 - P06-T13: in a note tap the selected pen again (or row 2's sliders button) -> panel with preview, kind cards, width + pressure sliders, colors; eraser panel: size, highlighter-only, Clear page; row 2 only widths | colors | details -> holds the pen settings like Notewise, row 2 lighter.
 
 ## Deferred (id: reason)
-- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-029, D-032 -> P06-T06.
-- D-032 P06-T04/T05: the editor does not run the flow engine yet (no core:text dependency); P06-T06 batches `FlowReflow.plan` with flow edits, passes `FlowLayout.markdownOn` to `duplicatePages`, opens search hits at `FlowSearch.firstPage` (A-041), and passes `PageTexts.of(doc, layouter)` pages to `TileLayer.setPage(ref, body, text)` and the thumbnails (A-042): until then no text shows in the editor.
+- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-029 -> P06-T06; D-033 -> P11-T05.
+- D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 - D-014 P03-T09: tilt shading has no off switch (A-025): dry rendering applies tilt whenever stored inputs carry tilt; the P11-T01 setting needs a stored per-stroke choice (or dropping tilt at commit) so wet and dry ink agree; the pen panel gets its tilt row then (P06-T13).
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the highlighter panel, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T05 done (A-042): `PageTexts.of(doc, layouter)` -> `PageText` (runs per frame) -> `PageContent.of(page, text)` / `TileLayer.setPage(ref, body, text)`; `PageRenderer` paints runs via `TextRunPainter` (decorations + `BlockLayout.paint` through one `TextCanvas`, D-004 closed). `PageText.changedBounds` gives the minimal tile invalidation. Goldens `TextTiles_{LINED,GRID,DOTTED}_{a,b}.png`.
-- Not painted yet: sticky notes (P07-T05), math (T07) and tables (T08) use placeholders. The editor does not run any of the text engine (D-032 -> P06-T06).
-- Next: P06-T06 Focused editing: the focused block is a live field, so its frame must skip painting that block; wire flow reflow + `PageTexts` into the session and tile layers. Device-tester tip: tool row y 1963 px, mode pill y 171 px in landscape.
+- P06-T06a done (A-043, D-032 closed): feature:editor `text/` has `TextEngine`, `EditorText` (snapshot of layouts + `PageText` per page, `editCommand`, `pageMarkdown`, `firstMatchPage`) and `FlowParses`; `EditorSession.editFlow/showSearchMatch/duplicatePages` use them; canvas tiles and thumbnails get `PageText`; the library search query rides the editor route.
+- T06b (next): pure block-editing logic with unit tests (split/merge, Markdown shortcuts, list continuation, indent, selection ops, copy/cut/paste as markdown, coalescing via `editFlow`; `FlowParses.adopt` keeps block ids). `FlowLayout.runs(frame, skipBlock)` and `FocusedBlock` in `PageTexts.of` exist for the focused-block skip.
+- T06c: live field overlay in the canvas host (dimmed markers, tap-to-caret `text:focus`, formatting bar, `isAutoHandwritingEnabled = false`), debug `seed-text`, screenshot test, device checks (pen ink over a focused block, tap-to-caret p95 <= 50 ms). Tool row y 1963 px, mode pill y 171 px in landscape.

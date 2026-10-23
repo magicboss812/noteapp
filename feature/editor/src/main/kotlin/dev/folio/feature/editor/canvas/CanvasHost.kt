@@ -51,6 +51,10 @@ internal fun CanvasHost(
         }
         LaunchedEffect(view) {
             if (view == null) return@LaunchedEffect
+            withContext(controller.mainDispatcher) { controller.pageTexts.collect { view.setPageTexts(it) } }
+        }
+        LaunchedEffect(view) {
+            if (view == null) return@LaunchedEffect
             withContext(controller.mainDispatcher) { controller.viewCommands.collect { view.perform(it) } }
         }
         LaunchedEffect(view) {

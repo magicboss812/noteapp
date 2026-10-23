@@ -94,7 +94,7 @@ Tables, links, math, checklists live inside flow Markdown, not as page objects.
 - Assets referenced by no object after undo history expiry are dropped at pack time (never while an undo entry may still need them).
 
 ## Sessions
-- `DocumentSession` (core:storage) owns: working copy, `StateFlow<Document>`, decoded page cache (LRU 30 pages; pages with pending edits are pinned), UndoManager, dirty set, autosave scheduler, pack triggers.
+- `DocumentSession` (core:storage) owns: working copy, `StateFlow<Document>`, decoded page cache (LRU 30 pages; pages with pending edits or a text frame are never evicted, A-043), UndoManager, dirty set, autosave scheduler, pack triggers.
 - Page decode happens on the io dispatcher; UI requests pages by visible range + prefetch 2 ahead/behind.
 - Lifecycle: `open(path)` -> ready -> `execute/undo/redo` -> `close()` (final pack). App `onStop` packs all open sessions. Process death is covered by working copy recovery.
 - Two panes may show the same document only read-only in the second pane (v1 rule; avoids concurrent sessions on one file).

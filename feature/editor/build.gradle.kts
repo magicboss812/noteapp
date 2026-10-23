@@ -17,6 +17,7 @@ dependencies {
     implementation(projects.core.render)
     implementation(projects.core.ink)
     implementation(projects.core.model)
+    implementation(projects.core.text)
     implementation(projects.core.common)
     implementation(projects.core.storage)
     implementation(libs.ink.authoring)

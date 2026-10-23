@@ -8,11 +8,15 @@ import dev.folio.core.format.container.FolioContainerReader
 import dev.folio.core.format.container.FolioEntries
 import dev.folio.core.format.manifest.ManifestApp
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowFrame
+import dev.folio.core.model.FlowId
+import dev.folio.core.model.FrameRole
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.RemoveObjects
 import dev.folio.core.model.edit.UpdateFlows
 import dev.folio.core.model.edit.UpdateMeta
+import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.storage.repo.DocumentRef
 import dev.folio.core.storage.repo.RepositoryTestBase
 import dev.folio.core.storage.work.PackResult
@@ -121,6 +125,26 @@ class DocumentSessionTest : RepositoryTestBase() {
                     .single()
                     .id,
             ).isEqualTo(ObjectId("s0"))
+        }
+
+    @Test
+    fun loadPages_pageWithTextFrame_staysDecodedPastTheLimit() =
+        runTest {
+            val ref = documents.create(spec("Frames", pages = 60)).orThrow()
+            val session = sessions(backgroundScope).open(ref.path).orThrow()
+            val ids =
+                session.document.value.pages
+                    .map { it.id }
+            val frame = FlowFrame(ObjectId("fr"), FlowId("f1"), RectPt(36f, 36f, 500f, 700f), 0, FrameRole.BODY, false)
+            session.loadPages(listOf(ids[0])).orThrow()
+            session.execute(AddObjects(ids[0], listOf(frame))).orThrow()
+            session.save().orThrow() // saved edits unpin the page; only the frame keeps it decoded
+
+            ids.forEach { session.loadPages(listOf(it)).orThrow() }
+
+            val loaded = session.document.value.pageBodies.keys
+            assertThat(ids[0]).isIn(loaded)
+            assertThat(session.decodedPageCount).isAtMost(31)
         }
 
     @Test

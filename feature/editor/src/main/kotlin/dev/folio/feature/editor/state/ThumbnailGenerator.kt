@@ -16,6 +16,8 @@ import dev.folio.core.render.PageContent
 import dev.folio.core.render.PageRenderer
 import dev.folio.core.render.RenderTarget
 import dev.folio.core.storage.session.DocumentSession
+import dev.folio.core.text.flow.PageText
+import dev.folio.feature.editor.text.EditorText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -29,15 +31,17 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 
-/** Encodes [page] (with [body]) as a WebP picture whose long side is [longSidePx]. */
-internal typealias ThumbnailEncoder = (page: PageRef, body: Page, longSidePx: Int) -> ByteArray?
+/** Encodes [page] (with [body] and the [text] its frames show) as a WebP picture whose long side is [longSidePx]. */
+internal typealias ThumbnailEncoder = (page: PageRef, body: Page, text: PageText, longSidePx: Int) -> ByteArray?
 
 /**
  * Keeps the stored thumbnails of one open document current (09-storage-library.md#thumbnails): once the
  * document has been idle for [idleMs], every page an edit changed (`DocumentSession.pageEdits`) or whose
  * spec changed since its last thumbnail is rendered on the render dispatcher (<= 256 px) and written to the
  * working copy; the first page also becomes the library cover (<= 512 px) when it was edited or another page
- * became first. Decoding pages (scrolling, the page panel, LRU re-decodes) is not an edit and costs nothing.
+ * became first. Decoding pages (scrolling, the page panel, LRU re-decodes) is not an edit and costs nothing. With a
+ * [text] engine the pictures show the text, and a page whose text changed (typing, reflow) counts as edited; the
+ * layout the engine publishes first is the baseline, not a change.
  * Generator state is touched only from [scope]'s (single-threaded) dispatcher.
  */
 internal class ThumbnailGenerator(
@@ -45,6 +49,7 @@ internal class ThumbnailGenerator(
     private val dispatchers: FolioDispatchers,
     private val scope: CoroutineScope,
     private val idleMs: Long = IDLE_MS,
+    private val text: EditorText? = null,
     private val encode: ThumbnailEncoder = ::encodeWebp,
 ) {
     private val pending = HashSet<PageId>()
@@ -78,6 +83,25 @@ internal class ThumbnailGenerator(
                     if (changed) changes.value++
                 }
             }
+            text?.let { engine ->
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    engine.awaitReady()
+                    var shown = engine.snapshot.value.pages
+                    engine.snapshot.map { it.pages }.distinctUntilChanged().collect { next ->
+                        var changed = false
+                        for (id in shown.keys + next.keys) {
+                            val before = shown[id] ?: PageText.EMPTY
+                            val after = next[id] ?: PageText.EMPTY
+                            if (before !== after && PageText.changedBounds(before, after).isNotEmpty()) {
+                                pending += id
+                                changed = true
+                            }
+                        }
+                        shown = next
+                        if (changed) changes.value++
+                    }
+                }
+            }
             changes.collectLatest {
                 delay(idleMs)
                 generate(session.document.value)
@@ -92,7 +116,13 @@ internal class ThumbnailGenerator(
         // Edited pages may have been evicted after their autosave; decoding them again is cheap and clean.
         if (session.loadPages(due.map { it.id } + listOfNotNull(cover?.id)) is Outcome.Failure) return
         val bodies = session.document.value.pageBodies
-        val entries = withContext(dispatchers.render) { encodeAll(due, cover, bodies) }
+        val texts =
+            text
+                ?.snapshot
+                ?.value
+                ?.pages
+                .orEmpty()
+        val entries = withContext(dispatchers.render) { encodeAll(due, cover, bodies, texts) }
         val result = session.writeThumbnails(entries)
         if (result is Outcome.Failure) {
             FolioLog.w(TAG, "thumbnail write failed: ${result.message}", result.cause)
@@ -111,13 +141,16 @@ internal class ThumbnailGenerator(
         due: List<PageRef>,
         cover: PageRef?,
         bodies: Map<PageId, Page>,
+        texts: Map<PageId, PageText>,
     ): Map<String, ByteArray> {
         val out = LinkedHashMap<String, ByteArray>()
         for (ref in due) {
             val body = bodies[ref.id] ?: continue
-            encode(ref, body, THUMB_PX)?.let { out[FolioEntries.pageThumb(ref.id)] = it }
+            encode(ref, body, texts[ref.id] ?: PageText.EMPTY, THUMB_PX)?.let { out[FolioEntries.pageThumb(ref.id)] = it }
         }
-        cover?.let { ref -> bodies[ref.id]?.let { encode(ref, it, COVER_PX) } }?.let { out[FolioEntries.COVER] = it }
+        cover
+            ?.let { ref -> bodies[ref.id]?.let { encode(ref, it, texts[ref.id] ?: PageText.EMPTY, COVER_PX) } }
+            ?.let { out[FolioEntries.COVER] = it }
         return out
     }
 
@@ -138,6 +171,7 @@ internal class ThumbnailGenerator(
         private fun encodeWebp(
             page: PageRef,
             body: Page,
+            text: PageText,
             longSidePx: Int,
         ): ByteArray? {
             val widthPt = page.spec.widthPt
@@ -152,7 +186,7 @@ internal class ThumbnailGenerator(
                 PageRenderer().draw(
                     Canvas(bitmap),
                     page,
-                    PageContent.of(body),
+                    PageContent.of(body, text),
                     RectPt.ofSize(0f, 0f, widthPt, heightPt),
                     scale,
                     RenderTarget.EXPORT_RASTER,

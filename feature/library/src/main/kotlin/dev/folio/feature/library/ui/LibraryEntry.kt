@@ -70,12 +70,13 @@ private const val WIDE_SHEET_MIN_DP = 900
 
 /**
  * Library entry: onboarding while all-files access is missing, else the library home;
- * [onOpenDocument] opens a document by library path.
+ * [onOpenDocument] opens a document by library path; [onOpenSearchResult] opens a search hit with the query.
  */
 @Composable
 fun LibraryEntryRoute(
     onOpenDocument: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenSearchResult: (path: String, query: String) -> Unit = { path, _ -> onOpenDocument(path) },
     viewModel: LibraryEntryViewModel = hiltViewModel(),
     browseViewModel: LibraryBrowseViewModel = hiltViewModel(),
     newNoteViewModel: NewNoteViewModel = hiltViewModel(),
@@ -96,7 +97,7 @@ fun LibraryEntryRoute(
             LibraryContent(browse, documents, folders, browseViewModel.nowMs(), ZoneId.systemDefault(), search, bin)
         }
     val actions =
-        remember(browseViewModel, opsViewModel, onOpenDocument, newNoteViewModel, searchViewModel, binViewModel) {
+        remember(browseViewModel, opsViewModel, onOpenDocument, onOpenSearchResult, newNoteViewModel, searchViewModel, binViewModel) {
             // Batch actions end the selection; a refused one (open document) is reported by the snackbar.
             val batch: (() -> Unit) -> Unit = { run ->
                 run()
@@ -122,6 +123,7 @@ fun LibraryEntryRoute(
                         onUseRecent = searchViewModel::useRecent,
                         onClearRecent = searchViewModel::clearRecent,
                         onCommit = searchViewModel::commitQuery,
+                        onOpenResult = onOpenSearchResult,
                     ),
                 bin =
                     BinActions(

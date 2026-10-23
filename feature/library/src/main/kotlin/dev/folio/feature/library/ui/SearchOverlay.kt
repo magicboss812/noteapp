@@ -78,19 +78,20 @@ data class SearchActions(
     val onClearRecent: () -> Unit = {},
     /** The search key was pressed or a result opened: remember the query. */
     val onCommit: () -> Unit = {},
+    /** A result was opened: the note's library path and the query, so the editor can show the first match. */
+    val onOpenResult: (path: String, query: String) -> Unit = { _, _ -> },
 )
 
 /**
  * The search overlay (09-storage-library.md#search): a query field, folder and tag filters, then recent searches
  * while the query is empty, else instant results with highlighted matches. Stateless; opening a result is
- * [onOpenDocument].
+ * [SearchActions.onOpenResult].
  */
 @Composable
 internal fun SearchOverlay(
     state: SearchUiState,
     folders: ImmutableList<LibraryFolderItem>,
     actions: SearchActions,
-    onOpenDocument: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!state.open) return
@@ -115,7 +116,7 @@ internal fun SearchOverlay(
                 if (state.searching) {
                     Results(state.results, state.query, actions.onCommit) {
                         actions.onClose()
-                        onOpenDocument(it)
+                        actions.onOpenResult(it, state.query.trim())
                     }
                 } else {
                     Recent(state.recent, actions)

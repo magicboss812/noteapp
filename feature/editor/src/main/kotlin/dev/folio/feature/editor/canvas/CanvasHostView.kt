@@ -38,6 +38,7 @@ import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.ViewportMode
 import dev.folio.core.render.viewport.ZoomBuckets
 import dev.folio.core.render.viewport.pageIndexAt
+import dev.folio.core.text.flow.PageText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
@@ -116,6 +117,7 @@ class CanvasHostView internal constructor(
     private val idleRequest = Runnable { requestTiles(idle = true) }
     private val memoryCallbacks = MemoryCallbacks()
     private var document: Document? = null
+    private var pageTexts: Map<PageId, PageText> = emptyMap()
     private var lastViewportChangeMs = 0L
     private var lastPanRequestMs = 0L
     private var requestedBucket = TileLayer.NO_BUCKET
@@ -263,12 +265,26 @@ class CanvasHostView internal constructor(
         for (ref in next.pages) {
             keep += ref.id.value
             backgroundTiles.setPage(ref, null)
-            contentTiles.setPage(ref, shownBody(next, ref.id))
+            contentTiles.setPage(ref, shownBody(next, ref.id), textOf(ref.id))
         }
         backgroundTiles.retainPages(keep)
         contentTiles.retainPages(keep)
         refreshTiles()
     }
+
+    /** Shows [next] as the text of the pages (computed off the main thread); tiles under changed text re-render. */
+    fun setPageTexts(next: Map<PageId, PageText>) {
+        val previous = pageTexts
+        if (previous === next) return
+        pageTexts = next
+        val doc = document ?: return
+        for (ref in doc.pages) {
+            if (previous[ref.id] !== next[ref.id]) contentTiles.setPage(ref, shownBody(doc, ref.id), textOf(ref.id))
+        }
+        refreshTiles()
+    }
+
+    private fun textOf(id: PageId): PageText = pageTexts[id] ?: PageText.EMPTY
 
     private fun refreshTiles() {
         invalidateLayers()
@@ -295,7 +311,7 @@ class CanvasHostView internal constructor(
         val doc = document ?: return
         for (id in setOfNotNull(old?.pageId, result?.pageId)) {
             val ref = doc.pageRef(id) ?: continue
-            contentTiles.setPage(ref, shownBody(doc, id))
+            contentTiles.setPage(ref, shownBody(doc, id), textOf(id))
         }
         refreshTiles()
     }

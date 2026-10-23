@@ -1,5 +1,6 @@
 plugins {
     id("folio.android.library")
+    id("folio.hilt")
     id("folio.screenshot")
 }
 

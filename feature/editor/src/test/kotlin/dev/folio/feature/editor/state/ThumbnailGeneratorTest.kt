@@ -83,7 +83,7 @@ class ThumbnailGeneratorTest {
         val spec = NewDocumentSpec("", "Thumbs", ModelFixtures.A4, ModelFixtures.LINED_BACKGROUND, pages)
         val path = (documents.create(spec) as Outcome.Success).value.path
         val session = (sessions.open(path) as Outcome.Success).value
-        ThumbnailGenerator(session, main.dispatchers, scope.backgroundScope) { page, _, px ->
+        ThumbnailGenerator(session, main.dispatchers, scope.backgroundScope) { page, _, _, px ->
             encoded += page.id to px
             byteArrayOf(px.toByte())
         }.start()

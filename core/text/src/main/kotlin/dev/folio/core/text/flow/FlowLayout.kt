@@ -52,18 +52,24 @@ class FlowLayout internal constructor(
     /**
      * Runs to paint for slot [frame] (07-text-engine.md#rendering): one per slice, positioned from the slot's top at
      * `topUnit` x U, minus the top of the slice's first line so a block continued from another frame starts mid-block.
+     * The slices of block [skipBlock] are left out (the focused block, which its live field draws).
      */
-    fun runs(frame: Int): List<TextRun> {
+    fun runs(
+        frame: Int,
+        skipBlock: Int = NO_BLOCK,
+    ): List<TextRun> {
         val slot = slots.getOrNull(frame) ?: return emptyList()
         val slices = slices(frame)
         if (slices.isEmpty()) return emptyList()
         val codeBackground = style.palette.codeBackground.toArgb()
         val out = ArrayList<TextRun>(slices.size)
         for (slice in slices) {
-            val layout = layouts[slice.blockIndex] ?: continue
-            val first = firstLine(slice)
-            val top = slot.rect.top + slice.topUnit * slot.grid.unitPt - layout.lineTopPt(first)
-            out += TextRun(slot.frameId, layout, first, lineCount(slice), slot.rect.left, top, slot.rect.widthPt, codeBackground)
+            val layout = layouts[slice.blockIndex]
+            if (layout != null && slice.blockIndex != skipBlock) {
+                val first = firstLine(slice)
+                val top = slot.rect.top + slice.topUnit * slot.grid.unitPt - layout.lineTopPt(first)
+                out += TextRun(slot.frameId, layout, first, lineCount(slice), slot.rect.left, top, slot.rect.widthPt, codeBackground)
+            }
         }
         return out
     }
@@ -105,6 +111,12 @@ class FlowLayout internal constructor(
     }
 
     private fun boxUnits(slice: FlowSlice): Int = layouts[slice.blockIndex]?.boxUnits ?: 1
+
+    /** Companion. */
+    companion object {
+        /** [runs] argument for "skip nothing". */
+        const val NO_BLOCK = -1
+    }
 }
 
 /**

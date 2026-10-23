@@ -29,6 +29,7 @@ import dev.folio.core.testing.TempDirFolioFs
 import dev.folio.core.testing.TestDispatchersRule
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasTool
+import dev.folio.feature.editor.text.TextTestEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -108,7 +109,16 @@ class EditorViewModelTest {
             store,
             viewModelFactory {
                 initializer {
-                    EditorViewModel(path, DENSITY, sessions, main.dispatchers, ToolOptionsStore(settings), ToolbarDockStore(settings))
+                    EditorViewModel(
+                        path,
+                        DENSITY,
+                        null,
+                        sessions,
+                        main.dispatchers,
+                        ToolOptionsStore(settings),
+                        ToolbarDockStore(settings),
+                        TextTestEngine.create(ApplicationProvider.getApplicationContext()),
+                    )
                 }
             },
         )[path, EditorViewModel::class]

@@ -10,6 +10,7 @@ import dev.folio.core.format.container.DocumentEntries
 import dev.folio.core.format.container.FolioEntries
 import dev.folio.core.format.manifest.ManifestApp
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.Applied
@@ -35,7 +36,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * One open document (03-document-model.md#sessions): working copy, `StateFlow<Document>`, lazily
- * decoded pages (LRU of [maxDecodedPages]; pages with unsaved edits are pinned), undo/redo, entry
+ * decoded pages (LRU of [maxDecodedPages]; pages with unsaved edits or text frames are pinned), undo/redo, entry
  * autosave after 1 s idle, pack on [close], on app stop (via [DocumentSessions]) and every
  * [packIntervalMs] while dirty. All mutations are serialized by one mutex.
  */
@@ -274,7 +275,10 @@ class DocumentSession internal constructor(
     ): Document {
         if (doc.pageBodies.size <= maxDecodedPages) return doc
         val bodies = doc.pageBodies.builder()
-        val keep = synchronized(pinned) { pinned.keys + protect }
+        // Pages with a text frame stay decoded: a flow is laid out over all its frames, and which pages hold them is
+        // only known once they are decoded. Such pages are small (frames, ink, a few objects) and rare.
+        val frames = doc.pageBodies.filterValues { page -> page.objects.any { it is FlowFrame } }.keys
+        val keep = synchronized(pinned) { pinned.keys + protect + frames }
         val iterator = lru.keys.iterator()
         while (bodies.size > maxDecodedPages && iterator.hasNext()) {
             val id = iterator.next()

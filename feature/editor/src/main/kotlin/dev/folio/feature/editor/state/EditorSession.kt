@@ -10,6 +10,7 @@ import dev.folio.core.model.Background
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowId
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.PageId
 import dev.folio.core.model.TemplateKind
@@ -18,13 +19,17 @@ import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.MovePages
 import dev.folio.core.model.edit.PageOps
 import dev.folio.core.model.edit.RemoveObjects
+import dev.folio.core.model.edit.TextEdit
 import dev.folio.core.render.template.TemplatePresets
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.pageIndexAt
 import dev.folio.core.storage.session.DocumentSession
+import dev.folio.core.text.flow.PageText
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
+import dev.folio.feature.editor.text.EditorText
+import dev.folio.feature.editor.text.TextEngine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainCoroutineDispatcher
@@ -33,6 +38,10 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -50,9 +59,16 @@ class EditorSession(
     private val dispatchers: FolioDispatchers,
     private val scope: CoroutineScope,
     initialOptions: ToolOptions = ToolOptions(),
+    textEngine: TextEngine? = null,
 ) : CanvasController {
     private val mutableTool = MutableStateFlow(EditorTool.PEN)
     private val mutableOptions = MutableStateFlow(initialOptions)
+
+    /** Layout and editing of the document's text; null in a session without a text engine (the canvas then shows no text). */
+    val text: EditorText? = textEngine?.let { EditorText(documentSession, it, dispatchers, scope) }
+
+    override val pageTexts: Flow<Map<PageId, PageText>> =
+        text?.snapshot?.map { it.pages }?.distinctUntilChanged() ?: emptyFlow()
 
     /** The selected toolbar tool (chrome state; the canvas reads [activeTool] at stylus down). */
     val tool: StateFlow<EditorTool> = mutableTool.asStateFlow()
@@ -185,12 +201,39 @@ class EditorSession(
     }
 
     /**
+     * Scrolls to the page showing the first match of the library search [query] and returns it; null if the text has
+     * no match on a page. Waits for the canvas host to attach, so the jump is not lost while the editor opens.
+     */
+    suspend fun showSearchMatch(query: String): PageId? {
+        val page = text?.firstMatchPage(query) ?: return null
+        pageJumpRequests.subscriptionCount.first { it > 0 }
+        pageJumpRequests.emit(page)
+        return page
+    }
+
+    /**
+     * Applies [edits] to flow [flowId] together with the page changes its reflow needs (a continuation page when the
+     * text outgrows the last body frame, pages left empty, grown boxes) as one undo step; entries with the same
+     * [coalesceKey] merge while typing. False if the session has no text engine or the edit failed.
+     */
+    suspend fun editFlow(
+        flowId: FlowId,
+        edits: List<TextEdit>,
+        coalesceKey: String? = null,
+    ): Boolean {
+        val command = text?.editCommand(flowId, edits, coalesceKey) ?: return false
+        return execute(command)
+    }
+
+    /**
      * Copies [ids] after the last of them as one undo step; the id of the first copy, or null if it failed. Text
-     * objects get new flows; body frames copy the whole flow until P06-T06 passes the page's own text (D-032).
+     * objects get new flows; a body frame's copy holds the Markdown shown on that page.
      */
     suspend fun duplicatePages(ids: Collection<PageId>): PageId? {
         if (!loaded(ids)) return null
-        val copy = build { PageOps.duplicate(document.value, ids) }
+        val doc = document.value
+        val pageText = text?.pageMarkdown(doc)
+        val copy = build { if (pageText == null) PageOps.duplicate(doc, ids) else PageOps.duplicate(doc, ids, pageText = pageText) }
         if (copy == null || !execute(copy.command)) return null
         return copy.pages.first().id
     }

@@ -10,9 +10,10 @@ sealed interface AppRoute {
     /** Library entry: onboarding or the library. */
     data object Library : AppRoute
 
-    /** Editor for the document at library path [docPath]. */
+    /** Editor for the document at library path [docPath], opened on the first match of [searchQuery] when it comes from a search. */
     data class Editor(
         val docPath: String,
+        val searchQuery: String? = null,
     ) : AppRoute
 }
 
@@ -25,11 +26,14 @@ class AppNavigator {
     /** Top destination. */
     val current: AppRoute get() = backStack.last()
 
-    /** Shows the editor for [docPath], replacing any other open editor. */
-    fun openEditor(docPath: String) {
+    /** Shows the editor for [docPath] (on the first match of [searchQuery], if given), replacing any other open editor. */
+    fun openEditor(
+        docPath: String,
+        searchQuery: String? = null,
+    ) {
         if ((current as? AppRoute.Editor)?.docPath == docPath) return
         backStack.removeAll { it is AppRoute.Editor }
-        backStack.add(AppRoute.Editor(docPath))
+        backStack.add(AppRoute.Editor(docPath, searchQuery))
     }
 
     /** Pops the top destination; false when only the library is left. */
