@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P05
-next: P05-T05
+next: P05-T06
 updated: 2026-10-23
 
 ## Completed
@@ -12,12 +12,13 @@ updated: 2026-10-23
 - P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 PASS 2026-10-23 (T09 after fix: CanvasHost collectors on the main dispatcher); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green.
 
 ## Current phase progress
-- P05: T01, T02, T03, T04
+- P05: T01, T02, T03, T04, T05
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
 
 ## USER-CHECK (human verification; non-blocking)
+- P05-T05: library header search button -> type part of a title or word from a note's text; results show highlighted snippets, folder and tag chips filter, recent searches reappear and Clear works; tapping a result opens the note.
 - P05-T04: card "..." -> Tags: add/remove tags, suggestions; Tags tab chips filter the grid; cards show the star and first #tag; favorites toggle from the menu and the selection bar -> chips and dialog read well; tags survive a relaunch.
 - P05-T03: library "+" -> Folder; open it, create subfolders; card "..." -> Color, Rename, Move (own subtree greyed), Delete (goes to the bin) -> breadcrumb, colors and cards read well; folders survive a relaunch.
 - P05-T02: library home -> long-press a card to select several, use Move/Favorite/Delete in the bar; card menu Rename/Move/Duplicate/Favorite/Delete; with a note open in the editor its menu actions show "is open in the editor" -> covers (after a first save) and text excerpts read well.
@@ -27,7 +28,7 @@ updated: 2026-10-23
 - P04-T08: draw, then watch the small dot at the editor's bottom-left (green idle, orange while saving); force-quit mid-edit and reopen -> "Recovered unsaved changes." snackbar on the library.
 
 ## Deferred (id: reason)
-- D-001, D-015 -> P11-T05; D-009, D-010 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P06-T04, P07-T05, P10-T01, P11-T10; D-028 -> P11-T10.
+- D-001, D-015 -> P11-T05; D-009, D-010 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P06-T04, P07-T05, P10-T01, P11-T10; D-028 -> P11-T10; D-029 -> P06-T04.
 - D-002 P01-T08: spike route spike-fonts + core:text spike/ (remove in P06-T03; spike-ink/spike-stylus went in P03-T09); USER-CHECKs answered (A-008).
 - D-004 P01-REVIEW: `GridParagraph.draw` allocates a Compose canvas wrapper per call; cache it or mark HOT PATH before P06-T05 paints text into tiles.
 - D-006 P01-S3 (user feedback): decide BACKLOG B-12 (free font size tied to the rules, top/middle/bottom placement in the line box) in P06-T02 before building size styles.
@@ -35,6 +36,7 @@ updated: 2026-10-23
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the options row, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P05-T04 done: tag editor dialog (`ui/TagUi.kt`), Tags tab chips filter the grid (`LibraryBrowseState.tag`), `LibraryDocItem.tags` from `LibraryRepository.tagAssignments()` (index mirror); `state/Tags.kt` holds the pure helpers. Favorites also show on cards and list rows. No amendments.
-- State: the sidebar has no Tags entry; Bin tab and restore UI are still empty placeholders (T06). Menu Export row is a disabled placeholder.
-- Next: P05-T05 (search); the header search button is a disabled placeholder (`onSearch` null). FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).
+- P05-T05 done: search overlay (`ui/SearchOverlay.kt`, `state/LibrarySearchViewModel.kt`, `state/LibrarySearch.kt`); `LibraryRepository.search(query, folder, tag)` returns `SearchHit` (pure helpers in `repo/SearchText.kt`); 500 docs query 15 ms. Search button now always enabled, so 19 library goldens were re-recorded.
+- Deviation: opening a result does not jump to the first match page (needs flow layout): A-033, D-029 -> P06-T04.
+- State: sidebar has no Tags entry; Bin tab and restore UI are still empty placeholders (T06). Menu Export row is a disabled placeholder.
+- Next: P05-T06 (bin). FEEDBACK Open: autosave dot above panels (converted at REVIEW). `FolioIcons.kt` is generated (A-027).

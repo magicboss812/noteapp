@@ -35,10 +35,11 @@ Verify: `bash scripts/device/instrumented.sh :core:text`
 Model: opus high
 Implements: R-TXT-07
 Read: 07-text-engine.md#flows-and-frames
-Do: `FlowLayout` distributing block lines across frames (split at line boundaries; tables at rows; math/rules never split), body frames from template zones, auto-continue creating the next page (same spec) when the last frame overflows, infinite frames, free text boxes (auto-grow in U steps), sticky note frames. Page duplicate (P04-T06 `duplicatePages`) clones text frames and their flows (D-027).
+Do: `FlowLayout` distributing block lines across frames (split at line boundaries; tables at rows; math/rules never split), body frames from template zones, auto-continue creating the next page (same spec) when the last frame overflows, infinite frames, free text boxes (auto-grow in U steps), sticky note frames. Page duplicate (P04-T06 `duplicatePages`) clones text frames and their flows (D-027). Page lookup for search: given a query, return the first page whose flow lines contain a match, and the library opens the note there (D-029, A-033).
 Accept:
 - [ ] unit: distribution cases (split paragraph, table rows, overflow creates page, deleting text removes empty auto pages only if they have no other objects)
 - [ ] unit: a duplicated page keeps its text frames in a new independent flow
+- [ ] unit: search page lookup returns the first page with a match (and none for a miss)
 Verify: module tests
 
 ### P06-T05 Rendering text in tiles

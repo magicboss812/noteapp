@@ -93,7 +93,7 @@ class LibraryRepositoryTest : RepositoryTestBase() {
             val other = documents.create(spec("Other")).orThrow()
             library.setTags(other.path, setOf("x")).orThrow()
 
-            assertThat(library.search("vec").first().map { it.title }).containsExactly("Vectors")
+            assertThat(library.search("vec").first().map { it.doc.title }).containsExactly("Vectors")
             assertThat(library.search("  ").first()).isEmpty()
         }
 

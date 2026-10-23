@@ -46,6 +46,7 @@ import dev.folio.feature.library.state.LibraryDocItem
 import dev.folio.feature.library.state.LibraryFolderItem
 import dev.folio.feature.library.state.LibraryTab
 import dev.folio.feature.library.state.LibraryViewMode
+import dev.folio.feature.library.state.SearchUiState
 import dev.folio.feature.library.state.breadcrumb
 import dev.folio.feature.library.state.childFolders
 import dev.folio.feature.library.state.dateSubtitle
@@ -101,7 +102,8 @@ internal fun LibraryHome(
     folderActions: FolderActions = FolderActions(),
     onSelectAll: (List<String>) -> Unit = {},
     onSelectTag: (String) -> Unit = {},
-    onSearch: (() -> Unit)? = null,
+    search: SearchUiState = SearchUiState(),
+    searchActions: SearchActions = SearchActions(),
     onOpenSettings: (() -> Unit)? = null,
 ) {
     // A folder renamed, moved or deleted elsewhere falls back to the root instead of showing an empty view.
@@ -144,7 +146,7 @@ internal fun LibraryHome(
                         greeting = greeting(browse.userName),
                         subtitle = dateSubtitle(nowMs, zone),
                         onMenu = if (drawer) ({ drawerOpen = true }) else null,
-                        onSearch = onSearch,
+                        onSearch = searchActions.onOpen,
                     )
                     LibraryControls(browse, folder, onSelectTab, folderActions.onOpen, onSetSort, onToggleViewMode, onToggleSelectMode)
                     TagTabChips(browse.tab, tags, onSelectTag)
@@ -212,6 +214,7 @@ internal fun LibraryHome(
                 onDismiss = { creatingFolder = false },
             )
         }
+        SearchOverlay(search, folders, searchActions, onOpenDocument)
         if (drawer && drawerOpen) {
             Box(Modifier.fillMaxSize().background(FolioTheme.colors.scrim).clickable(onClickLabel = "Close menu") { drawerOpen = false })
             sidebar(Modifier)
@@ -252,7 +255,7 @@ private fun LibraryHeader(
     greeting: String,
     subtitle: String,
     onMenu: (() -> Unit)?,
-    onSearch: (() -> Unit)?,
+    onSearch: () -> Unit,
 ) {
     val colors = FolioTheme.colors
     Row(
@@ -268,8 +271,7 @@ private fun LibraryHeader(
         FolioIconButton(
             icon = FolioIcons.Search,
             contentDescription = "Search",
-            onClick = { onSearch?.invoke() },
-            enabled = onSearch != null,
+            onClick = onSearch,
             style = FolioIconButtonStyle.Outlined,
         )
     }

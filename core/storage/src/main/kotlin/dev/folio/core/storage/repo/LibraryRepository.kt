@@ -68,17 +68,23 @@ class LibraryRepository(
         return source.map { rows -> sorted(rows, sort) }
     }
 
-    /** Prefix search over title and text; title matches first, then newest. Blank queries give nothing. */
-    fun search(query: String): Flow<List<DocumentRow>> =
+    /**
+     * Prefix search over title and text with highlighted snippets; title matches first, then newest. Limited to
+     * [folder] (and its subfolders) and to documents with [tag] when given. Blank queries give nothing.
+     */
+    fun search(
+        query: String,
+        folder: String? = null,
+        tag: String? = null,
+    ): Flow<List<SearchHit>> =
         flow {
             val match = FtsQuery.of(query)
             if (match == null) {
                 emit(emptyList())
                 return@flow
             }
-            val tokens = match.split(' ').map { it.removeSuffix("*") }
-            val rows = withContext(dispatchers.io) { dao.search(match) }
-            emit(rows.sortedByDescending { row -> titleHit(row.title, tokens) })
+            val rows = withContext(dispatchers.io) { dao.searchHits(match, folder?.takeIf { it.isNotEmpty() }, tag) }
+            emit(SearchText.rank(rows.map { it.doc to it.snippet }, SearchText.tokens(query)))
         }
 
     /** All tags in use. */
@@ -177,13 +183,5 @@ class LibraryRepository(
                 DocumentSort.NAME -> rows.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
                 DocumentSort.CREATED -> rows.sortedByDescending { it.createdMs }
             }
-
-        fun titleHit(
-            title: String,
-            tokens: List<String>,
-        ): Boolean {
-            val words = title.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))
-            return tokens.all { t -> words.any { it.startsWith(t) } }
-        }
     }
 }

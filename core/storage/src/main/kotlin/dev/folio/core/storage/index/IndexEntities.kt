@@ -1,5 +1,6 @@
 package dev.folio.core.storage.index
 
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Fts4
@@ -72,4 +73,10 @@ data class DocFtsRow(
     val path: String,
     val title: String,
     val body: String,
+)
+
+/** A search match: the document row and the FTS snippet with match markers (see `SearchText.parseSnippet`). */
+data class SearchHitRow(
+    @Embedded val doc: DocumentRow,
+    val snippet: String,
 )

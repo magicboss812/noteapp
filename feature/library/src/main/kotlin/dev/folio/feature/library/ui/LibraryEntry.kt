@@ -45,9 +45,11 @@ import dev.folio.feature.library.state.LibraryDocItem
 import dev.folio.feature.library.state.LibraryEntryViewModel
 import dev.folio.feature.library.state.LibraryFolderItem
 import dev.folio.feature.library.state.LibraryOpsViewModel
+import dev.folio.feature.library.state.LibrarySearchViewModel
 import dev.folio.feature.library.state.LibraryTab
 import dev.folio.feature.library.state.NewNoteState
 import dev.folio.feature.library.state.NewNoteViewModel
+import dev.folio.feature.library.state.SearchUiState
 import dev.folio.feature.library.state.existingFolder
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -76,19 +78,21 @@ fun LibraryEntryRoute(
     browseViewModel: LibraryBrowseViewModel = hiltViewModel(),
     newNoteViewModel: NewNoteViewModel = hiltViewModel(),
     opsViewModel: LibraryOpsViewModel = hiltViewModel(),
+    searchViewModel: LibrarySearchViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val search by searchViewModel.state.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle()
     val folders by viewModel.folders.collectAsStateWithLifecycle()
     val browse by browseViewModel.state.collectAsStateWithLifecycle()
     val newNote by newNoteViewModel.state.collectAsStateWithLifecycle()
     // Re-read when the list changes, so the date line and the card timestamps follow the clock.
     val content =
-        remember(browse, documents, folders) {
-            LibraryContent(browse, documents, folders, browseViewModel.nowMs(), ZoneId.systemDefault())
+        remember(browse, documents, folders, search) {
+            LibraryContent(browse, documents, folders, browseViewModel.nowMs(), ZoneId.systemDefault(), search)
         }
     val actions =
-        remember(browseViewModel, opsViewModel, onOpenDocument, newNoteViewModel) {
+        remember(browseViewModel, opsViewModel, onOpenDocument, newNoteViewModel, searchViewModel) {
             // Batch actions end the selection; a refused one (open document) is reported by the snackbar.
             val batch: (() -> Unit) -> Unit = { run ->
                 run()
@@ -104,6 +108,17 @@ fun LibraryEntryRoute(
                 onNewNote = newNoteViewModel::show,
                 onSelectAll = browseViewModel::selectAll,
                 onSelectTag = browseViewModel::selectTag,
+                search =
+                    SearchActions(
+                        onOpen = searchViewModel::open,
+                        onClose = searchViewModel::close,
+                        onQuery = searchViewModel::setQuery,
+                        onFolder = searchViewModel::setFolder,
+                        onTag = searchViewModel::setTag,
+                        onUseRecent = searchViewModel::useRecent,
+                        onClearRecent = searchViewModel::clearRecent,
+                        onCommit = searchViewModel::commitQuery,
+                    ),
                 folders =
                     FolderActions(
                         onOpen = browseViewModel::openFolder,
@@ -178,6 +193,7 @@ data class LibraryContent(
     val folders: ImmutableList<LibraryFolderItem> = persistentListOf(),
     val nowMs: Long = 0L,
     val zone: ZoneId = ZoneOffset.UTC,
+    val search: SearchUiState = SearchUiState(),
 )
 
 /** What the library home reports; every default is a no-op so previews and tests pass only what they check. */
@@ -194,6 +210,7 @@ data class LibraryActions(
     val onSelectTag: (String) -> Unit = {},
     val notes: NoteActions = NoteActions(),
     val folders: FolderActions = FolderActions(),
+    val search: SearchActions = SearchActions(),
 )
 
 /** Stateless entry screen. */
@@ -236,6 +253,8 @@ fun LibraryEntryScreen(
                     folderActions = actions.folders,
                     onSelectAll = actions.onSelectAll,
                     onSelectTag = actions.onSelectTag,
+                    search = content.search,
+                    searchActions = actions.search,
                 )
             }
 

@@ -76,6 +76,26 @@ interface IndexDao {
     @Query("SELECT d.* FROM documents d JOIN doc_fts f ON f.path = d.path WHERE doc_fts MATCH :match ORDER BY d.modifiedMs DESC")
     suspend fun search(match: String): List<DocumentRow>
 
+    /**
+     * FTS match with a snippet (markers char(1)/char(2)), newest first, optionally limited to [folder] (and its
+     * subfolders) and to documents with [tag]; null means no limit. The repository ranks title hits first.
+     */
+    @Query(
+        """
+        SELECT d.*, snippet(doc_fts, char(1), char(2), '…', -1, 12) AS snippet
+        FROM doc_fts JOIN documents d ON d.path = doc_fts.path
+        WHERE doc_fts MATCH :match
+          AND (:folder IS NULL OR d.folderPath = :folder OR substr(d.folderPath, 1, length(:folder) + 1) = :folder || '/')
+          AND (:tag IS NULL OR EXISTS (SELECT 1 FROM tags t WHERE t.path = d.path AND t.tag = :tag))
+        ORDER BY d.modifiedMs DESC
+        """,
+    )
+    suspend fun searchHits(
+        match: String,
+        folder: String?,
+        tag: String?,
+    ): List<SearchHitRow>
+
     @Query("SELECT l.fromPath FROM links l WHERE l.toDocId = :docId")
     suspend fun backlinkPaths(docId: String): List<String>
 }

@@ -168,3 +168,8 @@ Format:
 - Reason: nested folders need a browsable view; a flat All tab would hide the structure.
 - Impact: 11-design-system.md#library-screen and #cards.
 
+## A-033 2026-10-23 P05-T05: search opens the note at its first page; the first-match page jump moves to P06-T04
+- Change: a search result opens the note normally (page 1 or the last viewed page). Jumping to the page that holds the first match needs the flow layout, which does not exist before P06; P06-T04 adds the page lookup (D-029). Filters (folder subtree, tag) and the recent-search list (DataStore key `library.recentSearches`, JSON, 10 entries) are as specified. Snippets mark whole matched words (FTS snippet() behavior), and title matches are highlighted the same way.
+- Reason: the editor has no text flows yet, so there is nothing to look a match up in.
+- Impact: 09-storage-library.md#search, phase-06-text-engine.md P06-T04 (Do).
+
