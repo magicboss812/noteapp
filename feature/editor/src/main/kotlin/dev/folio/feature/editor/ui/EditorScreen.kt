@@ -1,6 +1,11 @@
 package dev.folio.feature.editor.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
+import android.net.Uri
+import android.os.FileUriExposedException
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -11,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -30,6 +36,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
@@ -39,14 +46,18 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.folio.core.common.FolioLog
+import dev.folio.core.designsystem.component.FolioSnackbarHost
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.feature.editor.canvas.CanvasHost
 import dev.folio.feature.editor.canvas.findActivity
+import dev.folio.feature.editor.state.EditorEvent
 import dev.folio.feature.editor.state.EditorSession
 import dev.folio.feature.editor.state.EditorStatus
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.EditorUiState
 import dev.folio.feature.editor.state.EditorViewModel
+import dev.folio.feature.editor.state.NoteChoice
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.PageSettings
 import dev.folio.feature.editor.state.PageSurface
@@ -57,10 +68,12 @@ import dev.folio.feature.editor.state.ShortcutRegistry
 import dev.folio.feature.editor.state.ToolOptions
 import dev.folio.feature.editor.state.ToolbarPlacement
 import dev.folio.feature.editor.text.FormatAction
+import kotlinx.coroutines.launch
 
 /**
  * Editor destination for the document at library path [docPath]; [onBack] returns to the library. A [searchQuery]
- * (the library search the note was opened from) scrolls the editor to the page of its first match.
+ * (the library search the note was opened from) scrolls the editor to the page of its first match. A tapped note
+ * link opens its note through [onOpenNote] (library path); a web link opens in the app the system picks.
  */
 @Composable
 fun EditorRoute(
@@ -69,12 +82,33 @@ fun EditorRoute(
     modifier: Modifier = Modifier,
     canvasListener: EditorCanvasListener? = null,
     searchQuery: String? = null,
+    onOpenNote: (String) -> Unit = {},
     density: Float = LocalDensity.current.density,
     viewModel: EditorViewModel =
         hiltViewModel<EditorViewModel, EditorViewModel.Factory>(key = docPath) { it.create(docPath, density, searchQuery) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
+    val snackbars = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val openNote by rememberUpdatedState(onOpenNote)
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is EditorEvent.OpenUrl -> {
+                    if (!openUrl(context, event.url)) launch { snackbars.showSnackbar("No app can open this link") }
+                }
+
+                is EditorEvent.OpenNote -> {
+                    openNote(event.path)
+                }
+
+                EditorEvent.NoteNotFound -> {
+                    launch { snackbars.showSnackbar("Note not found") }
+                }
+            }
+        }
+    }
     EditorScreen(
         state = state,
         onBack = onBack,
@@ -111,10 +145,31 @@ fun EditorRoute(
             ),
         pageThumbnail = { page, thumbModifier -> session?.let { SessionPageThumbnail(it, page, thumbModifier) } },
         onRetrySave = viewModel::retrySave,
+        onPickNote = viewModel::insertNoteLink,
+        onLinkedFrom = viewModel::showLinkedFrom,
+        onOpenBacklink = viewModel::openBacklink,
+        snackbars = snackbars,
     ) { canvasModifier ->
         session?.let { EditorCanvas(it, canvasListener, canvasModifier, viewModel::onKey) }
     }
 }
+
+// ACTION_VIEW for [url]; false when no installed app handles it (or it is not a URL at all).
+private fun openUrl(
+    context: Context,
+    url: String,
+): Boolean =
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
+        true
+    } catch (e: ActivityNotFoundException) {
+        FolioLog.w("EditorRoute", "no app for link: ${e.message}")
+        false
+    } catch (e: FileUriExposedException) {
+        // A file:// link: other apps may not be handed one.
+        FolioLog.w("EditorRoute", "file link not opened: ${e.message}")
+        false
+    }
 
 @Composable
 private fun EditorCanvas(
@@ -156,6 +211,10 @@ fun EditorScreen(
     pageThumbnail: PageThumbnail = { page, thumbModifier -> PaperThumbnail(page, thumbModifier) },
     onRetrySave: () -> Unit = {},
     onFormat: (FormatAction) -> Unit = {},
+    onPickNote: (NoteChoice) -> Unit = {},
+    onLinkedFrom: (Boolean) -> Unit = {},
+    onOpenBacklink: (NoteChoice) -> Unit = {},
+    snackbars: SnackbarHostState = remember { SnackbarHostState() },
     canvas: @Composable (Modifier) -> Unit,
 ) {
     val colors = FolioTheme.colors
@@ -189,6 +248,9 @@ fun EditorScreen(
                 onRetrySave = onRetrySave,
                 pages = pageChrome,
                 onFormat = onFormat,
+                onPickNote = onPickNote,
+                onLinkedFrom = onLinkedFrom,
+                onOpenBacklink = onOpenBacklink,
             ),
         )
     val actions = remember(latest) { ChromeActions.forwardingTo(latest) }
@@ -245,6 +307,10 @@ fun EditorScreen(
             )
             if (state.showHelp) ShortcutHelp(shortcutGroups, onClose = { onHelp(false) })
         }
+        FolioSnackbarHost(
+            snackbars,
+            Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(FolioTheme.space.s16),
+        )
     }
 }
 

@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -44,17 +45,17 @@ enum class PillOrientation { Horizontal, Vertical }
 
 /**
  * Toolbar pill: 44 dp stadium in `surfaceToolbar` with a 1 dp border; the toolbar shadow shows in the light theme only
- * (11-design-system.md#components).
+ * (11-design-system.md#components). A wide vertical group (text items) passes a card [shape] instead of the stadium.
  */
 @Composable
 fun PillGroup(
     modifier: Modifier = Modifier,
     orientation: PillOrientation = PillOrientation.Horizontal,
+    shape: Shape = FolioTheme.shapes.stadium,
     content: @Composable () -> Unit,
 ) {
     val colors = FolioTheme.colors
     val space = FolioTheme.space
-    val shape = FolioTheme.shapes.stadium
     val pill =
         modifier
             .then(if (colors.isDark) Modifier else Modifier.folioShadow(FolioTheme.elevation.toolbar, shape, colors.shadow))

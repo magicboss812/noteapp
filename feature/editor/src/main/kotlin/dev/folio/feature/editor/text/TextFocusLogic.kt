@@ -4,9 +4,11 @@ import dev.folio.core.model.FlowId
 import dev.folio.core.model.PageId
 import dev.folio.core.text.flow.FlowLayout
 import dev.folio.core.text.flow.FocusedBlock
+import dev.folio.core.text.flow.TapTarget
 import dev.folio.core.text.flow.hit
 import dev.folio.core.text.flow.placementOf
 import dev.folio.core.text.flow.sourceOffsetAt
+import dev.folio.core.text.flow.tapTargetAt
 
 /**
  * The focus after the flows were laid out again as [layouts]: unchanged while its block exists (with the block's new
@@ -61,6 +63,31 @@ internal fun TextSnapshot.focusAt(
         } else {
             TextFocus(flowId, block.id, hit.blockIndex, layout.sourceOffsetAt(hit, xPt), revision + 1)
         }
+    }
+
+/** A tap on [target] in block [blockId] of flow [flowId]. */
+internal class LinkTap(
+    val flowId: FlowId,
+    val blockId: Long,
+    val target: TapTarget,
+)
+
+/**
+ * The checkbox or link a tap at ([xPt], [yPt]) of page [pageId] acts on, null for plain text and for the block
+ * [focused] is editing (its field takes the tap).
+ */
+internal fun TextSnapshot.tapAt(
+    pageId: PageId,
+    xPt: Float,
+    yPt: Float,
+    focused: TextFocus?,
+): LinkTap? =
+    layouts.firstNotNullOfOrNull { (flowId, layout) ->
+        val hit = layout.hit(pageId, xPt, yPt)
+        val block = hit?.let { layout.markdown.blocks.getOrNull(it.blockIndex) }
+        val editing = focused != null && focused.flowId == flowId && focused.blockId == block?.id
+        val target = if (hit == null || block == null || editing) null else layout.tapTargetAt(hit, xPt)
+        target?.let { LinkTap(flowId, checkNotNull(block).id, it) }
     }
 
 /** The live field of [focus] in this snapshot; null for no focus and until the block is placed. */

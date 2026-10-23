@@ -547,10 +547,11 @@ class CanvasHostView internal constructor(
         xPx: Float,
         yPx: Float,
     ) {
-        val texts = controller.textController
-        if (texts == null || controller.activeTool == CanvasTool.NAVIGATE) return
+        val texts = controller.textController ?: return
         val pageId = document?.pages?.getOrNull(viewport.pageIndexAt(yPx))?.id ?: return
         val pt = viewport.toPagePt(pageId, PointPx(xPx, yPx))
+        // Checkboxes and links act in every tool; placing a caret needs a tool other than navigate.
+        if (texts.tapAt(pageId, pt.x, pt.y) || controller.activeTool == CanvasTool.NAVIGATE) return
         textField.tapped(System.nanoTime())
         texts.focusAt(pageId, pt.x, pt.y)
     }

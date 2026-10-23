@@ -64,6 +64,7 @@ fun FolioNavHost(
                             onBack = { navigator.back() },
                             canvasListener = canvasListener,
                             searchQuery = route.searchQuery,
+                            onOpenNote = { navigator.openEditor(it) },
                         )
                     }
                 }

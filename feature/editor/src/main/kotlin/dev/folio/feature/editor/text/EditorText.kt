@@ -24,6 +24,7 @@ import dev.folio.core.text.flow.FocusedBlock
 import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.PageTexts
 import dev.folio.core.text.markdown.MarkdownDocument
+import dev.folio.core.text.markdown.linkedDocIds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -68,6 +69,7 @@ class EditorText internal constructor(
     private val engine: TextEngine,
     private val dispatchers: FolioDispatchers,
     scope: CoroutineScope,
+    private val missingLinks: suspend (Set<String>) -> Set<String> = { emptySet() },
 ) {
     private val parses = FlowParses()
     private val mutableSnapshot = MutableStateFlow(TextSnapshot.EMPTY)
@@ -76,6 +78,10 @@ class EditorText internal constructor(
     private var discovered = false
     private var inputs: LayoutInputs? = null
     private var shown: FocusedBlock? = null
+
+    // The note ids the flows link to, and those of them no note in the library has (drawn broken).
+    private var linked: Set<String> = emptySet()
+    private var broken: Set<String> = emptySet()
 
     /** The latest layouts and page texts; [TextSnapshot.EMPTY] until [awaitReady]. */
     val snapshot: StateFlow<TextSnapshot> = mutableSnapshot.asStateFlow()
@@ -111,9 +117,10 @@ class EditorText internal constructor(
         }
         val doc = documentSession.document.value
         val next = LayoutInputs.of(doc)
-        val relaid = next != inputs
+        val rebroken = next.flows != inputs?.flows && checkLinks(doc)
+        val relaid = next != inputs || rebroken
         val current = mutableSnapshot.value
-        val layouts = if (relaid) PageTexts.layouts(doc, engine.layouter, parses::of) else current.layouts
+        val layouts = if (relaid) PageTexts.layouts(doc, engine.layouter, parses::of, broken) else current.layouts
         inputs = next
         // The focused block's id changes when undo or redo parses the text again: the block at the same place gets the focus.
         mutableFocus.update { it?.resolvedIn(layouts) }
@@ -126,6 +133,28 @@ class EditorText internal constructor(
         }
         ready.complete(Unit)
     }
+
+    // Asks the library which linked notes are missing when the set of linked ids changed; true if [broken] changed.
+    private suspend fun checkLinks(doc: Document): Boolean {
+        val ids = HashSet<String>()
+        for (flow in doc.flows.values) {
+            if (!flow.markdown.contains(NOTE_LINK)) continue
+            for (block in parses.of(flow).blocks) ids += block.content.linkedDocIds()
+        }
+        if (ids == linked) return false
+        linked = ids
+        val missing = if (ids.isEmpty()) emptySet() else withContext(dispatchers.io) { missingLinks(ids) }
+        val changed = missing != broken
+        broken = missing
+        return changed
+    }
+
+    /** The checkbox or link at ([xPt], [yPt]) of page [pageId] outside the focused block, null for none. Main thread. */
+    internal fun tapAt(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ): LinkTap? = mutableSnapshot.value.tapAt(pageId, xPt, yPt, mutableFocus.value)
 
     /** Focuses the block at ([xPt], [yPt]) of page [pageId]; no block there ends editing. True if a block got focus. */
     fun focusAt(
@@ -310,6 +339,7 @@ class EditorText internal constructor(
         const val TAG = "EditorText"
         const val TRACE_FOCUS = "text:focus"
         const val DISCOVER_CHUNK = 8
+        const val NOTE_LINK = "folio://doc/"
 
         // A page whose runs did not change keeps its instance, so the tiles and the thumbnails see no change.
         fun keepUnchanged(

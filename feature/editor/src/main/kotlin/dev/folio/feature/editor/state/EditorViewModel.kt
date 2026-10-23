@@ -12,16 +12,19 @@ import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.PageOps
+import dev.folio.core.storage.repo.NoteLinks
 import dev.folio.core.storage.session.DocumentSessions
 import dev.folio.core.storage.session.SaveState
 import dev.folio.core.text.edit.BlockStyle
 import dev.folio.core.text.edit.BlockStyles
 import dev.folio.feature.editor.text.FormatAction
 import dev.folio.feature.editor.text.TextEngine
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +37,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
@@ -70,6 +75,10 @@ data class EditorUiState(
     val textStyle: BlockStyle? = null,
     /** True while the focused block is a table: the formatting bar shows the table buttons instead of block styles. */
     val textInTable: Boolean = false,
+    /** The `[[` picker's notes while the caret is in a typed `[[query` (row 2 then lists them), null otherwise. */
+    val noteSuggestions: ImmutableList<NoteChoice>? = null,
+    /** The open Linked from menu's notes, null while it is closed. */
+    val linkedFrom: ImmutableList<NoteChoice>? = null,
 )
 
 // What the formatting bar needs of the focused block: its style and whether it is a table.
@@ -128,6 +137,7 @@ class EditorViewModel
         private val toolOptions: ToolOptionsStore,
         private val toolbarDocks: ToolbarDockStore,
         private val textEngine: TextEngine,
+        private val noteLinks: NoteLinks,
     ) : ViewModel() {
         private val shortcuts = ShortcutRegistry()
 
@@ -150,6 +160,19 @@ class EditorViewModel
         private val mutableCurrentPage = MutableStateFlow<PageId?>(null)
         private val mutableSettingsPage = MutableStateFlow<PageId?>(null)
         private val docks = MutableStateFlow(ToolbarDocks())
+        private val links = MutableStateFlow<EditorLinks?>(null)
+        private val mutableLinkedFrom = MutableStateFlow<ImmutableList<NoteChoice>?>(null)
+        private val mutableEvents = Channel<EditorEvent>(Channel.BUFFERED)
+
+        /** One-off actions for the screen (open a URL or a note, say a note is missing); each is received once. */
+        val events: Flow<EditorEvent> = mutableEvents.receiveAsFlow()
+
+        // The `[[` picker's notes for the query typed at the caret.
+        private val noteSuggestions =
+            mutableSession
+                .flatMapLatest { it?.textController?.noteQuery ?: flowOf(null) }
+                .distinctUntilChanged()
+                .mapLatest { query -> query?.let { links.value?.suggestions(it) } }
 
         // Stored one at a time in order; conflated, so only the latest of quick changes is written.
         private val dockSaves = Channel<ToolbarDocks>(Channel.CONFLATED)
@@ -214,7 +237,9 @@ class EditorViewModel
                         }
                     }
                 }.combine(docks) { state, docks -> state.copy(docks = docks) }
-                .stateIn(viewModelScope, SharingStarted.Eagerly, EditorUiState())
+                .combine(combine(noteSuggestions, mutableLinkedFrom, ::Pair)) { state, (suggestions, linkedFrom) ->
+                    state.copy(noteSuggestions = suggestions, linkedFrom = linkedFrom)
+                }.stateIn(viewModelScope, SharingStarted.Eagerly, EditorUiState())
 
         init {
             viewModelScope.launch {
@@ -236,8 +261,18 @@ class EditorViewModel
                                 sessions.release(result.value)
                                 throw e
                             }
-                        val session = EditorSession(result.value, density, dispatchers, viewModelScope, initial, textEngine)
+                        val session =
+                            EditorSession(result.value, density, dispatchers, viewModelScope, initial, textEngine) {
+                                noteLinks.missing(it)
+                            }
+                        val noteLinksOfDoc = EditorLinks(noteLinks, { session.document.value.meta.id.value }, result.value.path)
+                        links.value = noteLinksOfDoc
                         mutableSession.value = session
+                        session.textController?.let { texts ->
+                            viewModelScope.launch {
+                                texts.linkTaps.collect { tap -> noteLinksOfDoc.eventFor(tap)?.let { mutableEvents.send(it) } }
+                            }
+                        }
                         ThumbnailGenerator(result.value, dispatchers, viewModelScope, text = session.text).start()
                         searchQuery?.takeIf { it.isNotBlank() }?.let { query ->
                             viewModelScope.launch { session.showSearchMatch(query) }
@@ -282,6 +317,27 @@ class EditorViewModel
         /** Opens [popover] over the options row, or closes it (null). */
         fun showPopover(popover: OptionsPopover?) {
             mutablePopover.value = popover
+        }
+
+        /** The `[[` picker's [choice]: the typed `[[query` becomes a link to that note. */
+        fun insertNoteLink(choice: NoteChoice) {
+            mutableSession.value?.textController?.insertNoteLink(choice.title, choice.docId)
+        }
+
+        /** Opens the Linked from menu (with the notes that link here, once the index answered) or closes it. */
+        fun showLinkedFrom(open: Boolean) {
+            if (!open) {
+                mutableLinkedFrom.value = null
+                return
+            }
+            val noteLinksOfDoc = links.value ?: return
+            viewModelScope.launch { mutableLinkedFrom.value = noteLinksOfDoc.linkedFrom() }
+        }
+
+        /** Opens [choice] from the Linked from menu. */
+        fun openBacklink(choice: NoteChoice) {
+            mutableLinkedFrom.value = null
+            mutableEvents.trySend(EditorEvent.OpenNote(choice.path))
         }
 
         /** Moves the toolbar of [orientation] to [placement] and stores it. */

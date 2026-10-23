@@ -7,12 +7,15 @@ import dev.folio.core.text.edit.EditMarkers
 import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.edit.TableEditing
 import dev.folio.core.text.flow.BlockPlacement
+import dev.folio.core.text.flow.TapTarget
 import dev.folio.core.text.layout.BlockFace
 import dev.folio.core.text.layout.BlockLayout
 import dev.folio.core.text.markdown.BlockContent
 import dev.folio.core.text.markdown.MarkdownBlock
 import dev.folio.core.text.markdown.TableAlign
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * The block the live text field edits (07-text-engine.md#editing): block [blockId] of flow [flowId], at [blockIndex] in
@@ -180,6 +183,14 @@ sealed interface FieldEdit {
         val end: Int,
         val cell: TableCell? = null,
     ) : FieldEdit
+
+    /** The `[[` picker's choice: source [start] to [caret] (the typed `[[query`) becomes a link to note [docId] named [title]. */
+    data class NoteLink(
+        val start: Int,
+        val caret: Int,
+        val title: String,
+        val docId: String,
+    ) : FieldEdit
 }
 
 /**
@@ -254,4 +265,27 @@ interface TextController {
 
     /** Applies the formatting bar [action] to the field's current selection, after the edits typed before it. Main thread. */
     fun format(action: FormatAction)
+
+    /**
+     * Acts on the checkbox or link at ([xPt], [yPt]) of page [pageId] in a block that is not being edited
+     * (07-text-engine.md#block-styles-as-built): a checkbox toggles, a link goes to [linkTaps]. True if there was one
+     * (the tap then does not focus). Main thread.
+     */
+    fun tapAt(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ): Boolean = false
+
+    /** Web and note links tapped on the page, for the screen to open. */
+    val linkTaps: Flow<TapTarget> get() = emptyFlow()
+
+    /** The query of a `[[` note link typed at the caret of the focused block, null while the caret is in none. */
+    val noteQuery: Flow<String?> get() = flowOf(null)
+
+    /** Replaces the typed `[[query` with a link to note [docId] named [title] (the `[[` picker's choice). Main thread. */
+    fun insertNoteLink(
+        title: String,
+        docId: String,
+    ) = Unit
 }

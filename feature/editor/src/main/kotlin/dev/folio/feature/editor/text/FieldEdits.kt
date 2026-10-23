@@ -7,6 +7,7 @@ import dev.folio.core.text.edit.Caret
 import dev.folio.core.text.edit.CellSpan
 import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.edit.Formatting
+import dev.folio.core.text.edit.LinkEdits
 import dev.folio.core.text.edit.TableEditing
 import dev.folio.core.text.edit.TextSelection
 import dev.folio.core.text.markdown.BlockContent
@@ -53,6 +54,10 @@ internal fun FieldEdit.applyTo(
             } else {
                 format(doc, blockId, block.source.length)
             }
+        }
+
+        is FieldEdit.NoteLink -> {
+            LinkEdits.insertNoteLink(doc, blockId, start, caret, title, docId)
         }
     }
 }

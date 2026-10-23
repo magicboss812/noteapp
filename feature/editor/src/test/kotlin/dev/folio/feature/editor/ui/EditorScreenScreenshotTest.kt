@@ -4,7 +4,9 @@ import android.os.Looper
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.github.takahirom.roborazzi.captureScreenRoboImage
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.text.edit.BlockStyle
 import dev.folio.feature.editor.canvas.CanvasHost
@@ -14,6 +16,7 @@ import dev.folio.feature.editor.state.DockMode
 import dev.folio.feature.editor.state.EditorStatus
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.EditorUiState
+import dev.folio.feature.editor.state.NoteChoice
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.PagesUi
 import dev.folio.feature.editor.state.ToolbarDocks
@@ -36,6 +39,13 @@ class EditorScreenScreenshotTest {
     @get:Rule
     val compose = createComposeRule()
 
+    private val notes =
+        listOf(
+            NoteChoice("a", "Physics/Optics.folio", "Optics"),
+            NoteChoice("b", "Optics lab.folio", "Optics lab"),
+            NoteChoice("c", "Reading list.folio", "Reading list: geometric optics and the history of the telescope"),
+        )
+
     private fun showReady(
         tool: EditorTool = EditorTool.PEN,
         popover: OptionsPopover? = null,
@@ -45,6 +55,8 @@ class EditorScreenScreenshotTest {
         readMode: Boolean = false,
         textStyle: BlockStyle? = null,
         textInTable: Boolean = false,
+        noteSuggestions: List<NoteChoice>? = null,
+        linkedFrom: List<NoteChoice>? = null,
     ) {
         val controller = FakeCanvasController(pages = 2)
         val docks = ToolbarDocks(landscape = placement, portrait = placement, optionsHidden = optionsHidden)
@@ -67,6 +79,8 @@ class EditorScreenScreenshotTest {
                         view = ViewInfo(pageIndex = 0, zoomPercent = 100),
                         textStyle = textStyle,
                         textInTable = textInTable,
+                        noteSuggestions = noteSuggestions?.toImmutableList(),
+                        linkedFrom = linkedFrom?.toImmutableList(),
                     ),
                     onBack = {},
                     onSelectTool = {},
@@ -128,6 +142,43 @@ class EditorScreenScreenshotTest {
     fun editor_landscapeTableFocused_formattingBarShowsTableButtons() {
         showReady(textStyle = BlockStyle.PARAGRAPH, textInTable = true)
         compose.onRoot().captureRoboImage("src/test/screenshots/Editor_textFormatBar_table.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeNoteQuery_linkPickerReplacesRow2() {
+        showReady(textStyle = BlockStyle.PARAGRAPH, noteSuggestions = notes)
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_noteLinkPicker.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_PORTRAIT)
+    fun editor_portraitNoteQueryLeftDock_pickerAsInnerRail() {
+        showReady(placement = ToolbarPlacement(DockMode.LEFT), textStyle = BlockStyle.PARAGRAPH, noteSuggestions = notes)
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_noteLinkPicker_leftDock.png")
+    }
+
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeNoteQueryNoMatchDark_noMatchingNotes() {
+        showReady(dark = true, textStyle = BlockStyle.PARAGRAPH, noteSuggestions = emptyList())
+        compose.onRoot().captureRoboImage("src/test/screenshots/Editor_noteLinkPicker_empty.png")
+    }
+
+    @OptIn(ExperimentalRoborazziApi::class)
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeLinkedFromOpen_menuUnderMoreButton() {
+        showReady(linkedFrom = notes)
+        captureScreenRoboImage("src/test/screenshots/Editor_linkedFrom.png")
+    }
+
+    @OptIn(ExperimentalRoborazziApi::class)
+    @Test
+    @Config(qualifiers = PAD7_LANDSCAPE)
+    fun editor_landscapeLinkedFromNone_emptyMenuDark() {
+        showReady(dark = true, linkedFrom = emptyList())
+        captureScreenRoboImage("src/test/screenshots/Editor_linkedFrom_empty.png")
     }
 
     @Test

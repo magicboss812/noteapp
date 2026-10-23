@@ -65,12 +65,14 @@ class EditorSession(
     private val scope: CoroutineScope,
     initialOptions: ToolOptions = ToolOptions(),
     textEngine: TextEngine? = null,
+    /** The ids among those given that no note in the library has; their note links are drawn broken. */
+    missingLinks: suspend (Set<String>) -> Set<String> = { emptySet() },
 ) : CanvasController {
     private val mutableTool = MutableStateFlow(EditorTool.PEN)
     private val mutableOptions = MutableStateFlow(initialOptions)
 
     /** Layout and editing of the document's text; null in a session without a text engine (the canvas then shows no text). */
-    val text: EditorText? = textEngine?.let { EditorText(documentSession, it, dispatchers, scope) }
+    val text: EditorText? = textEngine?.let { EditorText(documentSession, it, dispatchers, scope, missingLinks) }
 
     override val pageTexts: Flow<Map<PageId, PageText>> =
         text?.snapshot?.map { it.canvas }?.distinctUntilChanged() ?: emptyFlow()

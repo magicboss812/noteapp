@@ -56,6 +56,7 @@ import dev.folio.feature.editor.state.DockMode
 import dev.folio.feature.editor.state.EditorStatus
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.EditorUiState
+import dev.folio.feature.editor.state.NoteChoice
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.ScreenOrientation
 import dev.folio.feature.editor.state.ToolbarPlacement
@@ -84,6 +85,9 @@ internal class ChromeActions(
     val onRetrySave: () -> Unit,
     val pages: PageChrome,
     val onFormat: (FormatAction) -> Unit = {},
+    val onPickNote: (NoteChoice) -> Unit = {},
+    val onLinkedFrom: (Boolean) -> Unit = {},
+    val onOpenBacklink: (NoteChoice) -> Unit = {},
 ) {
     internal companion object {
         /** Actions that call whatever [latest] holds when invoked; the instance itself never changes. */
@@ -105,6 +109,9 @@ internal class ChromeActions(
                         onAdd = { latest.value.pages.onAdd() },
                     ),
                 onFormat = { latest.value.onFormat(it) },
+                onPickNote = { latest.value.onPickNote(it) },
+                onLinkedFrom = { latest.value.onLinkedFrom(it) },
+                onOpenBacklink = { latest.value.onOpenBacklink(it) },
             )
     }
 }
@@ -354,7 +361,8 @@ private fun Toolbox(
     }
 }
 
-// Row 2: the formatting bar while a text block is focused, else the options of the tool. [modifier] places the pill.
+// Row 2: the `[[` picker while a note link is typed, the formatting bar while a text block is focused, else the
+// options of the tool. [modifier] places the pill.
 @Composable
 private fun Row2(
     state: EditorUiState,
@@ -363,7 +371,10 @@ private fun Row2(
     vertical: Boolean = false,
 ) {
     val textStyle = state.textStyle
-    if (textStyle != null) {
+    val suggestions = state.noteSuggestions
+    if (textStyle != null && suggestions != null) {
+        NoteLinkRow(suggestions, actions.onPickNote, modifier, vertical)
+    } else if (textStyle != null) {
         TextFormatRow(textStyle, actions.onFormat, modifier, vertical, table = state.textInTable)
     } else {
         ToolOptionsRow(
@@ -457,6 +468,9 @@ private fun CornerPills(
                     .chromeShown(shown, Edge.TOP, slidePx)
                     .padding(space.chromeInset)
                     .onSizeChanged { metrics.mode = it },
+                state.linkedFrom,
+                actions.onLinkedFrom,
+                actions.onOpenBacklink,
             )
             Row(
                 Modifier

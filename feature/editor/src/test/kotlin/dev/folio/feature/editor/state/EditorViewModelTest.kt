@@ -16,10 +16,12 @@ import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.edit.AddObjects
+import dev.folio.core.model.edit.UpdateFlows
 import dev.folio.core.storage.index.IndexDb
 import dev.folio.core.storage.index.LibraryScanner
 import dev.folio.core.storage.repo.DocumentRepository
 import dev.folio.core.storage.repo.NewDocumentSpec
+import dev.folio.core.storage.repo.NoteLinks
 import dev.folio.core.storage.session.DocumentSessions
 import dev.folio.core.storage.work.Packer
 import dev.folio.core.storage.work.WorkingCopyStore
@@ -27,6 +29,7 @@ import dev.folio.core.testing.FakeClock
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.testing.TempDirFolioFs
 import dev.folio.core.testing.TestDispatchersRule
+import dev.folio.core.text.flow.TapTarget
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasTool
 import dev.folio.feature.editor.text.TextTestEngine
@@ -118,6 +121,7 @@ class EditorViewModelTest {
                         ToolOptionsStore(settings),
                         ToolbarDockStore(settings),
                         TextTestEngine.create(ApplicationProvider.getApplicationContext()),
+                        NoteLinks(db.dao(), main.dispatchers),
                     )
                 }
             },
@@ -564,6 +568,60 @@ class EditorViewModelTest {
             val pages = vm.awaitState { it.pages.surface == PageSurface.NONE }.pages
             assertThat(pages.current).isEqualTo(second)
         }
+
+    @Test
+    fun linkedFrom_listsNotesLinkingHere_openBacklinkSendsOpenNote() =
+        editorTest {
+            val target = createDoc("Target")
+            val source = createDoc("Source")
+            writeText(source, "See [Target](folio://doc/${docId(target)})")
+            val vm = viewModel(target)
+            vm.opened()
+
+            vm.showLinkedFrom(true)
+            val linked = checkNotNull(vm.awaitState { it.linkedFrom != null }.linkedFrom)
+            val event = async(start = CoroutineStart.UNDISPATCHED) { vm.events.first() }
+            vm.openBacklink(linked.single())
+
+            assertThat(linked.map { it.title }).containsExactly("Source")
+            assertThat(event.await()).isEqualTo(EditorEvent.OpenNote(source))
+            assertThat(vm.awaitState { it.linkedFrom == null }.linkedFrom).isNull()
+        }
+
+    @Test
+    fun linkEvents_urlNoteByIdOrTitle_missingNotesAndSelfLinks() =
+        editorTest {
+            val optics = createDoc("Optics")
+            val self = createDoc("Self")
+            val opticsId = docId(optics)
+            val selfId = docId(self)
+            val links = EditorLinks(NoteLinks(db.dao(), main.dispatchers), { selfId }, self)
+
+            assertThat(links.eventFor(TapTarget.Url("https://example.org"))).isEqualTo(EditorEvent.OpenUrl("https://example.org"))
+            assertThat(links.eventFor(TapTarget.Note(opticsId, "Old title"))).isEqualTo(EditorEvent.OpenNote(optics))
+            assertThat(links.eventFor(TapTarget.Note(null, " optics"))).isEqualTo(EditorEvent.OpenNote(optics))
+            assertThat(links.eventFor(TapTarget.Note("gone", "Gone"))).isEqualTo(EditorEvent.NoteNotFound)
+            assertThat(links.eventFor(TapTarget.Note(null, "Opt"))).isEqualTo(EditorEvent.NoteNotFound)
+            assertThat(links.eventFor(TapTarget.Note(selfId, "Self"))).isNull()
+            assertThat(links.eventFor(TapTarget.Checkbox(0))).isNull()
+            assertThat(links.suggestions("").map { it.path }).containsExactly(optics)
+        }
+
+    private suspend fun docId(path: String): String {
+        val documentSession = (sessions.open(path) as Outcome.Success).value
+        val id = documentSession.document.value.meta.id.value
+        sessions.close(documentSession)
+        return id
+    }
+
+    private suspend fun writeText(
+        path: String,
+        markdown: String,
+    ) {
+        val documentSession = (sessions.open(path) as Outcome.Success).value
+        documentSession.execute(UpdateFlows(listOf(ModelFixtures.flow("body", markdown))))
+        sessions.close(documentSession)
+    }
 
     private companion object {
         const val DENSITY = 2.75f

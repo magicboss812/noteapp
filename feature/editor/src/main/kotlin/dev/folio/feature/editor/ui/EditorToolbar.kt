@@ -40,6 +40,8 @@ import dev.folio.core.designsystem.icon.FolioIcons
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.feature.editor.state.DockMode
 import dev.folio.feature.editor.state.EditorTool
+import dev.folio.feature.editor.state.NoteChoice
+import kotlinx.collections.immutable.ImmutableList
 
 /** Side rail width: a 44 dp pill with 8 dp chrome insets (10-editor-ui.md#toolbar-docking). */
 internal val TOOLBAR_RAIL_WIDTH = 60.dp
@@ -145,16 +147,25 @@ internal fun NavPill(
     }
 }
 
-/** Mode pill (top-right): read mode, split view and the More menu (both later tasks, shown disabled). */
+/**
+ * Mode pill (top-right): read mode, split view (a later task, shown disabled) and the More menu, which lists the
+ * notes that link here ([linkedFrom], open while not null).
+ */
 @Composable
 internal fun ModePill(
     onReadMode: () -> Unit,
     modifier: Modifier = Modifier,
+    linkedFrom: ImmutableList<NoteChoice>? = null,
+    onLinkedFrom: (Boolean) -> Unit = {},
+    onOpenBacklink: (NoteChoice) -> Unit = {},
 ) {
     PillGroup(modifier) {
         FolioIconButton(FolioIcons.BookOpen, "Read mode", onReadMode)
         FolioIconButton(FolioIcons.Columns2, "Split view", onClick = {}, enabled = false)
-        FolioIconButton(FolioIcons.Ellipsis, "More", onClick = {}, enabled = false)
+        Box {
+            FolioIconButton(FolioIcons.Ellipsis, "More", onClick = { onLinkedFrom(true) })
+            LinkedFromMenu(linkedFrom, onDismiss = { onLinkedFrom(false) }, onOpen = onOpenBacklink)
+        }
     }
 }
 
