@@ -71,6 +71,7 @@ internal class AppDebugHooks
                         "reorder-page" to canvas::reorderPage,
                         "tool" to canvas::tool,
                         "undo" to canvas::undo,
+                        "ink-probe" to canvas::inkProbe,
                         "redo" to canvas::redo,
                     ),
             ) { visible -> setOverlayVisible(visible) }

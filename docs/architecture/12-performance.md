@@ -47,5 +47,6 @@ Rules: no blocking IO or layout of more than one block on main; hot paths alloca
 - `PerfMonitor` (core:common): `PerfMonitor.trace("section") { ... }` records durations into a ring buffer per section (last 1000) and also emits trace sections through a `TraceSink` (:app: platform `android.os.Trace`, visible in Perfetto; A-003). Release builds keep only the tracing call (`PerfMonitor.enabled = BuildConfig.DEBUG`).
 - `debugcmd.sh perf-reset` / `perf-dump` return p50/p95/max/count per section as JSON.
 - Frame stats: `gfxinfo.sh reset` before and `gfxinfo.sh` after a scripted interaction (debug commands such as `zoom-anim`, `scroll-page`, `seed-strokes`, `seed-text` make interactions repeatable).
+- Dry handoff gaps: `debugcmd.sh ink-probe y[,ms[,band]]` copies a row band of the window every frame and logs (FolioDebug) ink pixel counts, wet-stroke removals and `gaps` (frames that lost a stroke). The window copy excludes androidx.ink's front-buffer layers.
 - Macrobenchmarks (P11, `:benchmark`): startup (cold/warm), open note, draw 50 strokes (synthetic stylus), pan/zoom, type 200 chars; FrameTimingMetric + custom trace metrics.
 - Every perf task writes a row per metric to docs/notes/perf.md: date, commit, build type, metric, value, budget.

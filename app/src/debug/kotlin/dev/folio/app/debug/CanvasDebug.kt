@@ -295,6 +295,16 @@ internal class CanvasDebug(
         return DebugReply.ok(json() ?: JsonObject(emptyMap()))
     }
 
+    fun inkProbe(arg: String?): DebugReply {
+        val parts = arg?.split(',').orEmpty()
+        val y = parts.getOrNull(0)?.toIntOrNull() ?: return DebugReply.error("ink-probe needs y[,ms]")
+        val ms = parts.getOrNull(1)?.toLongOrNull() ?: DEFAULT_PROBE_MS
+        val view = host ?: return DebugReply.error(NO_CANVAS)
+        val band = parts.getOrNull(2)?.toIntOrNull()?.coerceIn(2, view.height) ?: DEFAULT_PROBE_BAND_PX
+        InkProbe(view, y, ms, band).start()
+        return DebugReply.ok(buildJsonObject { put("probing", y) })
+    }
+
     fun undo(arg: String?): DebugReply = history("undo", arg) { it.undo() }
 
     fun redo(arg: String?): DebugReply = history("redo", arg) { it.redo() }
@@ -412,6 +422,8 @@ internal class CanvasDebug(
     private companion object {
         const val PAGE_ID_CHARS = 8
         const val NO_CANVAS = "no editor canvas shown; run open first"
+        const val DEFAULT_PROBE_MS = 3000L
+        const val DEFAULT_PROBE_BAND_PX = 16
         const val WHITE = 0xFFFFFFFF.toInt()
         const val MIB = 1024L * 1024L
         val A4 = PageSpec.Fixed(PaperSize.A4, Orientation.PORTRAIT)

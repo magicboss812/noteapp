@@ -4,6 +4,7 @@ Claude turns `Open` entries into task blocks at every phase REVIEW (next-task sk
 Format: `- YYYY-MM-DD <what bothers you or what you want> [now]` (the date and `[now]` are optional).
 
 ## Open
+- 2026-11-07 (user) a long pen line hid for a split second at pen-up on an almost empty page at 100 %; seemed better on the next try with no app change. `ink-probe` saw no app frame lose a stroke (injected and real pen); if it returns, record the screen to check androidx.ink's front-buffer layer
 - 2026-11-07 (P06-T07 USER-CHECK, device-tester) the math error popup is anchored far right (x~2400-3000 px) instead of at the bad formula (x~460-1000 px)
 - 2026-11-07 (P06-T15 USER-CHECK, device-tester) opening another note can leave the soft keyboard up with nothing focused; Esc does not close it, Back does
 - 2026-11-07 (P06-T09 USER-CHECK, device-tester) the task checkbox glyph touches its text ("☐task", no gap); .device/screens/t09-broken2.png
