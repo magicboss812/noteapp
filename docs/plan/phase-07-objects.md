@@ -46,7 +46,7 @@ Verify: tests + device-tester
 Model: opus medium
 Implements: R-TXT-07
 Read: 07-text-engine.md#flows-and-frames, 11-design-system.md#sticky-notes
-Do: sticky object (5 colors, slight default rotation option, shadow), text flow inside snapped to U, resize, move; page duplicate copies sticky notes (D-027).
+Do: sticky object (5 colors, slight default rotation option, shadow), text flow inside snapped to U, resize, move; page duplicate copies sticky notes (D-027); the Sticky tool creates a sticky with its text focused (from P06-T10, A-050).
 Accept:
 - [ ] screenshot: sticky variants
 - [ ] unit: duplicating a page copies its sticky notes

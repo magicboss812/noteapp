@@ -177,8 +177,12 @@ class EditorViewModelTest {
             assertThat(session.activeTool).isEqualTo(CanvasTool.ERASER)
 
             vm.selectTool(EditorTool.TEXT)
-            assertThat(session.tool.value).isEqualTo(EditorTool.ERASER)
-            assertThat(session.activeTool).isEqualTo(CanvasTool.ERASER)
+            vm.awaitState { it.tool == EditorTool.TEXT }
+            assertThat(session.activeTool).isEqualTo(CanvasTool.TEXT)
+
+            vm.selectTool(EditorTool.STICKY)
+            assertThat(session.tool.value).isEqualTo(EditorTool.TEXT)
+            assertThat(session.activeTool).isEqualTo(CanvasTool.TEXT)
         }
 
     @Test

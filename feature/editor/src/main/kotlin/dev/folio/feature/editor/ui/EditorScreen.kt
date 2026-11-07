@@ -28,9 +28,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
@@ -124,6 +126,7 @@ fun EditorRoute(
         onRedo = viewModel::redo,
         onHelp = viewModel::showHelp,
         onKey = viewModel::onKey,
+        onType = viewModel::typeIntoPage,
         onFormat = viewModel::format,
         pageChrome =
             PageChrome(
@@ -152,6 +155,13 @@ fun EditorRoute(
     ) { canvasModifier ->
         session?.let { EditorCanvas(it, canvasListener, canvasModifier, viewModel::onKey) }
     }
+}
+
+// The printable character a key without Ctrl or Alt types (keyboard typing with nothing focused), null for others.
+private fun typedText(event: KeyEvent): String? {
+    if (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed) return null
+    val char = event.nativeKeyEvent.unicodeChar
+    return if (char == 0 || Character.isISOControl(char)) null else String(Character.toChars(char))
 }
 
 // ACTION_VIEW for [url]; false when no installed app handles it (or it is not a URL at all).
@@ -205,6 +215,7 @@ fun EditorScreen(
     onRedo: () -> Unit = {},
     onHelp: (Boolean) -> Unit = {},
     onKey: (keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean) -> Boolean = { _, _, _, _ -> false },
+    onType: (String) -> Boolean = { false },
     shortcutGroups: List<ShortcutGroup> = ShortcutRegistry.DEFAULT_GROUPS,
     pageChrome: PageChrome = PageChrome(),
     pageActions: PageActions = PageActions(),
@@ -256,16 +267,21 @@ fun EditorScreen(
     val actions = remember(latest) { ChromeActions.forwardingTo(latest) }
     BackHandler(enabled = state.readMode) { onReadMode(false) }
     SystemBarsHidden(state.readMode)
-    // Hardware keys reach the registry from the screen root; it holds focus while no popover or field does.
+    // Hardware keys reach the registry from the screen root; it holds focus while no popover or field does. The live
+    // field takes the focus into the canvas view and does not hand it back when it ends, so the root takes it again.
     val keyFocus = remember { FocusRequester() }
     val ready = state.status == EditorStatus.READY
-    LaunchedEffect(ready, state.popover == null) { if (ready && state.popover == null) keyFocus.requestFocus() }
+    val idle = state.popover == null && state.textStyle == null
+    LaunchedEffect(ready, idle) { if (ready && idle) keyFocus.requestFocus() }
     // No app bar: the pills sit on bg.canvas like the pages (DESIGN.md section 8).
     Box(
         modifier
             .onKeyEvent { event ->
                 event.type == KeyEventType.KeyDown &&
-                    onKey(event.nativeKeyEvent.keyCode, event.isCtrlPressed, event.isShiftPressed, event.isAltPressed)
+                    (
+                        onKey(event.nativeKeyEvent.keyCode, event.isCtrlPressed, event.isShiftPressed, event.isAltPressed) ||
+                            typedText(event)?.let(onType) == true
+                    )
             }.focusRequester(keyFocus)
             .focusable()
             .fillMaxSize()

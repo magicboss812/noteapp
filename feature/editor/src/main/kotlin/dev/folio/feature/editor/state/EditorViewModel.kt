@@ -483,6 +483,17 @@ class EditorViewModel
             return perform(session, action)
         }
 
+        /**
+         * Hardware keyboard [text] typed while no text field has focus (10-editor-ui.md#text-tool): it goes to the
+         * body text of the current page. False in read mode, before the first layout and on pages without a body zone.
+         */
+        fun typeIntoPage(text: String): Boolean {
+            val session = mutableSession.value ?: return false
+            if (session.readMode.value) return false
+            val page = session.currentPageId() ?: return false
+            return session.textController?.typeIntoPage(page, text) ?: false
+        }
+
         private fun perform(
             session: EditorSession,
             action: EditorAction,

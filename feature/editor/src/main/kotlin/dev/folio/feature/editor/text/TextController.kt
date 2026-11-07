@@ -288,4 +288,23 @@ interface TextController {
         title: String,
         docId: String,
     ) = Unit
+
+    /**
+     * A Text tool tap at ([xPt], [yPt]) of page [pageId] (10-editor-ui.md#text-tool): the caret goes to the text there,
+     * to the tapped line below the end of a flow, into the body flow of the page or into a new text box. Main thread.
+     */
+    fun placeCaret(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ) = Unit
+
+    /**
+     * Hardware keyboard [text] typed while no block has focus: it goes to the end of page [pageId]'s body text (the
+     * body flow is created when the page has none). False if the page has no body zone. Main thread.
+     */
+    fun typeIntoPage(
+        pageId: PageId,
+        text: String,
+    ): Boolean = false
 }

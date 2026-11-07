@@ -2,10 +2,16 @@ package dev.folio.feature.editor.text
 
 import dev.folio.core.common.PerfMonitor
 import dev.folio.core.model.FlowId
+import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.PageId
+import dev.folio.core.model.TextAlign
+import dev.folio.core.model.edit.EditCommand
+import dev.folio.core.text.edit.BlockEditing
+import dev.folio.core.text.edit.Caret
 import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.edit.LinkEdits
 import dev.folio.core.text.edit.TableCell
+import dev.folio.core.text.edit.TextSelection
 import dev.folio.core.text.flow.TapTarget
 import dev.folio.core.text.markdown.MarkdownDocument
 import kotlinx.coroutines.CoroutineDispatcher
@@ -37,13 +43,20 @@ internal class TextEditor(
     private val runEdit: BlockEditRunner,
     scope: CoroutineScope,
     dispatcher: CoroutineDispatcher,
+    /** Executes a command in the session (a new flow or frame of a Text tool tap); false if it failed. */
+    private val execute: suspend (EditCommand) -> Boolean = { false },
+    /** The style of a flow a tap or a keystroke creates. */
+    private val newFlowStyle: () -> FlowStyle = { DEFAULT_FLOW_STYLE },
 ) : TextController {
-    // [edit] null: a tapped checkbox, toggled without moving the focus.
+    // [edit] null: a tapped checkbox, toggled without moving the focus, or with a [plan] a caret placement and the
+    // keyboard text [typed] while it runs.
     private class Pending(
         val flowId: FlowId,
         val blockId: Long,
         val revision: Int,
         val edit: FieldEdit?,
+        val plan: CaretPlan? = null,
+        val typed: StringBuilder? = null,
     ) {
         // A keystroke carries the whole block source (or cell text), so it replaces the one before it in the same place.
         fun isTypedIn(other: Pending): Boolean {
@@ -66,6 +79,9 @@ internal class TextEditor(
     // The open `[[` of [query] and the caret after its text, source offsets of the focused block; -1 without one.
     private var queryStart = -1
     private var queryCaret = -1
+
+    // The placement for keyboard text that waits or runs; keys typed meanwhile join its text.
+    private var placing: Pending? = null
 
     override val field: Flow<TextFieldSpec?> get() = text.field
     override val linkTaps: Flow<TapTarget> get() = taps
@@ -145,6 +161,62 @@ internal class TextEditor(
         edit(FieldEdit.NoteLink(queryStart, queryCaret, title, docId))
     }
 
+    override fun placeCaret(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ) {
+        clearQuery()
+        when (val plan = text.planTap(pageId, xPt, yPt, newFlowStyle())) {
+            null -> {
+                Unit
+            }
+
+            CaretPlan.Hit -> {
+                text.focusAt(pageId, xPt, yPt)
+            }
+
+            is CaretPlan.End -> {
+                text.focusEnd(plan.flowId, plan.blockIndex)
+            }
+
+            is CaretPlan.Append -> {
+                text.blur()
+                enqueue(Pending(plan.flowId, NO_BLOCK, NO_REVISION, null, plan))
+            }
+        }
+    }
+
+    override fun typeIntoPage(
+        pageId: PageId,
+        text: String,
+    ): Boolean {
+        if (this.text.focus.value != null) return false
+        val joining = placing?.typed
+        joining?.append(text)
+        return joining != null || startTyping(pageId, text)
+    }
+
+    // Plans where typing on [pageId] goes and queues the placement with [text]; false if the page takes no text.
+    private fun startTyping(
+        pageId: PageId,
+        text: String,
+    ): Boolean {
+        val plan = this.text.planTyping(pageId, newFlowStyle())
+        val flowId =
+            when (plan) {
+                is CaretPlan.End -> plan.flowId
+                is CaretPlan.Append -> plan.flowId
+                CaretPlan.Hit, null -> null
+            }
+        if (flowId != null) {
+            val item = Pending(flowId, NO_BLOCK, NO_REVISION, null, plan, StringBuilder(text))
+            placing = item
+            enqueue(item)
+        }
+        return flowId != null
+    }
+
     private fun enqueue(next: Pending) {
         if (waiting.lastOrNull()?.isTypedIn(next) == true) waiting.removeLast()
         waiting.addLast(next)
@@ -181,6 +253,15 @@ internal class TextEditor(
     // stays where that put it, so a late keystroke is kept without pulling the caret back.
     private suspend fun run(item: Pending) {
         val edit = item.edit
+        val plan = item.plan
+        if (plan != null) {
+            try {
+                place(plan, item.typed)
+            } finally {
+                if (placing === item) placing = null
+            }
+            return
+        }
         if (edit == null) {
             runEdit(item.flowId, null) { doc -> LinkEdits.toggleTask(doc, item.blockId) }
             return
@@ -196,8 +277,64 @@ internal class TextEditor(
         }
     }
 
+    // Carries out [plan], then types [typed] (and what joins it meanwhile) at the caret before the field shows, so the
+    // field starts with the typed text. A focus that some tap set meanwhile stays.
+    private suspend fun place(
+        plan: CaretPlan,
+        typed: StringBuilder?,
+    ) {
+        val (flowId, index) = target(plan) ?: return
+        val result = typed?.let { typeAt(flowId, index, it) }
+        if (text.focus.value == null) {
+            if (result == null) text.focusEnd(flowId, index) else text.focusAfter(flowId, result)
+        }
+    }
+
+    // The flow and block (null: its last) the caret of [plan] goes to, once the plan's command ran; null if it failed.
+    private suspend fun target(plan: CaretPlan): Pair<FlowId, Int?>? =
+        when (plan) {
+            is CaretPlan.End -> {
+                plan.flowId to plan.blockIndex
+            }
+
+            is CaretPlan.Append -> {
+                val command = text.appendCommand(plan)
+                val done = (command == null || execute(command)) && text.awaitLayout(plan.flowId)
+                if (done) plan.flowId to null else null
+            }
+
+            CaretPlan.Hit -> {
+                null
+            }
+        }
+
+    // Types [typed] at the end of block [index] (null: the last) of [flowId], including text that joins it meanwhile.
+    private suspend fun typeAt(
+        flowId: FlowId,
+        index: Int?,
+        typed: StringBuilder,
+    ): EditResult? {
+        var result: EditResult? = null
+        var caret =
+            text.parsed(flowId)?.let(BlockEditing::ensureBlock)?.let { doc ->
+                doc.blocks.getOrNull(index ?: doc.blocks.lastIndex)?.let { Caret(it.id, it.source.length) }
+            }
+        while (caret != null && typed.isNotEmpty()) {
+            val chunk = typed.toString()
+            typed.clear()
+            val at = caret
+            result = runEdit(flowId, "type:${flowId.value}:${at.blockId}") { doc -> BlockEditing.insert(doc, TextSelection.at(at), chunk) }
+            caret = result?.selection?.focus
+        }
+        return result
+    }
+
     private companion object {
         const val TAP_BUFFER = 4
         const val NO_REVISION = -1
+        const val NO_BLOCK = -1L
+
+        // Body text M (07-text-engine.md#font-normalization) until the text tool options choose the style.
+        val DEFAULT_FLOW_STYLE = FlowStyle("Inter", 0.45f, 0, TextAlign.START)
     }
 }

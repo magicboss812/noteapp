@@ -5,7 +5,7 @@ import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.feature.editor.canvas.CanvasTool
 
 /**
- * Parsed `tool pen` or `tool eraser[,stroke|partial][,radiusPt][,hl]` (radius in 0.5..100 pt, `hl` =
+ * Parsed `tool pen`, `tool text` or `tool eraser[,stroke|partial][,radiusPt][,hl]` (radius in 0.5..100 pt, `hl` =
  * highlighter only); unset eraser parts keep [EraserOptions.DEFAULT].
  */
 internal data class ToolSetting(
@@ -20,6 +20,7 @@ internal data class ToolSetting(
             val parts = arg?.split(',')?.map { it.trim().lowercase() } ?: return null
             return when (parts[0]) {
                 "pen" -> if (parts.size == 1) ToolSetting(CanvasTool.PEN) else null
+                "text" -> if (parts.size == 1) ToolSetting(CanvasTool.TEXT) else null
                 "eraser" -> eraser(parts.drop(1))?.let { ToolSetting(CanvasTool.ERASER, it) }
                 else -> null
             }

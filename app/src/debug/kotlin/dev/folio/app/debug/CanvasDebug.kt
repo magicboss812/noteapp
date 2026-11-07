@@ -287,9 +287,15 @@ internal class CanvasDebug(
 
     fun tool(arg: String?): DebugReply {
         val setting =
-            ToolSetting.parse(arg) ?: return DebugReply.error("tool needs pen or eraser[,stroke|partial][,radiusPt][,hl]")
+            ToolSetting.parse(arg) ?: return DebugReply.error("tool needs pen, text or eraser[,stroke|partial][,radiusPt][,hl]")
         val current = session ?: return DebugReply.error(NO_CANVAS)
-        current.selectTool(if (setting.tool == CanvasTool.ERASER) EditorTool.ERASER else EditorTool.PEN)
+        current.selectTool(
+            when (setting.tool) {
+                CanvasTool.ERASER -> EditorTool.ERASER
+                CanvasTool.TEXT -> EditorTool.TEXT
+                else -> EditorTool.PEN
+            },
+        )
         // `tool pen` keeps them; like the options row, the change is stored.
         if (setting.tool == CanvasTool.ERASER) current.updateOptions { it.copy(eraser = setting.eraser) }
         return DebugReply.ok(json() ?: JsonObject(emptyMap()))

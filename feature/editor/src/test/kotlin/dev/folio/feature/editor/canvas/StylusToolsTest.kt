@@ -64,6 +64,7 @@ class StylusToolsTest {
             NamedTarget("eraser", calls),
             buttonErases = { StylusFeatures.buttonErases(it, capabilities, preferences) },
             navigate = NamedTarget("navigate", calls),
+            text = NamedTarget("text", calls),
         ) { tool }
 
     /** A stylus gesture; [buttonAtDown] holds the stylus button at touch down only; [eraserEnd] for TOOL_TYPE_ERASER. */
@@ -89,6 +90,42 @@ class StylusToolsTest {
         assertThat(calls.distinct()).containsExactly("navigate down", "navigate move", "navigate up").inOrder()
         assertThat(calls).hasSize(9)
         assertThat(tools.erases(event(ACTION_DOWN, 0, 1f to 1f, toolType = TOOL_TYPE_ERASER), eraserEnd = true)).isFalse()
+    }
+
+    @Test
+    fun textTool_tipTaps_eraserEndStillErases() {
+        tool = CanvasTool.TEXT
+
+        gesture(buttonAtDown = 0)
+        gesture(buttonAtDown = 0, eraserEnd = true)
+
+        assertThat(calls).containsExactly("text down", "text move", "text up", "eraser down", "eraser move", "eraser up").inOrder()
+    }
+
+    @Test
+    fun stylusTap_releasedInPlace_tapsAtTheDownPoint() {
+        val taps = ArrayList<Pair<Float, Float>>()
+        val tap = StylusTap(slopPx = 8f, timeoutMs = 400L) { x, y -> taps += x to y }
+
+        tap.onStylusDown(event(ACTION_DOWN, 0, 100f to 100f, toolType = TOOL_TYPE_STYLUS), 0, eraser = false)
+        tap.onStylusMove(event(ACTION_MOVE, 10, 103f to 102f, toolType = TOOL_TYPE_STYLUS), 0)
+        tap.onStylusUp(event(ACTION_UP, 20, 103f to 102f, toolType = TOOL_TYPE_STYLUS), 0)
+
+        assertThat(taps).containsExactly(100f to 100f)
+    }
+
+    @Test
+    fun stylusTap_movedPastTheSlopOrHeldTooLong_doesNotTap() {
+        val taps = ArrayList<Pair<Float, Float>>()
+        val tap = StylusTap(slopPx = 8f, timeoutMs = 400L) { x, y -> taps += x to y }
+
+        tap.onStylusDown(event(ACTION_DOWN, 0, 100f to 100f, toolType = TOOL_TYPE_STYLUS), 0, eraser = false)
+        tap.onStylusMove(event(ACTION_MOVE, 10, 120f to 100f, toolType = TOOL_TYPE_STYLUS), 0)
+        tap.onStylusUp(event(ACTION_UP, 20, 100f to 100f, toolType = TOOL_TYPE_STYLUS), 0)
+        tap.onStylusDown(event(ACTION_DOWN, 0, 100f to 100f, toolType = TOOL_TYPE_STYLUS), 0, eraser = false)
+        tap.onStylusUp(event(ACTION_UP, 500, 100f to 100f, toolType = TOOL_TYPE_STYLUS), 0)
+
+        assertThat(taps).isEmpty()
     }
 
     @Test

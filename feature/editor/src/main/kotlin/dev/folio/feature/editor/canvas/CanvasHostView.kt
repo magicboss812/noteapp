@@ -164,6 +164,7 @@ class CanvasHostView internal constructor(
             eraser,
             buttonErases = { event -> StylusFeatures.buttonErases(event, router.capabilities, controller.stylusPreferences) },
             navigate = StylusNavigation(gestures),
+            text = StylusTap(ViewConfiguration.get(context).scaledTouchSlop.toFloat(), TEXT_TAP_TIMEOUT_MS, ::onTextToolTap),
         ) { controller.activeTool }
     private val hoverRing = HoverRingView(context)
     private val hoverCursor =
@@ -172,6 +173,7 @@ class CanvasHostView internal constructor(
             controller.viewport,
             enabled = {
                 controller.activeTool != CanvasTool.NAVIGATE &&
+                    controller.activeTool != CanvasTool.TEXT &&
                     StylusFeatures.hoverCursor(router.capabilities, controller.stylusPreferences)
             },
             radiusPt = ::hoverRadiusPt,
@@ -556,6 +558,19 @@ class CanvasHostView internal constructor(
         texts.focusAt(pageId, pt.x, pt.y)
     }
 
+    // A pen tap with the Text tool: the caret goes to the text there, the tapped body line or a new box (10-editor-ui.md#text-tool).
+    private fun onTextToolTap(
+        xPx: Float,
+        yPx: Float,
+    ) {
+        val texts = controller.textController ?: return
+        val pageId = document?.pages?.getOrNull(viewport.pageIndexAt(yPx))?.id ?: return
+        val pt = viewport.toPagePt(pageId, PointPx(xPx, yPx))
+        if (texts.tapAt(pageId, pt.x, pt.y)) return
+        textField.tapped(System.nanoTime())
+        texts.placeCaret(pageId, pt.x, pt.y)
+    }
+
     private fun onViewportChanged() {
         // HOT PATH: per gesture event and animation frame.
         invalidateLayers()
@@ -746,6 +761,9 @@ class CanvasHostView internal constructor(
 
         private const val MM_PER_INCH = 25.4f
         private const val MIN_HOVER_RING_DP = 3f
+
+        // Like a finger tap (GestureConfig).
+        private const val TEXT_TAP_TIMEOUT_MS = 400L
         private const val TAG = "CanvasHost"
         private const val CONTENT_DESCRIPTION = "Note pages. Draw with the pen, pan and zoom with fingers."
 

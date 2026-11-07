@@ -25,6 +25,9 @@ enum class CanvasTool {
 
     /** Pans and zooms like a finger, the eraser end too; no ink and no hover ring (read mode, 10-editor-ui.md#read-mode). */
     NAVIGATE,
+
+    /** A tap places the text caret (10-editor-ui.md#text-tool); no ink. */
+    TEXT,
 }
 
 /** Viewport actions the editor asks of the canvas host (keyboard shortcuts, later page navigation UI). */

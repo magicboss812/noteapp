@@ -7,6 +7,7 @@ import dev.folio.core.common.PerfMonitor
 import dev.folio.core.model.Document
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
+import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.PageId
 import dev.folio.core.model.PageRef
 import dev.folio.core.model.TextFlow
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.update
@@ -226,6 +228,80 @@ class EditorText internal constructor(
                 else -> kept.copy(blockIndex = index)
             }
         }
+    }
+
+    /** Where a Text tool tap at ([xPt], [yPt]) on page [pageId] puts the caret; new flows get [style]. Main thread. */
+    internal fun planTap(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+        style: FlowStyle,
+    ): CaretPlan? = CaretPlans.forTap(documentSession.document.value, mutableSnapshot.value.layouts, pageId, xPt, yPt, style)
+
+    /** Where typing with nothing focused on page [pageId] puts the caret; new flows get [style]. Main thread. */
+    internal fun planTyping(
+        pageId: PageId,
+        style: FlowStyle,
+    ): CaretPlan? = CaretPlans.forTyping(documentSession.document.value, mutableSnapshot.value.layouts, pageId, style)
+
+    /**
+     * [plan] as one command: its setup (a new flow and frame), the empty paragraphs down to the tapped line and the
+     * reflow they need execute and undo together. Null when nothing changes or the plan no longer fits the document.
+     */
+    internal suspend fun appendCommand(plan: CaretPlan.Append): EditCommand? {
+        val doc = documentSession.document.value
+        return withContext(dispatchers.text) {
+            try {
+                val commands = ArrayList<EditCommand>(plan.setup)
+                var after = doc
+                for (command in plan.setup) after = command.execute(after).doc
+                val flow = checkNotNull(after.flows[plan.flowId])
+                CaretPlans.emptyParagraphs(flow.markdown, parses.of(flow), plan.lines)?.let {
+                    val edit = EditFlow(plan.flowId, listOf(it))
+                    after = edit.execute(after).doc
+                    commands += edit
+                }
+                if (commands.isNotEmpty()) {
+                    val reflow = engine.reflow.plan(after, plan.flowId, parses.of(checkNotNull(after.flows[plan.flowId])))
+                    reflow.command?.let { commands += it }
+                }
+                if (commands.size > 1) Batch(commands) else commands.singleOrNull()
+            } catch (e: IllegalArgumentException) {
+                FolioLog.w(TAG, "caret plan rejected: ${e.message}")
+                null
+            } catch (e: IllegalStateException) {
+                FolioLog.w(TAG, "caret plan rejected: ${e.message}")
+                null
+            }
+        }
+    }
+
+    /** Returns once [snapshot] shows the current text of flow [flowId]; false if the flow is gone (an undo came first). */
+    internal suspend fun awaitLayout(flowId: FlowId): Boolean {
+        var shown = false
+        mutableSnapshot.first { snapshot ->
+            val markdown =
+                documentSession.document.value.flows[flowId]
+                    ?.markdown
+            shown = markdown != null && snapshot.layouts[flowId]?.markdown?.toMarkdown() == markdown
+            markdown == null || shown
+        }
+        return shown
+    }
+
+    /** Focuses block [blockIndex] of flow [flowId] (its last block for null) with the caret at its end. */
+    internal fun focusEnd(
+        flowId: FlowId,
+        blockIndex: Int? = null,
+    ): TextFocus? {
+        val blocks =
+            mutableSnapshot.value.layouts[flowId]
+                ?.markdown
+                ?.blocks ?: return null
+        val index = blockIndex ?: blocks.lastIndex
+        val block = blocks.getOrNull(index) ?: return null
+        mutableFocus.update { TextFocus(flowId, block.id, index, block.source.length, (it?.revision ?: 0) + 1) }
+        return mutableFocus.value
     }
 
     /** Makes the field show the model's text again, with the caret at [caret]: an edit of the focused block was rejected. */

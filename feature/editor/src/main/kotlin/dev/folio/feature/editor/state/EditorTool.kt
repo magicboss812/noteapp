@@ -14,7 +14,7 @@ enum class EditorTool(
     HIGHLIGHTER(CanvasTool.PEN),
     ERASER(CanvasTool.ERASER),
     SHAPE(null),
-    TEXT(null),
+    TEXT(CanvasTool.TEXT),
     TABLE(null),
     IMAGE(null),
     STICKY(null),

@@ -63,6 +63,7 @@ Color dot: 22 dp with a 1 dp border; the selected color and width preset get a 4
 - Finger tap on existing text with Text tool: caret there. Pen or finger tap on text with other tools: nothing (lasso selects boxes).
 - Hardware keyboard typing with nothing focused: appends to the current page's body flow (setting "Type into page body", default on).
 - Escape or tapping empty canvas with another tool unfocuses. Focus never needs more than one tap.
+- As built (A-050): a tap in the body zone of a page before or between the body flow's pages makes a body-width box on the tapped line (a body frame there would pull the following text back); a body frame is added only on a page after the flow's last one. The filled blank lines are empty paragraphs, one undo step with the new flow or frame. Typing with nothing focused goes to the end of the body text shown on the page (a new paragraph where the flow ends) and is its own undo step. "Type into page body" is always on until P11-T01 (D-035). No hover ring with the Text tool.
 
 ## Pages
 - Page panel (left drawer, 280 dp): thumbnails with page numbers; drag to reorder; per-page menu: duplicate, delete, insert blank before/after, page settings, expand to infinite, move to another document (later).
