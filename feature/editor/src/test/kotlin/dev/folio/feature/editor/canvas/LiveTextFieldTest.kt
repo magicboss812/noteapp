@@ -280,6 +280,18 @@ class LiveTextFieldTest {
     }
 
     @Test
+    fun show_otherCellSameCaretOffset_reportsTheSelectionForTheNewCell() {
+        // The table buttons act on the last reported cell; caret 0 -> 0 does not change the view's selection.
+        val cells = ArrayList<TableCell?>()
+        field.onSelection = { _, _ -> cells += field.spec?.cell?.cell }
+        show(spec(TABLE, caret = TABLE.indexOf("x"), revision = 1))
+
+        show(spec(TABLE, caret = TABLE.indexOf("bb"), revision = 2))
+
+        assertThat(cells.last()).isEqualTo(TableCell(0, 1))
+    }
+
+    @Test
     fun selecting_aRange_reportsItForTheFormattingBar() {
         val selections = ArrayList<Pair<Int, Int>>()
         field.onSelection = { start, end -> selections += start to end }

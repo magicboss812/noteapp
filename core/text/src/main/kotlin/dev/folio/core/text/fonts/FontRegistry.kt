@@ -4,7 +4,6 @@ import androidx.annotation.FontRes
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import dev.folio.core.text.R
 
@@ -108,7 +107,7 @@ class FontRegistry(
 
         private fun key(name: String): String = name.trim().lowercase()
 
-        /** Variable fonts: regular and bold are instances of the wght axis of one file per style. */
+        /** Variable fonts: regular and bold are instances of the wght axis of one file per style ([VariableResourceFont]). */
         private fun variable(
             name: String,
             group: FontGroup,
@@ -118,9 +117,8 @@ class FontRegistry(
             val fonts =
                 buildList {
                     for (weight in listOf(FontWeight.Normal, FontWeight.Bold)) {
-                        val axes = FontVariation.Settings(FontVariation.weight(weight.weight))
-                        add(Font(upright, weight, FontStyle.Normal, variationSettings = axes))
-                        if (italic != null) add(Font(italic, weight, FontStyle.Italic, variationSettings = axes))
+                        add(VariableResourceFont(upright, weight, FontStyle.Normal))
+                        if (italic != null) add(VariableResourceFont(italic, weight, FontStyle.Italic))
                     }
                 }
             return TextFontFamily(name, group, FontFamily(fonts))

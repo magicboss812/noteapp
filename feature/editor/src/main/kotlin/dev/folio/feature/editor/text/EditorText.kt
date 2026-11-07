@@ -198,12 +198,22 @@ class EditorText internal constructor(
         val index = result.document.indexOf(caret.blockId)
         if (index < 0) return
         val source = result.document.blocks[index].source
-        // The echo of a keystroke: the block source, or the cell's text, is what the field typed.
+        // The echo of a keystroke: the block source, or the cell's text, is what the field typed. GFM pads cells with
+        // spaces, so a space at either end of a cell lives only in the field until the next character follows it.
         val echo =
             when (edit) {
-                is FieldEdit.Typed -> source == edit.source
-                is FieldEdit.Cell -> TableEditing.spanOf(source, edit.cell).let { source.substring(it.start, it.end) } == edit.text
-                else -> false
+                is FieldEdit.Typed -> {
+                    source == edit.source
+                }
+
+                is FieldEdit.Cell -> {
+                    TableEditing.spanOf(source, edit.cell).let { source.substring(it.start, it.end) } ==
+                        edit.text.trim(' ')
+                }
+
+                else -> {
+                    false
+                }
             }
         mutableFocus.update { before ->
             val kept = before?.takeIf { echo && it.blockId == caret.blockId }

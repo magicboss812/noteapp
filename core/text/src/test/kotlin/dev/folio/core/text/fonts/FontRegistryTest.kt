@@ -1,6 +1,11 @@
 package dev.folio.core.text.fonts
 
+import android.graphics.Typeface
+import android.text.TextPaint
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontListFontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -51,6 +56,36 @@ class FontRegistryTest {
         assertThat(registry.families).hasSize(21)
         assertThat(registry.resolve("Fira Sans")).isSameInstanceAs(custom)
         assertThat(registry.resolve("lora").group).isEqualTo(FontGroup.SERIF)
+    }
+
+    @Test
+    fun resolve_boldOfEveryVariableFamily_isAWeight700TypefaceThatDrawsWider() {
+        val resolver = createFontFamilyResolver(ApplicationProvider.getApplicationContext())
+        val paint = TextPaint().apply { textSize = 100f }
+
+        fun widthOf(
+            family: TextFontFamily,
+            weight: FontWeight,
+            style: FontStyle,
+        ): Pair<Typeface, Float> {
+            val typeface = resolver.resolve(family.fontFamily, weight, style).value as Typeface
+            paint.typeface = typeface
+            return typeface to paint.measureText("heading chapter paragraph")
+        }
+
+        for (family in FontRegistry.bundled.filter { f ->
+            f.fontFamily.let { it is FontListFontFamily && it.fonts[0] is VariableResourceFont }
+        }) {
+            for (style in listOf(FontStyle.Normal, FontStyle.Italic)) {
+                val (regular, regularWidth) = widthOf(family, FontWeight.Normal, style)
+                val (bold, boldWidth) = widthOf(family, FontWeight.Bold, style)
+                val label = "${family.name} $style"
+                assertWithMessage("$label regular weight").that(regular.weight).isEqualTo(400)
+                assertWithMessage("$label bold weight").that(bold.weight).isEqualTo(700)
+                // Monospace advances do not change with the weight.
+                if (family.group != FontGroup.MONO) assertWithMessage("$label bold wider").that(boldWidth).isGreaterThan(regularWidth)
+            }
+        }
     }
 
     @Test

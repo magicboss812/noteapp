@@ -192,11 +192,11 @@ class FingerGesturesTest {
     }
 
     @Test
-    fun tap_stylusInReadMode_isNoTap() {
+    fun tap_stylusInReadMode_reportsItsPositionForLinksAndCheckboxes() {
         gestures.onTouchEvent(event(ACTION_DOWN, 0, 1000f to 1500f, toolType = TOOL_TYPE_STYLUS), stylus = true)
         gestures.onTouchEvent(event(ACTION_UP, 80, 1000f to 1500f, toolType = TOOL_TYPE_STYLUS), stylus = true)
 
-        assertThat(taps).isEmpty()
+        assertThat(taps).containsExactly(1000f to 1500f)
     }
 
     @Test

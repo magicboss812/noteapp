@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T19
+next: P06-T10
 updated: 2026-11-07
 
 ## Completed
@@ -13,7 +13,7 @@ updated: 2026-11-07
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07 (blocked: device run), T08 (a-b), T09 (a-b)
+- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07 (blocked: device run), T08 (a-b), T09 (a-b), T19
 
 ## Blocked (needs user; stops dependent tasks)
 - P06-T07 device: test APK refused 2026-10-24 and again 2026-11-07 (`INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`, Gradle still SUCCESS, no tests ran). User: keep the tablet unlocked and tap Allow on the "Install via USB" prompt (or turn on "USB debugging (Security settings)"), then the next session runs `bash scripts/device/instrumented.sh :core:text` -> GridInvariantInstrumentedTest 20 fonts, 0 violations, Formulas 136. Robolectric run of the same suite passes.[Checked]
@@ -29,8 +29,8 @@ updated: 2026-11-07
 - D-034 P06-T07: math blocks are always centered; 07-text-engine.md#math names a left alignment setting (A-047).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T09 done (a core, b editor): taps via `TextController.tapAt`/`linkTaps` -> `EditorLinks` -> `EditorEvent` (OpenUrl/OpenNote/NoteNotFound) in `EditorRoute`; `[[` picker = `NoteLinkRow` in row 2 (`noteQuery`, `insertNoteLink`); Linked from = `LinkedFromMenu` in More; broken links via `EditorText.missingLinks`; 07#block-styles-as-built, 09#links-as-built.
+- P06-T19 done: bold of variable fonts via `VariableResourceFont` (device drew all bold regular, gotchas.md); cell field reports its new cell on every move (remove column hit the left one); trailing cell space kept in the field; read mode stylus taps links/checkboxes (`FingerGestures`). Open FEEDBACK (non-[now]): math error popup far right, keyboard left up after `open`, checkbox glyph touches its text.
 - NEXT P06-T10 Text tool and instant creation.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`).
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]` seeds a body flow (use `open lined:N` with an unused N). Test APK installs need the user's Allow on the tablet.
-- Remaining P06 order: T19, T10, T18, T14, T16, T17, T11. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.
+- Remaining P06 order: T10, T18, T14, T16, T17, T11. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.

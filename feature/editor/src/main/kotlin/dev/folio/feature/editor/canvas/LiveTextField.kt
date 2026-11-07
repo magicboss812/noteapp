@@ -302,6 +302,8 @@ internal class LiveTextField(
             sent.clear()
             replaced = replaceText(source)
             setSelection((focus.caret - (spec.cell?.start ?: 0)).coerceIn(0, length()))
+            // The view reports only a changed selection: the same offset in another cell must still name that cell.
+            onSelection?.invoke(selectionStart, selectionEnd)
         } else {
             val echo = sent.indexOf(source)
             if (echo >= 0) repeat(echo + 1) { sent.removeAt(0) }

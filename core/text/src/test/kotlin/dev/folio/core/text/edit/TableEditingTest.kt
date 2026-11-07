@@ -140,6 +140,15 @@ class TableEditingTest {
     }
 
     @Test
+    fun removeColumn_caretAtTheCellStartOrInAnEmptyCell_removesTheCaretsColumn() {
+        // Normalized source as the cell field leaves it: caret at the first character, and in an empty header cell.
+        assertThat(edit("| a   | b   | c   |\n| --- | --- | --- |\n| 1   | 2   | ^rt |") { d, c -> TableEditing.removeColumn(d, c) })
+            .isEqualTo("| a   | b   |\n| --- | --- |\n| 1   | ^2   |")
+        assertThat(edit("| a   | b   | ^    |\n| --- | --- | --- |\n| 1   | 2   | 3   |") { d, c -> TableEditing.removeColumn(d, c) })
+            .isEqualTo("| a   | ^b   |\n| --- | --- |\n| 1   | 2   |")
+    }
+
+    @Test
     fun align_setsTheDelimiter_sameAlignmentAgain_none() {
         val right = edit("| a | b^ |\n| --- | --- |") { d, c -> TableEditing.align(d, c, TableAlign.RIGHT) }
         assertThat(right).isEqualTo("| a   | b^   |\n| --- | --: |")

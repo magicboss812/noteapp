@@ -138,6 +138,26 @@ class TextEditorTest : EditorTextFixture() {
         }
 
     @Test
+    fun edit_spaceAtTheEndOfACell_keepsTheFieldTextSoTheSpaceStays() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "| one | b   |\n| --- | --- |\n| x   | y   |")
+            val (session, text, page) = focusedFlow(path, this)
+            val texts = checkNotNull(session.textController)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            val revision = checkNotNull(text.focus.value).revision
+
+            // GFM pads cells with spaces, so the model keeps "one"; the field must not be reset to it.
+            texts.edit(FieldEdit.Cell(TableCell(0, 0), "one ", 4))
+            yield()
+            assertThat(text.focus.value?.revision).isEqualTo(revision)
+
+            texts.edit(FieldEdit.Cell(TableCell(0, 0), "one m", 5))
+            yield()
+            assertThat(markdown(session.documentSession)).isEqualTo("| one m | b   |\n| ----- | --- |\n| x     | y   |")
+            assertThat(text.focus.value?.revision).isEqualTo(revision)
+        }
+
+    @Test
     fun edit_enterInTheMiddle_splitsTheBlockAndFocusesTheSecondHalf() =
         runTest(main.testDispatcher) {
             val path = note(1, listOf(0), "alpha\n\nbeta")
