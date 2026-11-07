@@ -120,6 +120,7 @@ class EditorText internal constructor(
     suspend fun awaitReady() = ready.await()
 
     private suspend fun refresh(seen: Document) {
+        val startNs = PerfMonitor.clock.monotonicNs()
         if (!discovered) {
             discovered = true
             discover(seen)
@@ -143,6 +144,7 @@ class EditorText internal constructor(
             val canvas = if (focused == null) pages else keepUnchanged(current.canvas, PageTexts.of(doc, layouts, focused))
             mutableSnapshot.value = TextSnapshot(layouts, pages, canvas, field)
         }
+        PerfMonitor.record(TRACE_REFRESH, PerfMonitor.clock.monotonicNs() - startNs)
         ready.complete(Unit)
     }
 
@@ -434,6 +436,7 @@ class EditorText internal constructor(
     private companion object {
         const val TAG = "EditorText"
         const val TRACE_FOCUS = "text:focus"
+        const val TRACE_REFRESH = "text:refresh"
         const val DISCOVER_CHUNK = 8
         const val NOTE_LINK = "folio://doc/"
 

@@ -7,6 +7,7 @@ import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.res.Configuration
+import android.os.Looper
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
@@ -114,7 +115,7 @@ class CanvasHostView internal constructor(
                 ),
                 onChanged = ::onViewportChanged,
                 postFrame = ::postOnAnimation,
-                onTap = ::onFingerTap,
+                onTap = { x, y -> onFingerTap(x, y).also { touchCounts.fingerTaps++ } },
             )
         }
     private val animator = ViewportAnimator(controller.viewport, ::onViewportChanged)
@@ -233,6 +234,9 @@ class CanvasHostView internal constructor(
 
     /** Wet-ink counters. */
     val inkStats: InkStats get() = pen.stats
+
+    /** Pointer downs and taps that reached this view (debug automation). */
+    val touchCounts = TouchCounts { textField.caretTaps }
 
     /** Dry handoff counters. */
     val handoffStats: HandoffStats get() = HandoffStats(handoff.committedCount, handoff.pendingCount, handoff.removedCount)
@@ -438,33 +442,14 @@ class CanvasHostView internal constructor(
 
     /** Runs a viewport [command] (keyboard shortcuts); page commands apply to the page stack only. */
     internal fun perform(command: CanvasCommand) {
-        val stack = viewport.layout ?: return
+        if (viewport.layout == null) return
         val zoom = viewport.zoom
-        when (command) {
-            CanvasCommand.ZOOM_IN -> {
-                animateZoom(zoom, zoom * KEY_ZOOM_STEP, KEY_ANIMATION_MS)
-            }
-
-            CanvasCommand.ZOOM_OUT -> {
-                animateZoom(zoom, zoom / KEY_ZOOM_STEP, KEY_ANIMATION_MS)
-            }
-
-            CanvasCommand.FIT_WIDTH -> {
-                animateZoom(zoom, 1f, KEY_ANIMATION_MS)
-            }
-
-            else -> {
-                if (viewport.mode !is ViewportMode.Stack || stack.size == 0) return
-                val current = viewport.pageIndexAt(viewport.viewHeightPx / 2f).coerceIn(0, stack.size - 1)
-                val target =
-                    when (command) {
-                        CanvasCommand.PREVIOUS_PAGE -> current - 1
-                        CanvasCommand.NEXT_PAGE -> current + 1
-                        CanvasCommand.FIRST_PAGE -> 0
-                        else -> stack.size - 1
-                    }
-                scrollToPage(target.coerceIn(0, stack.size - 1), KEY_ANIMATION_MS)
-            }
+        val toZoom = command.zoomFrom(zoom, KEY_ZOOM_STEP)
+        if (toZoom != null) {
+            animateZoom(zoom, toZoom, KEY_ANIMATION_MS)
+        } else {
+            val target = viewport.pageTargetOf(command)
+            if (target >= 0) scrollToPage(target, KEY_ANIMATION_MS)
         }
     }
 
@@ -475,6 +460,7 @@ class CanvasHostView internal constructor(
         super.onAttachedToWindow()
         requestedHz = display?.let { d -> displayModes?.request(d) }
         context.registerComponentCallbacks(memoryCallbacks)
+        Looper.myQueue().addIdleHandler { false.also { textField.prepare() } }
     }
 
     override fun onDetachedFromWindow() {
@@ -509,6 +495,7 @@ class CanvasHostView internal constructor(
         val section = if (event.isFromSource(InputDevice.SOURCE_STYLUS)) SECTION_INK_TOUCH else SECTION_TOUCH
         PerfMonitor.trace(section) {
             if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                touchCounts.down(event)
                 animator.cancel()
                 gestures.stopFling()
                 yieldTextToStylus(event)

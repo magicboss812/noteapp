@@ -380,6 +380,17 @@ internal class CanvasDebug(
                 },
             )
         }
+        host?.touchCounts?.let { t ->
+            put(
+                "touches",
+                buildJsonObject {
+                    put("fingerDowns", t.fingerDowns)
+                    put("stylusDowns", t.stylusDowns)
+                    put("fingerTaps", t.fingerTaps)
+                    put("caretTaps", t.caretTaps)
+                },
+            )
+        }
         put("tool", "${current.tool.value.name.lowercase()} ${current.activeTool.name.lowercase()} ${current.eraserOptions}")
         put("canUndo", current.canUndo.value)
         put("canRedo", current.canRedo.value)

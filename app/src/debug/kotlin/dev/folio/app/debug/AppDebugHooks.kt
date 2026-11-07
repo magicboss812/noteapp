@@ -81,6 +81,8 @@ internal class AppDebugHooks
             navigator: AppNavigator,
         ) {
             val created = FrameTimeOverlay(activity).also { it.install() }
+            WindowTouchProbe.install(activity.window)
+            MainThreadProbe.install(activity.window)
             this.navigator = navigator
             overlay = created
             created.setVisible(overlayVisible)

@@ -160,6 +160,7 @@ internal class LiveTextField(
         masked: Boolean = false,
     ) {
         val appearing = shown == null
+        val startNs = if (appearing || spec !== synced) System.nanoTime() else 0L
         shown = spec
         style(spec, textArgb, viewport.scale, masked)
         // The host shows the same spec again when the document or viewport changes: only a new answer is synced.
@@ -173,10 +174,13 @@ internal class LiveTextField(
         shownFocus = spec.focus
         shownCell = spec.cell?.cell
         place(viewport, pageIndex)
+        if (startNs != 0L) PerfMonitor.record(TRACE_SHOW, System.nanoTime() - startNs)
         if (appearing) {
-            visibility = VISIBLE
-            requestFocus()
-            context.getSystemService(InputMethodManager::class.java)?.showSoftInput(this, 0)
+            PerfMonitor.trace(TRACE_IME) {
+                visibility = VISIBLE
+                requestFocus()
+                context.getSystemService(InputMethodManager::class.java)?.showSoftInput(this, 0)
+            }
         }
     }
 
@@ -261,6 +265,12 @@ internal class LiveTextField(
             clearFocus()
             visibility = GONE
         }
+    }
+
+    // The editor leaves (another note opens, the library shows) while a block is focused: the keyboard goes with it.
+    override fun onDetachedFromWindow() {
+        if (visibility != GONE) hide()
+        super.onDetachedFromWindow()
     }
 
     /** x of the caret in the host view, px (the field sits at the host's origin plus its translation). */
@@ -515,5 +525,9 @@ internal class LiveTextField(
 
         // Tap to the first frame that draws the focused field (07-text-engine.md#editing budget: 50 ms).
         const val TRACE_CARET = "text:caret"
+
+        // Styling, syncing and placing the field for a new block; then making it visible, focused, with the keyboard.
+        const val TRACE_SHOW = "text:show"
+        const val TRACE_IME = "text:ime"
     }
 }

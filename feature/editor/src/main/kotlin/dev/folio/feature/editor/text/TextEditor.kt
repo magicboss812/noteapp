@@ -28,6 +28,10 @@ import kotlinx.coroutines.launch
 /** Trace section of handing one field edit to the queue (main thread part of a keystroke). */
 internal const val TRACE_EDIT = "text:edit"
 
+// A Text tool tap that creates text: the command, then the wait for the new text's layout (P06-T18).
+internal const val TRACE_APPEND_COMMAND = "text:append-command"
+internal const val TRACE_APPEND_LAYOUT = "text:append-layout"
+
 /** Runs a block edit as one flow edit in the session: [FlowId], undo coalescing key, the edit of the parsed flow. */
 internal typealias BlockEditRunner = suspend (FlowId, String?, (MarkdownDocument) -> EditResult?) -> EditResult?
 
@@ -298,8 +302,15 @@ internal class TextEditor(
             }
 
             is CaretPlan.Append -> {
+                // Timed apart (P06-T18): the command until the session ran it, then the wait for the new flow's layout.
+                val clock = PerfMonitor.clock
+                val startNs = clock.monotonicNs()
                 val command = text.appendCommand(plan)
-                val done = (command == null || execute(command)) && text.awaitLayout(plan.flowId)
+                val executed = command == null || execute(command)
+                val executedNs = clock.monotonicNs()
+                PerfMonitor.record(TRACE_APPEND_COMMAND, executedNs - startNs)
+                val done = executed && text.awaitLayout(plan.flowId)
+                PerfMonitor.record(TRACE_APPEND_LAYOUT, clock.monotonicNs() - executedNs)
                 if (done) plan.flowId to null else null
             }
 

@@ -12,8 +12,10 @@ import android.view.MotionEvent.TOOL_TYPE_STYLUS
 import android.view.PointerIcon
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
@@ -22,6 +24,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.google.common.truth.Truth.assertThat
+import dev.folio.core.common.PerfMonitor
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.ink.input.StylusPreferences
 import dev.folio.core.model.BrushKind
@@ -74,8 +77,11 @@ class CanvasHostTest {
     private var wet: FakeWetSurface? = null
     private val coveredPx = mutableIntStateOf(0)
 
+    private val hostShown = mutableStateOf(true)
+
     private fun show() {
         compose.setContent {
+            if (!hostShown.value) return@setContent
             CanvasHost(controller, Modifier.fillMaxSize(), onHost = { host = it }, coveredBottomPx = coveredPx.intValue) { context ->
                 CanvasHostView(context, controller) {
                     FakeWetSurface(it).also { surface -> wet = surface }
@@ -197,6 +203,59 @@ class CanvasHostTest {
         assertThat(field.visibility).isEqualTo(View.GONE)
         assertThat(hostView().textFields.isHandingOff).isFalse()
         assertThat(hostView().textFields.ghostView).isNull()
+    }
+
+    @Test
+    fun textToolTap_creationShowsNoFieldFirst_stillTracesTapToField() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        PerfMonitor.reset()
+        PerfMonitor.enabled = true
+        try {
+            compose.runOnUiThread {
+                hostView().textFields.tapped(System.nanoTime())
+                // The new flow arrives before its focus: page text without a field.
+                controller.canvasText.value = CanvasText(emptyMap(), null)
+            }
+            settle()
+            showFocusedField(texts)
+
+            assertThat(PerfMonitor.snapshot()[TextFieldHost.TRACE_ARRIVE]?.count).isEqualTo(1L)
+        } finally {
+            PerfMonitor.enabled = false
+            PerfMonitor.reset()
+        }
+    }
+
+    @Test
+    fun focusedField_hostLeavesTheScreen_hidesTheKeyboard() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        showFocusedField(texts)
+        val imm = ApplicationProvider.getApplicationContext<Context>().getSystemService(InputMethodManager::class.java)
+        assertThat(shadowOf(imm).isSoftInputVisible).isTrue()
+
+        compose.runOnUiThread { hostShown.value = false }
+        settle()
+
+        assertThat(shadowOf(imm).isSoftInputVisible).isFalse()
+    }
+
+    @Test
+    fun firstEventsAfterAttach_reachTheRouter_tapFocusesAndStrokeDraws() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val view = hostView()
+        assertThat(view.touchCounts.fingerDowns + view.touchCounts.stylusDowns).isEqualTo(0)
+
+        tapAt(500f, 500f)
+        stylusDownUp(500f, 900f)
+
+        assertThat(view.touchCounts.fingerDowns).isEqualTo(1)
+        assertThat(view.touchCounts.fingerTaps).isEqualTo(1)
+        assertThat(texts.focusCalls).hasSize(1)
+        assertThat(view.touchCounts.stylusDowns).isEqualTo(1)
+        assertThat(view.inkStats.started).isEqualTo(1)
     }
 
     @Test

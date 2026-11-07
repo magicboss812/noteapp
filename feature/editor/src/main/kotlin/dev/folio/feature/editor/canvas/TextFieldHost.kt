@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.View
 import android.widget.FrameLayout
 import androidx.annotation.MainThread
+import dev.folio.core.common.PerfMonitor
 import dev.folio.core.model.Document
 import dev.folio.core.model.PageId
 import dev.folio.core.render.PageRenderer
@@ -45,13 +46,18 @@ internal class TextFieldHost(
     /** Runs the editor shortcut for a chord typed in the field (key code, ctrl, shift, alt); true if one ran. */
     var onShortcut: (Int, Boolean, Boolean, Boolean) -> Boolean = { _, _, _, _ -> false }
 
-    /** The live field, null until a block was focused for the first time. */
+    /** The live field, null until [prepare] or the first focused block built it. */
     val liveField: LiveTextField? get() = view
 
     /** A finger tap may focus a block now ([nowNs], System.nanoTime): the field that shows next traces tap to caret. */
     fun tapped(nowNs: Long) {
         tapNs = nowNs
+        caretTaps++
     }
+
+    /** Taps that asked for a caret so far (debug automation). */
+    var caretTaps = 0
+        private set
 
     /** Shows the field for [next], or removes it for null; call after the page text that goes with it was applied. */
     fun show(next: TextFieldSpec?) {
@@ -62,8 +68,13 @@ internal class TextFieldHost(
             overlay.removeCallbacks(expire)
             overlay.postDelayed(expire, MAX_HANDOFF_MS)
         }
-        if (moved && tapNs != 0L) view?.takeIf { it.spec === next }?.traceCaretFrom(tapNs)
-        if (moved || next == null) tapNs = 0L
+        // A Text tool creation shows page text without a field first: the tap waits for the next field, for a while.
+        val sinceTapNs = System.nanoTime() - tapNs
+        if (moved && tapNs != 0L && sinceTapNs < MAX_TAP_TRACE_NS) {
+            PerfMonitor.record(TRACE_ARRIVE, sinceTapNs)
+            view?.takeIf { it.spec === next }?.traceCaretFrom(tapNs)
+        }
+        if (moved) tapNs = 0L
     }
 
     /** Content tiles arrived or were requested: a masked field or a leaving block's picture may give way now. */
@@ -85,7 +96,7 @@ internal class TextFieldHost(
         }
         val paper = document()?.page(current.pageId)?.background?.paperArgb
         val argb = if (paper == null) DEFAULT_TEXT_ARGB else PageRenderer.textArgb(paper)
-        fieldView().show(current, argb, viewport, index, handoff.isMasked)
+        prepare().show(current, argb, viewport, index, handoff.isMasked)
     }
 
     // The tiles and the field change in this run: both show in the same frame.
@@ -135,7 +146,11 @@ internal class TextFieldHost(
         if (index >= 0) view?.place(viewport, index)
     }
 
-    private fun fieldView(): LiveTextField =
+    /**
+     * The live field, created hidden on the first call: the host calls it once the main thread is idle after attach,
+     * so the first tap that focuses a block does not pay for building the EditText (P06-T18).
+     */
+    fun prepare(): LiveTextField =
         view ?: LiveTextField(context).also {
             it.onEdit = { edit -> controller.textController?.edit(edit) }
             it.onSelection = { start, end -> controller.textController?.select(start, end, it.spec?.cell?.cell) }
@@ -172,11 +187,17 @@ internal class TextFieldHost(
         return pageIndex
     }
 
-    private companion object {
-        const val DEFAULT_TEXT_ARGB = 0xFF1B1D22.toInt()
+    companion object {
+        /** From a tap that may focus until the canvas gets the field for it (the rest of `text:caret` is the frame). */
+        const val TRACE_ARRIVE = "text:arrive"
+
+        private const val DEFAULT_TEXT_ARGB = 0xFF1B1D22.toInt()
 
         // Longest wait for the tiles before the field shows its text and the picture goes anyway.
-        const val MAX_HANDOFF_MS = 300L
+        private const val MAX_HANDOFF_MS = 300L
+
+        // A field that shows later than this after a tap did not come from it.
+        private const val MAX_TAP_TRACE_NS = 1_000_000_000L
     }
 }
 
