@@ -7,6 +7,7 @@ import dev.folio.core.text.edit.EditMarkers
 import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.edit.TableEditing
 import dev.folio.core.text.flow.BlockPlacement
+import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.TapTarget
 import dev.folio.core.text.layout.BlockFace
 import dev.folio.core.text.layout.BlockLayout
@@ -50,6 +51,27 @@ class TextFieldSpec(
 
     /** What the field shows: the cell's Markdown in a table, the block source otherwise. */
     val text: String get() = cell?.text ?: block.source
+
+    /** True when this spec edits the same block (and table cell) as [other]: the field stays, no handoff. */
+    fun sameBlockAs(other: TextFieldSpec): Boolean =
+        focus.flowId == other.focus.flowId && focus.blockId == other.focus.blockId && cell?.index == other.cell?.index
+}
+
+/**
+ * What the canvas paints as text (A-042) together with the live [field] that draws the one block (or table cell) the
+ * [pages] leave out. One value, so the host switches tiles and field from the same layout (P06-T18).
+ */
+class CanvasText(
+    /** Page text by page; pages without text are absent. */
+    val pages: Map<PageId, PageText>,
+    /** The live field to show; null while no block has focus. */
+    val field: TextFieldSpec?,
+) {
+    /** Constants. */
+    companion object {
+        /** No text, no field. */
+        val EMPTY = CanvasText(emptyMap(), null)
+    }
 }
 
 /**
@@ -224,7 +246,7 @@ enum class FormatAction {
 
 /** What the canvas host asks of the text engine: focus a block by tapping it, the field to show for it, its edits. */
 interface TextController {
-    /** The live field to show, null while no block has focus or its place is not known. Emits on the `text` dispatcher. */
+    /** The live field to show, null while no block has focus or its place is not known (chrome state; the canvas uses [CanvasText]). */
     val field: Flow<TextFieldSpec?>
 
     /**

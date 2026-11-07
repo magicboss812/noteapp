@@ -26,11 +26,11 @@ import dev.folio.core.render.viewport.pageIndexAt
 import dev.folio.core.storage.session.DocumentSession
 import dev.folio.core.text.edit.BlockEditing
 import dev.folio.core.text.edit.EditResult
-import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.markdown.MarkdownDocument
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
+import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.EditorText
 import dev.folio.feature.editor.text.TextController
 import dev.folio.feature.editor.text.TextEditor
@@ -74,8 +74,11 @@ class EditorSession(
     /** Layout and editing of the document's text; null in a session without a text engine (the canvas then shows no text). */
     val text: EditorText? = textEngine?.let { EditorText(documentSession, it, dispatchers, scope, missingLinks) }
 
-    override val pageTexts: Flow<Map<PageId, PageText>> =
-        text?.snapshot?.map { it.canvas }?.distinctUntilChanged() ?: emptyFlow()
+    override val canvasText: Flow<CanvasText> =
+        text
+            ?.snapshot
+            ?.map { CanvasText(it.canvas, it.field) }
+            ?.distinctUntilChanged { a, b -> a.pages == b.pages && a.field === b.field } ?: emptyFlow()
 
     /** The selected toolbar tool (chrome state; the canvas reads [activeTool] at stylus down). */
     val tool: StateFlow<EditorTool> = mutableTool.asStateFlow()

@@ -56,13 +56,8 @@ internal fun CanvasHost(
             withContext(controller.mainDispatcher) { controller.document.collect { view.setDocument(it) } }
         }
         LaunchedEffect(view) {
-            val texts = controller.textController
-            if (view == null || texts == null) return@LaunchedEffect
-            withContext(controller.mainDispatcher) { texts.field.collect { view.setTextField(it) } }
-        }
-        LaunchedEffect(view) {
             if (view == null) return@LaunchedEffect
-            withContext(controller.mainDispatcher) { controller.pageTexts.collect { view.setPageTexts(it) } }
+            withContext(controller.mainDispatcher) { controller.canvasText.collect { view.setCanvasText(it) } }
         }
         LaunchedEffect(view) {
             if (view == null) return@LaunchedEffect

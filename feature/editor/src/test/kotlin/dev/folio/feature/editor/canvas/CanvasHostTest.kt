@@ -46,6 +46,7 @@ import dev.folio.core.text.layout.FlowTextStyle
 import dev.folio.core.text.layout.LayoutGrid
 import dev.folio.core.text.markdown.MarkdownDocument
 import dev.folio.feature.editor.canvas.TouchEvents.event
+import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.TextFieldSpec
 import dev.folio.feature.editor.text.TextFocus
 import kotlinx.coroutines.CompletableDeferred
@@ -168,9 +169,29 @@ class CanvasHostTest {
             BlockLayouter(resolver, FontMetricsCache(resolver))
                 .layout(block, 400f, FlowTextStyle(), LayoutGrid(unitPt = 20f, indentStepPt = 20f))
         val focus = TextFocus(FlowId("body"), block.id, 0, 0, 1)
-        compose.runOnUiThread { texts.field.value = TextFieldSpec(focus, block, layout, BlockPlacement(0, page, 40f, 100f, 400f)) }
+        val spec = TextFieldSpec(focus, block, layout, BlockPlacement(0, page, 40f, 100f, 400f))
+        compose.runOnUiThread {
+            texts.field.value = spec
+            controller.canvasText.value = CanvasText(emptyMap(), spec)
+        }
         settle()
         return checkNotNull(hostView().liveTextField)
+    }
+
+    @Test
+    fun focusedField_tilesAlreadyFresh_showsTheTextAtOnceAndBlurLeavesNoPicture() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val field = showFocusedField(texts)
+
+        assertThat(field.visibility).isEqualTo(View.VISIBLE)
+        assertThat(field.isMasked).isFalse()
+        compose.runOnUiThread { controller.canvasText.value = CanvasText.EMPTY }
+        settle()
+
+        assertThat(field.visibility).isEqualTo(View.GONE)
+        assertThat(hostView().textFields.isHandingOff).isFalse()
+        assertThat(hostView().textFields.ghostView).isNull()
     }
 
     private fun stylusDownUp(

@@ -14,6 +14,7 @@ import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.text.edit.TableCell
+import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.FieldEdit
 import dev.folio.feature.editor.text.FormatAction
 import dev.folio.feature.editor.text.TextController
@@ -92,6 +93,7 @@ internal class FakeCanvasController(
     override var eraserOptions = EraserOptions.DEFAULT
     override var stylusPreferences = StylusPreferences.DEFAULT
     override var textController: TextController? = null
+    override val canvasText = MutableStateFlow(CanvasText.EMPTY)
     val loadRequests = ArrayList<PageId>()
 
     /** The thread of every [loadPages] call (the view asks while applying a document, so it must be main). */

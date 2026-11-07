@@ -3,6 +3,7 @@ package dev.folio.feature.editor.canvas
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.text.LineBreaker
 import android.text.Editable
 import android.text.InputType
@@ -92,6 +93,7 @@ internal class LiveTextField(
     private var styledBoxPx = 0f
     private var styledWidthPx = 0
     private var styledGravity = 0
+    private var styledMasked = false
     private var ascentPx = 0f
     private var appliedDims: IntArray? = null
     private val dimSpans = ArrayList<ForegroundColorSpan>()
@@ -143,21 +145,25 @@ internal class LiveTextField(
 
     /**
      * Shows [spec] in text color [textArgb] at the zoom of [viewport] on page [pageIndex]. The text and the caret are
-     * only touched when the block, the caret revision or the source (not a keystroke's echo) changed.
+     * only touched when the block, the caret revision or the source (not a keystroke's echo) changed. [masked] draws
+     * the caret but no text: the tiles still show the block until they are rendered without it (P06-T18).
      */
     fun show(
         spec: TextFieldSpec,
         textArgb: Int,
         viewport: Viewport,
         pageIndex: Int,
+        masked: Boolean = false,
     ) {
         val appearing = shown == null
         shown = spec
-        style(spec, textArgb, viewport.scale)
+        style(spec, textArgb, viewport.scale, masked)
         // The host shows the same spec again when the document or viewport changes: only a new answer is synced.
         if (spec !== synced) {
             sync(spec)
             synced = spec
+        } else if (appliedDims == null && TextUtils.equals(text, spec.text)) {
+            dim(spec, replaced = false) // restyled (mask, color): the markers take the new color
         }
         shownFocus = spec.focus
         shownCell = spec.cell?.cell
@@ -244,10 +250,14 @@ internal class LiveTextField(
         return translationX + (layout?.getPrimaryHorizontal(offset) ?: 0f)
     }
 
+    /** True while the text is drawn transparent (only the caret shows). */
+    val isMasked: Boolean get() = styledMasked
+
     private fun style(
         spec: TextFieldSpec,
         textArgb: Int,
         scale: Float,
+        masked: Boolean,
     ) {
         val layout = spec.layout
         val cell = spec.cell
@@ -262,11 +272,13 @@ internal class LiveTextField(
                 TableAlign.RIGHT -> Gravity.END
                 else -> Gravity.START
             }
-        if (isStyled(face, scale, textArgb, boxPx) && widthPx == styledWidthPx && across == styledGravity) return
+        val sameBox = widthPx == styledWidthPx && across == styledGravity && masked == styledMasked
+        if (isStyled(face, scale, textArgb, boxPx) && sameBox) return
         if (face !== styledFace) typeface = face?.typeface(resolver)
         setTextSize(TypedValue.COMPLEX_UNIT_PX, layout.fontSizePt * scale)
         setLineHeight(TypedValue.COMPLEX_UNIT_PX, boxPx)
-        setTextColor(textArgb)
+        setTextColor(if (masked) Color.TRANSPARENT else textArgb)
+        styledMasked = masked
         gravity = Gravity.TOP or across
         ascentPx = -paint.fontMetricsInt.ascent.toFloat()
         (layoutParams as FrameLayout.LayoutParams).width = widthPx
@@ -354,7 +366,7 @@ internal class LiveTextField(
         val editable = editableText
         for (span in dimSpans) editable.removeSpan(span)
         dimSpans.clear()
-        val color = ColorUtils.setAlphaComponent(styledArgb, DIM_ALPHA)
+        val color = if (styledMasked) Color.TRANSPARENT else ColorUtils.setAlphaComponent(styledArgb, DIM_ALPHA)
         for (i in 0 until ranges.size - 1 step 2) {
             val start = ranges[i].coerceIn(0, editable.length)
             val end = ranges[i + 1].coerceIn(start, editable.length)

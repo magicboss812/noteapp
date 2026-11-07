@@ -41,6 +41,7 @@ import dev.folio.core.render.viewport.ZoomBuckets
 import dev.folio.core.render.viewport.pageIndexAt
 import dev.folio.core.render.viewport.toPagePt
 import dev.folio.core.text.flow.PageText
+import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.TextFieldSpec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
@@ -197,10 +198,21 @@ class CanvasHostView internal constructor(
     /** Slot for the Compose overlay (focused text, selection, lasso, ...), above committed content. */
     val overlay = FrameLayout(context)
 
-    private val textField = TextFieldHost(context, overlay, controller.viewport, controller) { document }
+    private val textField =
+        TextFieldHost(
+            context,
+            overlay,
+            controller.viewport,
+            controller,
+            isDrawn = { contentTiles.drawsBlockOf(it, controller.viewport, width.toFloat(), height.toFloat()) },
+            invalidateTiles = ::invalidateLayers,
+        ) { document }
 
     /** The live text field once a block was focused, null before (tests and debug automation read its state). */
     internal val liveTextField: LiveTextField? get() = textField.liveField
+
+    /** The live field's host (tests read the tiles-to-field handoff, P06-T18). */
+    internal val textFields: TextFieldHost get() = textField
 
     /** Runs the editor shortcut for a Ctrl or Alt chord typed in the live text field; true if one ran. */
     var onShortcut: (keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean) -> Boolean
@@ -293,28 +305,35 @@ class CanvasHostView internal constructor(
         textField.refresh()
     }
 
-    /** Shows [next] as the text of the pages (computed off the main thread); tiles under changed text re-render. */
-    fun setPageTexts(next: Map<PageId, PageText>) {
+    /**
+     * Shows [next] (computed off the main thread): tiles under changed page text re-render, and the live field shows
+     * the focused block the pages leave out, handed over from and to the tiles without a doubled or empty frame.
+     */
+    fun setCanvasText(next: CanvasText) {
         val previous = pageTexts
-        if (previous === next) return
-        pageTexts = next
-        val doc = document ?: return
-        for (ref in doc.pages) {
-            if (previous[ref.id] !== next[ref.id]) contentTiles.setPage(ref, shownBody(doc, ref.id), textOf(ref.id))
+        if (previous !== next.pages) {
+            pageTexts = next.pages
+            val doc = document
+            if (doc != null) {
+                for (ref in doc.pages) {
+                    if (previous[ref.id] !== next.pages[ref.id]) contentTiles.setPage(ref, shownBody(doc, ref.id), textOf(ref.id))
+                }
+                refreshTiles()
+            }
         }
-        refreshTiles()
+        textField.show(next.field)
     }
-
-    /** Shows the live text field for [spec] (the focused block), or removes it for null. */
-    fun setTextField(spec: TextFieldSpec?) = textField.show(spec)
 
     private fun textOf(id: PageId): PageText = pageTexts[id] ?: PageText.EMPTY
 
     private fun refreshTiles() {
         invalidateLayers()
-        // Mid-gesture the idle timer requests later; otherwise refresh stale or newly loaded tiles now.
-        if (SystemClock.uptimeMillis() - lastViewportChangeMs >= IDLE_MS && !isAnimating) requestTiles(idle = true)
+        // Changed content renders now, mid-gesture too while the bucket holds (a focused block's tiles must not wait for
+        // the keyboard's resize to settle); a new bucket waits for the idle timer.
+        val idle = SystemClock.uptimeMillis() - lastViewportChangeMs >= IDLE_MS && !isAnimating
+        if (idle || viewport.bucketIndex == requestedBucket) requestTiles(idle)
         handoff.check()
+        textField.check()
     }
 
     /** Body of page [id] as shown: the document's, with the erase preview applied. */
@@ -643,6 +662,7 @@ class CanvasHostView internal constructor(
         }
         if (contentTiles.pendingCount == 0) contentTiles.warmUp(visible)
         handoff.check()
+        textField.check()
     }
 
     /** [shown] grown by [ringPt] each way, clipped to [frame] on a fixed page (null: infinite canvas). */
@@ -691,6 +711,7 @@ class CanvasHostView internal constructor(
         }
         if (contentTiles.pendingCount == 0) contentTiles.warmUp(lastVisible)
         handoff.check()
+        textField.check()
     }
 
     /** Hands [strokes] to the session; the synchronous part runs inside the `ink:commit` section. */

@@ -8,7 +8,7 @@ import dev.folio.core.model.InkStroke
 import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.render.viewport.Viewport
-import dev.folio.core.text.flow.PageText
+import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.TextController
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -93,10 +93,10 @@ interface CanvasController {
     val pageJumps: Flow<PageId> get() = emptyFlow()
 
     /**
-     * What each page paints as text, by page (A-042); pages without text are absent. Computed off the main thread.
-     * Without the focused block, which the live field of [textController] draws.
+     * What each page paints as text (A-042) and the live field drawing the focused block, which the pages leave out.
+     * Computed off the main thread; empty without a text engine.
      */
-    val pageTexts: Flow<Map<PageId, PageText>> get() = emptyFlow()
+    val canvasText: Flow<CanvasText> get() = emptyFlow()
 
     /** Focus and live field of the text blocks; null when the pane has no text engine (a tap on text then does nothing). */
     val textController: TextController? get() = null

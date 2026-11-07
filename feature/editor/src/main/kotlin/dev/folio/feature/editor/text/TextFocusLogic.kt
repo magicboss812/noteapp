@@ -90,10 +90,10 @@ internal fun TextSnapshot.tapAt(
         target?.let { LinkTap(flowId, checkNotNull(block).id, it) }
     }
 
-/** The live field of [focus] in this snapshot; null for no focus and until the block is placed. */
-internal fun TextSnapshot.fieldOf(focus: TextFocus?): TextFieldSpec? {
+/** The live field of [focus] in these flow layouts; null for no focus and until the block is placed. */
+internal fun Map<FlowId, FlowLayout>.fieldOf(focus: TextFocus?): TextFieldSpec? {
     if (focus == null) return null
-    val layout = layouts[focus.flowId] ?: return null
+    val layout = this[focus.flowId] ?: return null
     val index = layout.markdown.indexOf(focus.blockId)
     val block = layout.markdown.blocks.getOrNull(index)
     val blockLayout = layout.layoutOf(index)

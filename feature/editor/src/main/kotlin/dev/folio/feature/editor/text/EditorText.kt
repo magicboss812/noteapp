@@ -33,8 +33,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -46,8 +46,10 @@ class TextSnapshot(
     val layouts: Map<FlowId, FlowLayout>,
     /** Page text of every page that shows text; other pages are absent. Thumbnails paint these. */
     val pages: Map<PageId, PageText>,
-    /** [pages] as the canvas paints them: without the focused block, which its live field draws. */
+    /** [pages] as the canvas paints them: without the block of [field], which the live field draws. */
     val canvas: Map<PageId, PageText> = pages,
+    /** The live field of the focused block in these layouts, null while nothing has focus. */
+    val field: TextFieldSpec? = null,
 ) {
     /** Constants. */
     companion object {
@@ -92,15 +94,20 @@ class EditorText internal constructor(
     val focus: StateFlow<TextFocus?> = mutableFocus.asStateFlow()
 
     /**
-     * The live field to show: null while no block has focus, otherwise the field of the focused block. While the layout
-     * is a step behind the focus (a block just split off is not laid out yet) nothing is emitted, so the field stays.
-     * Emits on the `text` dispatcher.
+     * The live field of the current focus (chrome state): null while no block has focus, otherwise [TextSnapshot.field]
+     * once a refresh laid it out for that focus; until then nothing is emitted, so the field stays. The canvas takes
+     * [TextSnapshot.field] with the page text instead (P06-T18).
      */
     val field: Flow<TextFieldSpec?> =
         combine(mutableFocus, mutableSnapshot, ::Pair)
             .transform { (focus, snapshot) ->
-                if (focus == null) emit(null) else snapshot.fieldOf(focus)?.let { emit(it) }
-            }.flowOn(dispatchers.text)
+                val spec = snapshot.field
+                if (focus == null) {
+                    emit(null)
+                } else if (spec != null && spec.focus == focus) {
+                    emit(spec)
+                }
+            }.distinctUntilChanged { a, b -> a === b }
 
     init {
         scope.launch(dispatchers.text) {
@@ -126,12 +133,15 @@ class EditorText internal constructor(
         inputs = next
         // The focused block's id changes when undo or redo parses the text again: the block at the same place gets the focus.
         mutableFocus.update { it?.resolvedIn(layouts) }
-        val focused = mutableFocus.value?.shownIn(layouts)
-        if (relaid || focused != shown) {
+        val focus = mutableFocus.value
+        // The canvas leaves out the block the field shows, so tiles and field come from one layout (P06-T18).
+        val field = if (focus == null) null else layouts.fieldOf(focus) ?: current.field
+        val focused = field?.focus?.shownIn(layouts)
+        if (relaid || focused != shown || field?.focus != current.field?.focus) {
             shown = focused
-            val pages = keepUnchanged(current.pages, PageTexts.of(doc, layouts))
+            val pages = if (relaid) keepUnchanged(current.pages, PageTexts.of(doc, layouts)) else current.pages
             val canvas = if (focused == null) pages else keepUnchanged(current.canvas, PageTexts.of(doc, layouts, focused))
-            mutableSnapshot.value = TextSnapshot(layouts, pages, canvas)
+            mutableSnapshot.value = TextSnapshot(layouts, pages, canvas, field)
         }
         ready.complete(Unit)
     }
