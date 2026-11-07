@@ -16,13 +16,10 @@ updated: 2026-10-24
 - P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07 (blocked: device run), T08 (a-b), T09 (a-b)
 
 ## Blocked (needs user; stops dependent tasks)
-- P06-T07 device: test APK refused 2026-10-24 (`INSTALL_FAILED_USER_RESTRICTED`, Gradle still SUCCESS, no tests ran). User: keep the tablet unlocked and tap Allow on the "Install via USB" prompt (or turn on "USB debugging (Security settings)"), then the next session runs `bash scripts/device/instrumented.sh :core:text` -> GridInvariantInstrumentedTest 20 fonts, 0 violations, Formulas 136. Robolectric run of the same suite passes.[Checked]
+- P06-T07 device: test APK refused 2026-10-24 and again 2026-11-07 (`INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`, Gradle still SUCCESS, no tests ran). User: keep the tablet unlocked and tap Allow on the "Install via USB" prompt (or turn on "USB debugging (Security settings)"), then the next session runs `bash scripts/device/instrumented.sh :core:text` -> GridInvariantInstrumentedTest 20 fonts, 0 violations, Formulas 136. Robolectric run of the same suite passes.[Checked]
 
 ## USER-CHECK (human verification; non-blocking)
-- P06-T07: in a note type `Area $\pi r^2$ and $\frac{a}{b}$`, a `$$` block with `\int_0^1 x^2 dx` and `$\notacommand$`, then tap elsewhere -> formulas sit on the lines, the bad one is red source; tapping it shows its source with an error popup.
-- P06-T15: draw several strokes (pen and highlighter) and lift the pen; then focus a text block (debug `seed-text 300`), zoom in and out while editing -> no stroke blinks after pen-up; the edited text scales with the page during the zoom.
-- P06-T08: in a note type `| a | b |` + Enter, fill cells with Tab, add/remove rows and columns and set alignment from the table buttons, on lined and grid paper -> borders on rules, header bold, every cell's text on a line, only the edited cell's source shows, the Markdown stays normalized GFM.
-- P06-T09: in a note tap a `- [ ]` checkbox, a web link and a note link (in pen and navigate tools); type `[[Opt` and pick a note; trash the linked note; More -> Linked from in the target note -> checkbox toggles without the keyboard, the browser and the note open, the link becomes `[Title](folio://doc/..)`, the trashed target's link is gray and struck through and says "Note not found", Linked from lists the linking note.
+- 2026-11-07 P06-T07, T15, T08, T09 run on the tablet by device-tester: T07 PASS, T15 PASS (1-frame blink not provable without screen recording), T08 FAIL (header not bold, remove column off by one, trailing cell space dropped), T09 FAIL (stylus tap in read mode inert); defects -> FEEDBACK Open.
 
 ## Deferred (id: reason)
 - D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05.
