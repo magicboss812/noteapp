@@ -17,9 +17,14 @@ import dev.folio.core.storage.session.DocumentSessions
 import dev.folio.core.storage.session.SaveState
 import dev.folio.core.text.edit.BlockStyle
 import dev.folio.core.text.edit.BlockStyles
+import dev.folio.core.text.fonts.FontRegistry
+import dev.folio.core.text.fonts.TextFontFamily
+import dev.folio.feature.editor.text.EditorFonts
+import dev.folio.feature.editor.text.FontSource
 import dev.folio.feature.editor.text.FormatAction
 import dev.folio.feature.editor.text.TextEngine
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -79,7 +84,12 @@ data class EditorUiState(
     val noteSuggestions: ImmutableList<NoteChoice>? = null,
     /** The open Linked from menu's notes, null while it is closed. */
     val linkedFrom: ImmutableList<NoteChoice>? = null,
+    /** Families the Text tool's font picker lists: bundled, then imported. */
+    val fonts: ImmutableList<TextFontFamily> = BUNDLED_FONTS,
 )
+
+/** The bundled families in picker order (no imported fonts known yet). */
+internal val BUNDLED_FONTS: ImmutableList<TextFontFamily> = FontRegistry.Bundled.families.toImmutableList()
 
 // What the formatting bar needs of the focused block: its style and whether it is a table.
 private data class TextBar(
@@ -138,6 +148,7 @@ class EditorViewModel
         private val toolbarDocks: ToolbarDockStore,
         private val textEngine: TextEngine,
         private val noteLinks: NoteLinks,
+        private val fonts: EditorFonts,
     ) : ViewModel() {
         private val shortcuts = ShortcutRegistry()
 
@@ -237,6 +248,7 @@ class EditorViewModel
                         }
                     }
                 }.combine(docks) { state, docks -> state.copy(docks = docks) }
+                .combine(fonts.registry) { state, registry -> state.copy(fonts = registry.families.toImmutableList()) }
                 .combine(combine(noteSuggestions, mutableLinkedFrom, ::Pair)) { state, (suggestions, linkedFrom) ->
                     state.copy(noteSuggestions = suggestions, linkedFrom = linkedFrom)
                 }.stateIn(viewModelScope, SharingStarted.Eagerly, EditorUiState())
@@ -312,6 +324,24 @@ class EditorViewModel
         /** Applies [change] to the tool options (stored as they change). */
         fun updateOptions(change: (ToolOptions) -> ToolOptions) {
             mutableSession.value?.updateOptions(change)
+        }
+
+        /** Imports the font file [source] (the panel's "Import font") and picks its family for new text. */
+        fun importFont(source: FontSource) {
+            viewModelScope.launch {
+                when (val result = fonts.import(source)) {
+                    is Outcome.Success -> {
+                        val family = result.value.info.familyName
+                        updateOptions { it.copy(text = it.text.copy(fontFamily = family)) }
+                        mutableEvents.send(EditorEvent.Notice("Imported $family"))
+                    }
+
+                    is Outcome.Failure -> {
+                        FolioLog.w(TAG, "font import: ${result.message}", result.cause)
+                        mutableEvents.send(EditorEvent.Notice("Not a font Folio can use (.ttf or .otf)"))
+                    }
+                }
+            }
         }
 
         /** Opens [popover] over the options row, or closes it (null). */

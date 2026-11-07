@@ -41,12 +41,15 @@ import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.ink.brush.PressureCurve
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
+import dev.folio.core.text.fonts.TextFontFamily
+import dev.folio.feature.editor.state.BUNDLED_FONTS
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.LassoFilter
 import dev.folio.feature.editor.state.LassoOptions
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.PEN_KINDS
 import dev.folio.feature.editor.state.ToolOptions
+import kotlinx.collections.immutable.ImmutableList
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -67,6 +70,8 @@ internal fun ToolSettingsPanel(
     onChange: OptionsChange,
     onPopover: (OptionsPopover?) -> Unit,
     modifier: Modifier = Modifier,
+    fonts: ImmutableList<TextFontFamily> = BUNDLED_FONTS,
+    onImportFont: () -> Unit = {},
 ) {
     PopoverCard(tool.label, modifier, onClose = { onPopover(null) }) {
         Column(
@@ -78,6 +83,7 @@ internal fun ToolSettingsPanel(
                 EditorTool.HIGHLIGHTER -> HighlighterSettings(options, onChange, onPopover)
                 EditorTool.ERASER -> EraserSettings(options.eraser, onChange, onPopover)
                 EditorTool.LASSO -> LassoSettings(options.lasso, onChange)
+                EditorTool.TEXT -> TextSettings(options.text, fonts, onChange, onImportFont)
                 else -> Unit
             }
         }
@@ -209,12 +215,12 @@ private fun ColorSection(
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+internal fun SectionLabel(text: String) {
     Text(text, style = FolioTheme.type.label, color = FolioTheme.colors.textSecondary)
 }
 
 @Composable
-private fun PanelDivider() {
+internal fun PanelDivider() {
     HorizontalDivider(thickness = FolioTheme.space.borderWidth, color = FolioTheme.colors.divider)
 }
 

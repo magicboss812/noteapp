@@ -6,6 +6,12 @@ import dev.folio.core.ink.brush.PressureCurve
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
+import dev.folio.core.model.FlowStyle
+import dev.folio.core.model.TextAlign
+import dev.folio.core.text.fonts.BodySize
+import dev.folio.core.text.fonts.FontRegistry
+import dev.folio.core.text.fonts.TextRole
+import dev.folio.core.text.fonts.TextSizing
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
@@ -13,6 +19,8 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.collections.immutable.toImmutableSet
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /** Brush kinds of the pen tool, in options-row order (the highlighter is its own tool). */
 val PEN_KINDS: ImmutableList<BrushKind> =
@@ -183,6 +191,44 @@ data class LassoOptions(
         }
 }
 
+/**
+ * Text tool options (10-editor-ui.md#tool-options): font family and body size of new text flows. [bodyCap] is the
+ * body cap height as a fraction of U, a [BodySize] preset or a free value (A-039), kept on 0.01 steps.
+ */
+@Immutable
+data class TextOptions(
+    val fontFamily: String = FontRegistry.DEFAULT_FAMILY,
+    val bodyCap: Float = BodySize.M.capFraction,
+) {
+    init {
+        require(fontFamily.isNotBlank()) { "font family name" }
+        require(bodyCap in TextSizing.MIN_BODY_CAP..TextSizing.MAX_BODY_CAP) { "body size out of range" }
+    }
+
+    /** The preset [bodyCap] equals, null for a free size. */
+    val preset: BodySize? get() = BodySize.entries.firstOrNull { abs(it.capFraction - bodyCap) < SIZE_STEP / 2 }
+
+    /** Height of a body line box in grid lines (1 for S/M/L, up to 3 for the largest sizes). */
+    val bodyLines: Int get() = TextSizing.boxUnits(TextRole.BODY, bodyCap)
+
+    /** Size [cap], clamped to the free range and rounded to a 0.01 step. */
+    fun withBodyCap(cap: Float): TextOptions {
+        // Divide (not multiply by SIZE_STEP): n / 100f is the float nearest n/100, so the range ends stay inside.
+        val rounded = (TextSizing.clampBodyCap(cap) * STEPS_PER_UNIT).roundToInt() / STEPS_PER_UNIT
+        return copy(bodyCap = rounded.coerceIn(TextSizing.MIN_BODY_CAP, TextSizing.MAX_BODY_CAP))
+    }
+
+    /** The style new flows get. */
+    fun flowStyle(): FlowStyle = FlowStyle(fontFamily, bodyCap, 0, TextAlign.START)
+
+    /** Steps. */
+    companion object {
+        /** Free size step (cap fraction of U). */
+        const val SIZE_STEP = 0.01f
+        private const val STEPS_PER_UNIT = 100f
+    }
+}
+
 /** Last options of every tool (persisted by [ToolOptionsStore]) plus the color picker's recent colors. */
 @Immutable
 data class ToolOptions(
@@ -192,6 +238,7 @@ data class ToolOptions(
     /** Most recent custom colors first, at most [MAX_RECENT_COLORS]. */
     val recentColors: ImmutableList<Int> = persistentListOf(),
     val lasso: LassoOptions = LassoOptions(),
+    val text: TextOptions = TextOptions(),
 ) {
     /** [argb] moves to the front of [recentColors]. */
     fun withRecentColor(argb: Int): ToolOptions =

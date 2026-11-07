@@ -28,9 +28,12 @@ import dev.folio.core.designsystem.component.FolioDialog
 import dev.folio.core.designsystem.component.FolioPopover
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.ink.brush.PressureCurve
+import dev.folio.core.text.fonts.TextFontFamily
+import dev.folio.feature.editor.state.BUNDLED_FONTS
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.ToolOptions
+import kotlinx.collections.immutable.ImmutableList
 import java.util.Locale
 
 // Flyouts next to a side rail start level with the options rail (its top gap).
@@ -68,6 +71,8 @@ internal fun OptionsPopoverLayer(
     onClearPage: () -> Unit,
     modifier: Modifier = Modifier,
     anchor: PopoverAnchor = PopoverAnchor.BelowRow,
+    fonts: ImmutableList<TextFontFamily> = BUNDLED_FONTS,
+    onImportFont: () -> Unit = {},
 ) {
     val close by rememberUpdatedState { onPopover(null) }
     when (popover) {
@@ -102,7 +107,7 @@ internal fun OptionsPopoverLayer(
                 val card = Modifier.padding(anchor.padding)
                 when (popover) {
                     is OptionsPopover.ToolSettings -> {
-                        ToolSettingsPanel(popover.tool, options, onChange, onPopover, card)
+                        ToolSettingsPanel(popover.tool, options, onChange, onPopover, card, fonts, onImportFont)
                     }
 
                     is OptionsPopover.WidthEditor -> {

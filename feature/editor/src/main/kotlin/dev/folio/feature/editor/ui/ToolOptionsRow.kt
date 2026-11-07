@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import dev.folio.core.designsystem.component.ColorDot
+import dev.folio.core.designsystem.component.FolioButton
+import dev.folio.core.designsystem.component.FolioButtonStyle
 import dev.folio.core.designsystem.component.FolioIconButton
 import dev.folio.core.designsystem.component.PillDivider
 import dev.folio.core.designsystem.component.PillGroup
@@ -33,10 +35,12 @@ import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
+import dev.folio.core.text.fonts.BodySize
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.LassoMode
 import dev.folio.feature.editor.state.LassoOptions
 import dev.folio.feature.editor.state.OptionsPopover
+import dev.folio.feature.editor.state.TextOptions
 import dev.folio.feature.editor.state.ToolOptions
 import dev.folio.feature.editor.state.hasSettings
 import kotlinx.collections.immutable.persistentListOf
@@ -49,6 +53,9 @@ internal val POPOVER_GAP = 6.dp
 /** Names of the three width presets. */
 internal val WIDTH_LABELS = listOf("Small", "Medium", "Large")
 private val ERASER_MODES = persistentListOf("Stroke", "Partial")
+
+/** Labels of the body size presets S, M, L ([BodySize] order). */
+internal val SIZE_LABELS = persistentListOf("S", "M", "L")
 
 /** Edits the tool options: receives the change to apply to the current options. */
 internal typealias OptionsChange = ((ToolOptions) -> ToolOptions) -> Unit
@@ -117,6 +124,7 @@ internal fun ToolOptionsRow(
                         EditorTool.PEN -> PenOptionsContent(options, onChange, onPopover, vertical)
                         EditorTool.HIGHLIGHTER -> HighlighterOptionsContent(options, onChange, onPopover, vertical)
                         EditorTool.LASSO -> LassoOptionsContent(options.lasso, onChange)
+                        EditorTool.TEXT -> TextOptionsContent(options.text, onChange, { onSettings(shown) }, vertical)
                         else -> EraserOptionsContent(options.eraser, onChange, vertical)
                     }
                     Divider(vertical)
@@ -186,6 +194,29 @@ private fun EraserOptionsContent(
             ring = true,
         )
     }
+}
+
+// Font family (opens the panel's picker) | body size presets; a free size from the panel selects none.
+@Suppress("MultipleEmitters") // Pill items for the caller's Row or Column, which differ by dock mode.
+@Composable
+private fun TextOptionsContent(
+    text: TextOptions,
+    onChange: OptionsChange,
+    onFonts: () -> Unit,
+    vertical: Boolean,
+) {
+    if (vertical) {
+        FolioIconButton(FolioIcons.Type, "Font ${text.fontFamily}", onClick = onFonts)
+    } else {
+        FolioButton(label = text.fontFamily, onClick = onFonts, style = FolioButtonStyle.Text)
+    }
+    Divider(vertical)
+    SegmentedTabs(
+        tabs = SIZE_LABELS,
+        selectedIndex = text.preset?.ordinal ?: -1,
+        onSelect = { index -> onChange { it.copy(text = it.text.withBodyCap(BodySize.entries[index].capFraction)) } },
+        vertical = vertical,
+    )
 }
 
 @Composable

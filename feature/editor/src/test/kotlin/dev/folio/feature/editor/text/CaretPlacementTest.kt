@@ -4,12 +4,15 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.common.Outcome
 import dev.folio.core.model.FlowFrame
+import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.FrameRole
 import dev.folio.core.model.PageId
+import dev.folio.core.model.TextAlign
 import dev.folio.core.storage.repo.NewDocumentSpec
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.text.markdown.BlockContent
 import dev.folio.feature.editor.state.EditorSession
+import dev.folio.feature.editor.state.TextOptions
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -203,6 +206,22 @@ class CaretPlacementTest : EditorTextFixture() {
             ).isEqualTo("H")
             assertThat(session.frames(pages[0]).single().role).isEqualTo(FrameRole.BODY)
             assertThat(focus.caret).isEqualTo(1)
+        }
+
+    @Test
+    fun typeIntoPage_textToolOptions_newFlowTakesTheirFontAndSize() =
+        runTest(main.testDispatcher) {
+            val path = blankNote(1)
+            val (session, text, pages) = ready(path, this)
+            session.updateOptions { it.copy(text = TextOptions("Kalam").withBodyCap(0.6f)) }
+
+            checkNotNull(session.textController).typeIntoPage(pages[0], "H")
+            val focus = text.focus.first { it != null }!!
+
+            assertThat(
+                session.documentSession.document.value.flows[focus.flowId]!!
+                    .style,
+            ).isEqualTo(FlowStyle("Kalam", 0.6f, 0, TextAlign.START))
         }
 
     @Test

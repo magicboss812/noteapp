@@ -5,6 +5,7 @@ import dev.folio.core.ink.brush.BrushPresets
 import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
+import dev.folio.core.text.fonts.TextSizing
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -25,7 +26,8 @@ class ToolOptionsStoreTest {
             }
         // Panel-only values: an eraser radius between the row 2 sizes and narrowed lasso filters.
         val lasso = LassoOptions(LassoMode.RECTANGLE).toggle(LassoFilter.TEXT).toggle(LassoFilter.IMAGES)
-        return ToolOptions(pen, highlighter, EraserOptions(EraserMode.PARTIAL, 17f, highlighterOnly = true), lasso = lasso)
+        val text = TextOptions("Kalam").withBodyCap(0.83f)
+        return ToolOptions(pen, highlighter, EraserOptions(EraserMode.PARTIAL, 17f, highlighterOnly = true), lasso = lasso, text = text)
             .withRecentColor(0xFF0A0B0C.toInt())
     }
 
@@ -73,5 +75,12 @@ class ToolOptionsStoreTest {
             .containsExactly(BrushPresets.MIN_WIDTH_PT, 1f, BrushPresets.MAX_WIDTH_PT)
             .inOrder()
         assertThat(decoded.pen.pressureGamma).isEqualTo(2f)
+    }
+
+    @Test
+    fun decode_textSizeOutOfRangeOrBlankFamily_clampedOrDefaults() {
+        assertThat(ToolOptionsStore.decode("""{"text":{"fontFamily":"Kalam","bodyCap":7}}""").text)
+            .isEqualTo(TextOptions("Kalam", TextSizing.MAX_BODY_CAP))
+        assertThat(ToolOptionsStore.decode("""{"text":{"fontFamily":" "}}""")).isEqualTo(ToolOptions())
     }
 }

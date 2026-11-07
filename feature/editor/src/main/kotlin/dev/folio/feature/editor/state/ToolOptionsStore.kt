@@ -7,6 +7,8 @@ import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
 import dev.folio.core.storage.settings.SettingsStore
+import dev.folio.core.text.fonts.BodySize
+import dev.folio.core.text.fonts.FontRegistry
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.collections.immutable.toImmutableSet
@@ -104,6 +106,12 @@ private data class LassoJson(
 )
 
 @Serializable
+private data class TextJson(
+    val fontFamily: String = FontRegistry.DEFAULT_FAMILY,
+    val bodyCap: Float = BodySize.M.capFraction,
+)
+
+@Serializable
 private data class ToolOptionsJson(
     val version: Int = 1,
     val pen: PenJson = PenJson(),
@@ -111,6 +119,7 @@ private data class ToolOptionsJson(
     val eraser: EraserJson = EraserJson(),
     val recentColors: List<Int> = emptyList(),
     val lasso: LassoJson = LassoJson(),
+    val text: TextJson = TextJson(),
 )
 
 private fun Swatches.toJson() = SwatchesJson(colors, selected)
@@ -128,6 +137,7 @@ private fun ToolOptions.toJson() =
         eraser = EraserJson(eraser.mode, eraser.radiusPt, eraser.highlighterOnly),
         recentColors = recentColors,
         lasso = LassoJson(lasso.mode, lasso.filters),
+        text = TextJson(text.fontFamily, text.bodyCap),
     )
 
 private fun ToolOptionsJson.toOptions(): ToolOptions {
@@ -149,5 +159,7 @@ private fun ToolOptionsJson.toOptions(): ToolOptions {
         eraser = EraserOptions(eraser.mode, eraser.radiusPt, eraser.highlighterOnly),
         recentColors = recentColors.take(ToolOptions.MAX_RECENT_COLORS).toImmutableList(),
         lasso = LassoOptions(lasso.mode, lasso.filters.toImmutableSet()),
+        // A blank family name breaks the invariant (whole options fall back); a size out of range is clamped.
+        text = TextOptions(text.fontFamily).withBodyCap(text.bodyCap),
     )
 }

@@ -30,8 +30,10 @@ import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.testing.TempDirFolioFs
 import dev.folio.core.testing.TestDispatchersRule
 import dev.folio.core.text.flow.TapTarget
+import dev.folio.core.text.fonts.FontLibrary
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasTool
+import dev.folio.feature.editor.text.EditorFonts
 import dev.folio.feature.editor.text.TextTestEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -122,6 +124,7 @@ class EditorViewModelTest {
                         ToolbarDockStore(settings),
                         TextTestEngine.create(ApplicationProvider.getApplicationContext()),
                         NoteLinks(db.dao(), main.dispatchers),
+                        EditorFonts(FontLibrary(null), main.dispatchers),
                     )
                 }
             },

@@ -54,10 +54,13 @@ import kotlin.math.roundToInt
 class BlockLayouter(
     private val resolver: FontFamily.Resolver,
     private val metrics: FontMetricsCache,
-    private val registry: FontRegistry = FontRegistry.Bundled,
+    /** The families to lay out with; a new registry (fonts imported) drops the cached layouts. */
+    private val fonts: () -> FontRegistry = { FontRegistry.Bundled },
     private val maxCached: Int = DEFAULT_CACHE_SIZE,
     private val math: MathRenderer? = null,
 ) {
+    @Volatile private var registry: FontRegistry = fonts()
+
     private data class Key(
         val source: String,
         val widthPt: Float,
@@ -82,6 +85,12 @@ class BlockLayouter(
         style: FlowTextStyle,
         grid: LayoutGrid,
     ): BlockLayout {
+        val current = fonts()
+        if (current !== registry) {
+            // Imported fonts changed what a family name resolves to: earlier layouts may use a fallback.
+            clear()
+            registry = current
+        }
         val keyStyle = styleFor(block.content, style)
         val key = Key(block.source, widthPt, keyStyle, grid)
         synchronized(cache) { cache[key] }?.let { return it }

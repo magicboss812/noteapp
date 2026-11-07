@@ -7,6 +7,8 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.FileUriExposedException
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -108,9 +110,18 @@ fun EditorRoute(
                 EditorEvent.NoteNotFound -> {
                     launch { snackbars.showSnackbar("Note not found") }
                 }
+
+                is EditorEvent.Notice -> {
+                    launch { snackbars.showSnackbar(event.text) }
+                }
             }
         }
     }
+    // "Import font" (text settings panel): the system picker, then the file is read on the io dispatcher.
+    val fontPicker =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) viewModel.importFont { context.contentResolver.openInputStream(uri) }
+        }
     EditorScreen(
         state = state,
         onBack = onBack,
@@ -151,11 +162,16 @@ fun EditorRoute(
         onPickNote = viewModel::insertNoteLink,
         onLinkedFrom = viewModel::showLinkedFrom,
         onOpenBacklink = viewModel::openBacklink,
+        onImportFont = { fontPicker.launch(FONT_MIME_TYPES) },
         snackbars = snackbars,
     ) { canvasModifier ->
         session?.let { EditorCanvas(it, canvasListener, canvasModifier, viewModel::onKey) }
     }
 }
+
+// Font files as providers label them; many label .ttf/.otf as plain binary, so that is offered too (the import validates).
+private val FONT_MIME_TYPES =
+    arrayOf("font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
 
 // The printable character a key without Ctrl or Alt types (keyboard typing with nothing focused), null for others.
 private fun typedText(event: KeyEvent): String? {
@@ -225,6 +241,7 @@ fun EditorScreen(
     onPickNote: (NoteChoice) -> Unit = {},
     onLinkedFrom: (Boolean) -> Unit = {},
     onOpenBacklink: (NoteChoice) -> Unit = {},
+    onImportFont: () -> Unit = {},
     snackbars: SnackbarHostState = remember { SnackbarHostState() },
     canvas: @Composable (Modifier) -> Unit,
 ) {
@@ -320,6 +337,8 @@ fun EditorScreen(
                 onClearPage,
                 modifier = Modifier.besideToolbox(placement.mode, metrics),
                 anchor = placement.mode.popoverAnchor,
+                fonts = state.fonts,
+                onImportFont = onImportFont,
             )
             if (state.showHelp) ShortcutHelp(shortcutGroups, onClose = { onHelp(false) })
         }

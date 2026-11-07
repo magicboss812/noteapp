@@ -8,6 +8,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import dev.folio.core.model.GridUnit
 import dev.folio.core.text.fonts.FontMetricsCache
+import dev.folio.core.text.fonts.FontRegistry
 import dev.folio.core.text.markdown.BlockContent
 import dev.folio.core.text.markdown.MarkdownBlock
 import dev.folio.core.text.markdown.MarkdownDocument
@@ -134,6 +135,19 @@ class BlockLayouterTest {
         val broken = layouter.layout(linked, WIDTH_PT, style.copy(brokenLinks = setOf("bbb", "zzz")), lined)
         assertThat(broken).isNotSameInstanceAs(firstLinked)
         assertThat(layouter.layout(linked, WIDTH_PT, style.copy(brokenLinks = setOf("bbb")), lined)).isSameInstanceAs(broken)
+    }
+
+    @Test
+    fun layout_newFontRegistry_dropsCachedLayouts() {
+        var registry = FontRegistry.Bundled
+        val layouter = BlockLayouter(resolver, metrics, fonts = { registry })
+        val paragraph = block("Some cached text")
+        val first = layouter.layout(paragraph, WIDTH_PT, style, lined)
+
+        assertThat(layouter.layout(paragraph, WIDTH_PT, style, lined)).isSameInstanceAs(first)
+        registry = FontRegistry()
+        assertThat(layouter.layout(paragraph, WIDTH_PT, style, lined)).isNotSameInstanceAs(first)
+        assertThat(layouter.cachedCount).isEqualTo(1)
     }
 
     @Test

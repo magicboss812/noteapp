@@ -10,8 +10,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.folio.core.text.flow.FlowLayouter
 import dev.folio.core.text.flow.FlowReflow
+import dev.folio.core.text.fonts.CustomFontStore
+import dev.folio.core.text.fonts.FontLibrary
 import dev.folio.core.text.fonts.FontMetricsCache
-import dev.folio.core.text.fonts.FontRegistry
 import dev.folio.core.text.layout.BlockLayouter
 import dev.folio.core.text.math.JLatexMathRenderer
 import dev.folio.core.text.math.MathRenderer
@@ -37,14 +38,19 @@ internal object TextModule {
         @ApplicationContext context: Context,
     ): MathRenderer = JLatexMathRenderer(context)
 
-    // Imported fonts join the registry with the font picker (P06-T10).
+    // The store needs the app files and library roots of core:storage, so feature:editor provides it.
+    @Provides
+    @Singleton
+    fun fontLibrary(store: CustomFontStore): FontLibrary = FontLibrary(store)
+
     @Provides
     @Singleton
     fun blockLayouter(
         resolver: FontFamily.Resolver,
         metrics: FontMetricsCache,
         math: MathRenderer,
-    ): BlockLayouter = BlockLayouter(resolver, metrics, FontRegistry.Bundled, math = math)
+        fonts: FontLibrary,
+    ): BlockLayouter = BlockLayouter(resolver, metrics, fonts::current, math = math)
 
     @Provides
     @Singleton

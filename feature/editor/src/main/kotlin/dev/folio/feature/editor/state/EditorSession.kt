@@ -89,7 +89,8 @@ class EditorSession(
     override val mainDispatcher: CoroutineDispatcher =
         (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
 
-    override val textController: TextController? = text?.let { TextEditor(it, ::editText, scope, mainDispatcher, ::execute) }
+    override val textController: TextController? =
+        text?.let { TextEditor(it, ::editText, scope, mainDispatcher, ::execute, newFlowStyle = { mutableOptions.value.text.flowStyle() }) }
 
     // Built once per options change, not per stylus down.
     private var penBrush = initialOptions.pen.brush(BRUSH_VERSION)

@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.work.Configuration
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
@@ -15,6 +16,8 @@ import dev.folio.core.common.LogSink
 import dev.folio.core.common.PerfMonitor
 import dev.folio.core.common.TraceSink
 import dev.folio.core.storage.session.DocumentSessions
+import dev.folio.feature.editor.text.EditorFonts
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -23,6 +26,9 @@ class FolioApplication :
     Configuration.Provider {
     @Inject
     lateinit var sessions: Lazy<DocumentSessions>
+
+    @Inject
+    lateinit var fonts: Lazy<EditorFonts>
 
     override val workManagerConfiguration: Configuration = Configuration.Builder().build()
 
@@ -33,8 +39,13 @@ class FolioApplication :
         PerfMonitor.traceSink = PlatformTraceSink
         PerfMonitor.enabled = BuildConfig.DEBUG
         // App to background: pack every open document (04-file-format.md#write-protocol). Lazy: no storage work at start.
+        // Process start: imported fonts sync with the library folder off the main thread (07-text-engine.md#fonts).
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             object : DefaultLifecycleObserver {
+                override fun onCreate(owner: LifecycleOwner) {
+                    owner.lifecycleScope.launch { fonts.get().sync() }
+                }
+
                 override fun onStop(owner: LifecycleOwner) = sessions.get().onAppStop()
             },
         )

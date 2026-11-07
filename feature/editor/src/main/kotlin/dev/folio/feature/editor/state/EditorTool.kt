@@ -27,4 +27,6 @@ enum class EditorTool(
 
 /** Whether [this] tool has a tool settings panel (10-editor-ui.md#tool-options): tapping it again when selected opens it. */
 val EditorTool.hasSettings: Boolean
-    get() = this == EditorTool.PEN || this == EditorTool.HIGHLIGHTER || this == EditorTool.ERASER || this == EditorTool.LASSO
+    get() = this in WITH_SETTINGS
+
+private val WITH_SETTINGS = setOf(EditorTool.PEN, EditorTool.HIGHLIGHTER, EditorTool.ERASER, EditorTool.LASSO, EditorTool.TEXT)

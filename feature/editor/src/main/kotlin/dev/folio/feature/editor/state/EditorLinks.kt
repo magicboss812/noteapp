@@ -29,6 +29,11 @@ sealed interface EditorEvent {
 
     /** A note link whose note no longer exists (or a `[[Title]]` no note is named). */
     data object NoteNotFound : EditorEvent
+
+    /** A short message for the snackbar (font import result). */
+    data class Notice(
+        val text: String,
+    ) : EditorEvent
 }
 
 /** The note links of the document at [selfPath] with id [selfId]: link taps, the `[[` picker and Linked from. */

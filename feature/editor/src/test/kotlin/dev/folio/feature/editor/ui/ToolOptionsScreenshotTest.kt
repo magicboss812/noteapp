@@ -5,21 +5,31 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.text.font.FontFamily
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
+import dev.folio.core.text.fonts.FontGroup
+import dev.folio.core.text.fonts.TextFontFamily
+import dev.folio.feature.editor.state.BUNDLED_FONTS
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.LassoFilter
 import dev.folio.feature.editor.state.LassoMode
 import dev.folio.feature.editor.state.LassoOptions
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.PenOptions
+import dev.folio.feature.editor.state.TextOptions
 import dev.folio.feature.editor.state.ToolOptions
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -90,11 +100,44 @@ class ToolOptionsScreenshotTest {
         compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_lasso.png")
     }
 
+    @Test
+    fun row_textDefaults_fontAndSizePresets() {
+        row(EditorTool.TEXT)
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_text.png")
+    }
+
+    @Test
+    fun row_textFreeSizeSerifDark_noPresetSelected() {
+        row(EditorTool.TEXT, ToolOptions(text = TextOptions("Source Serif 4").withBodyCap(0.7f)), dark = true)
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_textFreeDark.png")
+    }
+
     private fun panel(
         tool: EditorTool,
         options: ToolOptions = ToolOptions(),
         dark: Boolean = false,
-    ) = show(dark) { ToolSettingsPanel(tool, options, onChange = {}, onPopover = {}) }
+        fonts: ImmutableList<TextFontFamily> = BUNDLED_FONTS,
+    ) = show(dark) { ToolSettingsPanel(tool, options, onChange = {}, onPopover = {}, fonts = fonts) }
+
+    @Test
+    fun panel_textDefaults_sizePresetsSliderFontGroups() {
+        panel(EditorTool.TEXT)
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolSettings_text.png")
+    }
+
+    @Test
+    fun panel_textImportedFontDark_scrolledToImportButton() {
+        val imported = TextFontFamily("My Hand", FontGroup.IMPORTED, FontFamily.Cursive)
+        panel(
+            EditorTool.TEXT,
+            ToolOptions(text = TextOptions("My Hand").withBodyCap(1.2f)),
+            dark = true,
+            (BUNDLED_FONTS + imported).toImmutableList(),
+        )
+        compose.onNodeWithText("Import font").performScrollTo()
+        compose.onNodeWithText("My Hand").assertIsSelected()
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolSettings_textImportedDark.png")
+    }
 
     @Test
     fun panel_penFountain_previewKindsSlidersColors() {
