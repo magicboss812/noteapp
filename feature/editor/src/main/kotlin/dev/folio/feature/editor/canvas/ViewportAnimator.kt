@@ -49,6 +49,14 @@ internal class ViewportAnimator(
         start(Kind.SCROLL, viewport.offsetYPx, viewport.offsetYForPageTop(index), durationMs)
     }
 
+    /** Scrolls the content by [dyPx] (positive moves it down) over [durationMs], from where it is now. */
+    fun scrollBy(
+        dyPx: Float,
+        durationMs: Long,
+    ) {
+        start(Kind.SCROLL, viewport.offsetYPx, viewport.offsetYPx + dyPx, durationMs)
+    }
+
     /** Stops a running animation where it is. */
     fun cancel() {
         choreographer.removeFrameCallback(frame)

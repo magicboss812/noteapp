@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
@@ -533,6 +535,28 @@ private val DockMode.edge: Edge
 @OptIn(ExperimentalLayoutApi::class) // systemBarsIgnoringVisibility: no stable equivalent in foundation-layout
 internal val chromeInsets: WindowInsets
     @Composable get() = WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout).union(WindowInsets.ime)
+
+/**
+ * Reports to [onCover] how far up from the window bottom the chrome covers the canvas, px: the keyboard's target
+ * height (or the navigation bar) plus a bottom-docked toolbox above it, so the canvas keeps the caret line clear
+ * (P06-T18).
+ */
+@OptIn(ExperimentalLayoutApi::class) // imeAnimationTarget: the keyboard's final height at the start of its animation
+@Composable
+internal fun ReportCanvasCovered(
+    onCover: (Int) -> Unit,
+    mode: DockMode,
+    readMode: Boolean,
+    metrics: ChromeMetrics,
+) {
+    val density = LocalDensity.current
+    val keyboardPx = WindowInsets.imeAnimationTarget.getBottom(density)
+    val barsPx = WindowInsets.systemBarsIgnoringVisibility.getBottom(density)
+    val toolboxPx =
+        if (mode == DockMode.BOTTOM && !readMode) metrics.toolbox.height + with(density) { TOOLBOX_BOTTOM.roundToPx() } else 0
+    val coveredPx = maxOf(keyboardPx, barsPx) + toolboxPx
+    SideEffect { onCover(coveredPx) }
+}
 
 /**
  * Read mode visibility in the layer only (no composition per frame or on show): [shown] (read in the layer)

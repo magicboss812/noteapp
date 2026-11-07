@@ -206,10 +206,17 @@ class CanvasHostView internal constructor(
             controller,
             isDrawn = { contentTiles.drawsBlockOf(it, controller.viewport, width.toFloat(), height.toFloat()) },
             invalidateTiles = ::invalidateLayers,
+            onCaretChanged = { caret.check() },
         ) { document }
 
     /** The live text field once a block was focused, null before (tests and debug automation read its state). */
     internal val liveTextField: LiveTextField? get() = textField.liveField
+
+    /** Keeps the caret line above the keyboard and the toolbox; CanvasHost sets what the chrome covers. */
+    internal val caret: CaretKeeper =
+        CaretKeeper(this, CARET_MARGIN_DP * resources.displayMetrics.density, { textField.liveField }) {
+            animator.scrollBy(it, KEY_ANIMATION_MS)
+        }
 
     /** The live field's host (tests read the tiles-to-field handoff, P06-T18). */
     internal val textFields: TextFieldHost get() = textField
@@ -816,6 +823,9 @@ class CanvasHostView internal constructor(
         private const val KEY_ZOOM_STEP = 1.25f
         private const val KEY_ANIMATION_MS = 150L
         private const val PAGE_JUMP_MS = 200L
+
+        // Room kept between the caret line and the view top or the chrome covering the canvas bottom.
+        private const val CARET_MARGIN_DP = 24f
     }
 }
 

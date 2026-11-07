@@ -31,6 +31,7 @@ internal class TextFieldHost(
     private val controller: CanvasController,
     isDrawn: (TextFieldSpec) -> Boolean,
     private val invalidateTiles: () -> Unit,
+    private val onCaretChanged: () -> Unit,
     private val document: () -> Document?,
 ) {
     private var view: LiveTextField? = null
@@ -141,6 +142,7 @@ internal class TextFieldHost(
             it.onShortcut = { keyCode, ctrl, shift, alt -> onShortcut(keyCode, ctrl, shift, alt) }
             it.onEscape = { controller.textController?.blur() }
             it.onVertical = ::moveVertically
+            it.onCaretChanged = onCaretChanged
             overlay.addView(it)
             view = it
         }

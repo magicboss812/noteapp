@@ -78,6 +78,10 @@ internal class LiveTextField(
      */
     var onSelection: ((Int, Int) -> Unit)? = null
 
+    /** Runs in the first draw after the caret moved or the block changed (the host keeps the caret line in view). */
+    var onCaretChanged: (() -> Unit)? = null
+    private var caretMoved = false
+
     // Time of the tap that focused the shown block (System.nanoTime), recorded as `text:caret` on the next draw; 0 when none.
     private var tapNs = 0L
 
@@ -162,6 +166,7 @@ internal class LiveTextField(
         if (spec !== synced) {
             sync(spec)
             synced = spec
+            caretMoved = true // a new block or a new layout of it: its caret line may sit elsewhere
         } else if (appliedDims == null && TextUtils.equals(text, spec.text)) {
             dim(spec, replaced = false) // restyled (mask, color): the markers take the new color
         }
@@ -186,6 +191,7 @@ internal class LiveTextField(
         selEnd: Int,
     ) {
         super.onSelectionChanged(selStart, selEnd)
+        caretMoved = true
         onSelection?.invoke(selStart, selEnd)
     }
 
@@ -195,7 +201,20 @@ internal class LiveTextField(
             PerfMonitor.record(TRACE_CARET, System.nanoTime() - tapNs)
             tapNs = 0L
         }
+        // The text layout is current here, so the caret line is where the next frame shows it.
+        if (caretMoved) {
+            caretMoved = false
+            onCaretChanged?.invoke()
+        }
     }
+
+    /** Top of the caret's line in the host view, px (the field scales around its top-left corner). */
+    fun caretLineTopPx(): Float = translationY + (totalPaddingTop + (layout?.let { it.getLineTop(caretLine(it)) } ?: 0)) * scaleY
+
+    /** Bottom of the caret's line in the host view, px. */
+    fun caretLineBottomPx(): Float = translationY + (totalPaddingTop + (layout?.let { it.getLineBottom(caretLine(it)) } ?: height)) * scaleY
+
+    private fun caretLine(layout: Layout): Int = layout.getLineForOffset(selectionEnd.coerceAtLeast(0))
 
     /** Moves the field with the viewport. */
     fun place(

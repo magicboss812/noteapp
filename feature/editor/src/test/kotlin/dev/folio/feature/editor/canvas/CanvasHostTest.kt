@@ -13,6 +13,7 @@ import android.view.PointerIcon
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
@@ -71,10 +72,11 @@ class CanvasHostTest {
     private val controller = FakeCanvasController(pages = 20)
     private var host: CanvasHostView? = null
     private var wet: FakeWetSurface? = null
+    private val coveredPx = mutableIntStateOf(0)
 
     private fun show() {
         compose.setContent {
-            CanvasHost(controller, Modifier.fillMaxSize(), onHost = { host = it }) { context ->
+            CanvasHost(controller, Modifier.fillMaxSize(), onHost = { host = it }, coveredBottomPx = coveredPx.intValue) { context ->
                 CanvasHostView(context, controller) {
                     FakeWetSurface(it).also { surface -> wet = surface }
                 }
@@ -159,7 +161,10 @@ class CanvasHostTest {
     }
 
     // A one-line paragraph focused on the first page, shown as the live field.
-    private fun showFocusedField(texts: FakeTextController): LiveTextField {
+    private fun showFocusedField(
+        texts: FakeTextController,
+        topPt: Float = 100f,
+    ): LiveTextField {
         val page =
             controller.document.value.pages[0]
                 .id
@@ -169,7 +174,7 @@ class CanvasHostTest {
             BlockLayouter(resolver, FontMetricsCache(resolver))
                 .layout(block, 400f, FlowTextStyle(), LayoutGrid(unitPt = 20f, indentStepPt = 20f))
         val focus = TextFocus(FlowId("body"), block.id, 0, 0, 1)
-        val spec = TextFieldSpec(focus, block, layout, BlockPlacement(0, page, 40f, 100f, 400f))
+        val spec = TextFieldSpec(focus, block, layout, BlockPlacement(0, page, 40f, topPt, 400f))
         compose.runOnUiThread {
             texts.field.value = spec
             controller.canvasText.value = CanvasText(emptyMap(), spec)
@@ -192,6 +197,25 @@ class CanvasHostTest {
         assertThat(field.visibility).isEqualTo(View.GONE)
         assertThat(hostView().textFields.isHandingOff).isFalse()
         assertThat(hostView().textFields.ghostView).isNull()
+    }
+
+    @Test
+    fun focusedFieldLowOnThePage_keyboardComesUp_scrollsTheCaretLineAboveIt() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val field = showFocusedField(texts, topPt = 300f)
+        val view = hostView()
+        val before = controller.viewport.offsetYPx
+        val lineBottomPx = field.caretLineBottomPx()
+        assertThat(lineBottomPx).isLessThan(view.height.toFloat())
+        val keyboardPx = (view.height - lineBottomPx + view.height / 4f).toInt()
+
+        compose.runOnUiThread { coveredPx.intValue = keyboardPx }
+        settle()
+
+        assertThat(controller.viewport.offsetYPx).isLessThan(before)
+        assertThat(field.caretLineBottomPx()).isAtMost(view.height - keyboardPx.toFloat())
+        assertThat(field.caretLineTopPx()).isAtLeast(0f)
     }
 
     private fun stylusDownUp(

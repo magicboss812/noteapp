@@ -19,7 +19,8 @@ import kotlinx.coroutines.withContext
  * Collectors run on [CanvasController.mainDispatcher]: the session publishes from worker threads, and the
  * effect dispatcher does not guarantee the main thread (Compose test rules resume on the emitter). [onKey] runs the
  * editor shortcut for a Ctrl or Alt chord typed in the live text field (key code, ctrl, shift, alt), which keeps the
- * key focus while a block is edited.
+ * key focus while a block is edited. [coveredBottomPx] is how far up from the window bottom the chrome covers the
+ * canvas (keyboard, bottom-docked toolbox); the caret line of the live field is kept above it.
  */
 @Composable
 fun CanvasHost(
@@ -27,7 +28,8 @@ fun CanvasHost(
     modifier: Modifier = Modifier,
     onHost: (CanvasHostView) -> Unit = {},
     onKey: (keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean) -> Boolean = { _, _, _, _ -> false },
-) = CanvasHost(controller, modifier, onHost, onKey) { CanvasHostView(it, controller) }
+    coveredBottomPx: Int = 0,
+) = CanvasHost(controller, modifier, onHost, onKey, coveredBottomPx) { CanvasHostView(it, controller) }
 
 /** [CanvasHost] with a custom view factory (tests swap the wet-ink surface). */
 @Composable
@@ -36,6 +38,7 @@ internal fun CanvasHost(
     modifier: Modifier = Modifier,
     onHost: (CanvasHostView) -> Unit = {},
     onKey: (keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean) -> Boolean = { _, _, _, _ -> false },
+    coveredBottomPx: Int = 0,
     createView: (Context) -> CanvasHostView,
 ) {
     key(controller) {
@@ -50,7 +53,10 @@ internal fun CanvasHost(
             modifier = modifier,
         )
         val view = host
-        SideEffect { view?.onShortcut = onKey }
+        SideEffect {
+            view?.onShortcut = onKey
+            view?.caret?.coveredBottomPx = coveredBottomPx
+        }
         LaunchedEffect(view) {
             if (view == null) return@LaunchedEffect
             withContext(controller.mainDispatcher) { controller.document.collect { view.setDocument(it) } }

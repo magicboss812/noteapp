@@ -24,8 +24,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -94,6 +96,8 @@ fun EditorRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
     val snackbars = remember { SnackbarHostState() }
+    // How far the chrome covers the canvas bottom (keyboard, toolbox): read by the canvas only, not the screen.
+    var coveredPx by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val openNote by rememberUpdatedState(onOpenNote)
     LaunchedEffect(viewModel) {
@@ -163,9 +167,10 @@ fun EditorRoute(
         onLinkedFrom = viewModel::showLinkedFrom,
         onOpenBacklink = viewModel::openBacklink,
         onImportFont = { fontPicker.launch(FONT_MIME_TYPES) },
+        onCanvasCover = { coveredPx = it },
         snackbars = snackbars,
     ) { canvasModifier ->
-        session?.let { EditorCanvas(it, canvasListener, canvasModifier, viewModel::onKey) }
+        session?.let { EditorCanvas(it, canvasListener, canvasModifier, viewModel::onKey, coveredPx) }
     }
 }
 
@@ -203,8 +208,9 @@ private fun EditorCanvas(
     listener: EditorCanvasListener?,
     modifier: Modifier = Modifier,
     onKey: (keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean) -> Boolean = { _, _, _, _ -> false },
+    coveredBottomPx: Int = 0,
 ) {
-    CanvasHost(session, modifier, onHost = { listener?.shown(session, it) }, onKey = onKey)
+    CanvasHost(session, modifier, onHost = { listener?.shown(session, it) }, onKey = onKey, coveredBottomPx = coveredBottomPx)
     DisposableEffect(session, listener) { onDispose { listener?.gone(session) } }
 }
 
@@ -242,6 +248,7 @@ fun EditorScreen(
     onLinkedFrom: (Boolean) -> Unit = {},
     onOpenBacklink: (NoteChoice) -> Unit = {},
     onImportFont: () -> Unit = {},
+    onCanvasCover: (Int) -> Unit = {},
     snackbars: SnackbarHostState = remember { SnackbarHostState() },
     canvas: @Composable (Modifier) -> Unit,
 ) {
@@ -326,6 +333,7 @@ fun EditorScreen(
             }
         }
         EditorChrome(state, placement, drag, gestures, metrics, actions)
+        ReportCanvasCovered(onCanvasCover, placement.mode, state.readMode, metrics)
         if (ready) {
             val safe = Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
             PageSurfaces(state.pages, pageThumbnail, pageActions, safe)
