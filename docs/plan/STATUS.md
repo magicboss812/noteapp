@@ -1,8 +1,8 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T10
-updated: 2026-10-24
+next: P06-T19
+updated: 2026-11-07
 
 ## Completed
 - P00 done 2026-09-27 (tag p00-done): AGP 9.4.1/Kotlin 2.4.20/Gradle 9.8.0, compileSdk 37.2, minSdk 35 (device SDK 36); qa green; instrumented smoke 1/1 on Pad 7; cold launch 786 ms; A-001..A-004.
@@ -33,4 +33,4 @@ updated: 2026-10-24
 - NEXT P06-T10 Text tool and instant creation.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`).
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]` seeds a body flow (use `open lined:N` with an unused N). Test APK installs need the user's Allow on the tablet.
-- Remaining P06 order: T10, T18, T14, T16, T17, T11. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.
+- Remaining P06 order: T19, T10, T18, T14, T16, T17, T11. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.

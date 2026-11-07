@@ -130,6 +130,16 @@ Accept:
 - [ ] screenshot: all block styles
 Verify: tests + screenshots
 
+### P06-T19 USER-CHECK fixes: table header bold, column removal, cell spaces, read-mode stylus taps
+Model: opus high
+Implements: R-TXT-02, R-ORG-02
+Read: 07-text-engine.md#tables, #block-styles-as-built; 10-editor-ui.md (read mode)
+Do: device-tester findings 2026-11-07 (P06-T08, P06-T09 USER-CHECKs). (1) Table header cells render at regular weight although layout asks for Bold; find where the weight is lost (e.g. variable-font instances of one resource) and fix it for every bold run. (2) "Remove column" removes the column left of the caret when the caret sits at the start of a cell's text or in an empty cell. (3) A space typed at the end of a cell's text is dropped. (4) In navigate (read) mode a stylus tap on a checkbox or link does nothing; pen and finger both tap links in read mode.
+Accept:
+- [ ] unit: bold text and table headers lay out with a bold face; removeColumn removes the caret's column for caret at cell start, end and in an empty cell; a trailing space typed in a cell stays; a stylus tap in read mode reaches the link/checkbox tap path
+- [ ] device: header visibly bold; remove column from an empty cell removes that column; "one more" typed in a cell keeps its space; stylus tap toggles a checkbox in read mode
+Verify: `./gradlew :core:text:testDebugUnitTest :feature:editor:testDebugUnitTest` + device-tester
+
 ### P06-T10 Text tool and instant creation
 Model: opus medium
 Implements: R-CORE-01, R-TXT-07

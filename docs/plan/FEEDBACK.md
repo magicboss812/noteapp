@@ -4,16 +4,13 @@ Claude turns `Open` entries into task blocks at every phase REVIEW (next-task sk
 Format: `- YYYY-MM-DD <what bothers you or what you want> [now]` (the date and `[now]` are optional).
 
 ## Open
-- 2026-11-07 (P06-T08 USER-CHECK, device-tester) table header row is not bold on lined or grid paper (layout asks for FontWeight.Bold; suspect the variable-font Bold instance of the same resource renders as Regular, which would hit all `**bold**` too); screens .device/screens/t08-lined-34-zoom.png [now]
-- 2026-11-07 (P06-T08 USER-CHECK, device-tester) "remove column" removes the column LEFT of the caret when the caret is at the start of a cell's text or in an empty cell (correct when the caret is at the end); suspect `TableSource.spanAt` `pipes[p] < offset` [now]
-- 2026-11-07 (P06-T08 USER-CHECK, device-tester) a space typed at the end of a table cell's text is dropped ("one" + " more" -> "onemore"); spaces in the middle work [now]
-- 2026-11-07 (P06-T09 USER-CHECK, device-tester) in navigate (read) mode a stylus tap on a checkbox or link does nothing (finger works); 10-editor-ui.md says pen and finger tap links in read mode; suspect FingerGestures.kt `tapCandidate = !stylus` [now]
-- 2026-11-07 (P06-T07/T15 USER-CHECKs, device-tester) with the soft keyboard up, the canvas does not scroll the caret line into view; the formatting bar and tool row float up over the lines being typed, later lines sit behind the keyboard [now]
 - 2026-11-07 (P06-T07 USER-CHECK, device-tester) the math error popup is anchored far right (x~2400-3000 px) instead of at the bad formula (x~460-1000 px)
 - 2026-11-07 (P06-T15 USER-CHECK, device-tester) opening another note can leave the soft keyboard up with nothing focused; Esc does not close it, Back does
 - 2026-11-07 (P06-T09 USER-CHECK, device-tester) the task checkbox glyph touches its text ("☐task", no gap); .device/screens/t09-broken2.png
 
 ## Converted
+- 2026-11-07 (P06-T08/T09 USER-CHECKs, device-tester) table header not bold; remove column hits the left column from a cell start or empty cell; trailing space in a cell dropped; stylus tap on checkbox/link inert in read mode -> P06-T19.
+- 2026-11-07 (P06-T07/T15 USER-CHECKs, device-tester) with the soft keyboard up the caret line is not scrolled into view; toolbars float over the typed lines -> P06-T18 (2).
 - 2026-10-23 (P06-T13 USER-CHECK) each stroke disappears shortly after lifting the pen and reappears; any reload must be seamless -> P06-T15 (fixed, A-046).
 - 2026-10-23 (P06-T06 USER-CHECK) zooming while typing keeps the text block at its screen size until editing ends -> P06-T15 (fixed, A-046).
 - 2026-10-23 (P06-T06 USER-CHECK) choose how far text sits above the lines -> P06-T16.
