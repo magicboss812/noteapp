@@ -1,8 +1,8 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T18
-updated: 2026-11-07
+next: P06-T14
+updated: 2026-11-08
 
 ## Completed
 - P00 done 2026-09-27 (tag p00-done): AGP 9.4.1/Kotlin 2.4.20/Gradle 9.8.0, compileSdk 37.2, minSdk 35 (device SDK 36); qa green; instrumented smoke 1/1 on Pad 7; cold launch 786 ms; A-001..A-004.
@@ -13,7 +13,7 @@ updated: 2026-11-07
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07, T08 (a-b), T09 (a-b), T19, T10 (a-b)
+- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07, T08 (a-b), T09 (a-b), T19, T10 (a-b), T18 (a-d)
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -21,20 +21,20 @@ updated: 2026-11-07
 ## USER-CHECK (human verification; non-blocking)
 - 2026-11-07 P06-T07, T15, T08, T09 run on the tablet by device-tester: T07 PASS, T15 PASS (1-frame blink not provable without screen recording), T08 FAIL (header not bold, remove column off by one, trailing cell space dropped), T09 FAIL (stylus tap in read mode inert); defects -> FEEDBACK Open, fixed in T19. T07 instrumented run on the tablet after T19 (abd5e92): GridInvariantInstrumentedTest 20 fonts, 0 violations, formulas as expected; SizeDerivationInstrumentedTest PASS.
 - P06-T10: Type a page of notes with the keyboard mixing headings, lists, math -> text never jumps off the lines or lags; also pick a font and a free size in the Text panel (new text takes them) and try Import font with a .ttf.
+- P06-T18: Tap into text and out again a few times, also low on the page -> nothing flashes or hides behind the keyboard.
 
 ## Deferred (id: reason)
-- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-036 -> P06-T18.
+- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05.
 - D-035 P06-T10a: "Type into page body" is always on; the switch comes with the settings screen (A-050).
-- D-036 P06-T10a: the first Text tool creations on a freshly opened note take 53-96 ms tap to caret (warm p95 21 ms), and text typed into the page body is not scrolled into view (A-050, P06-T18 item 4).
+- D-037 P06-T18d: the first Text tool creation after an open takes 68-83 ms tap to caret (fresh process 207-264 ms; first focus 57.5 ms), first-run cost of the debug build; later ones meet 50 ms (A-052).
 - D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 - D-014 P03-T09: tilt shading has no off switch (A-025): dry rendering applies tilt whenever stored inputs carry tilt; the P11-T01 setting needs a stored per-stroke choice (or dropping tilt at commit) so wet and dry ink agree; the pen panel gets its tilt row then (P06-T13).
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the highlighter panel, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 - D-034 P06-T07: math blocks are always centered; 07-text-engine.md#math names a left alignment setting (A-047).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T18a (item 1, `TextHandoff` mask + `TextGhost`) and T18b (item 2, `CaretKeeper`) done; device 2026-11-07: no doubled text seen, caret kept above keyboard and toolbox (PASS).
-- P06-T18c done (item 3): no app-side cause (A-052, device.md#quirks), regression test, keyboard hidden on detach, creation tap trace fixed, debug probes `FolioTouch`/`FolioMain`, traces text:refresh/arrive/show/ime, field pre-created on idle after attach.
-- NEXT P06-T18d: focus tap to caret p50 57 / p95 86 ms and text:clean p95 85 ms miss 50 ms; tiles render p50 2 ms and text:refresh 0.4 ms, so the main thread is the cost (arrive p50 22 ms, then ~34 ms to the draw); find it with the FolioMain log, fix, then device-recheck all 4 checks, USER-CHECK line, D-036 out of Deferred, next: P06-T14.
+- P06-T18 done (a-d, A-052): no ghost text, caret kept above keyboard and toolbox, first input after open reaches the app, focus caret p95 24 / clean p95 30 ms (keyboard request posted after the caret frame, row 2 keeps both rows composed). First creation after open still slow (D-037 -> P11-T05).
+- NEXT P06-T14. Debug probes `FolioTouch` (window downs) and `FolioMain` (messages and frames >= 8 ms) help with any input or frame timing question.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`).
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]` seeds a body flow (`open lined:N`: N is the page count and reuses that file; the first stylus tap after a debug command is dropped). Test APK installs can still be refused (INSTALL_FAILED_USER_RESTRICTED): check the result XML, not Gradle's SUCCESS.
-- Remaining P06 order: T18, T14, T16, T17, T11. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.
+- Remaining P06 order: T14, T16, T17, T11. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.

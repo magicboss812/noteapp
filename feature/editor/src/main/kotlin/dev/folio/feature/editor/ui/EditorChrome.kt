@@ -46,14 +46,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import dev.folio.core.designsystem.theme.FolioTheme
+import dev.folio.core.text.edit.BlockStyle
 import dev.folio.feature.editor.state.DockMode
 import dev.folio.feature.editor.state.EditorStatus
 import dev.folio.feature.editor.state.EditorTool
@@ -376,21 +379,38 @@ private fun Row2(
     val suggestions = state.noteSuggestions
     if (textStyle != null && suggestions != null) {
         NoteLinkRow(suggestions, actions.onPickNote, modifier, vertical)
-    } else if (textStyle != null) {
-        TextFormatRow(textStyle, actions.onFormat, modifier, vertical, table = state.textInTable)
     } else {
-        ToolOptionsRow(
-            state.tool,
-            state.options,
-            actions.onOptionsChange,
-            actions.onPopover,
-            Modifier,
-            modifier,
-            vertical,
-            onSettings = actions.onSelectTool,
-        )
+        // Both rows stay composed and only the one in use is measured, placed and in the semantics: a focus or a blur
+        // swaps them without composing a row in the frame that shows or removes the caret (P06-T18, A-052).
+        val formatting = textStyle != null
+        Layout(
+            content = {
+                TextFormatRow(
+                    textStyle ?: BlockStyle.PARAGRAPH,
+                    actions.onFormat,
+                    Modifier.inUse(formatting),
+                    vertical,
+                    table = state.textInTable,
+                )
+                ToolOptionsRow(
+                    state.tool,
+                    state.options,
+                    actions.onOptionsChange,
+                    actions.onPopover,
+                    Modifier.inUse(!formatting),
+                    vertical = vertical,
+                    onSettings = actions.onSelectTool,
+                )
+            },
+            modifier = modifier,
+        ) { rows, constraints ->
+            val row = rows[if (formatting) 0 else 1].measure(constraints)
+            layout(row.width, row.height) { row.place(0, 0) }
+        }
     }
 }
+
+private fun Modifier.inUse(used: Boolean): Modifier = if (used) this else clearAndSetSemantics {}
 
 /**
  * Rows 2 and 1 of a toolbox docked at the bottom ([top] false: row 2 above row 1, which stays put when row 2

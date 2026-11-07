@@ -176,13 +176,22 @@ internal class LiveTextField(
         place(viewport, pageIndex)
         if (startNs != 0L) PerfMonitor.record(TRACE_SHOW, System.nanoTime() - startNs)
         if (appearing) {
-            PerfMonitor.trace(TRACE_IME) {
-                visibility = VISIBLE
-                requestFocus()
-                context.getSystemService(InputMethodManager::class.java)?.showSoftInput(this, 0)
-            }
+            visibility = VISIBLE
+            PerfMonitor.trace(TRACE_FOCUS) { requestFocus() }
+            // Asking for the keyboard binds the input method (about 14 ms on the Pad 7, P06-T18): the frame that draws
+            // the caret is already scheduled, so a post runs after it.
+            post(showKeyboard)
         }
     }
+
+    private val showKeyboard =
+        Runnable {
+            if (shown != null && isFocused) {
+                PerfMonitor.trace(TRACE_IME) {
+                    context.getSystemService(InputMethodManager::class.java)?.showSoftInput(this, 0)
+                }
+            }
+        }
 
     /** Records the time from [tapNs] (System.nanoTime of the focusing tap) to the next frame that draws the field. */
     fun traceCaretFrom(tapNs: Long) {
@@ -200,7 +209,7 @@ internal class LiveTextField(
     }
 
     override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
+        PerfMonitor.trace(TRACE_DRAW) { super.onDraw(canvas) }
         if (tapNs != 0L) {
             PerfMonitor.record(TRACE_CARET, System.nanoTime() - tapNs)
             tapNs = 0L
@@ -258,6 +267,7 @@ internal class LiveTextField(
         sent.clear()
         appliedDims = null
         if (error != null) setError(null, null)
+        removeCallbacks(showKeyboard)
         if (visibility != GONE) {
             // The insets controller hides the keyboard even when the focus then lands on another view of the window.
             windowInsetsController?.hide(WindowInsets.Type.ime())
@@ -526,8 +536,10 @@ internal class LiveTextField(
         // Tap to the first frame that draws the focused field (07-text-engine.md#editing budget: 50 ms).
         const val TRACE_CARET = "text:caret"
 
-        // Styling, syncing and placing the field for a new block; then making it visible, focused, with the keyboard.
+        // Styling, syncing and placing the field for a new block; then focusing it; then the keyboard request after the frame.
         const val TRACE_SHOW = "text:show"
+        const val TRACE_FOCUS = "text:focus"
         const val TRACE_IME = "text:ime"
+        const val TRACE_DRAW = "text:field-draw"
     }
 }

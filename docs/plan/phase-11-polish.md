@@ -50,6 +50,7 @@ Accept:
 - [ ] device: macrobenchmarks run; cold start <= 700 ms (benchmark build)
 - [ ] device: read mode enter/exit (5 cycles, 1500 strokes) and tool switches <= 1% janky in the benchmark build; if not, cut the first-frame cost of the toggle (D-031, A-038)
 - [ ] device: `ink:commit` p95 <= 2 ms in the benchmark build (D-015)
+- [ ] device: in the benchmark build, the first Text tool creation and the first focus tap after opening a note take <= 50 ms tap to caret (`text:caret`), measured in a fresh process and in a long-lived one; if not, cut the first-run cost (first draw of the formatting bar, input-method bind) (D-037, A-052)
 - [ ] release APK builds; size recorded in perf.md
 Verify: `instrumented.sh :benchmark connectedBenchmarkAndroidTest`
 

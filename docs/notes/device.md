@@ -3,7 +3,7 @@ Filled by P00-T02, P01-S1, P01-S7 and later discoveries. Known from Xiaomi specs
 
 ## Identity
 - Model 2410CRP4CG, device codename `uke`, adb serial `2b6e1b3e` (USB)
-- Android 16, SDK 36, HyperOS OS3.0 (build OS3.0.303.0.WOZEUXM, EEA)
+- Android 16, SDK 36, HyperOS OS3.0 (build OS3.0.303.0.WOZEUXM, EEA; OS3.0.304.0.WOZEUXM seen 2026-11-08)
 - minSdk for Folio: 35 (= min(35, 36); ADR-012 note 2026-09-27)
 
 ## Display

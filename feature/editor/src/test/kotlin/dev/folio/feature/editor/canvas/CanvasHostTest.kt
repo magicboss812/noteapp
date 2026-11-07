@@ -242,6 +242,33 @@ class CanvasHostTest {
     }
 
     @Test
+    fun focusedField_keyboardRequest_waitsForTheCaretFrameAndBlurCancelsIt() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        showFocusedField(texts)
+        val imm = ApplicationProvider.getApplicationContext<Context>().getSystemService(InputMethodManager::class.java)
+        assertThat(shadowOf(imm).isSoftInputVisible).isTrue()
+        compose.runOnUiThread { controller.canvasText.value = CanvasText(emptyMap(), null) }
+        settle()
+        assertThat(shadowOf(imm).isSoftInputVisible).isFalse()
+        val spec = checkNotNull(texts.field.value)
+
+        var shownAtOnce = false
+        var askedAtOnce = true
+        compose.runOnUiThread {
+            controller.canvasText.value = CanvasText(emptyMap(), spec)
+            shownAtOnce = hostView().liveTextField?.spec != null
+            askedAtOnce = shadowOf(imm).isSoftInputVisible
+            controller.canvasText.value = CanvasText(emptyMap(), null)
+        }
+        settle()
+
+        assertThat(shownAtOnce).isTrue()
+        assertThat(askedAtOnce).isFalse()
+        assertThat(shadowOf(imm).isSoftInputVisible).isFalse()
+    }
+
+    @Test
     fun firstEventsAfterAttach_reachTheRouter_tapFocusesAndStrokeDraws() {
         val texts = FakeTextController().also { controller.textController = it }
         show()
