@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P07
-next: P07-T02
+next: P07-T03
 updated: 2026-11-09
 
 ## Completed
@@ -14,7 +14,7 @@ updated: 2026-11-09
 - P06 done 2026-11-08 (tag p06-done): Markdown blocks, fonts + import, grid line boxes (20 fonts 0 violations on device), flows + reflow, live field, math, tables, links/tasks, selection + clipboard, baseline lift, free text boxes; `text:key` p95 17-21 ms debug (D-043); REVIEW fixed 2 blocking findings (stale flow edits after undo, read mode kept text focus); intake -> P11-T01/T09/T12, P07-T02; A-037..A-056; qa green.
 
 ## Current phase progress
-- P07: T10, T11, T12, T13, T14 (hold gfxinfo pending), T15, T16, T17, T01
+- P07: T10, T11, T12, T13, T14 (hold gfxinfo pending), T15, T16, T17, T01, T02
 
 ## Blocked (needs user; stops dependent tasks)
 - P07-T14 device hold check (2 s Right hold: acceleration, jank via gfxinfo; one undo per hold; Down hold) needs timed key holds; `scripts/device/input.sh` is protected. Proposed diff, after line 31 (`combo` branch): `  hold) k="${1:-}"; ms="${2:-}"; case "$k" in KEYCODE_DPAD_UP|KEYCODE_DPAD_DOWN|KEYCODE_DPAD_LEFT|KEYCODE_DPAD_RIGHT) ;; *) die "hold: arrow keys only" 2 ;; esac; case "$ms" in [0-9]|[0-9][0-9]|[0-9][0-9][0-9]|[0-9][0-9][0-9][0-9]) ;; *) die "hold: ms 0-9999" 2 ;; esac; dshell input keyevent --duration "$ms" "$k" ;;` and in `combo` an optional third arg `ms` passed as `input keycombination -t "$ms" ...`. Single presses passed on the device (see USER-CHECK); nothing else waits on this.
@@ -34,9 +34,11 @@ updated: 2026-11-09
 - P07-T16: Tap a box onto a line, type, then try Left, Center, Right and Justify from the toolbar's Alignment button (also on a knob-sized box and a list) -> Center keeps the text's middle on your tap spot, Left brings the borders back, bullets stay next to centered text. (Device 2026-11-08 all PASS: Center middle within 3 px of the tap.)
 - P07-T17: Select a box with a few lines in a narrow (knob-sized) box, pick colors and sizes from the toolbar's color circle and size number (S, M, L, minus, plus) -> no keyboard, text rewraps on the lines, reopen keeps both. (Device 2026-11-08 PASS on a one-line auto width box: red, 13 -> 18 -> 19 pt, kept after reopen, undo; rewrap of a fixed-width box not seen on device.)
 - P07-T01: Shape tool: draw each kind (also with "constrain" and the pen button), tap out a polygon and close it, then tap a shape and drag its body, corners, rotate knob and line ends; undo -> shapes follow the pen smoothly, no flicker when lifting, one undo per drag.
+- P07-T02: With the pen draw a line, arrow, triangle, rectangle, circle, ellipse, pentagon and hold the pen still at the end (about half a second), then drag on and lift; also write words and pause mid-word; highlighter: hold, and the panel's "Always straight" -> shapes snap when you hold and never otherwise, dragging after the snap resizes/turns it, one undo each; highlighter strokes go straight.
 
 ## Deferred (id: reason)
-- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06; D-043 -> P11-T05; D-014, D-034 -> P11-T01; D-024 -> P07-T02.
+- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06; D-043 -> P11-T05; D-014, D-034 -> P11-T01.
+- D-050 P07-T02: `.claude/rules/ink-and-input.md` "Never render in-progress strokes yourself" needs ", except snapped shape/straight-line previews in the overlay (A-065)" (rule files are protected).
 - D-038 P06-T14b: a focused block draws about 2 frames/s while idle (caret blink; since P07-T10 the overlay's, which re-records its block text: 40-46 ms each, UI draw 10-17 ms); 0 frames when not editing. A caret-only view would make blink frames cheap.
 - D-049 P07-T14 device: on `perf/lined-1.folio` a finger Text tool tap mid-page (y 960 px) made the new box on the top rule (y 408 px) instead of at the tap; check against T12c "new box at the tap" (maybe the note's body text took the tap).
 - D-048 P07-T13 device: the box toolbar clamps to the view, not the chrome: in Edit near the view top it sits under the format bar, at the bottom behind the tool row; the first frame after H1 shows old and new text overlapped (next frame clean).
@@ -49,8 +51,8 @@ updated: 2026-11-09
 - D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P07-T01 done (A-064): model `shape/ShapeGeometry` + `ShapeHandles` (+ `dragShape`), render `ShapePainter`; editor `CanvasTool.SHAPE`, `ShapeOptions` (stored), `ShapeInput` (draw, `PolygonDraft`, select + handle drags -> `UpdateObjects`), `ShapePreview` (draft, pending, selection chrome), host `hiddenShape` hides the edited shape from tiles.
-- NEXT P07-T02 (shape recognition on hold): recognizer in core:ink can emit `ShapeGeometry.create(...)` shapes; replace the wet stroke via `ReplaceObjects`. Not device-checked yet: T01 USER-CHECK. Device: the first tap after a debug command is dropped (finger too); `magick` is denied; `launch.sh --doc perf/...` stays on the library, use `debugcmd.sh open <path>`.
+- P07-T02 done (A-065): core:ink `shape/ShapeRecognizer` (+ `PolygonFit`, `EllipseFit`, `StrokePoints`), `DwellDetector`, `StraightStroke`; editor `PenSnap` (samples, hold timer via `HoldTimer`, preview, pending) driven by `PenInput`, drawn by `ShapePreview` (render `OverlayInkPainter` for strokes), committed by host `commitSnap` (`AddObjects`). Holds not device-checked (cannot inject a resting pen): T01/T02 USER-CHECK.
+- NEXT P07-T03 (lasso). Device: the first tap after a debug command is dropped (finger too); `magick` is denied; `launch.sh --doc perf/...` stays on the library, use `debugcmd.sh open <path>`.
 - Modified `scripts/auto/run-loop.sh` is the user's: stage explicit paths, not `git add -A`. Device: `debugcmd open lined:N` reuses `perf/lined-N.folio`; wipe the debug library first for a clean note.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; `CaretPlans`/`FlowHits` for taps.
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]`, `open lined:N`; first stylus tap after a debug command is dropped. Tool row y 1963 px, mode pill y 171 px in landscape.

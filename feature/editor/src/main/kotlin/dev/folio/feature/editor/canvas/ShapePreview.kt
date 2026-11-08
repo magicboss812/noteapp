@@ -2,12 +2,16 @@ package dev.folio.feature.editor.canvas
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.view.View
+import dev.folio.core.model.InkStroke
+import dev.folio.core.model.PageObject
 import dev.folio.core.model.Shape
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.model.shape.ShapeGeometry
 import dev.folio.core.model.shape.hasBoxHandles
+import dev.folio.core.render.OverlayInkPainter
 import dev.folio.core.render.ShapePainter
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.pageOriginViewX
@@ -15,14 +19,17 @@ import dev.folio.core.render.viewport.pageOriginViewY
 
 /**
  * Draws the Shape tool's live shape and polygon vertices over the content tiles (05-canvas-rendering.md
- * overlay: shape preview), plus a just committed shape until its tiles show it. Same painter as the tiles,
- * so the handoff does not change a pixel.
+ * overlay: shape preview), plus a just committed shape until its tiles show it; likewise the pen's [snap] (a held
+ * stroke turned shape or straight highlighter line, A-065). Same painters as the tiles, so the handoff does not change
+ * a pixel.
  */
 internal class ShapePreview(
     context: Context,
     private val viewport: Viewport,
 ) : View(context) {
     private val painter = ShapePainter()
+    private val inkPainter = OverlayInkPainter()
+    private val toView = Matrix()
     private val vertexPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val vertexRadiusPx = VERTEX_RADIUS_DP * resources.displayMetrics.density
     private val knobRadiusPx = KNOB_DP * resources.displayMetrics.density
@@ -37,6 +44,13 @@ internal class ShapePreview(
     /** Where the shapes come from; set once by the host. */
     var input: ShapeInput? = null
 
+    /** The pen's snapped shape or straight line (06-ink-input.md#shape-recognition); set once by the host. */
+    var snap: PenSnap? = null
+
+    /** The snap drawn by the last frame (tests read it). */
+    var snapShown: PageObject? = null
+        private set
+
     /** The draft drawn by the last frame (tests read it). */
     var shown: Shape? = null
         private set
@@ -50,7 +64,15 @@ internal class ShapePreview(
     }
 
     override fun onDraw(canvas: Canvas) {
-        val source = input ?: return
+        drawSnap(canvas)
+        input?.let { drawShapeTool(canvas, it) }
+    }
+
+    // The Shape tool's committed shape, selection, and draft with its polygon vertices.
+    private fun drawShapeTool(
+        canvas: Canvas,
+        source: ShapeInput,
+    ) {
         source.pending?.let { draw(canvas, it.pageIndex, it.shape) }
         drawSelection(canvas, source)
         val page = source.draftPage
@@ -93,6 +115,43 @@ internal class ShapePreview(
             val y = y0 + h.position.y * scale
             canvas.drawCircle(x, y, knobRadiusPx, knobFill)
             canvas.drawCircle(x, y, knobRadiusPx, outlinePaint)
+        }
+    }
+
+    // The pen's snap: a committed one until its tiles show it, the live one while the pen is down.
+    private fun drawSnap(canvas: Canvas) {
+        val source = snap ?: return
+        source.pending?.let { drawObject(canvas, it.pageIndex, it.obj) }
+        val page = source.previewPage
+        val live = if (page >= 0) source.preview() else null
+        snapShown = live
+        if (live != null) drawObject(canvas, page, live)
+    }
+
+    private fun drawObject(
+        canvas: Canvas,
+        page: Int,
+        obj: PageObject,
+    ) {
+        when (obj) {
+            is Shape -> {
+                draw(canvas, page, obj)
+            }
+
+            is InkStroke -> {
+                val x0 = viewport.pageOriginViewX(page).toFloat()
+                val y0 = viewport.pageOriginViewY(page).toFloat()
+                toView.setScale(viewport.scale, viewport.scale)
+                toView.postTranslate(x0, y0)
+                canvas.save()
+                canvas.concat(toView)
+                inkPainter.draw(canvas, obj, toView)
+                canvas.restore()
+            }
+
+            else -> {
+                Unit
+            }
         }
     }
 

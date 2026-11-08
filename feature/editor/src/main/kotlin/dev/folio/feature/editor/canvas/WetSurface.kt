@@ -63,8 +63,8 @@ internal interface WetSurface {
         pointerId: Int,
     )
 
-    /** Discards the stroke. */
-    fun cancel(event: MotionEvent)
+    /** Discards the stroke; [event] is the cancel event, null when a hold snapped it (no event at hand). */
+    fun cancel(event: MotionEvent?)
 
     /** Stops showing the finished strokes with [keys] (their committed copies are on screen). */
     fun remove(keys: Collection<Any>)
@@ -141,7 +141,7 @@ internal class InkWetSurface(
         strokeId = null
     }
 
-    override fun cancel(event: MotionEvent) {
+    override fun cancel(event: MotionEvent?) {
         val id = strokeId ?: return
         cancelStroke(id, event)
         strokeId = null
@@ -168,7 +168,7 @@ internal class InkWetSurface(
 
     private fun cancelStroke(
         id: InProgressStrokeId,
-        event: MotionEvent,
+        event: MotionEvent?,
     ) {
         ink.cancelStroke(id, event)
         started.remove(id)

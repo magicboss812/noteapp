@@ -149,6 +149,8 @@ class EditorSession(
 
     override val activeShape: ShapeSpec get() = mutableOptions.value.shapeSpec
 
+    override val alwaysStraight: Boolean get() = mutableOptions.value.highlighter.alwaysStraight
+
     private val canvasCommands = MutableSharedFlow<CanvasCommand>(extraBufferCapacity = COMMAND_BUFFER)
 
     override val viewCommands: Flow<CanvasCommand> get() = canvasCommands

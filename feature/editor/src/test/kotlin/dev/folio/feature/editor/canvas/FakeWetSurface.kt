@@ -68,7 +68,7 @@ internal class FakeWetSurface(
         calls += "finish $pointerId"
     }
 
-    override fun cancel(event: MotionEvent) {
+    override fun cancel(event: MotionEvent?) {
         calls += "cancel"
     }
 }

@@ -93,6 +93,9 @@ interface CanvasController {
     /** What the Shape tool draws, read at every stylus down with [CanvasTool.SHAPE]. */
     val activeShape: ShapeSpec get() = ShapeSpec.DEFAULT
 
+    /** True while the highlighter's "always straight" option is on (D-024): its strokes are straight lines; read at every stylus down. */
+    val alwaysStraight: Boolean get() = false
+
     /** Stylus choices (hover ring, pen button), read at every stylus down and hover event; settings arrive in P11-T01. */
     val stylusPreferences: StylusPreferences get() = StylusPreferences.DEFAULT
 

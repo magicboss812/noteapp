@@ -147,7 +147,7 @@ data class PenOptions(
     fun brush(version: Int): BrushSpec = BrushSpec(kind, swatches.argb, kindWidths.widthPt, version, pressureGamma)
 }
 
-/** Highlighter tool options; [alwaysStraight] is stored now, the canvas honors it with the straight-line snap (D-024, P07-T02). */
+/** Highlighter tool options; with [alwaysStraight] every highlighter stroke is a straight line (D-024, A-065). */
 @Immutable
 data class HighlighterOptions(
     val widths: WidthPresets = WidthPresets.of(BrushKind.HIGHLIGHTER),

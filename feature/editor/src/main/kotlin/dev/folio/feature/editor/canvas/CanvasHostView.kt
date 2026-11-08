@@ -23,6 +23,7 @@ import dev.folio.core.ink.erase.EraseResult
 import dev.folio.core.ink.input.InputRouter
 import dev.folio.core.ink.input.StylusCapabilities
 import dev.folio.core.ink.input.StylusFeatures
+import dev.folio.core.ink.shape.DwellDetector
 import dev.folio.core.model.Document
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.ObjectId
@@ -147,6 +148,28 @@ class CanvasHostView internal constructor(
     private var eraseRejected = 0
 
     private val wet = createWetSurface(context)
+
+    /** Hold to snap for the pen (06-ink-input.md#shape-recognition; tests drive its holds). */
+    internal val snap =
+        PenSnap(
+            DwellDetector.RADIUS_DP * resources.displayMetrics.density,
+            MIN_SNAP_DP * resources.displayMetrics.density,
+            object : HoldTimer {
+                override fun nowMs(): Long = SystemClock.uptimeMillis()
+
+                override fun post(
+                    task: Runnable,
+                    delayMs: Long,
+                ) {
+                    removeCallbacks(task)
+                    postDelayed(task, delayMs)
+                }
+
+                override fun cancel(task: Runnable) {
+                    removeCallbacks(task)
+                }
+            },
+        )
     private val pen: PenInput =
         PenInput(
             controller.viewport,
@@ -154,6 +177,8 @@ class CanvasHostView internal constructor(
             brush = { controller.activeBrush },
             capabilities = { router.capabilities },
             onStrokeStart = ::requestUnbufferedDispatch,
+            snap = snap,
+            straightOnly = { controller.alwaysStraight },
         )
     private val eraser =
         EraserInput(
@@ -351,6 +376,9 @@ class CanvasHostView internal constructor(
         addView(hoverRing, LayoutParams(match))
         addView(wetLayer, LayoutParams(match))
         wet.onFinished = handoff::onFinished
+        shapePreview.snap = snap
+        snap.onChanged = shapePreview::invalidate
+        snap.onFinished = ::commitSnap
         contentDescription = CONTENT_DESCRIPTION
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
     }
@@ -620,6 +648,8 @@ class CanvasHostView internal constructor(
         removeCallbacks(idleRequest)
         selectionGestures.cancel()
         handoff.clear()
+        snap.stop()
+        snap.committed() // its commit still runs; a reattached view draws it from the tiles
         scope.coroutineContext.cancelChildren()
         erasePreview = null
         eraseCommittedOn = null
@@ -759,7 +789,7 @@ class CanvasHostView internal constructor(
         if (selectionView.shown != null) selectionView.invalidate()
         if (boxHandles.shown != null) boxHandles.invalidate()
         if (boxOutlines.shown.isNotEmpty()) boxOutlines.invalidate()
-        if (shapeInput.selectionPage >= 0 || shapeInput.draftPage >= 0) shapePreview.invalidate()
+        if (shapeInput.selectionPage >= 0 || shapeInput.draftPage >= 0 || snap.showing) shapePreview.invalidate()
         val now = SystemClock.uptimeMillis()
         lastViewportChangeMs = now
         removeCallbacks(idleRequest)
@@ -880,6 +910,27 @@ class CanvasHostView internal constructor(
         textField.check()
         boxHandles.check()
         checkPendingShape()
+        checkPendingSnap()
+    }
+
+    // Like a committed shape, a snapped pen stroke leaves the preview once the tiles draw it.
+    private fun checkPendingSnap() {
+        val pending = snap.pending ?: return
+        if (isDrawn(pending.pageId, pending.obj)) snap.committed()
+    }
+
+    /** Commits a snapped pen stroke (a recognized shape or a straight highlighter line) as one undo step. */
+    private fun commitSnap(done: PendingSnap) {
+        scope.launch {
+            val accepted =
+                try {
+                    withContext(NonCancellable) { controller.execute(AddObjects(done.pageId, listOf(done.obj))) }
+                } catch (e: IllegalStateException) {
+                    FolioLog.w(TAG, "snap commit failed: ${e.message}", e) // session closed under the view
+                    false
+                }
+            if (!accepted) snap.committed() else checkPendingSnap()
+        }
     }
 
     // The shape preview hands a committed shape over to the tiles once they draw it (no blink in between).
@@ -1015,6 +1066,9 @@ private const val BOX_SLOP_DP = 8f
 
 // A polygon tap this near its first vertex (or a double tap on its last) closes it (06-ink-input.md#shapes).
 private const val POLYGON_CLOSE_DP = 12f
+
+// Strokes smaller than this (bounds diagonal) never snap to a shape or straight line on a hold.
+private const val MIN_SNAP_DP = 12f
 
 // Grab radius of a selected shape's handles (48 dp targets) and the rotate handle's distance above the box.
 private const val SHAPE_HANDLE_DP = 24f
