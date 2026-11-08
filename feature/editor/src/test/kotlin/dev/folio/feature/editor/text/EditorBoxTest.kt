@@ -101,6 +101,48 @@ class EditorBoxTest : EditorTextFixture() {
         }
 
     @Test
+    fun moveBoxCommand_keyedBetweenTheLines_storesTheOffset_oneUndoStep_aSnappedMoveClearsIt() =
+        runTest(main.testDispatcher) {
+            val (session, documentSession) = open(boxNote("Box text"), this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val (page, before) = checkNotNull(documentSession.document.value.box())
+            // Shift+Down left the box 0.4 U below its line (P07-T14, A-057).
+            val keyed = TextZones.keyedBox(spec, template, before.rect, before.rect.left + 3f, before.rect.top + 0.4f * u)
+
+            assertThat(session.execute(checkNotNull(text.moveBoxCommand(boxFlow, page, keyed)))).isTrue()
+
+            val (_, shifted) = checkNotNull(documentSession.document.value.box())
+            assertThat(shifted.rect.top).isWithin(1e-3f).of(before.rect.top + 0.4f * u)
+            assertThat(shifted.rect.heightPt).isWithin(1e-3f).of(before.rect.heightPt)
+            assertThat(
+                documentSession.document.value.flows[boxFlow]!!
+                    .box.offsetPt,
+            ).isWithin(1e-3f).of(0.4f * u)
+            assertThat(session.undo()).isTrue()
+            assertThat(
+                documentSession.document.value
+                    .box()
+                    ?.second,
+            ).isEqualTo(before)
+            assertThat(
+                documentSession.document.value.flows[boxFlow]!!
+                    .box.offsetPt,
+            ).isEqualTo(0f)
+            assertThat(documentSession.canUndo.value).isFalse()
+
+            assertThat(session.redo()).isTrue()
+            val snapped = TextZones.lineStepTop(template, shifted.rect.top, down = false)
+            val back = TextZones.keyedBox(spec, template, shifted.rect, shifted.rect.left, snapped)
+            assertThat(session.execute(checkNotNull(text.moveBoxCommand(boxFlow, page, back)))).isTrue()
+            assertThat(onRule(checkNotNull(documentSession.document.value.box()).second.rect.top)).isTrue()
+            assertThat(
+                documentSession.document.value.flows[boxFlow]!!
+                    .box.offsetPt,
+            ).isEqualTo(0f)
+        }
+
+    @Test
     fun moveBoxCommand_autoWidthBox_anchorMovesAlong_reflowKeepsTheNewPlace() =
         runTest(main.testDispatcher) {
             val (session, documentSession) = open(boxNote("Short", autoWidth = true), this)

@@ -27,6 +27,7 @@ import dev.folio.core.render.viewport.pageIndexAt
 import dev.folio.core.storage.session.DocumentSession
 import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.markdown.MarkdownDocument
+import dev.folio.feature.editor.canvas.BoxKeyEvent
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
@@ -152,6 +153,15 @@ class EditorSession(
     /** Asks the canvas host to run [command]; dropped while no host is attached. */
     fun sendCanvasCommand(command: CanvasCommand) {
         canvasCommands.tryEmit(command)
+    }
+
+    private val boxKeyEvents = MutableSharedFlow<BoxKeyEvent>(extraBufferCapacity = COMMAND_BUFFER)
+
+    override val boxKeys: Flow<BoxKeyEvent> get() = boxKeyEvents
+
+    /** Hands an arrow key for the box in Preview to the canvas host; dropped while no host is attached. */
+    fun sendBoxKey(event: BoxKeyEvent) {
+        boxKeyEvents.tryEmit(event)
     }
 
     private val mutableView = MutableStateFlow(ViewInfo())

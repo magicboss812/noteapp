@@ -360,6 +360,9 @@ interface TextController {
     /** Back gesture or Escape: Edit -> Preview -> no selection; false when no box is selected (the screen takes it). */
     fun back(): Boolean = false
 
+    /** True while a box is selected in Preview (arrow keys move it, P07-T14). Main thread. */
+    fun inPreview(): Boolean = false
+
     /** Ends any box selection and editing (read mode, a tap outside every box). */
     fun deselect() = blur()
 

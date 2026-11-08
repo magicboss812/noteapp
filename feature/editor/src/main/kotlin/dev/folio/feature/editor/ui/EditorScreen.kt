@@ -141,6 +141,7 @@ fun EditorRoute(
         onRedo = viewModel::redo,
         onHelp = viewModel::showHelp,
         onKey = viewModel::onKey,
+        onKeyUp = viewModel::onKeyUp,
         onType = viewModel::typeIntoPage,
         onFormat = viewModel::format,
         pageChrome =
@@ -178,6 +179,28 @@ fun EditorRoute(
 // Font files as providers label them; many label .ttf/.otf as plain binary, so that is offered too (the import validates).
 private val FONT_MIME_TYPES =
     arrayOf("font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
+
+// A hardware key at the screen root: a down runs its shortcut or types; an up ends a held arrow's box move (P07-T14).
+private fun onKeyEvent(
+    event: KeyEvent,
+    onKey: (keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean) -> Boolean,
+    onKeyUp: (keyCode: Int) -> Boolean,
+    onType: (String) -> Boolean,
+): Boolean =
+    when (event.type) {
+        KeyEventType.KeyDown -> {
+            onKey(event.nativeKeyEvent.keyCode, event.isCtrlPressed, event.isShiftPressed, event.isAltPressed) ||
+                typedText(event)?.let(onType) == true
+        }
+
+        KeyEventType.KeyUp -> {
+            onKeyUp(event.nativeKeyEvent.keyCode)
+        }
+
+        else -> {
+            false
+        }
+    }
 
 // The printable character a key without Ctrl or Alt types (keyboard typing with nothing focused), null for others.
 private fun typedText(event: KeyEvent): String? {
@@ -238,6 +261,7 @@ fun EditorScreen(
     onRedo: () -> Unit = {},
     onHelp: (Boolean) -> Unit = {},
     onKey: (keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean) -> Boolean = { _, _, _, _ -> false },
+    onKeyUp: (keyCode: Int) -> Boolean = { false },
     onType: (String) -> Boolean = { false },
     shortcutGroups: List<ShortcutGroup> = ShortcutRegistry.DEFAULT_GROUPS,
     pageChrome: PageChrome = PageChrome(),
@@ -304,13 +328,8 @@ fun EditorScreen(
     // No app bar: the pills sit on bg.canvas like the pages (DESIGN.md section 8).
     Box(
         modifier
-            .onKeyEvent { event ->
-                event.type == KeyEventType.KeyDown &&
-                    (
-                        onKey(event.nativeKeyEvent.keyCode, event.isCtrlPressed, event.isShiftPressed, event.isAltPressed) ||
-                            typedText(event)?.let(onType) == true
-                    )
-            }.focusRequester(keyFocus)
+            .onKeyEvent { event -> onKeyEvent(event, onKey, onKeyUp, onType) }
+            .focusRequester(keyFocus)
             .focusable()
             .fillMaxSize()
             .background(colors.canvas),

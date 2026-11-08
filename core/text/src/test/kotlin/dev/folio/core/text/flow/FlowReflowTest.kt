@@ -27,6 +27,7 @@ import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.layout.BlockLayouter
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 @RunWith(AndroidJUnit4::class)
@@ -125,6 +126,49 @@ class FlowReflowTest {
         val result = plan(doc(lines(5), listOf(box)))
         assertThat(result.command).isNull()
         assertThat(result.layout!!.overflows).isTrue()
+    }
+
+    @Test
+    fun boxBetweenTheLines_baselinesOnRulesPlusOffsetMinusLift_lineBoxesWholeUnits() {
+        // Grid invariant with a vertical offset (A-057, P07-T14): the whole box shifts, its line boxes stay k * U.
+        val u = template.spacingPt
+        val offset = 0.4f * u
+        val lift = 0.15f
+        val top = bodyRect.top + 4 * u + offset
+        val frame = FlowFrame(ObjectId("b"), flowId, RectPt(150f, top, 420f, top + 14 * u), 0, FrameRole.BOX, false)
+        val markdown =
+            "# Heading\n\nA paragraph long enough to wrap onto more lines inside this box, with **bold** and \$x^2\$ math, " +
+                "again and again until it wraps.\n\n- a list item\n- [ ] a task"
+        val flow = ModelFixtures.flow(flowId.value, markdown)
+        val d =
+            ModelFixtures.document(
+                listOf(ModelFixtures.page("p1", listOf(frame))),
+                flows =
+                    listOf(
+                        flow.copy(
+                            style = flow.style.copy(baselineLiftUnits = lift),
+                            box = FlowBox.FIXED.copy(offsetPt = offset),
+                            autoContinue = false,
+                        ),
+                    ),
+            )
+
+        val runs = plan(d).layout!!.runs(0)
+
+        assertThat(runs.size).isAtLeast(4)
+        var lines = 0
+        for (run in runs) {
+            val layout = run.layout
+            assertThat(layout.boxUnits).isAtLeast(1)
+            for (line in run.firstLine until run.firstLine + run.lineCount) {
+                assertThat(layout.lineTopPt(line + 1) - layout.lineTopPt(line)).isWithin(1e-3f).of(layout.boxUnits * u)
+                val baseline = run.topPt + layout.baselinePt(line)
+                val rule = bodyRect.top + ((baseline - bodyRect.top - offset + lift * u) / u).roundToInt() * u
+                assertThat(baseline).isWithin(BASELINE_TOLERANCE_PT).of(rule + offset - lift * u)
+                lines++
+            }
+        }
+        assertThat(lines).isAtLeast(5)
     }
 
     @Test
@@ -271,5 +315,10 @@ class FlowReflowTest {
         val edited = EditFlow(flowId, listOf(TextEdit(0, 4, "Row"))).execute(applied).doc
         assertThat(edited.flows[frame.flow]!!.markdown).isEqualTo(onSecond)
         assertThat(FlowFrames.slotsOf(edited, flowId).map { it.pageId.value }).containsExactly("p1", "n0", "n1").inOrder()
+    }
+
+    private companion object {
+        // 0.5 px at about 5 px per pt (ADR-008), the grid invariant's tolerance.
+        const val BASELINE_TOLERANCE_PT = 0.1f
     }
 }

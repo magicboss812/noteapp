@@ -2,6 +2,7 @@ package dev.folio.core.model
 
 import dev.folio.core.model.GridUnit.Companion.PT_PER_MM
 import dev.folio.core.model.geometry.RectPt
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
@@ -237,6 +238,54 @@ object TextZones {
         val last = max(first, ruleAtOrAbove(grid, zone.bottom - grid.unitPt))
         val top = snap(topPt, grid.originYPt, grid.unitPt).coerceIn(first, last)
         return RectPt(left, top, left + rect.widthPt, top + rect.heightPt)
+    }
+
+    /**
+     * Box text column [rect] moved by arrow keys with its top-left to ([leftPt], [topPt]) (P07-T14): like [movedBox]
+     * but the top is kept as given (Shift+Up/Down leave the box between the lines, A-057), between the zone's first
+     * rule and the last rule that still has a line box above the zone bottom.
+     */
+    fun keyedBox(
+        spec: PageSpec,
+        template: Template,
+        rect: RectPt,
+        leftPt: Float,
+        topPt: Float,
+    ): RectPt {
+        val zone = boxZone(spec, template)
+        val grid = GridUnit.of(template)
+        val left = leftPt.coerceIn(zone.left, max(zone.left, zone.right - rect.widthPt))
+        val first = ruleAtOrBelow(grid, zone.top)
+        val last = max(first, ruleAtOrAbove(grid, zone.bottom - grid.unitPt))
+        val top = topPt.coerceIn(first, last)
+        return RectPt(left, top, left + rect.widthPt, top + rect.heightPt)
+    }
+
+    /**
+     * The top one Up ([down] false) or Down key step puts a box top at [topPt] on (P07-T14): the next rule in that
+     * direction, so a box between the lines first snaps onto the nearest line on that side.
+     */
+    fun lineStepTop(
+        template: Template,
+        topPt: Float,
+        down: Boolean,
+    ): Float = lineStepTop(GridUnit.of(template), topPt, down)
+
+    /** [lineStepTop] on the rules of [grid] (no allocation: once per key step). */
+    fun lineStepTop(
+        grid: GridUnit,
+        topPt: Float,
+        down: Boolean,
+    ): Float = if (down) ruleAtOrAbove(grid, topPt) + grid.unitPt else ruleAtOrBelow(grid, topPt) - grid.unitPt
+
+    /** How far a box top at [topPt] sits below its nearest rule (negative above it), 0 on a rule (A-057). */
+    fun offsetOf(
+        template: Template,
+        topPt: Float,
+    ): Float {
+        val grid = GridUnit.of(template)
+        val offset = topPt - snap(topPt, grid.originYPt, grid.unitPt)
+        return if (abs(offset) < EPS) 0f else offset
     }
 
     /**

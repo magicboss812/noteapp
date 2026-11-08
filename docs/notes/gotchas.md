@@ -38,3 +38,6 @@ P03 logs (2026-09-30): Opus with a 1M window auto-compacts only near 967K, so pe
 
 ## Compose variable-font weights draw at regular weight on the Pad 7
 `Font(resId, weight, style, variationSettings)` applies the axis by setting `Paint.fontVariationSettings` and reading `paint.typeface` back (Compose `TypefaceCompatApi26`). On the Pad 7 (HyperOS, SDK 36) that typeface stayed the default instance: every bold run of a variable family drew regular, while Robolectric (also SDK 36) drew it bold, so goldens never showed it (P06-T19). `VariableResourceFont` builds the platform font with the axis instead (`android.graphics.fonts.Font.Builder(...).setFontVariationSettings`, `Typeface.CustomFallbackBuilder` with the system fallback). Check bold on the device after font changes.
+
+## Robolectric never returns from idleFor while a frame callback reposts itself
+P07-T14: a `CanvasHostView` test that held an arrow key (the `BoxKeyMover` reposts a Choreographer frame callback every frame) and then called `shadowOf(mainLooper).idleFor(...)` ran past 9 minutes and was killed, even with `ShadowChoreographer.setFrameDelay(16 ms)`; the same test without idling passed in seconds. Keep per-frame motion logic pure (`BoxKeyMotion`, tested with explicit times) and let view tests check only the synchronous parts.

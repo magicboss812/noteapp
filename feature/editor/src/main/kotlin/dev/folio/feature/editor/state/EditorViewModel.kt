@@ -19,6 +19,7 @@ import dev.folio.core.text.edit.BlockStyle
 import dev.folio.core.text.edit.BlockStyles
 import dev.folio.core.text.fonts.FontRegistry
 import dev.folio.core.text.fonts.TextFontFamily
+import dev.folio.feature.editor.canvas.BoxKeyEvent
 import dev.folio.feature.editor.text.BoxMode
 import dev.folio.feature.editor.text.EditorFonts
 import dev.folio.feature.editor.text.FontSource
@@ -521,7 +522,24 @@ class EditorViewModel
         ): Boolean {
             val session = mutableSession.value ?: return false
             val action = shortcuts.actionFor(keyCode, ctrl, shift, alt) ?: return false
-            return perform(session, action)
+            return if (action is EditorAction.MoveBox) moveBox(session, action) else perform(session, action)
+        }
+
+        // An arrow key on a box in Preview starts moving it (P07-T14); otherwise the key keeps its usual meaning.
+        private fun moveBox(
+            session: EditorSession,
+            action: EditorAction.MoveBox,
+        ): Boolean {
+            if (session.readMode.value || session.textController?.inPreview() != true) return false
+            session.sendBoxKey(BoxKeyEvent(action.key, down = true, smooth = action.smooth))
+            return true
+        }
+
+        /** A hardware key [keyCode] went up: an arrow ends its part of a box move (P07-T14). Never consumes the key. */
+        fun onKeyUp(keyCode: Int): Boolean {
+            val key = ShortcutRegistry.ARROW_KEYS[keyCode] ?: return false
+            mutableSession.value?.sendBoxKey(BoxKeyEvent(key, down = false))
+            return false
         }
 
         /**
@@ -558,6 +576,11 @@ class EditorViewModel
 
                 EditorAction.ToggleHelp -> {
                     mutableHelp.value = !mutableHelp.value
+                }
+
+                // onKey hands arrow keys to moveBox, which may leave them unconsumed.
+                is EditorAction.MoveBox -> {
+                    moveBox(session, action)
                 }
 
                 EditorAction.Escape -> {

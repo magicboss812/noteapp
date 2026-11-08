@@ -68,6 +68,7 @@ internal class BoxHandles(
     private val painter = OverlayTextPainter()
     private val pill = RectF()
     private val outlineRect = RectF()
+    private val edgeShift = FloatArray(EDGES)
 
     /** The toolbar (tests read where it is). */
     val toolbar = BoxToolbar(density)
@@ -77,6 +78,13 @@ internal class BoxHandles(
     // Where a move or resize puts the first frame's text column, shown until the document has it; null while none.
     private var previewPage: PageId? = null
     private var previewRect: RectPt? = null
+
+    // An arrow key move (P07-T14) while [keyed]: the first frame's text column top-left on [keyPage], kept as floats so
+    // a frame of the move allocates nothing.
+    private var keyed = false
+    private var keyPage: PageId? = null
+    private var keyLeftPt = 0f
+    private var keyTopPt = 0f
 
     // Frames whose text this view draws instead of the tiles (a move), and since when it waits for the tiles to show the
     // moved text (0: not waiting; the move is still running or nothing moved).
@@ -97,8 +105,19 @@ internal class BoxHandles(
     /** The selected box's first frame as shown (page, text column), null for none (tests). */
     val shown: Pair<PageId, RectPt>? get() = box?.pieces?.firstOrNull()?.let { it.pageId to it.rect }
 
-    /** Where a drag shows the box now (page, text column), null while none (tests). */
-    val preview: Pair<PageId, RectPt>? get() = previewPage?.let { page -> previewRect?.let { page to it } }
+    /** Where a drag or an arrow key move shows the box now (page, text column), null while none (tests). */
+    val preview: Pair<PageId, RectPt>?
+        get() {
+            val first = box?.pieces?.firstOrNull()
+            val page = keyPage
+            if (keyed && first != null && page != null) {
+                return page to RectPt(keyLeftPt, keyTopPt, keyLeftPt + first.rect.widthPt, keyTopPt + first.rect.heightPt)
+            }
+            return previewPage?.let { p -> previewRect?.let { p to it } }
+        }
+
+    /** True while an arrow key move runs (from [beginKeys] until [endKeys] or the box goes). */
+    val keysHeld: Boolean get() = keyed
 
     /** True while a grip, knob or move drag runs. */
     val isDragging: Boolean get() = dragging != NONE && dragging != PENDING
@@ -114,8 +133,18 @@ internal class BoxHandles(
         if (next == null || next.flowId != before?.flowId) {
             dragging = NONE
             owned = false
+            keyed = false
+            keyPage = null
         }
-        if (moving || (previewRect != null && dragging == NONE)) {
+        if (keyed && next != null) {
+            // An earlier key move landed while keys still move the box: this view keeps drawing its text.
+            moving = false
+            previewPage = null
+            previewRect = null
+            landingMs = 0L
+            carried = next.pieces.mapTo(HashSet()) { it.frameId }
+            host.hide(carried)
+        } else if (moving || (previewRect != null && dragging == NONE)) {
             // The document has the box where the drag left it (or the box went): the tiles take its text back.
             moving = false
             previewPage = null
@@ -146,35 +175,64 @@ internal class BoxHandles(
         val current = box ?: return
         val pieces = current.pieces
         val first = pieces.firstOrNull() ?: return
-        val drag = previewRect
-        val dx = if (drag == null) 0f else drag.left - first.rect.left
-        if (carried.isNotEmpty()) drawCarried(canvas, current, previewPage, drag)
+        val page = if (keyed) keyPage else previewPage
+        val shifted = keyed || previewRect != null
+        moveOffsets(first.rect)
+        val dl = edgeShift[0]
+        val dt = edgeShift[1]
+        val dr = edgeShift[2]
+        if (carried.isNotEmpty()) drawCarried(canvas, current, page, dl, dt)
         for (i in pieces.indices) {
-            // The first frame goes where the drag puts it, the others follow in x.
-            if (i == 0 &&
-                drag != null
-            ) {
-                drawPiece(canvas, current, pieces[0], previewPage, drag)
+            // The first frame goes where the move puts it, the others follow in x.
+            if (i == 0 && shifted) {
+                drawPiece(canvas, current, pieces[0], page, dl, dt, dr)
             } else {
-                drawPiece(canvas, current, pieces[i], dx)
+                drawPiece(canvas, current, pieces[i], dl)
             }
         }
-        if (dragging == NONE || dragging == PENDING) drawToolbar(canvas, current)
+        // The toolbar shows again once the moved box landed where the document has it.
+        if ((dragging == NONE || dragging == PENDING) && !shifted) drawToolbar(canvas, current)
     }
 
-    // The first frame's outline where a drag puts it ([onPage], text column [drag]), with the grip and knobs.
+    // How far a key move or a drag moves the left, top and right edges of the first frame's text column [r], pt, into
+    // [edgeShift] (a knob moves one edge; nothing moves without either).
+    private fun moveOffsets(r: RectPt) {
+        val drag = previewRect
+        when {
+            keyed -> {
+                edgeShift[0] = keyLeftPt - r.left
+                edgeShift[1] = keyTopPt - r.top
+                edgeShift[2] = keyLeftPt - r.left
+            }
+
+            drag != null -> {
+                edgeShift[0] = drag.left - r.left
+                edgeShift[1] = drag.top - r.top
+                edgeShift[2] = drag.right - r.right
+            }
+
+            else -> {
+                edgeShift.fill(0f)
+            }
+        }
+    }
+
+    // The first frame's outline where a move puts it ([onPage]; left, top and right edges moved by [dl], [dt], [dr] pt),
+    // with the grip and knobs.
+    @Suppress("LongParameterList") // the three edge offsets keep the move free of a rect per frame
     private fun drawPiece(
         canvas: Canvas,
         current: SelectedBox,
         piece: BoxPiece,
         onPage: PageId?,
-        drag: RectPt,
+        dl: Float,
+        dt: Float,
+        dr: Float,
     ) {
         val index = indexOf(onPage ?: piece.pageId)
         if (index < 0) return
         val o = piece.outline
-        val r = piece.rect
-        outline(index, o.left + drag.left - r.left, o.top + drag.top - r.top, o.right + drag.right - r.right, o.bottom + drag.top - r.top)
+        outline(index, o.left + dl, o.top + dt, o.right + dr, o.bottom + dt)
         canvas.drawRect(outlineRect, outlinePaint)
         if (current.movable) drawGripAndKnobs(canvas, outlineRect.left, outlineRect.top, outlineRect.right, outlineRect.bottom)
     }
@@ -211,25 +269,25 @@ internal class BoxHandles(
         outlineRect.set(x + left * scale, y + top * scale, x + right * scale, y + bottom * scale)
     }
 
-    // The moved box's text over the tiles that leave it out: the first frame where the drag puts it, the others in x.
+    // The moved box's text over the tiles that leave it out: the first frame on [dragPage] moved by ([dx], [dy]) pt, the
+    // others by [dx].
     private fun drawCarried(
         canvas: Canvas,
         current: SelectedBox,
         dragPage: PageId?,
-        drag: RectPt?,
+        dx: Float,
+        dy: Float,
     ) {
         val pieces = current.pieces
-        val first = pieces[0]
         val scale = viewport.scale
         for (i in pieces.indices) {
             val piece = pieces[i]
             val onPage = if (i == 0 && dragPage != null) dragPage else piece.pageId
             val index = indexOf(onPage)
             if (index < 0) continue
-            val ox = if (drag == null) 0f else drag.left - first.rect.left
-            val oy = if (i == 0 && drag != null) drag.top - first.rect.top else 0f
+            val oy = if (i == 0) dy else 0f
             canvas.save()
-            canvas.translate(viewport.pageOriginViewX(index).toFloat() + ox * scale, viewport.pageOriginViewY(index).toFloat() + oy * scale)
+            canvas.translate(viewport.pageOriginViewX(index).toFloat() + dx * scale, viewport.pageOriginViewY(index).toFloat() + oy * scale)
             canvas.scale(scale, scale)
             painter.draw(canvas, host.runsOf(piece.pageId, piece.frameId), WHOLE_PAGE, scale, host.textArgb(onPage))
             canvas.restore()
@@ -329,6 +387,8 @@ internal class BoxHandles(
     }
 
     private fun down(event: MotionEvent) {
+        // A touch ends a key move where it is (keys still held move nothing more, P07-T14).
+        if (keyed) endKeys()
         // Read mode only navigates (10-editor-ui.md#read-mode): the chrome pans like the page around it.
         val tool = event.getToolType(0)
         val stylus = tool == MotionEvent.TOOL_TYPE_STYLUS
@@ -403,7 +463,8 @@ internal class BoxHandles(
         moving = false
         previewPage = null
         previewRect = null
-        if (carried.isNotEmpty()) {
+        // Keys still move the box: this view goes on drawing its text.
+        if (carried.isNotEmpty() && !keyed) {
             carried = emptySet()
             landingMs = 0L
             host.hide(emptySet())
@@ -520,14 +581,78 @@ internal class BoxHandles(
         val first = current.pieces.firstOrNull() ?: return clearPreview()
         val to = previewPage ?: return clearPreview()
         val r = previewRect ?: return clearPreview()
+        place(current, first, to, r, move = dragging == GRIP)
+    }
+
+    // The box goes to text column [r] of page [to] (a move, else a knob's resize of [first]) as one undo step; the
+    // preview stays until the document has it, or clears when the step is refused or changes nothing.
+    private fun place(
+        current: SelectedBox,
+        first: BoxPiece,
+        to: PageId,
+        r: RectPt,
+        move: Boolean,
+    ) {
         val texts = controller.textController
         if (texts == null || (to == first.pageId && r == first.rect)) return clearPreview()
         moving = true
         val done: (Boolean) -> Unit = { placed -> if (!placed) post { clearPreview() } }
-        if (dragging == GRIP) {
+        if (move) {
             texts.moveBox(current.flowId, to, r, done)
         } else {
             texts.placeBox(first.frameId, first.pageId, to, r, done)
+        }
+    }
+
+    /**
+     * Starts an arrow key move of the box in Preview (P07-T14): this view draws the box and its text from now on and
+     * returns where its first text column is (where a move that is still landing put it). Null without a movable box in
+     * Preview, or while a drag runs.
+     */
+    fun beginKeys(): Pair<PageId, RectPt>? {
+        val current = box ?: return null
+        val first = current.pieces.firstOrNull() ?: return null
+        if (!current.movable || current.editing || dragging != NONE) return null
+        val landingPage = previewPage
+        val landing = previewRect
+        val page = if (landingPage != null && landing != null) landingPage else first.pageId
+        val start = if (landingPage != null && landing != null) landing else first.rect
+        keyed = true
+        keyPage = page
+        keyLeftPt = start.left
+        keyTopPt = start.top
+        carry()
+        invalidate()
+        return page to RectPt(start.left, start.top, start.left + first.rect.widthPt, start.top + first.rect.heightPt)
+    }
+
+    /** Shows the key move's first text column with its top-left at ([leftPt], [topPt]) of its page. */
+    fun keyMove(
+        leftPt: Float,
+        topPt: Float,
+    ) {
+        // HOT PATH: once per display frame while an arrow key is held; no allocation.
+        if (!keyed || (leftPt == keyLeftPt && topPt == keyTopPt)) return
+        keyLeftPt = leftPt
+        keyTopPt = topPt
+        invalidate()
+    }
+
+    /** Ends the key move: the box goes where the keys left it, as one undo step (like the drop of a drag). */
+    fun endKeys() {
+        if (!keyed) return
+        keyed = false
+        val page = keyPage
+        keyPage = null
+        val current = box
+        val first = current?.pieces?.firstOrNull()
+        if (current == null || first == null || page == null) {
+            clearPreview()
+        } else {
+            val r = RectPt(keyLeftPt, keyTopPt, keyLeftPt + first.rect.widthPt, keyTopPt + first.rect.heightPt)
+            previewPage = page
+            previewRect = r
+            place(current, first, page, r, move = true)
         }
     }
 
@@ -549,6 +674,9 @@ internal class BoxHandles(
         private const val DOT_DP = 1f
         private const val DOT_GAP_DP = 4f
         private const val TARGET_DP = 48f
+
+        // Left, top and right: the edges a move shifts.
+        private const val EDGES = 3
 
         /** The moved text stays drawn here at most this long after the move while the tiles catch up (like TextHandoff). */
         private const val LANDING_MS = 300L

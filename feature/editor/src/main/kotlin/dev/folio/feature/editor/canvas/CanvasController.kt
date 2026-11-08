@@ -89,6 +89,9 @@ interface CanvasController {
     /** Viewport actions for the host to run; commands sent while no host collects are dropped. */
     val viewCommands: Flow<CanvasCommand> get() = emptyFlow()
 
+    /** Arrow keys for the selected box in Preview (P07-T14); keys sent while no host collects are dropped. */
+    val boxKeys: Flow<BoxKeyEvent> get() = emptyFlow()
+
     /** Pages the host scrolls to (page panel, add page); jumps sent while no host collects are dropped. */
     val pageJumps: Flow<PageId> get() = emptyFlow()
 

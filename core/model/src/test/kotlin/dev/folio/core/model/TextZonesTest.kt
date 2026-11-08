@@ -142,6 +142,46 @@ class TextZonesTest {
     }
 
     @Test
+    fun keyedBox_keepsTheTopBetweenTheLines_insideTheZone() {
+        val u = lined.spacingPt
+        val zone = TextZones.boxZone(a4, lined)
+        val box = RectPt(0f, 0f, 100f, u)
+        val shifted = TextZones.keyedBox(a4, lined, box, 120f, lined.marginTopPt + 3.4f * u)
+        assertThat(shifted.top).isWithin(1e-3f).of(lined.marginTopPt + 3.4f * u)
+        assertThat(shifted.left).isWithin(1e-3f).of(120f)
+        assertThat(shifted.heightPt).isWithin(1e-3f).of(u)
+        val low = TextZones.keyedBox(a4, lined, box, 120f, a4.heightPt)
+        assertThat(onGrid(low.top, lined.marginTopPt, u)).isTrue()
+        assertThat(low.top + u).isAtMost(zone.bottom + 1e-3f)
+        val high = TextZones.keyedBox(a4, lined, box, -50f, -50f)
+        assertThat(high.top).isAtLeast(zone.top - 1e-3f)
+        assertThat(high.left).isWithin(1e-3f).of(zone.left)
+    }
+
+    @Test
+    fun lineStepTop_onARule_movesOneLine_betweenLines_snapsToTheNearestLineThatWay() {
+        val u = lined.spacingPt
+        val rule = lined.marginTopPt + 5f * u
+        assertThat(TextZones.lineStepTop(lined, rule, down = true)).isWithin(1e-3f).of(rule + u)
+        assertThat(TextZones.lineStepTop(lined, rule, down = false)).isWithin(1e-3f).of(rule - u)
+        // Shift+Down left the box 0.3 U below the rule: Up snaps back onto it, Down onto the next one.
+        val shifted = rule + 0.3f * u
+        assertThat(TextZones.lineStepTop(lined, shifted, down = false)).isWithin(1e-3f).of(rule)
+        assertThat(TextZones.lineStepTop(lined, shifted, down = true)).isWithin(1e-3f).of(rule + u)
+        // Shift+Up left it 0.2 U above the rule: Down snaps back onto it.
+        assertThat(TextZones.lineStepTop(lined, rule - 0.2f * u, down = true)).isWithin(1e-3f).of(rule)
+    }
+
+    @Test
+    fun offsetOf_isTheDistanceFromTheNearestRule_zeroOnARule() {
+        val u = lined.spacingPt
+        val rule = lined.marginTopPt + 5f * u
+        assertThat(TextZones.offsetOf(lined, rule)).isEqualTo(0f)
+        assertThat(TextZones.offsetOf(lined, rule + 0.3f * u)).isWithin(1e-3f).of(0.3f * u)
+        assertThat(TextZones.offsetOf(lined, rule - 0.2f * u)).isWithin(1e-3f).of(-0.2f * u)
+    }
+
+    @Test
     fun resizedBox_grid_movedEdgeOnColumn_otherEdgeKept_minWidth() {
         val u = grid.spacingPt
         val box = RectPt(10f * u, 4f * u, 30f * u, 5f * u)

@@ -74,6 +74,10 @@ internal fun CanvasHost(
         }
         LaunchedEffect(view) {
             if (view == null) return@LaunchedEffect
+            withContext(controller.mainDispatcher) { controller.boxKeys.collect { view.boxKeys.onKey(it) } }
+        }
+        LaunchedEffect(view) {
+            if (view == null) return@LaunchedEffect
             withContext(controller.mainDispatcher) { controller.pageJumps.collect { view.goToPage(it) } }
         }
     }

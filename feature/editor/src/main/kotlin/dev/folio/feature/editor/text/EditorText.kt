@@ -16,6 +16,7 @@ import dev.folio.core.model.PageId
 import dev.folio.core.model.PageRef
 import dev.folio.core.model.StickyNote
 import dev.folio.core.model.TextFlow
+import dev.folio.core.model.TextZones
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.Batch
 import dev.folio.core.model.edit.EditCommand
@@ -617,7 +618,8 @@ class EditorText internal constructor(
     /**
      * Box [flowId] dragged so that its first frame's text column is [rect] on page [toPage] (P07-T13), as one command:
      * the first frame goes there; the box's anchor and saved custom borders move along in x and its vertical offset
-     * clears; the frames on later pages of an auto-continuing box go (with their page when it held nothing else), so
+     * becomes the distance of [rect]'s top from its nearest rule (0 after a drag, which snaps; P07-T14 keys may leave it
+     * between the lines); the frames on later pages of an auto-continuing box go (with their page when it held nothing else), so
      * the reflow continues the box from its new place, while other frames only move in x. Null if the first frame is
      * not a free box, [toPage] is unknown, or nothing changes.
      */
@@ -630,10 +632,12 @@ class EditorText internal constructor(
         val flow = doc.flows[flowId] ?: return null
         val frames = framesOf(doc, flowId)
         val (fromPage, first) = frames.firstOrNull() ?: return null
-        if (first.role != FrameRole.BOX || doc.page(toPage) == null) return null
+        val target = doc.pageRef(toPage)
+        if (first.role != FrameRole.BOX || target == null || doc.page(toPage) == null) return null
         val dx = rect.left - first.rect.left
         val placed = RectPt(rect.left, rect.top, rect.left + first.rect.widthPt, rect.top + first.rect.heightPt)
-        if (fromPage == toPage && placed == first.rect && flow.box.offsetPt == 0f) return null
+        val offset = TextZones.offsetOf(target.background.template, placed.top)
+        if (fromPage == toPage && placed == first.rect && flow.box.offsetPt == offset) return null
         val moved = first.copy(rect = placed)
         val commands = ArrayList<EditCommand>()
         if (fromPage == toPage) {
@@ -649,7 +653,7 @@ class EditorText internal constructor(
                 anchorXPt = box.anchorXPt?.plus(dx),
                 custom = box.custom?.shiftedX(dx),
                 centerSaved = box.centerSaved?.shiftedX(dx),
-                offsetPt = 0f,
+                offsetPt = offset,
             )
         if (shifted != box) commands += UpdateFlows(listOf(flow.copy(box = shifted)))
         return reflowed(Batch(commands), flowId, "box move")

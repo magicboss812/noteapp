@@ -242,6 +242,60 @@ class BoxHandlesTest {
         assertThat(texts.focusCalls).isEmpty()
     }
 
+    private fun key(
+        key: BoxKey,
+        down: Boolean,
+        smooth: Boolean = false,
+    ) {
+        compose.runOnUiThread { hostView().boxKeys.onKey(BoxKeyEvent(key, down, smooth)) }
+    }
+
+    @Test
+    fun arrowKeyPresses_moveTheBoxLive_oneMovePerHold_shiftLeavesItBetweenTheLines_upSnapsBack() {
+        // The press steps apply at once; the held speed curve is BoxKeyMotionTest's (no display frames here).
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val rect = showBox()
+        val handles = hostView().boxHandles
+
+        key(BoxKey.RIGHT, down = true)
+        val held = handles.preview!!.second
+        assertThat(held.left).isWithin(1e-3f).of(rect.left + BoxKeyCurve.PRESS_PT)
+        assertThat(held.top).isEqualTo(rect.top)
+        assertThat(texts.movedBoxes).isEmpty()
+        key(BoxKey.RIGHT, down = false)
+        val (_, page, right) = texts.movedBoxes.single()
+        assertThat(page).isEqualTo(firstPage())
+        assertThat(right.left).isWithin(1e-3f).of(held.left)
+        assertThat(right.top).isEqualTo(rect.top)
+
+        // The next hold starts where the last one left the box (its move still landing), Shift+Down leaves the lines.
+        key(BoxKey.DOWN, down = true, smooth = true)
+        key(BoxKey.DOWN, down = false)
+        val shifted = texts.movedBoxes[1].third
+        assertThat(shifted.left).isEqualTo(right.left)
+        assertThat(onRule(shifted.top)).isFalse()
+        assertThat(shifted.top).isWithin(1e-3f).of(rect.top + BoxKeyCurve.PRESS_PT)
+
+        key(BoxKey.UP, down = true)
+        key(BoxKey.UP, down = false)
+        assertThat(texts.movedBoxes).hasSize(3)
+        assertThat(texts.movedBoxes[2].third.top).isWithin(1e-3f).of(rect.top)
+    }
+
+    @Test
+    fun arrowKeys_onABoxInEdit_moveNothing() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        showBox(editing = true)
+
+        key(BoxKey.RIGHT, down = true)
+        key(BoxKey.RIGHT, down = false)
+
+        assertThat(hostView().boxHandles.preview).isNull()
+        assertThat(texts.movedBoxes).isEmpty()
+    }
+
     @Test
     fun tapInsideAPreviewBox_goesToTheBoxTap_movesNothing() {
         val texts = FakeTextController().also { controller.textController = it }

@@ -251,10 +251,17 @@ class CanvasHostView internal constructor(
     /** The live text field once a block was focused, null before (tests and debug automation read its state). */
     internal val liveTextField: LiveTextField? get() = textField.liveField
 
-    /** Keeps the caret line above the keyboard and the toolbox; CanvasHost sets what the chrome covers. */
+    // Arrow keys move the box in Preview (P07-T14); the caret keeper keeps the moving box in view.
+    internal val boxKeys =
+        BoxKeyMover(controller.viewport, resources.displayMetrics.density, boxHandles, { document }) { caret.check() }
+
+    /**
+     * Keeps the caret line (or a box that arrow keys move) above the keyboard and the toolbox; CanvasHost sets what the
+     * chrome covers. A key move follows at once, frame by frame; the caret scrolls animated.
+     */
     internal val caret: CaretKeeper =
-        CaretKeeper(this, CARET_MARGIN_DP * resources.displayMetrics.density, { textField.caretLinePx(it) }) {
-            animator.scrollBy(it, KEY_ANIMATION_MS)
+        CaretKeeper(this, CARET_MARGIN_DP * resources.displayMetrics.density, { boxKeys.lineOf(it) || textField.caretLinePx(it) }) {
+            animator.scrollBy(it, if (boxKeys.active) 0L else KEY_ANIMATION_MS)
         }
 
     /** The live field's host (tests read the tiles-to-field handoff, P06-T18). */
@@ -552,6 +559,7 @@ class CanvasHostView internal constructor(
     }
 
     override fun onDetachedFromWindow() {
+        boxKeys.stop()
         animator.cancel()
         gestures.release()
         displayModes?.release()

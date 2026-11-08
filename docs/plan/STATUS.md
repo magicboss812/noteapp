@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P07
-next: P07-T14
+next: P07-T15
 updated: 2026-11-08
 
 ## Completed
@@ -14,10 +14,10 @@ updated: 2026-11-08
 - P06 done 2026-11-08 (tag p06-done): Markdown blocks, fonts + import, grid line boxes (20 fonts 0 violations on device), flows + reflow, live field, math, tables, links/tasks, selection + clipboard, baseline lift, free text boxes; `text:key` p95 17-21 ms debug (D-043); REVIEW fixed 2 blocking findings (stale flow edits after undo, read mode kept text focus); intake -> P11-T01/T09/T12, P07-T02; A-037..A-056; qa green.
 
 ## Current phase progress
-- P07: T10, T11, T12, T13
+- P07: T10, T11, T12, T13, T14 (hold gfxinfo pending)
 
 ## Blocked (needs user; stops dependent tasks)
-- (none)
+- P07-T14 device hold check (2 s Right hold: acceleration, jank via gfxinfo; one undo per hold; Down hold) needs timed key holds; `scripts/device/input.sh` is protected. Proposed diff, after line 31 (`combo` branch): `  hold) k="${1:-}"; ms="${2:-}"; case "$k" in KEYCODE_DPAD_UP|KEYCODE_DPAD_DOWN|KEYCODE_DPAD_LEFT|KEYCODE_DPAD_RIGHT) ;; *) die "hold: arrow keys only" 2 ;; esac; case "$ms" in [0-9]|[0-9][0-9]|[0-9][0-9][0-9]|[0-9][0-9][0-9][0-9]) ;; *) die "hold: ms 0-9999" 2 ;; esac; dshell input keyevent --duration "$ms" "$k" ;;` and in `combo` an optional third arg `ms` passed as `input keycombination -t "$ms" ...`. Single presses passed on the device (see USER-CHECK); nothing else waits on this.
 
 ## USER-CHECK (human verification; non-blocking)
 - 2026-11-07 P06-T07, T15, T08, T09 run on the tablet by device-tester: T07 PASS, T15 PASS (1-frame blink not provable without screen recording), T08 FAIL (header not bold, remove column off by one, trailing cell space dropped), T09 FAIL (stylus tap in read mode inert); defects -> FEEDBACK Open, fixed in T19. T07 instrumented run on the tablet after T19 (abd5e92): GridInvariantInstrumentedTest 20 fonts, 0 violations, formulas as expected; SizeDerivationInstrumentedTest PASS.
@@ -29,10 +29,12 @@ updated: 2026-11-08
 - P07-T11: In a text block you are editing, long-press a word, drag to grow it, double tap another word, drag a handle letter by letter, use Copy/Paste from the menu -> words and single letters select easily with your finger, a quick drag still pans.
 - P07-T12: With the Text tool, place a few boxes on lines and spots of your choice and type into them, one near a page bottom -> text starts where you tapped, the box grows with it up to the page edge then wraps, goes on at the next page's top; dashed outlines show only with the Text tool; a box left empty disappears. (Device run 2026-11-08 all PASS; the text there was about 3 lines tall, likely a leftover free size in the Text panel.)
 - P07-T13: Select, move and delete boxes with finger and pen (tap a box, drag inside it or on its grip, Edit, Back, Delete, undo) -> no keyboard until Edit, x follows smoothly, y by lines, no word selection, one Back leaves Edit. (Device run 2026-11-08 all PASS.)
+- P07-T14: Select a box (Preview, no keyboard), hold Right about 2 s, tap and hold Up/Down, Shift+Down then Up, then Ctrl+Z -> smooth acceleration to a steady speed, Up/Down by lines, Shift leaves the box between the lines and the next Up snaps it back, one undo per hold. (Device 2026-11-08 single presses PASS: 1 pt steps, whole lines, Shift off the lines, Up/Down snap back, arrows move the caret in Edit; holds not injectable yet.)
 
 ## Deferred (id: reason)
 - D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06; D-043 -> P11-T05; D-014, D-034 -> P11-T01; D-024 -> P07-T02.
 - D-038 P06-T14b: a focused block draws about 2 frames/s while idle (caret blink; since P07-T10 the overlay's, which re-records its block text: 40-46 ms each, UI draw 10-17 ms); 0 frames when not editing. A caret-only view would make blink frames cheap.
+- D-049 P07-T14 device: on `perf/lined-1.folio` a finger Text tool tap mid-page (y 960 px) made the new box on the top rule (y 408 px) instead of at the tap; check against T12c "new box at the tap" (maybe the note's body text took the tap).
 - D-048 P07-T13 device: the box toolbar clamps to the view, not the chrome: in Edit near the view top it sits under the format bar, at the bottom behind the tool row; the first frame after H1 shows old and new text overlapped (next frame clean).
 - D-047 P07-T11 device: with the keyboard up a one-finger pan can drag the page top about 1100 px down the screen and it stays there; the pan clamp should keep the first page top in view.
 - D-046 P07-T10: Home/End (MOVE_HOME/END) follow the hidden field's line breaks, which differ from the overlay's; route them through `FieldNavigation` on the page layout like Up/Down.
@@ -43,8 +45,8 @@ updated: 2026-11-08
 - D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P07-T13 done (device 9/9 PASS): box modes in `BoxModes`/`TextEditor`, chrome + `BoxToolbar` + move/resize drags in `BoxHandles` (as built: 07-text-engine.md#flows-and-frames, A-060). Keyboard closing in Edit -> Preview (`LiveTextField.onKeyboardHidden`: the IME takes Back). Knobs still snap until T15.
-- NEXT P07-T14 (arrow keys move a box in Preview). P07-T11 note: a heading caret is its full line-box tall.
+- P07-T14 done (A-061): arrows -> `ShortcutRegistry` `MoveBox` -> `CanvasController.boxKeys` -> `BoxKeyMover` (Choreographer) + pure `BoxKeyMotion`/`BoxKeyCurve`; preview floats in `BoxHandles.keyMove`, drop via `endKeys` -> `moveBoxCommand` (offset = first frame top off the rules). Hold gfxinfo blocked on input.sh (Blocked). Robolectric: never idleFor while a frame callback reposts (gotchas.md).
+- NEXT P07-T15 (width knobs, fill width). Knobs still snap (`TextZones.resizedBox`). P07-T11 note: a heading caret is its full line-box tall.
 - Modified `scripts/auto/run-loop.sh` is the user's: stage explicit paths, not `git add -A`. Device: `debugcmd open lined:N` reuses `perf/lined-N.folio`; wipe the debug library first for a clean note.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; `CaretPlans`/`FlowHits` for taps.
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]`, `open lined:N`; first stylus tap after a debug command is dropped. Tool row y 1963 px, mode pill y 171 px in landscape.

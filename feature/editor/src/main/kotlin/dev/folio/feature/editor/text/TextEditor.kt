@@ -179,6 +179,8 @@ internal class TextEditor(
         return true
     }
 
+    override fun inPreview(): Boolean = text.mode is BoxMode.Preview
+
     // Puts the boxes into mode [next]; a box entering Edit gets the caret where it was last tapped, else at its end.
     private fun enter(next: BoxMode) {
         clearQuery()

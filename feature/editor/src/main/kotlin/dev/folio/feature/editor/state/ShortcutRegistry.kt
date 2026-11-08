@@ -1,6 +1,7 @@
 package dev.folio.feature.editor.state
 
 import android.view.KeyEvent
+import dev.folio.feature.editor.canvas.BoxKey
 import dev.folio.feature.editor.canvas.CanvasCommand
 
 /** A key with exactly the modifiers held (keyCode is an `android.view.KeyEvent.KEYCODE_*`). */
@@ -34,6 +35,12 @@ sealed interface EditorAction {
 
     /** Opens or closes the shortcut help sheet. */
     data object ToggleHelp : EditorAction
+
+    /** Starts moving the text box in Preview with [key] ([smooth]: Shift held); the key's release ends it (P07-T14). */
+    data class MoveBox(
+        val key: BoxKey,
+        val smooth: Boolean,
+    ) : EditorAction
 }
 
 /** One row of the help sheet: the [keys] as shown, what they do, and the chords that trigger it. */
@@ -86,6 +93,15 @@ class ShortcutRegistry(
                 KeyEvent.KEYCODE_7 to EditorTool.IMAGE,
                 KeyEvent.KEYCODE_8 to EditorTool.STICKY,
                 KeyEvent.KEYCODE_0 to EditorTool.TABLE,
+            )
+
+        /** The arrow keys and the box move each one starts. */
+        val ARROW_KEYS: Map<Int, BoxKey> =
+            mapOf(
+                KeyEvent.KEYCODE_DPAD_LEFT to BoxKey.LEFT,
+                KeyEvent.KEYCODE_DPAD_RIGHT to BoxKey.RIGHT,
+                KeyEvent.KEYCODE_DPAD_UP to BoxKey.UP,
+                KeyEvent.KEYCODE_DPAD_DOWN to BoxKey.DOWN,
             )
 
         private fun ctrl(
@@ -158,6 +174,17 @@ class ShortcutRegistry(
                     "Esc",
                     "Close sheet or popover",
                     mapOf(KeyChord(KeyEvent.KEYCODE_ESCAPE) to EditorAction.Escape),
+                ),
+                ShortcutGroup(
+                    "Arrows, Shift+Up/Down",
+                    "Move the selected text box; with Shift, Up and Down leave it between the lines",
+                    ARROW_KEYS
+                        .flatMap { (code, key) ->
+                            listOf(
+                                KeyChord(code) to EditorAction.MoveBox(key, smooth = false),
+                                KeyChord(code, shift = true) to EditorAction.MoveBox(key, smooth = true),
+                            )
+                        }.toMap(),
                 ),
                 ShortcutGroup(
                     "Ctrl+/",
