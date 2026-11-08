@@ -1,6 +1,7 @@
 package dev.folio.core.text.flow
 
 import dev.folio.core.model.PageId
+import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.text.edit.SourceOffsets
 import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.edit.TableEditing
@@ -27,17 +28,24 @@ data class BlockPlacement(
 )
 
 /**
- * The block shown at ([xPt], [yPt]) on page [pageId], null outside every frame of this flow on the page. Below the
- * last block of a frame the hit is that block with [BlockHit.pastEnd] set (a tap in the free space puts the caret at the end).
+ * The block shown at ([xPt], [yPt]) on page [pageId], null outside every box area of this flow on the page: a frame's
+ * [FlowLayout.outlineOf] (its used lines, at least one, padded left and right) grown by [slopPt] on every side; an
+ * outline that holds the point exactly wins over one that only holds it with the slop (A-059). Below the last block of
+ * a frame the hit is that block with [BlockHit.pastEnd] set (a tap in the slop under the text puts the caret at the end).
  */
 fun FlowLayout.hit(
     pageId: PageId,
     xPt: Float,
     yPt: Float,
+    slopPt: Float = 0f,
 ): BlockHit? {
-    val frame = slots.indices.firstOrNull { slots[it].pageId == pageId && slots[it].rect.contains(xPt, yPt) }
+    val frame =
+        slots.indices.firstOrNull { slots[it].pageId == pageId && outlineOf(it).contains(xPt, yPt) }
+            ?: slots.indices.firstOrNull { slots[it].pageId == pageId && outlineOf(it).grownBy(slopPt).contains(xPt, yPt) }
     return frame?.let { hitIn(it, yPt) }
 }
+
+private fun RectPt.grownBy(pt: Float): RectPt = RectPt(left - pt, top - pt, right + pt, bottom + pt)
 
 private fun FlowLayout.hitIn(
     frame: Int,

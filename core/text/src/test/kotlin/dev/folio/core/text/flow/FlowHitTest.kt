@@ -60,27 +60,40 @@ class FlowHitTest {
     }
 
     @Test
-    fun hit_belowTheLastBlock_isThatBlockPastTheEnd() {
+    fun hit_inTheSlopUnderTheLastBlock_isThatBlockPastTheEnd() {
         val layout = layoutOf("Alpha\n\nBeta")
 
-        val hit = checkNotNull(layout.hit(page, bodyRect.left + 5f, midLine(10)))
+        val hit = checkNotNull(layout.hit(page, bodyRect.left + 5f, bodyRect.top + 2 * unitPt + 4f, slopPt = 8f))
 
         assertThat(hit.blockIndex).isEqualTo(1)
         assertThat(hit.pastEnd).isTrue()
     }
 
     @Test
-    fun hit_emptyFlow_isBlockZeroPastTheEnd() {
-        val layout = layoutOf("")
+    fun hit_belowTheUsedLinesOnTheSamePage_missesTheBody() {
+        val layout = layoutOf("Alpha\n\nBeta")
 
-        assertThat(layout.hit(page, bodyRect.left + 5f, midLine(0))).isEqualTo(BlockHit(0, 0, 0, pastEnd = true))
+        assertThat(layout.hit(page, bodyRect.left + 5f, midLine(10), slopPt = 8f)).isNull()
+        assertThat(layout.hit(page, bodyRect.left + 5f, midLine(2))).isNull()
+        assertThat(layout.outlineOf(0).bottom).isWithin(1e-3f).of(bodyRect.top + 2 * unitPt)
     }
 
     @Test
-    fun hit_outsideTheFrameOrOnAnotherPage_isNull() {
-        val layout = layoutOf("Alpha")
+    fun hit_emptyFlow_takesItsFirstLine() {
+        val layout = layoutOf("")
 
-        assertThat(layout.hit(page, bodyRect.left - 5f, midLine(0))).isNull()
+        assertThat(layout.hit(page, bodyRect.left + 5f, midLine(0))).isEqualTo(BlockHit(0, 0, 0, pastEnd = true))
+        assertThat(layout.hit(page, bodyRect.left + 5f, midLine(1))).isNull()
+    }
+
+    @Test
+    fun hit_inThePadding_hits_outsideItOrOnAnotherPage_isNull() {
+        val layout = layoutOf("Alpha")
+        val pad = TextZones.BOX_PADDING_UNITS * unitPt
+
+        assertThat(layout.hit(page, bodyRect.left - pad + 1f, midLine(0))).isEqualTo(BlockHit(0, 0, 0, pastEnd = false))
+        assertThat(layout.hit(page, bodyRect.left - pad - 1f, midLine(0))).isNull()
+        assertThat(layout.hit(page, bodyRect.left - pad - 1f, midLine(0), slopPt = 8f)).isNotNull()
         assertThat(layout.hit(PageId("other"), bodyRect.left + 5f, midLine(0))).isNull()
     }
 
@@ -173,7 +186,9 @@ class FlowHitTest {
     fun sourceOffsetAt_belowTheLastBlock_isTheEndOfItsSource() {
         val layout = layoutOf("Alpha\n\nBeta")
 
-        assertThat(offsetAt(layout, bodyRect.left + 1f, yPt = midLine(10))).isEqualTo(4)
+        val hit = checkNotNull(layout.hit(page, bodyRect.left + 1f, bodyRect.top + 2 * unitPt + 4f, slopPt = 8f))
+
+        assertThat(layout.sourceOffsetAt(hit, bodyRect.left + 1f)).isEqualTo(4)
     }
 
     @Test

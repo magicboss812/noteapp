@@ -6,6 +6,7 @@ import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.TextAlign
+import dev.folio.core.model.TextZones
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.text.fonts.TextRole
 import dev.folio.core.text.fonts.TextSizing
@@ -104,6 +105,12 @@ class FlowLayout internal constructor(
 
     /** True when text is left over after the last slot. */
     val overflows: Boolean get() = distribution.overflows
+
+    /** Outline and hit area of slot [frame] (A-059): its text column padded by 0.5 U left and right, its used lines tall (at least one). */
+    fun outlineOf(frame: Int): RectPt {
+        val slot = slots[frame]
+        return TextZones.boxOutline(slot.rect, distribution.usedUnits(frame), slot.grid.unitPt)
+    }
 
     /** Indices of [slots] on page [pageId]. */
     fun slotsOn(pageId: PageId): List<Int> = slots.indices.filter { slots[it].pageId == pageId }
@@ -212,6 +219,32 @@ class FlowLayouter(
         index: Int,
         source: String,
     ): EditedBlock? = PerfMonitor.trace(TRACE_RETYPE) { retype(blockLayouter, retypeParser, flow, index, source) }
+
+    /**
+     * Width the widest block of [markdown] needs when laid out [widthPt] wide on [grid] (auto width boxes, A-059);
+     * block [editBlock] is measured as its source. At most [widthPt] for text that wraps.
+     */
+    fun contentWidthPt(
+        markdown: MarkdownDocument,
+        style: FlowTextStyle,
+        widthPt: Float,
+        grid: LayoutGrid,
+        editBlock: Int = FlowLayout.NO_BLOCK,
+    ): Float {
+        var widest = 0f
+        for ((i, block) in markdown.blocks.withIndex()) {
+            val layout =
+                if (i ==
+                    editBlock
+                ) {
+                    blockLayouter.editLayout(block, widthPt, style, grid)
+                } else {
+                    blockLayouter.layout(block, widthPt, style, grid)
+                }
+            widest = maxOf(widest, layout.contentWidthPt)
+        }
+        return widest
+    }
 
     private val retypeParser by lazy { BlockParser() }
 

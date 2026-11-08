@@ -173,4 +173,71 @@ class TextZonesTest {
         val sticky = StickyNote(ObjectId("s"), FlowId("f"), RectPt(300f, 400f, 420f, 520f), 5f, 0)
         assertThat(TextZones.stickyContentRect(sticky, 20f)).isEqualTo(RectPt(10f, 10f, 110f, 110f))
     }
+
+    @Test
+    fun newBoxAt_midPage_onTheLineHoldingTheTap_firstGlyphAtTheTap_caretWide() {
+        val u = lined.spacingPt
+        val tapY = lined.marginTopPt + 10.4f * u
+        val rect = TextZones.newBoxAt(a4, lined, 250f, tapY, 0f, TextAlign.START)
+
+        assertThat(rect.top).isWithin(1e-3f).of(lined.marginTopPt + 10f * u)
+        assertThat(rect.heightPt).isWithin(1e-3f).of(u)
+        assertThat(rect.left).isEqualTo(250f)
+        assertThat(rect.widthPt).isWithin(1e-3f).of(TextZones.AUTO_MIN_WIDTH_PT)
+        assertThat(TextZones.anchorOf(rect, TextAlign.START)).isEqualTo(250f)
+    }
+
+    @Test
+    fun newBoxAt_withLift_tapOnTheRaisedText_takesTheLineBelow() {
+        val u = lined.spacingPt
+        // Text with a 0.3 U lift sits in the top part of the line above its rule: a tap 0.8 U into line 10 is on line 11.
+        val rect = TextZones.newBoxAt(a4, lined, 250f, lined.marginTopPt + 10.8f * u, 0.3f, TextAlign.START)
+
+        assertThat(rect.top).isWithin(1e-3f).of(lined.marginTopPt + 11f * u)
+    }
+
+    @Test
+    fun newBoxAt_outsideTheZone_keptInside() {
+        val zone = TextZones.boxZone(a4, lined)
+        val low = TextZones.newBoxAt(a4, lined, a4.widthPt - 1f, a4.heightPt - 2f, 0f, TextAlign.START)
+        val high = TextZones.newBoxAt(a4, lined, 2f, 3f, 0f, TextAlign.END)
+
+        assertThat(low.right).isAtMost(zone.right + 1e-3f)
+        assertThat(low.bottom).isWithin(1e-3f).of(zone.bottom)
+        assertThat(high.left).isWithin(1e-3f).of(zone.left)
+        assertThat(high.top).isWithin(1e-3f).of(zone.top)
+    }
+
+    @Test
+    fun autoBorders_growOnTheAlignmentSide_stopAtTheZone() {
+        val zone = RectPt(50f, 0f, 550f, 700f)
+
+        assertThat(TextZones.autoBorders(zone, 100f, TextAlign.START, 120f)).isEqualTo(Borders(100f, 220f))
+        assertThat(TextZones.autoBorders(zone, 500f, TextAlign.START, 120f)).isEqualTo(Borders(500f, 550f))
+        assertThat(TextZones.autoBorders(zone, 300f, TextAlign.END, 120f)).isEqualTo(Borders(180f, 300f))
+        assertThat(TextZones.autoBorders(zone, 100f, TextAlign.END, 120f)).isEqualTo(Borders(50f, 100f))
+        assertThat(TextZones.autoBorders(zone, 300f, TextAlign.CENTER, 120f)).isEqualTo(Borders(240f, 360f))
+        assertThat(TextZones.autoBorders(zone, 500f, TextAlign.CENTER, 400f)).isEqualTo(Borders(450f, 550f))
+        assertThat(TextZones.autoBorders(zone, 100f, TextAlign.START, 0f).widthPt).isEqualTo(TextZones.AUTO_MIN_WIDTH_PT)
+        assertThat(TextZones.autoBorders(zone, 100f, TextAlign.START, Float.POSITIVE_INFINITY)).isEqualTo(Borders(100f, 550f))
+    }
+
+    @Test
+    fun boxZone_structuredTemplate_isThePageInsideMargins_linedIsTheBody() {
+        val cornell = lined.copy(kind = TemplateKind.CORNELL)
+        val zone = TextZones.boxZone(a4, cornell)
+
+        assertThat(zone.left).isWithin(1e-3f).of(12f * PT_PER_MM)
+        assertThat(zone.right).isWithin(1e-3f).of(a4.widthPt - 12f * PT_PER_MM)
+        assertThat(onGrid(zone.top, lined.marginTopPt, lined.spacingPt)).isTrue()
+        assertThat(TextZones.boxZone(a4, lined)).isEqualTo(TextZones.bodyRect(a4, lined))
+    }
+
+    @Test
+    fun boxOutline_paddedHalfUnit_atLeastOneLine() {
+        val rect = RectPt(100f, 200f, 180f, 220f)
+
+        assertThat(TextZones.boxOutline(rect, 0, 20f)).isEqualTo(RectPt(90f, 200f, 190f, 220f))
+        assertThat(TextZones.boxOutline(rect, 3, 20f)).isEqualTo(RectPt(90f, 200f, 190f, 260f))
+    }
 }

@@ -301,6 +301,13 @@ internal class GridText(
     /** Right edge of the ink advance of [line] (start-aligned text). */
     fun lineRightPt(line: Int): Float = paragraph.getLineRight(line) / refScale
 
+    /** Width of the widest line, trailing spaces included (auto width boxes, A-059). */
+    fun maxLineWidthPt(): Float {
+        var widest = 0f
+        for (line in 0 until paragraph.lineCount) widest = maxOf(widest, paragraph.getLineWidth(line))
+        return widest / refScale
+    }
+
     /** First offset of [line]. */
     fun lineStart(line: Int): Int = paragraph.getLineStart(line)
 
@@ -384,6 +391,18 @@ class BlockLayout internal constructor(
 
     /** Baseline of [line]; blocks without text report the bottom of their line box less the lift. */
     fun baselinePt(line: Int): Float = text?.baselinePt(line) ?: ((line + 1) * boxUnits * unitPt - liftPt)
+
+    /**
+     * Width from the block's left edge that its content needs (auto width boxes, A-059): the text column start plus
+     * the widest line; a table its columns, a math block its formula; 0 for rules and empty blocks.
+     */
+    val contentWidthPt: Float
+        get() =
+            when {
+                table != null -> table.columnLeftPt(table.columns)
+                text != null -> textLeftPt + text.maxLineWidthPt()
+                else -> maths.maxOfOrNull { it.leftPt + it.widthPt } ?: 0f
+            }
 
     /** The text shown in the block's lines (without list labels); empty for blocks without text. */
     val plainText: String get() = text?.plain.orEmpty()

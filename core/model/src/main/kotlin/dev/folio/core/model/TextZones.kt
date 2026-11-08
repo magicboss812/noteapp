@@ -30,6 +30,12 @@ object TextZones {
     /** Inner padding of a sticky note in U. */
     const val STICKY_PADDING_UNITS = 0.5f
 
+    /** Space between a box's text column (its frame rect) and its outline, left and right, in U (A-059). */
+    const val BOX_PADDING_UNITS = 0.5f
+
+    /** Narrowest text column of an auto width box: room for the caret (A-059). */
+    const val AUTO_MIN_WIDTH_PT = 4f
+
     private const val CORNELL_CUE_PT = 63.5f * PT_PER_MM
     private const val CORNELL_SUMMARY_PT = 50.8f * PT_PER_MM
     private const val PLANNER_SCHEDULE_FRACTION = 0.6f
@@ -111,6 +117,105 @@ object TextZones {
         }
         val top = max(ruleAtOrAbove(grid, yPt), ruleAtOrBelow(grid, 0f))
         return RectPt(left, top, left + width, top + grid.unitPt)
+    }
+
+    /**
+     * The page text zone free text boxes stay inside (10-editor-ui.md#text-boxes, A-059): the body zone on lined,
+     * blank and grid pages; on structured templates (or when the body zone holds no line) the page inside 12 mm
+     * margins, top and bottom on rules.
+     */
+    fun boxZone(
+        spec: PageSpec,
+        template: Template,
+    ): RectPt {
+        val body =
+            when (template.kind) {
+                TemplateKind.CORNELL, TemplateKind.PLANNER_DAILY, TemplateKind.PLANNER_WEEKLY -> null
+                else -> bodyRect(spec, template)
+            }
+        if (body != null) return body
+        val grid = GridUnit.of(template)
+        val top = ruleAtOrBelow(grid, max(grid.originYPt, SIDE_MARGIN_PT))
+        val bottom = max(top + grid.unitPt, ruleAtOrAbove(grid, spec.heightPt - SIDE_MARGIN_PT))
+        val right = max(SIDE_MARGIN_PT + BOX_MIN_WIDTH_PT, spec.widthPt - SIDE_MARGIN_PT)
+        return RectPt(SIDE_MARGIN_PT, top, right, bottom)
+    }
+
+    /**
+     * A new auto width box for a tap at ([xPt], [yPt]) (A-059): one line box on the line holding the tap (its text
+     * raised by [liftUnits] U), its first glyph at the tap x (the right end for [TextAlign.END], the middle for
+     * [TextAlign.CENTER]), [AUTO_MIN_WIDTH_PT] wide, all inside [boxZone]. [anchorOf] gives back the stored anchor.
+     */
+    fun newBoxAt(
+        spec: PageSpec,
+        template: Template,
+        xPt: Float,
+        yPt: Float,
+        liftUnits: Float,
+        align: TextAlign,
+    ): RectPt {
+        val zone = boxZone(spec, template)
+        val grid = GridUnit.of(template)
+        val unitPt = grid.unitPt
+        val half = AUTO_MIN_WIDTH_PT / 2f
+        val anchor =
+            when (align) {
+                TextAlign.START, TextAlign.JUSTIFIED -> xPt.coerceIn(zone.left, max(zone.left, zone.right - AUTO_MIN_WIDTH_PT))
+                TextAlign.END -> xPt.coerceIn(min(zone.right, zone.left + AUTO_MIN_WIDTH_PT), zone.right)
+                TextAlign.CENTER -> xPt.coerceIn(zone.left + half, max(zone.left + half, zone.right - half))
+            }
+        val borders = autoBorders(zone, anchor, align, 0f)
+        val top = ruleAtOrAbove(grid, yPt + liftUnits * unitPt).coerceIn(zone.top, max(zone.top, zone.bottom - unitPt))
+        return RectPt(borders.leftPt, top, borders.rightPt, top + unitPt)
+    }
+
+    /** The anchor of a box with text column [rect] for [align]: the left edge, the right edge or the middle (A-059). */
+    fun anchorOf(
+        rect: RectPt,
+        align: TextAlign,
+    ): Float =
+        when (align) {
+            TextAlign.START, TextAlign.JUSTIFIED -> rect.left
+            TextAlign.END -> rect.right
+            TextAlign.CENTER -> (rect.left + rect.right) / 2f
+        }
+
+    /**
+     * Text column borders of an auto width box anchored at [anchorXPt] whose text needs [contentWidthPt] (at least
+     * [AUTO_MIN_WIDTH_PT]): growing right from the anchor for start and justified text, left for end text, both ways
+     * for centered text, never past [zone]. [Float.POSITIVE_INFINITY] gives the widest borders the box may take.
+     */
+    fun autoBorders(
+        zone: RectPt,
+        anchorXPt: Float,
+        align: TextAlign,
+        contentWidthPt: Float,
+    ): Borders {
+        val width = max(AUTO_MIN_WIDTH_PT, contentWidthPt)
+        return when (align) {
+            TextAlign.START, TextAlign.JUSTIFIED -> {
+                Borders(anchorXPt, max(anchorXPt, min(anchorXPt + width, zone.right)))
+            }
+
+            TextAlign.END -> {
+                Borders(min(anchorXPt, max(anchorXPt - width, zone.left)), anchorXPt)
+            }
+
+            TextAlign.CENTER -> {
+                val half = max(0f, min(width / 2f, min(anchorXPt - zone.left, zone.right - anchorXPt)))
+                Borders(anchorXPt - half, anchorXPt + half)
+            }
+        }
+    }
+
+    /** Hit and outline area of a box with text column [rect] showing [usedUnits] U: padded left and right, at least one line tall. */
+    fun boxOutline(
+        rect: RectPt,
+        usedUnits: Int,
+        unitPt: Float,
+    ): RectPt {
+        val pad = BOX_PADDING_UNITS * unitPt
+        return RectPt(rect.left - pad, rect.top, rect.right + pad, rect.top + max(1, usedUnits) * unitPt)
     }
 
     /**

@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowBox
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FrameRole
@@ -12,6 +13,7 @@ import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.PageObject
 import dev.folio.core.model.StickyNote
+import dev.folio.core.model.TextAlign
 import dev.folio.core.model.TextZones
 import dev.folio.core.model.edit.EditFlow
 import dev.folio.core.model.edit.InsertPages
@@ -133,6 +135,109 @@ class FlowReflowTest {
         val grown = update.objects.single() as FlowFrame
         assertThat(grown.rect.heightPt).isWithin(1e-3f).of(3 * template.spacingPt)
         assertThat(grown.rect.top).isEqualTo(top)
+    }
+
+    private fun boxDoc(
+        markdown: String,
+        frame: FlowFrame,
+        box: FlowBox = FlowBox.created(frame.rect.left),
+        align: TextAlign = TextAlign.START,
+        autoContinue: Boolean = true,
+    ): Document {
+        val flow = ModelFixtures.flow(flowId.value, markdown)
+        return ModelFixtures.document(
+            listOf(ModelFixtures.page("p1", listOf(frame)), ModelFixtures.page("p2")),
+            flows = listOf(flow.copy(style = flow.style.copy(align = align), autoContinue = autoContinue, box = box)),
+        )
+    }
+
+    private fun newBox(
+        xPt: Float,
+        yPt: Float,
+        align: TextAlign = TextAlign.START,
+    ): FlowFrame =
+        FlowFrame(ObjectId("b"), flowId, TextZones.newBoxAt(ModelFixtures.A4, template, xPt, yPt, 0f, align), 0, FrameRole.BOX, true)
+
+    private fun boxAfter(
+        d: Document,
+        markdown: String,
+    ): FlowFrame {
+        val edited = EditFlow(flowId, listOf(TextEdit(0, d.flows[flowId]!!.markdown.length, markdown))).execute(d).doc
+        val update = plan(edited).command as UpdateObjects
+        return update.objects.single() as FlowFrame
+    }
+
+    @Test
+    fun autoWidthBox_growsRightWithTyping_stopsAtTheZoneEdgeAndWraps_shrinksOnDelete() {
+        val frame = newBox(200f, bodyRect.top + 3.5f * template.spacingPt)
+        val d = boxDoc("", frame)
+
+        val short = boxAfter(d, "Hi")
+        val longer = boxAfter(d, "Hi there, friend")
+        val wrapped = boxAfter(d, "word ".repeat(60).trim())
+        val shrunk =
+            boxAfter(ModelFixtures.document(listOf(ModelFixtures.page("p1", listOf(longer))), flows = d.flows.values.toList()), "H")
+
+        assertThat(short.rect.left).isEqualTo(200f)
+        assertThat(short.rect.right).isGreaterThan(200f + TextZones.AUTO_MIN_WIDTH_PT)
+        assertThat(longer.rect.left).isEqualTo(200f)
+        assertThat(longer.rect.right).isGreaterThan(short.rect.right)
+        assertThat(longer.rect.heightPt).isWithin(1e-3f).of(template.spacingPt)
+        assertThat(wrapped.rect.right).isWithin(1e-3f).of(bodyRect.right)
+        assertThat(wrapped.rect.heightPt).isGreaterThan(2.5f * template.spacingPt)
+        assertThat(shrunk.rect.right).isLessThan(short.rect.right)
+        assertThat(shrunk.rect.left).isEqualTo(200f)
+    }
+
+    @Test
+    fun autoWidthBox_endAligned_growsLeftFromTheAnchor() {
+        val frame = newBox(400f, bodyRect.top + 3.5f * template.spacingPt, TextAlign.END)
+        val d = boxDoc("", frame, FlowBox.created(400f), TextAlign.END)
+
+        val grown = boxAfter(d, "Hello there")
+
+        assertThat(grown.rect.right).isEqualTo(400f)
+        assertThat(grown.rect.left).isLessThan(400f - 20f)
+        assertThat(grown.rect.left).isAtLeast(bodyRect.left)
+    }
+
+    @Test
+    fun box_passingTheZoneBottom_continuesOnTheNextPageBetweenTheSameBorders_removedAgain() {
+        val u = template.spacingPt
+        val top = bodyRect.bottom - 2 * u
+        val frame = FlowFrame(ObjectId("b"), flowId, RectPt(150f, top, 350f, top + u), 0, FrameRole.BOX, true)
+        val d = boxDoc(lines(5), frame, FlowBox.FIXED)
+
+        val result = plan(d)
+        val applied = result.command!!.execute(d).doc
+
+        assertThat(applied.pages.map { it.id.value }).containsExactly("p1", "n0", "p2").inOrder()
+        val first = applied.page(PageId("p1"))!!.objects.single() as FlowFrame
+        val next = applied.page(PageId("n0"))!!.objects.single() as FlowFrame
+        assertThat(first.rect.bottom).isWithin(1e-3f).of(bodyRect.bottom)
+        assertThat(next.role).isEqualTo(FrameRole.BOX)
+        assertThat(next.order).isEqualTo(1)
+        assertThat(next.rect.left).isEqualTo(150f)
+        assertThat(next.rect.right).isEqualTo(350f)
+        assertThat(next.rect.top).isEqualTo(bodyRect.top)
+        assertThat(next.rect.heightPt).isWithin(1e-3f).of(3 * u)
+        assertThat(plan(applied).command).isNull()
+        // Deleting the text again removes the continuation page.
+        val edited = EditFlow(flowId, listOf(TextEdit(0, applied.flows[flowId]!!.markdown.length, "Short"))).execute(applied).doc
+        val removed = plan(edited).command!!.execute(edited).doc
+        assertThat(removed.pages.map { it.id.value }).containsExactly("p1", "p2").inOrder()
+        assertThat((removed.page(PageId("p1"))!!.objects.single() as FlowFrame).rect.heightPt).isWithin(1e-3f).of(u)
+    }
+
+    @Test
+    fun box_ofAFlowThatDoesNotContinue_growsPastTheZone_withoutPages() {
+        val u = template.spacingPt
+        val top = bodyRect.bottom - 2 * u
+        val frame = FlowFrame(ObjectId("b"), flowId, RectPt(150f, top, 350f, top + u), 0, FrameRole.BOX, true)
+
+        val grown = plan(boxDoc(lines(5), frame, FlowBox.FIXED, autoContinue = false)).command as UpdateObjects
+
+        assertThat((grown.objects.single() as FlowFrame).rect.heightPt).isWithin(1e-3f).of(5 * u)
     }
 
     @Test
