@@ -28,6 +28,9 @@ import dev.folio.core.model.InkStroke
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.Page
 import dev.folio.core.model.PageId
+import dev.folio.core.model.PageObject
+import dev.folio.core.model.Shape
+import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.render.DisplayModeHelper
 import dev.folio.core.render.PageRenderer
@@ -161,6 +164,19 @@ class CanvasHostView internal constructor(
             onPreview = ::showErasePreview,
             onFinished = ::commitErase,
         )
+
+    /** The Shape tool's live shape (tests read what it shows). */
+    internal val shapePreview = ShapePreview(context, controller.viewport)
+    private val shapeInput =
+        ShapeInput(
+            controller.viewport,
+            pageIdAt = { index -> document?.pages?.getOrNull(index)?.id },
+            spec = { controller.activeShape },
+            closeRadiusPx = POLYGON_CLOSE_DP * resources.displayMetrics.density,
+            doubleTapMs = ViewConfiguration.getDoubleTapTimeout().toLong(),
+            invalidate = { shapePreview.invalidate() },
+            onCommit = ::commitShape,
+        ).also { shapePreview.input = it }
     private val tools =
         StylusTools(
             pen,
@@ -168,6 +184,7 @@ class CanvasHostView internal constructor(
             buttonErases = { event -> StylusFeatures.buttonErases(event, router.capabilities, controller.stylusPreferences) },
             navigate = StylusNavigation(gestures),
             text = StylusTap(ViewConfiguration.get(context).scaledTouchSlop.toFloat(), TEXT_TAP_TIMEOUT_MS, ::onTextToolTap),
+            shape = shapeInput,
         ) { controller.activeTool }
     private val hoverRing = HoverRingView(context)
     private val hoverCursor =
@@ -314,6 +331,7 @@ class CanvasHostView internal constructor(
         addView(background, match)
         addView(content, LayoutParams(match))
         addView(boxOutlines, LayoutParams(match))
+        addView(shapePreview, LayoutParams(match))
         addView(overlay, LayoutParams(match))
         addView(selectionView, LayoutParams(match))
         addView(boxHandles, LayoutParams(match))
@@ -596,6 +614,7 @@ class CanvasHostView internal constructor(
                 animator.cancel()
                 gestures.stopFling()
                 yieldTextToStylus(event)
+                if (controller.activeTool != CanvasTool.SHAPE) shapeInput.cancelDraft()
             }
             // A finger or the pen on a box's grip or width handle moves or resizes the box, a press on the selection menu
             // runs it, a finger on a selection handle drags that end, a long-press or double tap selects words; the
@@ -824,6 +843,29 @@ class CanvasHostView internal constructor(
         handoff.check()
         textField.check()
         boxHandles.check()
+        checkPendingShape()
+    }
+
+    // The shape preview hands a committed shape over to the tiles once they draw it (no blink in between).
+    private fun checkPendingShape() {
+        val pending = shapeInput.pending ?: return
+        if (isDrawn(pending.pageId, pending.shape)) shapeInput.committed()
+    }
+
+    private fun commitShape(
+        page: PageId,
+        shape: Shape,
+    ) {
+        scope.launch {
+            val accepted =
+                try {
+                    withContext(NonCancellable) { controller.execute(AddObjects(page, listOf(shape))) }
+                } catch (e: IllegalStateException) {
+                    FolioLog.w(TAG, "shape commit failed: ${e.message}", e) // session closed under the view
+                    false
+                }
+            if (!accepted) shapeInput.reset() else checkPendingShape()
+        }
     }
 
     /** Hands [strokes] to the session; the synchronous part runs inside the `ink:commit` section. */
@@ -846,12 +888,12 @@ class CanvasHostView internal constructor(
     }
 
     /**
-     * True when [stroke] is in the shown document and every content tile under its on-screen part is
-     * fresh (or none of it is on screen), so the next content-layer frame draws it.
+     * True when [stroke] (any object) is in the shown document and every content tile under its on-screen
+     * part is fresh (or none of it is on screen), so the next content-layer frame draws it.
      */
     private fun isDrawn(
         page: PageId,
-        stroke: InkStroke,
+        stroke: PageObject,
     ): Boolean {
         val doc = document ?: return false
         val stack = viewport.layout ?: return false
@@ -929,6 +971,9 @@ private const val CARET_MARGIN_DP = 24f
 
 // Slop around a text box's used lines that still takes a tap (10-editor-ui.md#text-boxes).
 private const val BOX_SLOP_DP = 8f
+
+// A polygon tap this near its first vertex (or a double tap on its last) closes it (06-ink-input.md#shapes).
+private const val POLYGON_CLOSE_DP = 12f
 
 // The text color of a moved box on a page without a known paper (near-black, like the live field's default).
 private const val BOX_TEXT_ARGB = 0xFF1B1D22.toInt()

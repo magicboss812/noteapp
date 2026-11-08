@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.folio.core.designsystem.component.FolioButton
 import dev.folio.core.designsystem.component.FolioButtonStyle
+import dev.folio.core.designsystem.component.SegmentedTabs
 import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.ink.brush.PressureCurve
 import dev.folio.core.ink.erase.EraserOptions
@@ -48,8 +49,10 @@ import dev.folio.feature.editor.state.LassoFilter
 import dev.folio.feature.editor.state.LassoOptions
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.PEN_KINDS
+import dev.folio.feature.editor.state.ShapeFill
 import dev.folio.feature.editor.state.ToolOptions
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -84,6 +87,7 @@ internal fun ToolSettingsPanel(
                 EditorTool.ERASER -> EraserSettings(options.eraser, onChange, onPopover)
                 EditorTool.LASSO -> LassoSettings(options.lasso, onChange)
                 EditorTool.TEXT -> TextSettings(options.text, fonts, onChange, onImportFont)
+                EditorTool.SHAPE -> ShapeSettings(options, onChange, onPopover)
                 else -> Unit
             }
         }
@@ -178,6 +182,34 @@ private fun LassoSettings(
         }
     }
 }
+
+@Suppress("MultipleEmitters") // Sections of the panel's scrolling column.
+@Composable
+private fun ShapeSettings(
+    options: ToolOptions,
+    onChange: OptionsChange,
+    onPopover: (OptionsPopover?) -> Unit,
+) {
+    val shape = options.shape
+    FlowRow { ShapeKindButtons(shape.kind) { kind -> onChange { it.copy(shape = it.shape.copy(kind = kind)) } } }
+    WidthSlider("Width", shape.widths.widthPt) { widthPt ->
+        onChange { it.withWidths(EditorTool.SHAPE, it.widths(EditorTool.SHAPE).run { set(selected, widthPt) }) }
+    }
+    SwitchRow("Dashed", shape.dashed) { on -> onChange { it.copy(shape = it.shape.copy(dashed = on)) } }
+    SectionLabel("Fill")
+    SegmentedTabs(
+        tabs = FILL_LABELS,
+        selectedIndex = shape.fill.ordinal,
+        onSelect = { index -> onChange { it.copy(shape = it.shape.copy(fill = ShapeFill.entries[index])) } },
+    )
+    PanelDivider()
+    SwitchRow("Constrain to 15° and equal sides", shape.constrain) { on -> onChange { it.copy(shape = it.shape.copy(constrain = on)) } }
+    PanelDivider()
+    ColorSection(EditorTool.SHAPE, options, onChange, onPopover)
+}
+
+// ShapeFill order.
+private val FILL_LABELS = persistentListOf("None", "Tint", "Solid")
 
 /** Pressure curve slider with its explanation (shared by the pen panel). */
 @Suppress("MultipleEmitters") // Slider and caption for the caller's column.

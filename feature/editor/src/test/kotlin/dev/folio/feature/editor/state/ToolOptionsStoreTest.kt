@@ -6,6 +6,7 @@ import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.FlowStyle
+import dev.folio.core.model.ShapeKind
 import dev.folio.core.text.fonts.TextSizing
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -28,7 +29,10 @@ class ToolOptionsStoreTest {
         // Panel-only values: an eraser radius between the row 2 sizes and narrowed lasso filters.
         val lasso = LassoOptions(LassoMode.RECTANGLE).toggle(LassoFilter.TEXT).toggle(LassoFilter.IMAGES)
         val text = TextOptions("Kalam").withBodyCap(0.83f).withBaselineLift(0.25f)
-        return ToolOptions(pen, highlighter, EraserOptions(EraserMode.PARTIAL, 17f, highlighterOnly = true), lasso = lasso, text = text)
+        val shape =
+            ShapeOptions(ShapeKind.POLYGON, ShapeOptions().widths.set(2, 6f).select(2), dashed = true, ShapeFill.SOLID, constrain = true)
+        val eraser = EraserOptions(EraserMode.PARTIAL, 17f, highlighterOnly = true)
+        return ToolOptions(pen, highlighter, eraser, lasso = lasso, text = text, shape = shape)
             .withRecentColor(0xFF0A0B0C.toInt())
     }
 

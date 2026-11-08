@@ -13,7 +13,7 @@ enum class EditorTool(
     PEN(CanvasTool.PEN),
     HIGHLIGHTER(CanvasTool.PEN),
     ERASER(CanvasTool.ERASER),
-    SHAPE(null),
+    SHAPE(CanvasTool.SHAPE),
     TEXT(CanvasTool.TEXT),
     TABLE(null),
     IMAGE(null),
@@ -29,4 +29,5 @@ enum class EditorTool(
 val EditorTool.hasSettings: Boolean
     get() = this in WITH_SETTINGS
 
-private val WITH_SETTINGS = setOf(EditorTool.PEN, EditorTool.HIGHLIGHTER, EditorTool.ERASER, EditorTool.LASSO, EditorTool.TEXT)
+private val WITH_SETTINGS =
+    setOf(EditorTool.PEN, EditorTool.HIGHLIGHTER, EditorTool.ERASER, EditorTool.LASSO, EditorTool.TEXT, EditorTool.SHAPE)

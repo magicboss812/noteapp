@@ -32,7 +32,7 @@ Row 2 holds only mode/kind | widths | colors | details (sliders icon); the rest 
 | Highlighter | 3 widths, 5 colors, add color, details | width slider, "always straight" toggle, colors |
 | Eraser | mode (stroke / partial), 3 sizes, details | size slider (2-32 pt), highlighter-only toggle, Clear page (danger, asks first) |
 | Lasso | freeform / rectangle, details | filter chips (ink, shapes, text, images) |
-| Shape | kind (line, arrow, rectangle, ellipse, triangle, polygon), stroke color, width, dashed, fill (none / tint / solid) |
+| Shape | kind (line, arrow, rectangle, ellipse, triangle, polygon), 3 widths, colors, add color, details (A-064) | kinds, width slider, dashed toggle, fill (none / tint / solid), constrain toggle, colors |
 | Text | nothing focused (A-051): font family button (opens the panel), size S/M/L, details; a focused block: the formatting bar (bold, italic, highlight, heading 1-3, bullets, numbers, checklist, math, code, link, alignment) | size S/M/L, free size slider with the body line box in grid lines (A-039), font families by group, each named in its own face, "Import font" (.ttf/.otf) |
 | Table | rows x columns picker (up to 8 x 8) |
 | Image | Gallery, Camera |

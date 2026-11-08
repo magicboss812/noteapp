@@ -49,7 +49,8 @@ updated: 2026-11-08
 
 ## Handoff (<= 5 lines, overwritten each session)
 - P07-T01a done (A-064): `core:model` `shape/ShapeGeometry` (drag points, constrain, bounds incl. arrow head, hit test) + `ShapeHandles` (8 resize, rotate, points; resize/rotate/movePoint/translate), `core:render` `ShapePainter` wired into `PageRenderer`, golden `ShapePainter_allKindsAndStyles`.
-- NEXT P07-T01b: editor wiring: `CanvasTool.SHAPE`, `ShapeOptions` in ToolOptions/Store + Shape panel, stylus drag preview + `AddObjects` commit, polygon taps; then T01c: selection handles view for a tapped shape. Device: the first tap after a debug command is dropped (finger too); `magick` is denied; `launch.sh --doc perf/...` stays on the library, use `debugcmd.sh open <path>`.
+- P07-T01b done: `CanvasTool.SHAPE`, `ShapeSpec`/`activeShape` on CanvasController, `ShapeOptions`/`ShapeFill` (stored), Shape row + panel, `ShapeInput` (+ `PolygonDraft`) -> `AddObjects`, `ShapePreview` view keeps a committed shape until `isDrawn`.
+- NEXT P07-T01c: selection handles for a shape tapped with the Shape tool (view like `BoxHandles`, `ShapeHandles` geometry, one `UpdateObjects` per drag, Delete), screenshot. Device: the first tap after a debug command is dropped (finger too); `magick` is denied; `launch.sh --doc perf/...` stays on the library, use `debugcmd.sh open <path>`.
 - Modified `scripts/auto/run-loop.sh` is the user's: stage explicit paths, not `git add -A`. Device: `debugcmd open lined:N` reuses `perf/lined-N.folio`; wipe the debug library first for a clean note.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; `CaretPlans`/`FlowHits` for taps.
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]`, `open lined:N`; first stylus tap after a debug command is dropped. Tool row y 1963 px, mode pill y 171 px in landscape.

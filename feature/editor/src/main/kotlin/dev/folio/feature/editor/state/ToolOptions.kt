@@ -7,11 +7,14 @@ import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.FlowStyle
+import dev.folio.core.model.ShapeKind
+import dev.folio.core.model.StrokeStyle
 import dev.folio.core.model.TextAlign
 import dev.folio.core.text.fonts.BodySize
 import dev.folio.core.text.fonts.FontRegistry
 import dev.folio.core.text.fonts.TextRole
 import dev.folio.core.text.fonts.TextSizing
+import dev.folio.feature.editor.canvas.ShapeSpec
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
@@ -235,6 +238,46 @@ data class TextOptions(
     }
 }
 
+/** Inside of a new shape (06-ink-input.md#shapes): none, the outline color at 25 %, or the outline color. */
+enum class ShapeFill(
+    internal val alpha: Int,
+) {
+    NONE(0),
+    TINT(0x40),
+    SOLID(0xFF),
+    ;
+
+    /** Fill color for outline color [argb], null for [NONE]. */
+    fun argb(argb: Int): Int? = if (this == NONE) null else (argb and RGB_MASK) or (alpha shl ALPHA_SHIFT)
+
+    private companion object {
+        const val RGB_MASK = 0x00FFFFFF
+        const val ALPHA_SHIFT = 24
+    }
+}
+
+// Thin, medium and thick shape outlines (pt).
+private val SHAPE_WIDTHS_PT = persistentListOf(1f, 2f, 4f)
+
+/** Shape kinds in options-row order. */
+val SHAPE_KINDS: ImmutableList<ShapeKind> = ShapeKind.entries.toImmutableList()
+
+/**
+ * Shape tool options (10-editor-ui.md#tool-options): kind, outline widths, dashes, fill and the constraint
+ * (15 deg angles, equal sides). Colors are the pen's dots.
+ */
+@Immutable
+data class ShapeOptions(
+    val kind: ShapeKind = ShapeKind.RECTANGLE,
+    val widths: WidthPresets = WidthPresets(SHAPE_WIDTHS_PT),
+    val dashed: Boolean = false,
+    val fill: ShapeFill = ShapeFill.NONE,
+    val constrain: Boolean = false,
+) {
+    /** What the canvas draws with outline color [argb]. */
+    fun spec(argb: Int): ShapeSpec = ShapeSpec(kind, StrokeStyle(argb, widths.widthPt, dashed), fill.argb(argb), constrain)
+}
+
 /** Last options of every tool (persisted by [ToolOptionsStore]) plus the color picker's recent colors. */
 @Immutable
 data class ToolOptions(
@@ -245,7 +288,11 @@ data class ToolOptions(
     val recentColors: ImmutableList<Int> = persistentListOf(),
     val lasso: LassoOptions = LassoOptions(),
     val text: TextOptions = TextOptions(),
+    val shape: ShapeOptions = ShapeOptions(),
 ) {
+    /** What the Shape tool draws: its options with the pen's selected color. */
+    val shapeSpec: ShapeSpec get() = shape.spec(pen.swatches.argb)
+
     /** [argb] moves to the front of [recentColors]. */
     fun withRecentColor(argb: Int): ToolOptions =
         copy(recentColors = (listOf(argb) + recentColors.filter { it != argb }).take(MAX_RECENT_COLORS).toImmutableList())
@@ -275,18 +322,23 @@ data class ToolOptions(
         return withSwatches(tool, next).withRecentColor(argb)
     }
 
-    /** Width presets of [tool]: the highlighter's, else those of the selected pen kind. */
-    fun widths(tool: EditorTool): WidthPresets = if (tool == EditorTool.HIGHLIGHTER) highlighter.widths else pen.kindWidths
+    /** Width presets of [tool]: the highlighter's, the shape outline's, else those of the selected pen kind. */
+    fun widths(tool: EditorTool): WidthPresets =
+        when (tool) {
+            EditorTool.HIGHLIGHTER -> highlighter.widths
+            EditorTool.SHAPE -> shape.widths
+            else -> pen.kindWidths
+        }
 
     /** Replaces the width presets of [tool] (see [widths]). */
     fun withWidths(
         tool: EditorTool,
         presets: WidthPresets,
     ): ToolOptions =
-        if (tool == EditorTool.HIGHLIGHTER) {
-            copy(highlighter = highlighter.copy(widths = presets))
-        } else {
-            copy(pen = pen.withKindWidths(presets))
+        when (tool) {
+            EditorTool.HIGHLIGHTER -> copy(highlighter = highlighter.copy(widths = presets))
+            EditorTool.SHAPE -> copy(shape = shape.copy(widths = presets))
+            else -> copy(pen = pen.withKindWidths(presets))
         }
 
     /** Limits. */

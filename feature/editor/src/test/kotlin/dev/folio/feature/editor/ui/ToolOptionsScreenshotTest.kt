@@ -17,6 +17,7 @@ import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
+import dev.folio.core.model.ShapeKind
 import dev.folio.core.text.fonts.FontGroup
 import dev.folio.core.text.fonts.TextFontFamily
 import dev.folio.feature.editor.state.BUNDLED_FONTS
@@ -26,6 +27,8 @@ import dev.folio.feature.editor.state.LassoMode
 import dev.folio.feature.editor.state.LassoOptions
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.PenOptions
+import dev.folio.feature.editor.state.ShapeFill
+import dev.folio.feature.editor.state.ShapeOptions
 import dev.folio.feature.editor.state.TextOptions
 import dev.folio.feature.editor.state.ToolOptions
 import kotlinx.collections.immutable.ImmutableList
@@ -110,6 +113,19 @@ class ToolOptionsScreenshotTest {
     fun row_textFreeSizeSerifDark_noPresetSelected() {
         row(EditorTool.TEXT, ToolOptions(text = TextOptions("Source Serif 4").withBodyCap(0.7f)), dark = true)
         compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_textFreeDark.png")
+    }
+
+    @Test
+    fun row_shapeEllipse_kindsWidthsColorsDetails() {
+        row(EditorTool.SHAPE, ToolOptions(shape = ShapeOptions(kind = ShapeKind.ELLIPSE)))
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_shape.png")
+    }
+
+    @Test
+    fun panel_shapeDashedTintConstrained_kindsWidthSwitchesFillColors() {
+        val shape = ShapeOptions(kind = ShapeKind.ARROW, dashed = true, fill = ShapeFill.TINT, constrain = true)
+        panel(EditorTool.SHAPE, ToolOptions(shape = shape))
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolSettings_shape.png")
     }
 
     private fun panel(

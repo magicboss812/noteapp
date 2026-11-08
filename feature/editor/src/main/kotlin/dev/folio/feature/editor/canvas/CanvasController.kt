@@ -6,6 +6,8 @@ import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.PageId
+import dev.folio.core.model.ShapeKind
+import dev.folio.core.model.StrokeStyle
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.feature.editor.text.CanvasText
@@ -28,6 +30,23 @@ enum class CanvasTool {
 
     /** A tap places the text caret (10-editor-ui.md#text-tool); no ink. */
     TEXT,
+
+    /** A drag draws [CanvasController.activeShape], polygons by taps (06-ink-input.md#shapes); no ink. */
+    SHAPE,
+}
+
+/** What the Shape tool draws next: [kind] with [stroke], filled with [fillArgb] (null: none); [constrain] snaps angles and sides. */
+data class ShapeSpec(
+    val kind: ShapeKind,
+    val stroke: StrokeStyle,
+    val fillArgb: Int?,
+    val constrain: Boolean,
+) {
+    /** Defaults. */
+    companion object {
+        /** A thin black rectangle without fill. */
+        val DEFAULT = ShapeSpec(ShapeKind.RECTANGLE, StrokeStyle(0xFF1A1A1A.toInt(), 2f, dashed = false), null, constrain = false)
+    }
 }
 
 /** Viewport actions the editor asks of the canvas host (keyboard shortcuts, later page navigation UI). */
@@ -70,6 +89,9 @@ interface CanvasController {
 
     /** Eraser settings, read at every eraser down. */
     val eraserOptions: EraserOptions
+
+    /** What the Shape tool draws, read at every stylus down with [CanvasTool.SHAPE]. */
+    val activeShape: ShapeSpec get() = ShapeSpec.DEFAULT
 
     /** Stylus choices (hover ring, pen button), read at every stylus down and hover event; settings arrive in P11-T01. */
     val stylusPreferences: StylusPreferences get() = StylusPreferences.DEFAULT

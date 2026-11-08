@@ -125,6 +125,7 @@ internal fun ToolOptionsRow(
                         EditorTool.HIGHLIGHTER -> HighlighterOptionsContent(options, onChange, onPopover, vertical)
                         EditorTool.LASSO -> LassoOptionsContent(options.lasso, onChange)
                         EditorTool.TEXT -> TextOptionsContent(options.text, onChange, { onSettings(shown) }, vertical)
+                        EditorTool.SHAPE -> ShapeOptionsContent(options, onChange, onPopover, vertical)
                         else -> EraserOptionsContent(options.eraser, onChange, vertical)
                     }
                     Divider(vertical)
@@ -217,6 +218,22 @@ private fun TextOptionsContent(
         onSelect = { index -> onChange { it.copy(text = it.text.withBodyCap(BodySize.entries[index].capFraction)) } },
         vertical = vertical,
     )
+}
+
+// Kind | outline widths | colors; dashes, fill and the constraint live in the panel (A-064).
+@Suppress("MultipleEmitters") // Pill items for the caller's Row or Column, which differ by dock mode.
+@Composable
+private fun ShapeOptionsContent(
+    options: ToolOptions,
+    onChange: OptionsChange,
+    onPopover: (OptionsPopover?) -> Unit,
+    vertical: Boolean,
+) {
+    ShapeKindButtons(options.shape.kind) { kind -> onChange { it.copy(shape = it.shape.copy(kind = kind)) } }
+    Divider(vertical)
+    WidthPresetChips(EditorTool.SHAPE, options, onChange, onPopover)
+    Divider(vertical)
+    ColorDots(EditorTool.SHAPE, options, onChange, onPopover)
 }
 
 @Composable

@@ -31,6 +31,7 @@ import dev.folio.feature.editor.canvas.BoxKeyEvent
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
+import dev.folio.feature.editor.canvas.ShapeSpec
 import dev.folio.feature.editor.canvas.boxOutlines
 import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.EditorText
@@ -145,6 +146,8 @@ class EditorSession(
         get() = if (mutableReadMode.value) CanvasTool.NAVIGATE else mutableTool.value.canvasTool ?: CanvasTool.PEN
 
     override val eraserOptions: EraserOptions get() = mutableOptions.value.eraser
+
+    override val activeShape: ShapeSpec get() = mutableOptions.value.shapeSpec
 
     private val canvasCommands = MutableSharedFlow<CanvasCommand>(extraBufferCapacity = COMMAND_BUFFER)
 
