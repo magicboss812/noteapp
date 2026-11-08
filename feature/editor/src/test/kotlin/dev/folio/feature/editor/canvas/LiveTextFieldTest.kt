@@ -21,6 +21,7 @@ import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.pageOriginViewX
 import dev.folio.core.render.viewport.pageOriginViewY
 import dev.folio.core.testing.ModelFixtures
+import dev.folio.core.text.edit.Caret
 import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.flow.BlockPlacement
 import dev.folio.core.text.fonts.FontMetricsCache
@@ -283,7 +284,7 @@ class LiveTextFieldTest {
     fun show_otherCellSameCaretOffset_reportsTheSelectionForTheNewCell() {
         // The table buttons act on the last reported cell; caret 0 -> 0 does not change the view's selection.
         val cells = ArrayList<TableCell?>()
-        field.onSelection = { _, _ -> cells += field.spec?.cell?.cell }
+        field.onSelection = { _, _, _ -> cells += field.spec?.cell?.cell }
         show(spec(TABLE, caret = TABLE.indexOf("x"), revision = 1))
 
         show(spec(TABLE, caret = TABLE.indexOf("bb"), revision = 2))
@@ -294,7 +295,7 @@ class LiveTextFieldTest {
     @Test
     fun selecting_aRange_reportsItForTheFormattingBar() {
         val selections = ArrayList<Pair<Int, Int>>()
-        field.onSelection = { start, end -> selections += start to end }
+        field.onSelection = { start, end, _ -> selections += start to end }
         show(spec("alpha beta", caret = 0))
 
         field.setSelection(6, 10)
@@ -550,14 +551,126 @@ class LiveTextFieldTest {
     }
 
     @Test
-    fun paste_textWithWindowsLineEnds_arrivesWithNewlinesOnly() {
+    fun paste_textWithWindowsLineEnds_replacesTheSelectionWithNewlinesOnly() {
         show(spec("ab", caret = 1))
         val clipboard = checkNotNull(context.getSystemService(ClipboardManager::class.java))
         clipboard.setPrimaryClip(ClipData.newPlainText("t", "x\r\ny"))
 
         field.onTextContextMenuItem(android.R.id.paste)
 
-        assertThat(field.text.toString()).isEqualTo("ax\nyb")
+        assertThat(edits).containsExactly(FieldEdit.Replace("x\ny"))
+    }
+
+    @Test
+    fun ctrlV_pastesTheClipboard() {
+        show(spec("ab", caret = 1))
+        checkNotNull(context.getSystemService(ClipboardManager::class.java)).setPrimaryClip(ClipData.newPlainText("t", "# H"))
+
+        press(KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON)
+
+        assertThat(edits).containsExactly(FieldEdit.Replace("# H"))
+    }
+
+    // A focus whose selection runs from the start of this block back into the block before it.
+    private fun spanning(
+        source: String,
+        caret: Int,
+    ): TextFieldSpec {
+        val plain = spec(source, caret)
+        val focus = plain.focus.copy(anchor = Caret(plain.block.id - 1, 2))
+        return TextFieldSpec(focus, plain.block, plain.layout, plain.placement, anchorOffset = 0)
+    }
+
+    @Test
+    fun show_selectionFromAnotherBlock_selectsFromTheBlockStart() {
+        show(spanning("hello", caret = 3))
+
+        assertThat(field.selectionStart to field.selectionEnd).isEqualTo(0 to 3)
+    }
+
+    @Test
+    fun typing_overASelectionAcrossBlocks_replacesIt() {
+        show(spanning("hello", caret = 3))
+
+        press(KeyEvent.KEYCODE_X)
+        press(KeyEvent.KEYCODE_DEL)
+        input().commitText("yz", 1)
+
+        assertThat(edits).containsExactly(FieldEdit.Replace("x"), FieldEdit.Replace(""), FieldEdit.Replace("yz")).inOrder()
+        assertThat(field.text.toString()).isEqualTo("hello")
+    }
+
+    @Test
+    fun plainArrow_collapsesASelectionAcrossBlocks_typingIsTheFieldsAgain() {
+        val extending = ArrayList<Boolean>()
+        field.onSelection = { _, _, ext -> extending += ext }
+        show(spanning("hello", caret = 3))
+        layOut()
+
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        input().commitText("!", 1)
+
+        assertThat(extending.first()).isTrue()
+        assertThat(extending.last()).isFalse()
+        assertThat(edits.filterIsInstance<FieldEdit.Replace>()).isEmpty()
+    }
+
+    @Test
+    fun shiftArrows_pastTheEnds_extendIntoTheFlow() {
+        val extended = ArrayList<Int>()
+        field.onExtend = { keyCode, _ -> extended += keyCode }
+        show(spec("ab", caret = 2))
+        layOut()
+
+        press(KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.META_SHIFT_ON) // a keyboard sends Shift first: the field selects
+        press(KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.META_SHIFT_ON)
+        press(KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.META_SHIFT_ON)
+        press(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.META_SHIFT_ON)
+
+        // Shift+Left at offset 2 selects inside the field; the edge keys go to the flow.
+        assertThat(extended).containsExactly(KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_DOWN).inOrder()
+        assertThat(field.selectionStart to field.selectionEnd).isEqualTo(2 to 1)
+    }
+
+    @Test
+    fun shiftLeft_insideTheField_reportsAnExtendingSelection() {
+        val extending = ArrayList<Boolean>()
+        field.onSelection = { _, _, ext -> extending += ext }
+        show(spec("ab", caret = 2))
+        layOut()
+
+        press(KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.META_SHIFT_ON)
+        press(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.META_SHIFT_ON)
+
+        assertThat(field.selectionStart to field.selectionEnd).isEqualTo(2 to 1)
+        assertThat(extending.last()).isTrue()
+    }
+
+    @Test
+    fun ctrlA_andCopyOfASpanningSelection_goToTheController() {
+        var selectAlls = 0
+        field.onSelectAll = { selectAlls++ }
+        field.onCopy = { cut -> if (cut) "cut" else "# A\n\nb" }
+        show(spanning("hello", caret = 3))
+        val clipboard = checkNotNull(context.getSystemService(ClipboardManager::class.java))
+
+        press(KeyEvent.KEYCODE_A, KeyEvent.META_CTRL_ON)
+        press(KeyEvent.KEYCODE_C, KeyEvent.META_CTRL_ON)
+        val copied =
+            clipboard.primaryClip
+                ?.getItemAt(0)
+                ?.text
+                .toString()
+        press(KeyEvent.KEYCODE_X, KeyEvent.META_CTRL_ON)
+
+        assertThat(selectAlls).isEqualTo(1)
+        assertThat(copied).isEqualTo("# A\n\nb")
+        assertThat(
+            clipboard.primaryClip
+                ?.getItemAt(0)
+                ?.text
+                .toString(),
+        ).isEqualTo("cut")
     }
 
     @Test

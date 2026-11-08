@@ -1,5 +1,6 @@
 package dev.folio.feature.editor.canvas
 
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Canvas
@@ -14,6 +15,7 @@ import android.text.TextWatcher
 import android.text.style.ForegroundColorSpan
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
@@ -73,10 +75,28 @@ internal class LiveTextField(
     var onVertical: (up: Boolean, caretXPx: Float) -> Unit = { _, _ -> }
 
     /**
-     * Gets every selection change (start, end; offsets of the block source). Nullable: EditText reports a selection
+     * Gets every selection change (anchor, caret; offsets of the block source) and whether it extends the selection
+     * (Shift held, or the field showing a new focus) rather than collapsing it. Nullable: EditText reports a selection
      * from its own constructor, before this class's properties exist.
      */
-    var onSelection: ((Int, Int) -> Unit)? = null
+    var onSelection: ((Int, Int, Boolean) -> Unit)? = null
+
+    /** Shift+arrow (key code) past the field's ends or its first or last line, with the caret's x in the host view, px. */
+    var onExtend: (keyCode: Int, caretXPx: Float) -> Unit = { _, _ -> }
+
+    /** Ctrl+A outside a table cell. */
+    var onSelectAll: () -> Unit = {}
+
+    /** Copy (false) or cut (true) of a selection that spans blocks: the Markdown for the clipboard, null for none. */
+    var onCopy: (cut: Boolean) -> String? = { null }
+
+    // The selection reaches into other blocks (07-text-engine.md#selection-as-built): typing and deleting replace all of
+    // it through [onEdit]. Set by a new focus, cleared when the selection collapses into the field.
+    private var spanning = false
+
+    // A key with Shift or a sync of a new focus is moving the selection: its changes extend rather than collapse it.
+    private var extendingKey = false
+    private var syncing = false
 
     /** Runs in the first draw after the caret moved or the block changed (the host keeps the caret line in view). */
     var onCaretChanged: (() -> Unit)? = null
@@ -177,7 +197,13 @@ internal class LiveTextField(
         if (startNs != 0L) PerfMonitor.record(TRACE_SHOW, System.nanoTime() - startNs)
         if (appearing) {
             visibility = VISIBLE
-            PerfMonitor.trace(TRACE_FOCUS) { requestFocus() }
+            // Taking focus may move the selection and put it back (TextView): that is not the user collapsing it.
+            syncing = true
+            try {
+                PerfMonitor.trace(TRACE_FOCUS) { requestFocus() }
+            } finally {
+                syncing = false
+            }
             // Asking for the keyboard binds the input method (about 14 ms on the Pad 7, P06-T18): the frame that draws
             // the caret is already scheduled, so a post runs after it.
             post(showKeyboard)
@@ -205,7 +231,9 @@ internal class LiveTextField(
     ) {
         super.onSelectionChanged(selStart, selEnd)
         caretMoved = true
-        onSelection?.invoke(selStart, selEnd)
+        val extending = syncing || extendingKey
+        if (!extending) spanning = false
+        onSelection?.invoke(selStart, selEnd, extending)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -351,10 +379,18 @@ internal class LiveTextField(
         var replaced = false
         if (moved) {
             sent.clear()
-            replaced = replaceText(source)
-            setSelection((focus.caret - (spec.cell?.start ?: 0)).coerceIn(0, length()))
-            // The view reports only a changed selection: the same offset in another cell must still name that cell.
-            onSelection?.invoke(selectionStart, selectionEnd)
+            syncing = true
+            try {
+                replaced = replaceText(source)
+                val cell = spec.cell
+                val caret = (focus.caret - (cell?.start ?: 0)).coerceIn(0, length())
+                if (cell == null) setSelection(spec.anchorOffset.coerceIn(0, length()), caret) else setSelection(caret)
+                spanning = cell == null && focus.spansBlocks
+                // The view reports only a changed selection: the same offset in another cell must still name that cell.
+                onSelection?.invoke(selectionStart, selectionEnd, true)
+            } finally {
+                syncing = false
+            }
         } else {
             val echo = sent.indexOf(source)
             if (echo >= 0) repeat(echo + 1) { sent.removeAt(0) }
@@ -439,20 +475,63 @@ internal class LiveTextField(
     override fun onKeyDown(
         keyCode: Int,
         event: KeyEvent,
-    ): Boolean = onChord(keyCode, event) ?: structural(keyCode, event.isShiftPressed) || super.onKeyDown(keyCode, event)
+    ): Boolean {
+        onChord(keyCode, event)?.let { return it }
+        return (spanning && overSelection(keyCode, event)) || structural(keyCode, event.isShiftPressed) || viewKey(keyCode, event)
+    }
 
-    // Ctrl and Alt chords belong to the shortcut registry (undo is the session's); chords it does not know stay with the view.
+    // The view's own handling; with Shift held its selection changes extend the selection.
+    private fun viewKey(
+        keyCode: Int,
+        event: KeyEvent,
+    ): Boolean {
+        extendingKey = event.isShiftPressed
+        try {
+            return super.onKeyDown(keyCode, event)
+        } finally {
+            extendingKey = false
+        }
+    }
+
+    // Ctrl and Alt chords belong to the shortcut registry (undo is the session's); Ctrl+A, C, X and V are the field's
+    // clipboard keys; other chords stay with the view.
     private fun onChord(
         keyCode: Int,
         event: KeyEvent,
     ): Boolean? =
-        if ((event.isCtrlPressed || event.isAltPressed) &&
-            onShortcut(keyCode, event.isCtrlPressed, event.isShiftPressed, event.isAltPressed)
-        ) {
-            true
-        } else {
-            null
+        when {
+            !event.isCtrlPressed && !event.isAltPressed -> null
+            onShortcut(keyCode, event.isCtrlPressed, event.isShiftPressed, event.isAltPressed) -> true
+            event.isCtrlPressed && !event.isAltPressed && clipboardKey(keyCode) -> true
+            else -> null
         }
+
+    // The view would only take these with a selection inside the field; one that spans blocks may be collapsed here.
+    override fun onKeyShortcut(
+        keyCode: Int,
+        event: KeyEvent,
+    ): Boolean = (event.isCtrlPressed && !event.isAltPressed && clipboardKey(keyCode)) || super.onKeyShortcut(keyCode, event)
+
+    private fun clipboardKey(keyCode: Int): Boolean =
+        when (keyCode) {
+            KeyEvent.KEYCODE_A -> onTextContextMenuItem(android.R.id.selectAll)
+            KeyEvent.KEYCODE_C -> onTextContextMenuItem(android.R.id.copy)
+            KeyEvent.KEYCODE_X -> onTextContextMenuItem(android.R.id.cut)
+            KeyEvent.KEYCODE_V -> onTextContextMenuItem(android.R.id.paste)
+            else -> false
+        }
+
+    // A selection over blocks: a character replaces it, Backspace and Delete remove it (Enter and Tab are structural).
+    private fun overSelection(
+        keyCode: Int,
+        event: KeyEvent,
+    ): Boolean {
+        if (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed) return false
+        if (keyCode == KeyEvent.KEYCODE_DEL || keyCode == KeyEvent.KEYCODE_FORWARD_DEL) return consume { onEdit(FieldEdit.Replace("")) }
+        val char = event.unicodeChar
+        if (char == 0 || char and KeyCharacterMap.COMBINING_ACCENT != 0 || Character.isISOControl(char)) return false
+        return consume { onEdit(FieldEdit.Replace(String(Character.toChars(char)))) }
+    }
 
     private fun structural(
         keyCode: Int,
@@ -464,8 +543,22 @@ internal class LiveTextField(
             KeyEvent.KEYCODE_ESCAPE -> consume { onEscape() }
             KeyEvent.KEYCODE_DEL -> atBlockStart() && consume { send(FieldKey.BACKSPACE) }
             KeyEvent.KEYCODE_FORWARD_DEL -> isCollapsed && selectionEnd == length() && consume { send(FieldKey.DELETE) }
-            else -> !shift && arrow(keyCode)
+            else -> if (shift) extend(keyCode) else arrow(keyCode)
         }
+
+    // Shift+arrows that leave the block (not in a table cell): the selection's caret end goes on into the flow.
+    private fun extend(keyCode: Int): Boolean {
+        if (shown?.cell != null) return false
+        val edge =
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> selectionEnd == 0
+                KeyEvent.KEYCODE_DPAD_RIGHT -> selectionEnd == length()
+                KeyEvent.KEYCODE_DPAD_UP -> onEdgeLine(up = true)
+                KeyEvent.KEYCODE_DPAD_DOWN -> onEdgeLine(up = false)
+                else -> false
+            }
+        return edge && consume { onExtend(keyCode, caretXPx()) }
+    }
 
     // Plain arrows that leave the block: Left at its start, Right at its end, Up and Down on its first and last line.
     private fun arrow(keyCode: Int): Boolean =
@@ -499,31 +592,78 @@ internal class LiveTextField(
                 newCursorPosition: Int,
             ): Boolean {
                 if (text.length == 1 && text[0] == '\n') return consume { send(FieldKey.ENTER) }
+                if (spanning) return consume { onEdit(FieldEdit.Replace(text.toString())) }
                 return super.commitText(text, newCursorPosition)
+            }
+
+            override fun setComposingText(
+                text: CharSequence,
+                newCursorPosition: Int,
+            ): Boolean {
+                if (!spanning) return super.setComposingText(text, newCursorPosition)
+                // The composition starts over in the text the model answers with.
+                onEdit(FieldEdit.Replace(text.toString()))
+                context.getSystemService(InputMethodManager::class.java)?.restartInput(this@LiveTextField)
+                return true
             }
 
             override fun deleteSurroundingText(
                 beforeLength: Int,
                 afterLength: Int,
             ): Boolean {
+                if (spanning) return consume { onEdit(FieldEdit.Replace("")) }
                 if (beforeLength == 1 && afterLength == 0 && atBlockStart()) return consume { send(FieldKey.BACKSPACE) }
                 return super.deleteSurroundingText(beforeLength, afterLength)
             }
         }
     }
 
-    // Undo belongs to the session. A paste is plain text with the line ends the flow takes.
+    // Undo belongs to the session. A paste is plain text with the line ends the flow takes (Markdown splits into blocks).
+    // Ctrl+A selects the block, then the flow; a selection over blocks copies and cuts as Markdown.
     override fun onTextContextMenuItem(id: Int): Boolean =
         when (id) {
-            android.R.id.undo, android.R.id.redo -> true
-            android.R.id.paste, android.R.id.pasteAsPlainText -> consume(::pasteClipboard)
-            else -> super.onTextContextMenuItem(id)
+            android.R.id.undo, android.R.id.redo -> {
+                true
+            }
+
+            android.R.id.paste, android.R.id.pasteAsPlainText -> {
+                consume(::pasteClipboard)
+            }
+
+            android.R.id.selectAll -> {
+                if (shown?.cell == null) consume(onSelectAll) else super.onTextContextMenuItem(id)
+            }
+
+            android.R.id.copy, android.R.id.cut -> {
+                if (spanning) {
+                    consume {
+                        copyOut(
+                            cut = id == android.R.id.cut,
+                        )
+                    }
+                } else {
+                    super.onTextContextMenuItem(id)
+                }
+            }
+
+            else -> {
+                super.onTextContextMenuItem(id)
+            }
         }
+
+    private fun copyOut(cut: Boolean) {
+        val markdown = onCopy(cut) ?: return
+        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(CLIP_LABEL, markdown))
+    }
 
     private fun pasteClipboard() {
         val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip ?: return
         if (clip.itemCount == 0) return
         val pasted = BlockEditing.normalizePaste(clip.getItemAt(0).coerceToText(context).toString())
+        if (shown?.cell == null) {
+            onEdit(FieldEdit.Replace(pasted))
+            return
+        }
         val start = minOf(selectionStart, selectionEnd).coerceAtLeast(0)
         val end = maxOf(selectionStart, selectionEnd).coerceAtLeast(0)
         editableText.replace(start, end, pasted)
@@ -532,6 +672,7 @@ internal class LiveTextField(
     private companion object {
         const val DIM_ALPHA = 102 // 40% of 255
         const val MAX_SENT = 64
+        const val CLIP_LABEL = "Folio text"
 
         // Tap to the first frame that draws the focused field (07-text-engine.md#editing budget: 50 ms).
         const val TRACE_CARET = "text:caret"

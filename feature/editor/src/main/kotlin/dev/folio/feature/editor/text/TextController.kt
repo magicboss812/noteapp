@@ -3,6 +3,7 @@ package dev.folio.feature.editor.text
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.PageId
 import dev.folio.core.text.edit.BlockEditing
+import dev.folio.core.text.edit.Caret
 import dev.folio.core.text.edit.EditMarkers
 import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.edit.TableEditing
@@ -21,7 +22,9 @@ import kotlinx.coroutines.flow.flowOf
 /**
  * The block the live text field edits (07-text-engine.md#editing): block [blockId] of flow [flowId], at [blockIndex] in
  * the flow. The field puts its caret at offset [caret] of the block source whenever [revision] changes (a tap, a
- * split or merge, a block the focus moved to); while the revision stays the field owns the caret.
+ * split or merge, a block the focus moved to); while the revision stays the field owns the caret. A selection has its
+ * other end at [anchor] (07-text-engine.md#selection-as-built), in this block or in another block of the flow; null
+ * for a plain caret.
  */
 data class TextFocus(
     val flowId: FlowId,
@@ -29,13 +32,18 @@ data class TextFocus(
     val blockIndex: Int,
     val caret: Int,
     val revision: Int,
-)
+    val anchor: Caret? = null,
+) {
+    /** True when the selection reaches into another block: the page highlights the rest, edits replace all of it. */
+    val spansBlocks: Boolean get() = anchor != null && anchor.blockId != blockId
+}
 
 /**
  * What the live field shows for [focus]: the [block] source in the face and size of its [layout], at [placement] (the
  * first line box of the block, page pt). In a table the field edits one [cell] only and shows its [text]. [dimmed]
  * lists the marker ranges of [text] as start/end pairs; [markerLength] is the length of the marker at the start of
- * [text] (a caret inside it counts as block start).
+ * [text] (a caret inside it counts as block start). The field's selection runs from [anchorOffset] to the caret: the
+ * anchor's offset in this block, the block start or end when the anchor lies in a block before or after.
  */
 class TextFieldSpec(
     val focus: TextFocus,
@@ -45,6 +53,7 @@ class TextFieldSpec(
     val cell: CellField? = CellField.of(block, layout, focus.caret),
     val dimmed: IntArray = EditMarkers.ranges(block).let { cell?.clip(it) ?: it },
     val markerLength: Int = if (cell == null) BlockEditing.markerLength(block) else 0,
+    val anchorOffset: Int = focus.anchor?.takeIf { it.blockId == block.id }?.offset ?: focus.caret,
 ) {
     /** Page the field sits on. */
     val pageId: PageId get() = placement.pageId
@@ -206,6 +215,14 @@ sealed interface FieldEdit {
         val cell: TableCell? = null,
     ) : FieldEdit
 
+    /**
+     * [text] replaces the selection (07-text-engine.md#selection-as-built): a paste, or typing and deleting over a
+     * selection that spans blocks. Markdown with blank lines becomes several blocks.
+     */
+    data class Replace(
+        val text: String,
+    ) : FieldEdit
+
     /** The `[[` picker's choice: source [start] to [caret] (the typed `[[query`) becomes a link to note [docId] named [title]. */
     data class NoteLink(
         val start: Int,
@@ -276,14 +293,52 @@ interface TextController {
     fun edit(edit: FieldEdit)
 
     /**
-     * The live field's selection moved to [start]..[end] (any order): offsets of the block source, or of the text of
-     * table [cell] when the field edits one. Main thread.
+     * The live field's selection moved to [start]..[end] (anchor, caret): offsets of the block source, or of the text
+     * of table [cell] when the field edits one. Unless [extending] (Shift held, or the field showing the focus it was
+     * given) a selection end in another block is dropped. Main thread.
      */
     fun select(
         start: Int,
         end: Int,
         cell: TableCell? = null,
+        extending: Boolean = false,
     )
+
+    /**
+     * Shift+Left ([forward] false) at the start or Shift+Right at the end of the field: the selection's caret end goes
+     * into the block before or after. Main thread.
+     */
+    fun extendHorizontally(forward: Boolean) = Unit
+
+    /**
+     * Shift+Up or Shift+Down past the field's first or last line, or a selection handle dragged: the caret end of the
+     * selection goes to the text at ([xPt], [yPt]) of page [pageId] in the same flow. Main thread.
+     */
+    fun extendTo(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ) = Unit
+
+    /**
+     * A selection handle dragged to ([xPt], [yPt]) of page [pageId]: the [anchor] end (the start handle of a forward
+     * selection) or the caret end moves there. Main thread.
+     */
+    fun dragSelection(
+        anchor: Boolean,
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ) = if (anchor) Unit else extendTo(pageId, xPt, yPt)
+
+    /** Ctrl+A: the focused block, then the whole flow. Main thread. */
+    fun selectAll() = Unit
+
+    /** The selected Markdown, as in the flow (block markers and blank lines included); null for none. Main thread. */
+    fun copySelection(): String? = null
+
+    /** Like [copySelection], and the selection is deleted as one undo step. Main thread. */
+    fun cutSelection(): String? = null
 
     /** Applies the formatting bar [action] to the field's current selection, after the edits typed before it. Main thread. */
     fun format(action: FormatAction)

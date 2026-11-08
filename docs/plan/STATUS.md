@@ -33,8 +33,8 @@ updated: 2026-11-08
 - D-034 P06-T07: math blocks are always centered; 07-text-engine.md#math names a left alignment setting (A-047).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T18 done (a-d, A-052): no ghost text, caret kept above keyboard and toolbox, first input after open reaches the app, focus caret p95 24 / clean p95 30 ms (keyboard request posted after the caret frame, row 2 keeps both rows composed). First creation after open still slow (D-037 -> P11-T05).
-- NEXT P06-T14. Debug probes `FolioTouch` (window downs) and `FolioMain` (messages and frames >= 8 ms) help with any input or frame timing question.
+- P06-T14a done: flow selection model. `TextFocus.anchor` (other end, may be another block), `SelectionEditing` (core:text: selectAll, toggleInline per block, table skip), `TextEditor` extend/drag/selectAll/copy/cut, `FieldEdit.Replace` (typing, paste, delete over a selection: `BlockEditing.insert`), field Shift+arrow edges and Ctrl+A/C/X/V; FlowSelectionTest covers the 3 unit accepts.
+- NEXT P06-T14b: page highlight rects for selected blocks outside the field (from FlowLayout lines, drawn in the canvas overlay), finger drag handles (`TextController.dragSelection`), Roborazzi golden of a 3-block selection, docs 07-text-engine.md "### Selection (as built)" (+ line 113), then device-tester (handles across a page boundary, paste into another note keeps headings and lists). Debug probes `FolioTouch`, `FolioMain`.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`).
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]` seeds a body flow (`open lined:N`: N is the page count and reuses that file; the first stylus tap after a debug command is dropped). Test APK installs can still be refused (INSTALL_FAILED_USER_RESTRICTED): check the result XML, not Gradle's SUCCESS.
 - Remaining P06 order: T14, T16, T17, T11. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.

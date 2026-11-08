@@ -10,6 +10,7 @@ import dev.folio.core.text.edit.BlockEditing
 import dev.folio.core.text.edit.Caret
 import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.edit.LinkEdits
+import dev.folio.core.text.edit.SelectionEditing
 import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.edit.TextSelection
 import dev.folio.core.text.flow.TapTarget
@@ -53,7 +54,7 @@ internal class TextEditor(
     private val newFlowStyle: () -> FlowStyle = { DEFAULT_FLOW_STYLE },
 ) : TextController {
     // [edit] null: a tapped checkbox, toggled without moving the focus, or with a [plan] a caret placement and the
-    // keyboard text [typed] while it runs.
+    // keyboard text [typed] while it runs. With a [selection] the edit applies to it (it may span blocks).
     private class Pending(
         val flowId: FlowId,
         val blockId: Long,
@@ -61,6 +62,7 @@ internal class TextEditor(
         val edit: FieldEdit?,
         val plan: CaretPlan? = null,
         val typed: StringBuilder? = null,
+        val selection: TextSelection? = null,
     ) {
         // A keystroke carries the whole block source (or cell text), so it replaces the one before it in the same place.
         fun isTypedIn(other: Pending): Boolean {
@@ -77,6 +79,11 @@ internal class TextEditor(
     private var selectionStart = 0
     private var selectionEnd = 0
     private var selectionCell: TableCell? = null
+
+    // The field's selection as it reported it (anchor, caret), for the focus of [selectionRevision].
+    private var fieldAnchor = 0
+    private var fieldCaret = 0
+    private var selectionRevision = NO_REVISION
     private val taps = MutableSharedFlow<TapTarget>(extraBufferCapacity = TAP_BUFFER)
     private val query = MutableStateFlow<String?>(null)
 
@@ -122,14 +129,96 @@ internal class TextEditor(
         start: Int,
         end: Int,
         cell: TableCell?,
+        extending: Boolean,
     ) {
-        // HOT PATH: per caret move; two ints and a reference, no allocation.
+        // HOT PATH: per caret move; ints and a reference, no allocation (a dropped anchor copies the focus once).
         selectionStart = minOf(start, end).coerceAtLeast(0)
         selectionEnd = maxOf(start, end).coerceAtLeast(0)
         selectionCell = cell
+        fieldAnchor = start.coerceAtLeast(0)
+        fieldCaret = end.coerceAtLeast(0)
+        val focus = text.focus.value
+        selectionRevision = focus?.revision ?: NO_REVISION
+        if (!extending && focus?.anchor != null) text.dropAnchor()
         val caretStays = start == end && start == queryCaret && cell == null
         if (queryStart >= 0 && !caretStays) clearQuery()
     }
+
+    // The selection of the flow: the field's own while it showed the current focus, else the focus as it was given; null
+    // while nothing has focus or the field edits a table cell.
+    private fun flowSelection(): TextSelection? {
+        val focus = text.focus.value ?: return null
+        val reported = selectionRevision == focus.revision
+        if (reported && selectionCell != null) return null
+        val caret = Caret(focus.blockId, if (reported) fieldCaret else focus.caret)
+        val anchor =
+            focus.anchor?.takeIf { it.blockId != focus.blockId || !reported }
+                ?: Caret(focus.blockId, if (reported) fieldAnchor else focus.caret)
+        return TextSelection(anchor, caret)
+    }
+
+    override fun extendHorizontally(forward: Boolean) {
+        val focus = text.focus.value ?: return
+        val current = flowSelection() ?: return
+        val doc = text.laidOut(focus.flowId)?.takeIf { it.indexOf(current.focus.blockId) >= 0 } ?: return
+        val next = (if (forward) BlockEditing.right(doc, current.focus) else BlockEditing.left(doc, current.focus)) ?: return
+        moveEnd(focus.flowId, doc, current, next, anchorEnd = false)
+    }
+
+    override fun extendTo(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ) = dragSelection(anchor = false, pageId, xPt, yPt)
+
+    override fun dragSelection(
+        anchor: Boolean,
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ) {
+        val focus = text.focus.value ?: return
+        val current = flowSelection() ?: return
+        val hit = text.caretAt(pageId, xPt, yPt)?.takeIf { it.flowId == focus.flowId } ?: return
+        val doc = text.laidOut(focus.flowId) ?: return
+        moveEnd(focus.flowId, doc, current, Caret(hit.blockId, hit.caret), anchor)
+    }
+
+    // One end of [current] goes to [target], past any table there (the field edits tables one cell at a time).
+    private fun moveEnd(
+        flowId: FlowId,
+        doc: MarkdownDocument,
+        current: TextSelection,
+        target: Caret,
+        anchorEnd: Boolean,
+    ) {
+        val from = if (anchorEnd) current.anchor else current.focus
+        val forward = doc.indexOf(target.blockId) >= doc.indexOf(from.blockId)
+        val landed = SelectionEditing.outsideTables(doc, target, forward) ?: return
+        val next = if (anchorEnd) TextSelection(landed, current.focus) else TextSelection(current.anchor, landed)
+        if (next == current) return
+        clearQuery()
+        text.select(flowId, next)
+    }
+
+    override fun selectAll() {
+        val focus = text.focus.value ?: return
+        val current = flowSelection() ?: return
+        val doc = text.laidOut(focus.flowId) ?: return
+        if (doc.indexOf(current.anchor.blockId) < 0 || doc.indexOf(current.focus.blockId) < 0) return
+        clearQuery()
+        text.select(focus.flowId, SelectionEditing.selectAll(doc, current))
+    }
+
+    override fun copySelection(): String? {
+        val focus = text.focus.value ?: return null
+        val current = flowSelection()?.takeIf { !it.isCollapsed } ?: return null
+        val doc = text.parsed(focus.flowId) ?: return null
+        if (doc.indexOf(current.anchor.blockId) < 0 || doc.indexOf(current.focus.blockId) < 0) return null
+        return BlockEditing.copy(doc, current)
+    }
+
+    override fun cutSelection(): String? = copySelection()?.also { edit(FieldEdit.Replace("")) }
 
     override fun format(action: FormatAction) = edit(FieldEdit.Format(action, selectionStart, selectionEnd, selectionCell))
 
@@ -139,7 +228,10 @@ internal class TextEditor(
         PerfMonitor.trace(TRACE_EDIT) {
             val focus = text.focus.value ?: return@trace
             if (edit is FieldEdit.Typed) trackQuery(edit.source, edit.caret) else clearQuery()
-            enqueue(Pending(focus.flowId, focus.blockId, focus.revision, edit))
+            // A replacement takes the selection as it is now; keys and formatting too when it spans blocks.
+            val across = edit is FieldEdit.Replace || (focus.spansBlocks && (edit is FieldEdit.Key || edit is FieldEdit.Format))
+            val selection = if (across) flowSelection() ?: return@trace else null
+            enqueue(Pending(focus.flowId, focus.blockId, focus.revision, edit, selection = selection))
         }
     }
 
@@ -272,7 +364,17 @@ internal class TextEditor(
         }
         val keystroke = edit is FieldEdit.Typed || edit is FieldEdit.Cell
         val coalesceKey = if (keystroke) "type:${item.flowId.value}:${item.blockId}" else null
-        val result = runEdit(item.flowId, coalesceKey) { doc -> edit.applyTo(doc, item.blockId) }
+        val across = item.selection
+        val result =
+            runEdit(item.flowId, coalesceKey) { doc ->
+                if (across !=
+                    null
+                ) {
+                    edit.applyAcross(doc, across)
+                } else {
+                    edit.applyTo(doc, item.blockId)
+                }
+            }
         if (text.focus.value?.revision != item.revision) return
         when {
             result != null -> text.focusAfter(item.flowId, result, edit)

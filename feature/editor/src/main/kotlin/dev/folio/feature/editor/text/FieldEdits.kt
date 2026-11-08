@@ -8,6 +8,7 @@ import dev.folio.core.text.edit.CellSpan
 import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.edit.Formatting
 import dev.folio.core.text.edit.LinkEdits
+import dev.folio.core.text.edit.SelectionEditing
 import dev.folio.core.text.edit.TableEditing
 import dev.folio.core.text.edit.TextSelection
 import dev.folio.core.text.markdown.BlockContent
@@ -59,8 +60,42 @@ internal fun FieldEdit.applyTo(
         is FieldEdit.NoteLink -> {
             LinkEdits.insertNoteLink(doc, blockId, start, caret, title, docId)
         }
+
+        // Replaces a selection: see [applyAcross].
+        is FieldEdit.Replace -> {
+            null
+        }
     }
 }
+
+/**
+ * This edit of the flow [selection] (07-text-engine.md#selection-as-built), which may span blocks: [FieldEdit.Replace]
+ * puts its text there, Enter splits after deleting it, Backspace and Delete delete it, an inline formatting action
+ * marks each selected block. Null for anything else, or when a block of the selection is gone.
+ */
+internal fun FieldEdit.applyAcross(
+    doc: MarkdownDocument,
+    selection: TextSelection,
+): EditResult? {
+    if (doc.indexOf(selection.anchor.blockId) < 0 || doc.indexOf(selection.focus.blockId) < 0) return null
+    return when (this) {
+        is FieldEdit.Replace -> BlockEditing.insert(doc, selection, text)
+        is FieldEdit.Key -> keyAcross(doc, selection)
+        is FieldEdit.Format -> INLINE_KINDS[action]?.let { SelectionEditing.toggleInline(doc, selection, it) }
+        is FieldEdit.Typed, is FieldEdit.Cell, is FieldEdit.NoteLink -> null
+    }
+}
+
+private fun FieldEdit.Key.keyAcross(
+    doc: MarkdownDocument,
+    selection: TextSelection,
+): EditResult? =
+    when (key) {
+        FieldKey.ENTER -> BlockEditing.enter(doc, selection)
+        FieldKey.SOFT_ENTER -> BlockEditing.softBreak(doc, selection)
+        FieldKey.BACKSPACE, FieldKey.DELETE -> BlockEditing.delete(doc, selection)
+        FieldKey.LEFT, FieldKey.RIGHT, FieldKey.TAB, FieldKey.SHIFT_TAB -> null
+    }
 
 private val TABLE_ALIGNS =
     mapOf(

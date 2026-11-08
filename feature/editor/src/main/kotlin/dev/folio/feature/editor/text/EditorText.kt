@@ -19,6 +19,7 @@ import dev.folio.core.storage.session.DocumentSession
 import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.edit.FlowTextDiff
 import dev.folio.core.text.edit.TableEditing
+import dev.folio.core.text.edit.TextSelection
 import dev.folio.core.text.flow.FlowLayout
 import dev.folio.core.text.flow.FlowSearch
 import dev.folio.core.text.flow.FocusedBlock
@@ -199,6 +200,40 @@ class EditorText internal constructor(
     }
 
     /**
+     * Selects [selection] of flow [flowId] (07-text-engine.md#selection-as-built): the field goes to the block of its
+     * focus end, the anchor end may lie in another block. False when the flow or the block is not laid out.
+     */
+    internal fun select(
+        flowId: FlowId,
+        selection: TextSelection,
+    ): Boolean {
+        val caret = selection.focus
+        val index =
+            mutableSnapshot.value.layouts[flowId]
+                ?.markdown
+                ?.indexOf(caret.blockId) ?: -1
+        if (index < 0) return false
+        val anchor = selection.anchor.takeIf { it != caret }
+        mutableFocus.update { TextFocus(flowId, caret.blockId, index, caret.offset, (it?.revision ?: 0) + 1, anchor) }
+        return true
+    }
+
+    /** The selection collapsed in the field (a plain arrow key): its end in another block is let go, the field keeps its caret. */
+    internal fun dropAnchor() {
+        mutableFocus.update { if (it?.anchor == null) it else it.copy(anchor = null) }
+    }
+
+    /** The flow and caret under ([xPt], [yPt]) of page [pageId] (as a tap would focus it), null on no text frame. */
+    internal fun caretAt(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ): TextFocus? = mutableSnapshot.value.focusAt(pageId, xPt, yPt, 0)
+
+    /** The parse of flow [flowId] its current layout shows, null while it has none. */
+    internal fun laidOut(flowId: FlowId): MarkdownDocument? = mutableSnapshot.value.layouts[flowId]?.markdown
+
+    /**
      * Puts the focus where block editing left the caret ([result] of flow [flowId]). A keystroke ([edit]) whose text is
      * what the block source (or the table cell) became keeps the focus revision: the field owns its caret. Anything
      * else (a split, a merge, a shortcut, a cell text that got escaped) gives the field the new block and caret.
@@ -229,10 +264,12 @@ class EditorText internal constructor(
                     false
                 }
             }
+        // A selection the edit leaves (formatting marks the selected text) stays selected.
+        val anchor = result.selection.anchor.takeIf { it != caret && result.document.indexOf(it.blockId) >= 0 }
         mutableFocus.update { before ->
             val kept = before?.takeIf { echo && it.blockId == caret.blockId }
             when {
-                kept == null -> TextFocus(flowId, caret.blockId, index, caret.offset, (before?.revision ?: 0) + 1)
+                kept == null -> TextFocus(flowId, caret.blockId, index, caret.offset, (before?.revision ?: 0) + 1, anchor)
 
                 // Writing a cell back pads the table: the caret offset follows, so the field stays on its cell.
                 edit is FieldEdit.Cell -> kept.copy(blockIndex = index, caret = caret.offset)

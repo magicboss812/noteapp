@@ -61,17 +61,58 @@ internal class FakeTextController : TextController {
 
     val selections = ArrayList<Triple<Int, Int, TableCell?>>()
 
+    val extending = ArrayList<Boolean>()
+
     override fun select(
         start: Int,
         end: Int,
         cell: TableCell?,
+        extending: Boolean,
     ) {
         selections += Triple(start, end, cell)
+        this.extending += extending
     }
 
     override fun format(action: FormatAction) {
         formats += action
     }
+
+    val extends = ArrayList<String>()
+
+    override fun extendHorizontally(forward: Boolean) {
+        extends += if (forward) "right" else "left"
+    }
+
+    override fun extendTo(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ) {
+        extends += "to $yPt"
+    }
+
+    override fun dragSelection(
+        anchor: Boolean,
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ) {
+        extends += "${if (anchor) "anchor" else "caret"} $xPt,$yPt"
+    }
+
+    var selectAllCount = 0
+
+    override fun selectAll() {
+        selectAllCount++
+    }
+
+    /** What [copySelection] and [cutSelection] return; cuts are counted. */
+    var copied: String? = null
+    var cutCount = 0
+
+    override fun copySelection(): String? = copied
+
+    override fun cutSelection(): String? = copied.also { cutCount++ }
 }
 
 /** Controller over an in-memory document of [pages] lined A4 pages; commands apply synchronously. */

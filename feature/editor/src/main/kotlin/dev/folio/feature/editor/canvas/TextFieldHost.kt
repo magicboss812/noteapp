@@ -9,10 +9,8 @@ import dev.folio.core.model.Document
 import dev.folio.core.model.PageId
 import dev.folio.core.render.PageRenderer
 import dev.folio.core.render.tiles.TileLayer
-import dev.folio.core.render.viewport.PointPx
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.ViewportMode
-import dev.folio.core.render.viewport.toPagePt
 import dev.folio.feature.editor.text.TextFieldSpec
 import kotlin.math.max
 import kotlin.math.min
@@ -42,6 +40,7 @@ internal class TextFieldHost(
     private var tapNs = 0L
     private val handoff = TextHandoff(isDrawn, ::capture, ::applyHandoff)
     private val expire = Runnable { handoff.expire() }
+    private val navigation = FieldNavigation(viewport, controller) { spec }
 
     /** Runs the editor shortcut for a chord typed in the field (key code, ctrl, shift, alt); true if one ran. */
     var onShortcut: (Int, Boolean, Boolean, Boolean) -> Boolean = { _, _, _, _ -> false }
@@ -153,31 +152,17 @@ internal class TextFieldHost(
     fun prepare(): LiveTextField =
         view ?: LiveTextField(context).also {
             it.onEdit = { edit -> controller.textController?.edit(edit) }
-            it.onSelection = { start, end -> controller.textController?.select(start, end, it.spec?.cell?.cell) }
+            it.onSelection = { start, end, extending -> controller.textController?.select(start, end, it.spec?.cell?.cell, extending) }
             it.onShortcut = { keyCode, ctrl, shift, alt -> onShortcut(keyCode, ctrl, shift, alt) }
             it.onEscape = { controller.textController?.blur() }
-            it.onVertical = ::moveVertically
+            it.onVertical = navigation::moveVertically
+            it.onExtend = navigation::extend
+            it.onSelectAll = { controller.textController?.selectAll() }
+            it.onCopy = { cut -> controller.textController?.let { texts -> if (cut) texts.cutSelection() else texts.copySelection() } }
             it.onCaretChanged = onCaretChanged
             overlay.addView(it)
             view = it
         }
-
-    // Up on the first line, Down on the last: the block (or table row) above or below, at the caret's column. At the
-    // edge of the text nothing moves.
-    private fun moveVertically(
-        up: Boolean,
-        caretXPx: Float,
-    ) {
-        val current = spec ?: return
-        val texts = controller.textController ?: return
-        val xPt = viewport.toPagePt(current.pageId, PointPx(caretXPx, 0f)).x
-        val unitPt = current.layout.unitPt
-        val cell = current.cell
-        val topPt = current.placement.topPt + (cell?.topPt ?: 0f)
-        val heightPt = cell?.heightPt ?: current.layout.heightPt
-        val yPt = if (up) topPt - unitPt / 2 else topPt + heightPt + unitPt / 2
-        texts.moveFocusAt(current.pageId, xPt, yPt)
-    }
 
     private fun indexOf(pageId: PageId): Int {
         if (viewport.layout == null && viewport.mode !is ViewportMode.Canvas) return -1

@@ -42,6 +42,18 @@ object Formatting {
         return unwrapped ?: emptied ?: wrap(doc, block, if (kind == SpanKind.CODE) "`" else choices.first(), start, end)
     }
 
+    /** True when the one-block [selection] sits inside a span of [kind] (what [toggleInline] would remove). */
+    internal fun isInside(
+        doc: MarkdownDocument,
+        selection: TextSelection,
+        kind: SpanKind,
+    ): Boolean {
+        val range = Range.of(doc, selection)
+        if (range.first != range.last) return false
+        val spans = inlineSpans(doc.blocks[range.first]) ?: return false
+        return spans.any { it.kind == kind && it.encloses(range.startOffset, range.endOffset) }
+    }
+
     /** A caret between a marker pair with nothing inside (what wrapping a collapsed caret leaves) removes the pair again. */
     private fun removeEmptyPair(
         doc: MarkdownDocument,

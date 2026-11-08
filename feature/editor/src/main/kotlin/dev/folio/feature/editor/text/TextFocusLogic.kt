@@ -24,7 +24,8 @@ internal fun TextFocus.resolvedIn(layouts: Map<FlowId, FlowLayout>): TextFocus? 
         }
 
         index >= 0 -> {
-            copy(blockIndex = index)
+            val anchorKept = anchor == null || blocks.any { it.id == anchor.blockId }
+            copy(blockIndex = index, anchor = if (anchorKept) anchor else null)
         }
 
         else -> {
@@ -98,5 +99,15 @@ internal fun Map<FlowId, FlowLayout>.fieldOf(focus: TextFocus?): TextFieldSpec? 
     val block = layout.markdown.blocks.getOrNull(index)
     val blockLayout = layout.layoutOf(index)
     val placement = layout.placementOf(index)
-    return if (block == null || blockLayout == null || placement == null) null else TextFieldSpec(focus, block, blockLayout, placement)
+    if (block == null || blockLayout == null || placement == null) return null
+    val anchor = focus.anchor
+    // An anchor in another block: the field selects from its start (anchor before) or its end (anchor after).
+    val anchorOffset =
+        when {
+            anchor == null -> focus.caret
+            anchor.blockId == block.id -> anchor.offset
+            layout.markdown.indexOf(anchor.blockId) < index -> 0
+            else -> block.source.length
+        }
+    return TextFieldSpec(focus, block, blockLayout, placement, anchorOffset = anchorOffset)
 }
