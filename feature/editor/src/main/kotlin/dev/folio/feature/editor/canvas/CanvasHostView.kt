@@ -84,7 +84,7 @@ data class TileStats(
  */
 @SuppressLint("ViewConstructor") // created in code by CanvasHost only
 @MainThread
-@Suppress("TooManyFunctions") // view lifecycle, input, document updates and tile scheduling
+@Suppress("TooManyFunctions", "LargeClass") // view lifecycle, input, document updates and tile scheduling; helpers own the rest
 class CanvasHostView internal constructor(
     context: Context,
     private val controller: CanvasController,
@@ -212,6 +212,12 @@ class CanvasHostView internal constructor(
 
     /** The selection boxes and handles above the live field (tests read what it shows). */
     internal val selectionView = SelectionOverlay(context, controller.viewport, controller) { document }
+
+    // Finger text selection; its menu runs the live field's clipboard paths (07-text-engine.md#selection-as-built).
+    private val selectionGestures =
+        SelectionGestures(this, controller, selectionView, { document }, gestures::cancelNavigation, router::onTouchEvent) { id ->
+            textField.liveField?.onTextContextMenuItem(id)
+        }
 
     /** The grip and width handles of a focused free text box (tests read what it shows). */
     internal val boxHandles = BoxHandles(context, controller.viewport, controller) { document }
@@ -483,6 +489,7 @@ class CanvasHostView internal constructor(
         displayModes?.release()
         context.unregisterComponentCallbacks(memoryCallbacks)
         removeCallbacks(idleRequest)
+        selectionGestures.cancel()
         handoff.clear()
         scope.coroutineContext.cancelChildren()
         erasePreview = null
@@ -514,9 +521,10 @@ class CanvasHostView internal constructor(
                 gestures.stopFling()
                 yieldTextToStylus(event)
             }
-            // A finger on a selection handle drags that end, a finger or the pen on a box's grip or width handle moves
-            // or resizes the box; the router never sees those gestures.
-            if (!boxHandles.handleTouch(event) && !selectionView.handleTouch(event)) router.onTouchEvent(event)
+            // A finger or the pen on a box's grip or width handle moves or resizes the box, a press on the selection menu
+            // runs it, a finger on a selection handle drags that end, a long-press or double tap selects words; the
+            // router never sees those gestures.
+            if (!boxHandles.handleTouch(event)) selectionGestures.onTouch(event)
         }
         return true
     }
@@ -536,9 +544,9 @@ class CanvasHostView internal constructor(
         // HOT PATH: per hover event; no allocation.
         val tool = event.getToolType(0)
         if (tool != MotionEvent.TOOL_TYPE_STYLUS && tool != MotionEvent.TOOL_TYPE_ERASER) return
-        // The pen takes the box's grip or a width handle (not in read mode, where it only navigates).
-        if (controller.activeTool != CanvasTool.NAVIGATE && boxHandles.covers(event.x, event.y)) return
-        textField.yieldToStylus(event.x, event.y)
+        // The pen takes the box's grip or a width handle (not in read mode, where it only navigates) or taps the selection menu.
+        val onBox = controller.activeTool != CanvasTool.NAVIGATE && boxHandles.covers(event.x, event.y)
+        if (!onBox && !selectionView.menuCovers(event.x, event.y)) textField.yieldToStylus(event.x, event.y)
     }
 
     /** While the ring is the hover cursor, the system stylus pointer (HyperOS draws a dot) is hidden (D-017). */
@@ -793,14 +801,6 @@ class CanvasHostView internal constructor(
         /** Time spent routing and forwarding one stylus MotionEvent to wet ink (R-PERF-03). */
         const val SECTION_INK_TOUCH = "ink:onTouch"
 
-        private const val MM_PER_INCH = 25.4f
-        private const val MIN_HOVER_RING_DP = 3f
-
-        // Like a finger tap (GestureConfig).
-        private const val TEXT_TAP_TIMEOUT_MS = 400L
-        private const val TAG = "CanvasHost"
-        private const val CONTENT_DESCRIPTION = "Note pages. Draw with the pen, pan and zoom with fingers."
-
         /** From the idle tile request until every visible tile of both layers is rendered. */
         const val SECTION_SETTLE = "render:settle"
 
@@ -809,30 +809,37 @@ class CanvasHostView internal constructor(
 
         /** Minimum time between tile requests while panning at the requested bucket. */
         const val PAN_REQUEST_MS = 50L
-
-        // Base tiles render 4 half-octaves (1/4 of the px per pt) below the fit-width bucket.
-        private const val BASE_BUCKET_STEPS = 4
-
-        /** Share of `largeMemoryClass` for both tile caches (05-canvas-rendering.md#tiles). */
-        private const val BUDGET_SHARE = 4
-        private const val BYTES_PER_MB = 1024L * 1024L
-
-        private fun tileBudgetBytes(context: Context): Long {
-            val reported = context.getSystemService(ActivityManager::class.java)?.largeMemoryClass ?: 0
-            val mb = if (reported > 0) reported else DEFAULT_LARGE_MEMORY_MB
-            return mb * BYTES_PER_MB / BUDGET_SHARE
-        }
-
-        private const val DEFAULT_LARGE_MEMORY_MB = 512
-
-        // Keyboard zoom and page jumps: one step zooms by 25%, animated over 150 ms.
-        private const val KEY_ZOOM_STEP = 1.25f
-        private const val KEY_ANIMATION_MS = 150L
-        private const val PAGE_JUMP_MS = 200L
-
-        // Room kept between the caret line and the view top or the chrome covering the canvas bottom.
-        private const val CARET_MARGIN_DP = 24f
     }
+}
+
+private const val MM_PER_INCH = 25.4f
+private const val MIN_HOVER_RING_DP = 3f
+
+// Like a finger tap (GestureConfig).
+private const val TEXT_TAP_TIMEOUT_MS = 400L
+private const val TAG = "CanvasHost"
+private const val CONTENT_DESCRIPTION = "Note pages. Draw with the pen, pan and zoom with fingers."
+
+// Base tiles render 4 half-octaves (1/4 of the px per pt) below the fit-width bucket.
+private const val BASE_BUCKET_STEPS = 4
+
+/** Share of `largeMemoryClass` for both tile caches (05-canvas-rendering.md#tiles). */
+private const val BUDGET_SHARE = 4
+private const val BYTES_PER_MB = 1024L * 1024L
+private const val DEFAULT_LARGE_MEMORY_MB = 512
+
+// Keyboard zoom and page jumps: one step zooms by 25%, animated over 150 ms.
+private const val KEY_ZOOM_STEP = 1.25f
+private const val KEY_ANIMATION_MS = 150L
+private const val PAGE_JUMP_MS = 200L
+
+// Room kept between the caret line and the view top or the chrome covering the canvas bottom.
+private const val CARET_MARGIN_DP = 24f
+
+private fun tileBudgetBytes(context: Context): Long {
+    val reported = context.getSystemService(ActivityManager::class.java)?.largeMemoryClass ?: 0
+    val mb = if (reported > 0) reported else DEFAULT_LARGE_MEMORY_MB
+    return mb * BYTES_PER_MB / BUDGET_SHARE
 }
 
 /** The activity behind this context (the editor window), or null. */

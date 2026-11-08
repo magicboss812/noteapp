@@ -2,6 +2,7 @@ package dev.folio.feature.editor.canvas
 
 import android.content.Context
 import android.os.Looper
+import android.view.MotionEvent
 import android.view.View
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
@@ -181,6 +182,32 @@ class EditedTextTest {
         assertThat(checkNotNull(highlight.anchor).xPt).isEqualTo(box.rect.left)
         assertThat(checkNotNull(highlight.focus).xPt).isEqualTo(box.rect.right)
         compose.onRoot().captureRoboImage("src/test/screenshots/CanvasHost_editedSelectionWithMarkers.png")
+    }
+
+    @Test
+    fun selectedWord_afterATouchSelection_showsHandlesAndTheFloatingMenuAboveIt() {
+        show()
+        val source = "Some words to select here"
+        showFocused(source, pick = { 0 }, caret = { it.indexOf("select") + 6 }, anchor = { it.indexOf("select") })
+
+        compose.runOnUiThread { hostView().selectionView.showMenu() }
+        settle()
+
+        val overlay = hostView().selectionView
+        assertThat(overlay.isMenuShown).isTrue()
+        val ids = ArrayList<Int>()
+        overlay.onMenu = { ids += it }
+        compose.onRoot().captureRoboImage("src/test/screenshots/CanvasHost_selectedWordWithMenu.png")
+        // A tap on Copy runs it and closes the menu.
+        val at = FloatArray(2)
+        assertThat(overlay.menuButtonCenter(android.R.id.copy, at)).isTrue()
+        val (x, y) = at[0] to at[1]
+        compose.runOnUiThread {
+            assertThat(overlay.menuTouch(TouchEvents.event(MotionEvent.ACTION_DOWN, 0L, x to y))).isTrue()
+            assertThat(overlay.menuTouch(TouchEvents.event(MotionEvent.ACTION_UP, 60L, x to y))).isTrue()
+        }
+        assertThat(ids).containsExactly(android.R.id.copy)
+        assertThat(overlay.isMenuShown).isFalse()
     }
 
     @Test

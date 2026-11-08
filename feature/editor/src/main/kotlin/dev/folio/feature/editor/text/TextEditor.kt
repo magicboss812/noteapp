@@ -15,8 +15,10 @@ import dev.folio.core.text.edit.LinkEdits
 import dev.folio.core.text.edit.SelectionEditing
 import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.edit.TextSelection
+import dev.folio.core.text.edit.WordRanges
 import dev.folio.core.text.flow.EditedBlock
 import dev.folio.core.text.flow.TapTarget
+import dev.folio.core.text.markdown.BlockContent
 import dev.folio.core.text.markdown.MarkdownDocument
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -89,6 +91,9 @@ internal class TextEditor(
     private var selectionRevision = NO_REVISION
     private val taps = MutableSharedFlow<TapTarget>(extraBufferCapacity = TAP_BUFFER)
     private val query = MutableStateFlow<String?>(null)
+
+    // The word a long-press selected, start to end in one block: a drag after it extends from there by words.
+    private var wordOrigin: TextSelection? = null
 
     // The open `[[` of [query] and the caret after its text, source offsets of the focused block; -1 without one.
     private var queryStart = -1
@@ -186,6 +191,60 @@ internal class TextEditor(
         val hit = text.caretAt(pageId, xPt, yPt)?.takeIf { it.flowId == focus.flowId } ?: return
         val doc = text.laidOut(focus.flowId) ?: return
         moveEnd(focus.flowId, doc, current, Caret(hit.blockId, hit.caret), anchor)
+    }
+
+    override fun selectWordAt(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ): Boolean {
+        val focus = text.focus.value ?: return false
+        val hit = text.caretAt(pageId, xPt, yPt)?.takeIf { it.flowId == focus.flowId && it.blockId == focus.blockId } ?: return false
+        val block = text.laidOut(focus.flowId)?.let { it.blocks.getOrNull(it.indexOf(hit.blockId)) } ?: return false
+        // A table is edited one cell at a time and a selection never ends inside it (A-053).
+        if (block.content is BlockContent.Table) return false
+        val word = WordRanges.at(block, hit.caret)
+        val origin = TextSelection(Caret(block.id, word.start), Caret(block.id, word.end))
+        wordOrigin = origin
+        clearQuery()
+        text.select(focus.flowId, origin)
+        return true
+    }
+
+    override fun extendWordsTo(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ) {
+        val origin = wordOrigin ?: return
+        val focus = text.focus.value ?: return
+        val current = flowSelection() ?: return
+        val hit = text.caretAt(pageId, xPt, yPt)?.takeIf { it.flowId == focus.flowId } ?: return
+        val doc = text.laidOut(focus.flowId) ?: return
+        val next = wordsTo(doc, origin, Caret(hit.blockId, hit.caret)) ?: return
+        if (next == current) return
+        clearQuery()
+        text.select(focus.flowId, next)
+    }
+
+    // The word selection [origin] grown by whole words to the word at [target]; null if [target] is not in [doc].
+    private fun wordsTo(
+        doc: MarkdownDocument,
+        origin: TextSelection,
+        target: Caret,
+    ): TextSelection? {
+        val index = doc.indexOf(target.blockId)
+        val start = doc.indexOf(origin.anchor.blockId)
+        val block = doc.blocks.getOrNull(index)
+        if (block == null || start < 0) return null
+        val word = WordRanges.at(block, target.offset)
+        val before = index < start || (index == start && word.start < origin.anchor.offset)
+        val after = index > start || (index == start && word.end > origin.focus.offset)
+        return when {
+            before -> SelectionEditing.outsideTables(doc, Caret(block.id, word.start), false)?.let { TextSelection(origin.focus, it) }
+            after -> SelectionEditing.outsideTables(doc, Caret(block.id, word.end), true)?.let { TextSelection(origin.anchor, it) }
+            else -> origin
+        }
     }
 
     // One end of [current] goes to [target], past any table there (the field edits tables one cell at a time).

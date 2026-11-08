@@ -353,6 +353,26 @@ interface TextController {
         yPt: Float,
     ) = if (anchor) Unit else extendTo(pageId, xPt, yPt)
 
+    /**
+     * A long-press or double tap at ([xPt], [yPt]) of page [pageId]: selects the word there (`WordRanges`) if the
+     * point is on the block being edited; true if it was (the gesture then belongs to the selection). Main thread.
+     */
+    fun selectWordAt(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ): Boolean = false
+
+    /**
+     * The finger of a long-press moved to ([xPt], [yPt]) of page [pageId]: the selection runs from the long-pressed
+     * word to the edge of the word there, across blocks and pages of the flow. Main thread.
+     */
+    fun extendWordsTo(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+    ) = Unit
+
     /** Ctrl+A: the focused block, then the whole flow. Main thread. */
     fun selectAll() = Unit
 
