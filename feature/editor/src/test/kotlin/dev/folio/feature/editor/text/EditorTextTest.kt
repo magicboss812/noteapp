@@ -37,14 +37,17 @@ import dev.folio.core.text.flow.toTextStyle
 import dev.folio.core.text.markdown.MarkdownDocument
 import dev.folio.feature.editor.state.EditorSession
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -54,6 +57,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.coroutines.CoroutineContext
 
 /** The text engine of an editor session over the real storage stack (temp-dir library, in-memory index). */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -225,6 +229,46 @@ class EditorTextTest : EditorTextFixture() {
             assertThat(session.editText(FlowId("nope")) { BlockEditing.enter(it, TextSelection.at(Caret(it.blocks[0].id, 0))) }).isNull()
             assertThat(documentSession.canUndo.value).isFalse()
         }
+
+    @Test
+    fun editText_blockEdit_runsOnTheTextDispatcher() =
+        runTest(main.testDispatcher) {
+            // The block edit, the diff and the reflow walk the whole flow: a keystroke must not wait for them (P06-T11).
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val text = MarkingDispatcher(StandardTestDispatcher(testScheduler))
+            val (session, documentSession) = open(path, this, main.dispatchers.copy(text = text))
+            checkNotNull(session.text).awaitReady()
+            var onText: Boolean? = null
+
+            val result =
+                session.editText(body, "type") { doc ->
+                    onText = text.running
+                    BlockEditing.setSource(doc, doc.blocks[0].id, "alphax", 6)
+                }
+
+            assertThat(onText).isTrue()
+            assertThat(result).isNotNull()
+            assertThat(markdown(documentSession)).isEqualTo("alphax\n\nbeta")
+        }
+
+    // Runs everything on [target] and tells whether a block dispatched to it is running.
+    private class MarkingDispatcher(
+        private val target: CoroutineDispatcher,
+    ) : CoroutineDispatcher() {
+        var running = false
+
+        override fun dispatch(
+            context: CoroutineContext,
+            block: Runnable,
+        ) = target.dispatch(context) {
+            running = true
+            try {
+                block.run()
+            } finally {
+                running = false
+            }
+        }
+    }
 
     @Test
     fun editText_pastingPastTheLastBodyFrame_addsAContinuationPageInTheSameUndoStep() =

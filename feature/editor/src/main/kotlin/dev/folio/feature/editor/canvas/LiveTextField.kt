@@ -106,6 +106,11 @@ internal class LiveTextField(
     // Time of the tap that focused the shown block (System.nanoTime), recorded as `text:caret` on the next draw; 0 when none.
     private var tapNs = 0L
 
+    // The key event being handled and the first text change since the last draw (System.nanoTime base), recorded as
+    // `text:key` on the next draw; 0 when none (P06-T11).
+    private var keyEventNs = 0L
+    private var keyNs = 0L
+
     private val resolver: FontFamily.Resolver = createFontFamilyResolver(context)
     private val sent = ArrayList<String>()
     private var shown: TextFieldSpec? = null
@@ -142,7 +147,9 @@ internal class LiveTextField(
 
             override fun afterTextChanged(s: Editable) {
                 // HOT PATH: per keystroke; the block source String is the one allocation.
-                if (!applying) typed(s.toString())
+                if (applying) return
+                if (keyNs == 0L) keyNs = if (keyEventNs != 0L) keyEventNs else System.nanoTime()
+                typed(s.toString())
             }
         }
 
@@ -243,6 +250,10 @@ internal class LiveTextField(
         if (tapNs != 0L) {
             PerfMonitor.record(TRACE_CARET, System.nanoTime() - tapNs)
             tapNs = 0L
+        }
+        if (keyNs != 0L) {
+            PerfMonitor.record(TRACE_KEY, System.nanoTime() - keyNs)
+            keyNs = 0L
         }
         // The text layout is current here, so the caret line is where the next frame shows it.
         if (caretMoved) {
@@ -478,10 +489,16 @@ internal class LiveTextField(
         keyCode: Int,
         event: KeyEvent,
     ): Boolean {
-        onChord(keyCode, event)?.let { return it }
-        return (spanning && (collapse(keyCode, event) || overSelection(keyCode, event))) ||
-            structural(keyCode, event.isShiftPressed) ||
-            viewKey(keyCode, event)
+        // The key waited in the input queue since its event time: that wait is part of keystroke to frame.
+        keyEventNs = event.eventTime * NS_PER_MS // uptime ms: the clock of System.nanoTime, at ms resolution
+        try {
+            onChord(keyCode, event)?.let { return it }
+            return (spanning && (collapse(keyCode, event) || overSelection(keyCode, event))) ||
+                structural(keyCode, event.isShiftPressed) ||
+                viewKey(keyCode, event)
+        } finally {
+            keyEventNs = 0L
+        }
     }
 
     // A plain arrow ends a selection over blocks at the field's caret, which stays where it is; the field's part of the
@@ -650,6 +667,22 @@ internal class LiveTextField(
                 if (beforeLength == 1 && afterLength == 0 && atBlockStart()) return consume { send(FieldKey.BACKSPACE) }
                 return super.deleteSurroundingText(beforeLength, afterLength)
             }
+
+            // A monitoring IME (Gboard) has TextView rebuild its cursor anchor info before every frame the field draws,
+            // re-measuring the block's lines: 5-14 ms per caret blink on the Pad 7 (P06-T11). Only one-shot updates go
+            // through; the docked keyboard does not need the caret's position.
+            override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
+                val mode = cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR.inv()
+                return (mode and InputConnection.CURSOR_UPDATE_IMMEDIATE) != 0 && super.requestCursorUpdates(mode)
+            }
+
+            override fun requestCursorUpdates(
+                cursorUpdateMode: Int,
+                cursorUpdateFilter: Int,
+            ): Boolean {
+                val mode = cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR.inv()
+                return (mode and InputConnection.CURSOR_UPDATE_IMMEDIATE) != 0 && super.requestCursorUpdates(mode, cursorUpdateFilter)
+            }
         }
     }
 
@@ -711,6 +744,11 @@ internal class LiveTextField(
 
         // Tap to the first frame that draws the focused field (07-text-engine.md#editing budget: 50 ms).
         const val TRACE_CARET = "text:caret"
+
+        // A text change (from its key event's time when a key typed it) to the next frame that draws the field
+        // (12-performance.md#budgets R-PERF-05: 16 ms p95 on a 20k-word flow).
+        const val TRACE_KEY = "text:key"
+        const val NS_PER_MS = 1_000_000L
 
         // Styling, syncing and placing the field for a new block; then focusing it; then the keyboard request after the frame.
         const val TRACE_SHOW = "text:show"

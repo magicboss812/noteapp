@@ -120,6 +120,15 @@ class LiveTextFieldTest {
     }
 
     @Test
+    fun inputConnection_cursorMonitoring_isRefused() {
+        show(spec("Plain", caret = 2))
+        val input = input()
+
+        assertThat(input.requestCursorUpdates(InputConnection.CURSOR_UPDATE_MONITOR)).isFalse()
+        assertThat(input.requestCursorUpdates(InputConnection.CURSOR_UPDATE_MONITOR, 0)).isFalse()
+    }
+
+    @Test
     fun show_zoomedViewport_scalesFontSizeAndLineHeight() {
         val spec = spec("hello")
         show(spec)

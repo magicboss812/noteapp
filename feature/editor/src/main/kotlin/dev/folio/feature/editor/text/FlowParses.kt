@@ -27,13 +27,14 @@ internal class FlowParses {
         return BlockEditing.ensureBlock(MarkdownDocument.parse(flow.markdown)).also { parsed[flow.id] = Entry(flow.markdown, it) }
     }
 
-    /** Remembers [document] as the parse of flow [id] whose text will be `document.toMarkdown()`. */
+    /** Remembers [document] as the parse of flow [id] whose text will be [markdown] (`document.toMarkdown()`). */
     @Synchronized
     fun adopt(
         id: FlowId,
         document: MarkdownDocument,
+        markdown: String = document.toMarkdown(),
     ) {
-        parsed[id] = Entry(document.toMarkdown(), document)
+        parsed[id] = Entry(markdown, document)
     }
 
     /** The block ids of flow [id] if it was parsed, else null. */

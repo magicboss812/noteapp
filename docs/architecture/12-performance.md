@@ -11,7 +11,7 @@ Measured on the Xiaomi Pad 7. Final numbers in the benchmark build (P11); earlie
 | R-PERF-03 | Wet ink path | front-buffered where the device supports it; no visible gap at dry handoff | P01-S1 + USER-CHECK |
 | R-PERF-04 | Pan/zoom on a 1500-stroke page | <= 1% janky frames (gfxinfo), p95 CPU frame time <= 7 ms (Macrobenchmark `FrameTimingMetric`, P11; A-026) | gfxinfo + Macrobenchmark |
 | R-PERF-04 | Tile settle after zoom | <= 150 ms p95 for visible tiles | `render:settle` |
-| R-PERF-05 | Keystroke to frame, 20k-word flow | <= 16 ms p95 | `text:edit` |
+| R-PERF-05 | Keystroke to frame, 20k-word flow | <= 16 ms p95 | `text:key` (key event or text change to the next field draw, A-056) |
 | R-PERF-05 | Tap to visible caret | <= 50 ms p95 | `text:focus` |
 | R-PERF-05 | Scroll through 20k-word flow | <= 1% janky frames | gfxinfo |
 | R-PERF-06 | 100-page PDF: import to first page visible | <= 2 s | `pdf:import` |

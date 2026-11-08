@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.withContext
 
@@ -50,7 +51,9 @@ internal fun CanvasHost(
                     onHost(it)
                 }
             },
-            modifier = modifier,
+            // Its own layer: a caret blink or keystroke in the live field re-records the canvas layer only, not the
+            // chrome drawn around it (P06-T11).
+            modifier = modifier.graphicsLayer(),
         )
         val view = host
         SideEffect {

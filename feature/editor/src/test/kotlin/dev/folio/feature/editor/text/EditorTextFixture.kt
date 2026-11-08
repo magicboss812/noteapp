@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.Outcome
 import dev.folio.core.format.manifest.ManifestApp
 import dev.folio.core.model.FlowFrame
@@ -130,9 +131,10 @@ abstract class EditorTextFixture {
     protected suspend fun open(
         path: String,
         test: TestScope,
+        dispatchers: FolioDispatchers = main.dispatchers,
     ): Pair<EditorSession, DocumentSession> {
         val documentSession = (sessions.open(path) as Outcome.Success).value
-        return EditorSession(documentSession, 2f, main.dispatchers, test.backgroundScope, textEngine = engine) to documentSession
+        return EditorSession(documentSession, 2f, dispatchers, test.backgroundScope, textEngine = engine) to documentSession
     }
 
     protected fun markdown(documentSession: DocumentSession) =

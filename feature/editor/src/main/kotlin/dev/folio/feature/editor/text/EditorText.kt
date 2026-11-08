@@ -22,6 +22,7 @@ import dev.folio.core.model.edit.TextEdit
 import dev.folio.core.model.edit.UpdateObjects
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.storage.session.DocumentSession
+import dev.folio.core.text.edit.BlockEditing
 import dev.folio.core.text.edit.Caret
 import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.edit.FlowTextDiff
@@ -67,6 +68,12 @@ class TextSnapshot(
         val EMPTY = TextSnapshot(emptyMap(), emptyMap())
     }
 }
+
+/** A block edit's [result] (its selection for the field) and the [command] that stores it; null if the text stays. */
+class BlockEdit(
+    val result: EditResult,
+    val command: EditCommand?,
+)
 
 /**
  * The text engine of one open document (07-text-engine.md#editing, D-032): keeps the layout of every flow current on
@@ -487,20 +494,26 @@ class EditorText internal constructor(
             ?.let(parses::of)
 
     /**
-     * [editCommand] for the flow to become `after.toMarkdown()`, where [after] was derived from [parsed] by block
-     * editing: one replacement of the changed middle of the text, and [after] is adopted so the block ids (the
-     * focused block among them) survive the edit. Null if the text does not change or the edit does not fit.
+     * Runs the block edit [op] on [parsed] of flow [flowId] and builds the [editCommand] for the flow to become its
+     * outcome: one replacement of the changed middle of the text, and the outcome is adopted so the block ids (the
+     * focused block among them) survive the edit. All on the `text` dispatcher: parse, edit, diff and reflow walk the
+     * whole flow (11 ms of main thread per keystroke on a 20k-word flow before P06-T11). Null if [op] declined or the
+     * edit does not fit; a null command if the text stays as it is (only the selection moved).
      */
-    suspend fun editCommand(
+    suspend fun blockEdit(
         flowId: FlowId,
-        after: MarkdownDocument,
-        coalesceKey: String? = null,
-    ): EditCommand? {
-        val flow = documentSession.document.value.flows[flowId] ?: return null
-        val edit = FlowTextDiff.between(flow.markdown, after.toMarkdown()) ?: return null
-        parses.adopt(flowId, after)
-        return editCommand(flowId, listOf(edit), coalesceKey)
-    }
+        coalesceKey: String?,
+        op: (MarkdownDocument) -> EditResult?,
+    ): BlockEdit? =
+        withContext(dispatchers.text) {
+            val flow = documentSession.document.value.flows[flowId] ?: return@withContext null
+            val result = op(BlockEditing.ensureBlock(parses.of(flow))) ?: return@withContext null
+            val markdown = result.document.toMarkdown()
+            if (markdown == flow.markdown) return@withContext BlockEdit(result, null)
+            val edit = FlowTextDiff.between(flow.markdown, markdown) ?: return@withContext null
+            parses.adopt(flowId, result.document, markdown)
+            editCommand(flowId, listOf(edit), coalesceKey)?.let { BlockEdit(result, it) }
+        }
 
     /** Markdown of the flow text shown on a page of [doc] (page duplicates copy it), laid out fresh for [doc]. */
     suspend fun pageMarkdown(doc: Document): (FlowId, PageId) -> String? {

@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T11
+next: P06 REVIEW
 updated: 2026-11-08
 
 ## Completed
@@ -13,7 +13,7 @@ updated: 2026-11-08
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07, T08 (a-b), T09 (a-b), T19, T10 (a-b), T18 (a-d), T14 (a-b), T16, T17
+- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07, T08 (a-b), T09 (a-b), T19, T10 (a-b), T18 (a-d), T14 (a-b), T16, T17, T11 (keystroke p95 gap -> D-043)
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -27,8 +27,9 @@ updated: 2026-11-08
 - P06-T17: Make a text box in the margin with the Text tool, drag its top grip with a finger and with the pen, pull a side knob -> box lands on the lines (also on the next page), text rewraps, one undo each; device-tester 2026-11-08: finger move/next page/resize/undo PASS, pen grip FAIL (D-041).
 
 ## Deferred (id: reason)
-- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06.
-- D-038 P06-T14b: a focused live field draws about 4 frames/s while idle (EditText caret blink, 20-37 ms each, 2-3 ms layout); 0 frames when not editing.
+- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06; D-043 -> P11-T05.
+- D-038 P06-T14b: a focused live field draws about 2 frames/s while idle (EditText caret blink); since P06-T11 25-36 ms each, layout 0-1 ms, GPU p50 18 ms; 0 frames when not editing.
+- D-043 P06-T11: debug build, 20k-word note: `text:key` p95 16.8-21.0 ms paced (was 37.4), budget < 16 ms; the rest is the frame pipeline (about 18 ms GPU per light frame), not main-thread text work (A-056).
 - D-039 P06-T14b: after a model-driven text change (Ctrl+Z of a replace) Gboard's suggestion strip keeps the old word; the field may need `restartInput` then.
 - D-035 P06-T10a: "Type into page body" is always on; the switch comes with the settings screen (A-050).
 - D-037 P06-T18d: the first Text tool creation after an open takes 68-83 ms tap to caret (fresh process 207-264 ms; first focus 57.5 ms), first-run cost of the debug build; later ones meet 50 ms (A-052).
@@ -41,8 +42,8 @@ updated: 2026-11-08
 - D-042 P06-T17: at 25% zoom finger drags on the grip panned the page instead of moving the box (fine at 40% and 100%).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T17 done (A-055): `TextZones.movedBox/resizedBox` snap (rule + column, 1 mm on lined); `canvas/BoxHandles` view (outline, grip, side knobs) before selection in `CanvasHostView.dispatchTouchEvent`; `TextController.placeBox` -> `EditorText.boxCommand` (UpdateObjects or Remove+Add across pages, plus reflow, one undo step). Pen grip on device: D-041.
-- NEXT P06-T11, then P06 REVIEW. Debug probes `FolioTouch`, `FolioMain`. Untracked orphan `core/text/src/test/screenshots/FontSpecimen_compact.png` (test removed in T03) left unstaged.
+- P06-T11 done with a known gap (A-056, D-043 -> P11-T05): block edits run on the text dispatcher (`EditorText.blockEdit`), the live field refuses IME cursor-anchor monitoring, and the canvas AndroidView has its own graphics layer. `text:key` p95 went from 37 to 17-21 ms in the debug build; scroll 0.05% janky; PSS 618 MB (perf.md).
+- NEXT P06 REVIEW (range p05-done..HEAD). Debug probes `FolioTouch`, `FolioMain` (frame lines print twice). Untracked orphan `core/text/src/test/screenshots/FontSpecimen_compact.png` (test removed in T03) left unstaged.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`).
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]` seeds a body flow (`open lined:N`: N is the page count and reuses that file; the first stylus tap after a debug command is dropped). Test APK installs can still be refused (INSTALL_FAILED_USER_RESTRICTED): check the result XML, not Gradle's SUCCESS.
-- Remaining P06 order: T11. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.
+- Remaining P06: REVIEW only. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.
