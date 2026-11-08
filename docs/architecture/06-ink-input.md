@@ -68,6 +68,7 @@ Geometry as built (A-064, `core:model` `shape/ShapeGeometry`, `ShapeHandles`; pa
 - Move: drag inside the box with pen or finger. Resize keeps aspect with corner handles, free with edge handles. Rotation shows the angle, 15 deg detents.
 - Clipboard: in-app clipboard holds objects + referenced assets (paste works across documents); a PNG of the selection is also put on the system clipboard via FileProvider.
 - Paste position: center of viewport, or at the last pen tap.
+- As built (A-066, `core:model` `lasso/Lasso`, `SelectionBox`, `edit/SelectionEdits`): the Text filter takes free text boxes and sticky notes, never body text. Corners scale uniformly around the opposite corner, edges one axis; no mirroring, sides at least 8 dp on screen. The box stays axis aligned (after a turn: the turned objects' bounds). Text boxes only move, onto the grid like a box drag, then reflow. Copies (Cut, Copy, Duplicate, Paste) leave out objects with their own flow (text boxes, sticky notes; D-051); Duplicate offsets by 16 pt.
 
 ## Ruler
 - Toggle from the toolbar. A semi-transparent 18 cm ruler with mm/cm ticks and an angle readout.

@@ -24,6 +24,27 @@ fun polygonContains(
     return inside
 }
 
+/** Allocation-free form of [polygonContains] over the first [n] vertices in parallel coordinate arrays. */
+fun polygonContains(
+    xs: FloatArray,
+    ys: FloatArray,
+    n: Int,
+    px: Float,
+    py: Float,
+): Boolean {
+    if (n < MIN_POLYGON_POINTS) return false
+    var inside = false
+    var j = n - 1
+    for (i in 0 until n) {
+        if ((ys[i] > py) != (ys[j] > py)) {
+            val xCross = (xs[j] - xs[i]) * (py - ys[i]) / (ys[j] - ys[i]) + xs[i]
+            if (px < xCross) inside = !inside
+        }
+        j = i
+    }
+    return inside
+}
+
 /** Distance from [p] to the segment [a]-[b] (to [a] if the segment is a point). */
 fun segmentDistance(
     p: PointPt,
