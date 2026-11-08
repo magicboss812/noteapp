@@ -4,17 +4,41 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentMapOf
+import kotlin.math.roundToInt
 
 /** Text alignment of a flow. */
 enum class TextAlign { START, CENTER, JUSTIFIED }
 
-/** Per-flow text style; [sizeRatio] is the target cap height as a fraction of the grid unit U. */
+/**
+ * Per-flow text style; [sizeRatio] is the target cap height as a fraction of the grid unit U. [baselineLiftUnits]
+ * raises every baseline of the flow that fraction of U above its rule (07-text-engine.md#line-box, A-054).
+ */
 data class FlowStyle(
     val fontFamily: String,
     val sizeRatio: Float,
     val paragraphGapLines: Int,
     val align: TextAlign,
-)
+    val baselineLiftUnits: Float = 0f,
+) {
+    /** Lift range and step. */
+    companion object {
+        /** Highest baseline lift in U. */
+        const val MAX_BASELINE_LIFT = 0.35f
+
+        /** Lift step in U. */
+        const val BASELINE_LIFT_STEP = 0.05f
+
+        private const val LIFT_STEPS_PER_UNIT = 20f
+
+        /** [lift] rounded to a [BASELINE_LIFT_STEP] and clamped to 0..[MAX_BASELINE_LIFT]; NaN gives 0. */
+        fun clampBaselineLift(lift: Float): Float {
+            if (lift.isNaN()) return 0f
+            // Divide (not multiply by the step): n / 20f is the float nearest n/20, so 0.35 stays 0.35.
+            val rounded = (lift.coerceIn(0f, MAX_BASELINE_LIFT) * LIFT_STEPS_PER_UNIT).roundToInt() / LIFT_STEPS_PER_UNIT
+            return rounded.coerceIn(0f, MAX_BASELINE_LIFT)
+        }
+    }
+}
 
 /** A Markdown text flow laid out across frames; [autoContinue] adds pages when the text overflows. */
 data class TextFlow(

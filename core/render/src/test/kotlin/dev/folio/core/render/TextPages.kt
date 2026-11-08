@@ -4,6 +4,7 @@ import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.test.core.app.ApplicationProvider
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
+import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.FrameRole
 import dev.folio.core.model.GridUnit
 import dev.folio.core.model.ObjectId
@@ -66,26 +67,28 @@ internal class TextPages(
     fun page(frames: List<PageObject> = listOf(body)): Page =
         ModelFixtures.page("p").copy(background = background, objects = frames.toPersistentList())
 
-    /** The text [markdown] shows in [frames] of [page]; note links to [brokenLinks] are drawn broken. */
+    /** The text [markdown] in [style] shows in [frames] of [page]; note links to [brokenLinks] are drawn broken. */
     fun text(
         markdown: String,
         frames: List<PageObject> = listOf(body),
         brokenLinks: Set<String> = emptySet(),
+        style: FlowStyle = ModelFixtures.FLOW_STYLE,
     ): PageText {
         val doc =
             ModelFixtures.document(
                 listOf(page(frames)),
-                flows = listOf(ModelFixtures.flow(flowId.value, markdown)),
+                flows = listOf(ModelFixtures.flow(flowId.value, markdown).copy(style = style)),
             )
         return PageTexts.of(doc, PageTexts.layouts(doc, layouter, brokenLinks = brokenLinks)).getValue(page(frames).id)
     }
 
-    /** Render snapshot of [page] with [markdown] in its frames. */
+    /** Render snapshot of [page] with [markdown] in [style] in its frames. */
     fun content(
         markdown: String,
         frames: List<PageObject> = listOf(body),
         brokenLinks: Set<String> = emptySet(),
-    ): PageContent = PageContent.of(page(frames), text(markdown, frames, brokenLinks))
+        style: FlowStyle = ModelFixtures.FLOW_STYLE,
+    ): PageContent = PageContent.of(page(frames), text(markdown, frames, brokenLinks, style))
 
     private companion object {
         const val BOX_LEFT_PT = 100f

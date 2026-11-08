@@ -64,6 +64,31 @@ class BlockLayouterTest {
     }
 
     @Test
+    fun baselineLift_raisesTextCheckboxAndEmptyLines_boxesUnchanged() {
+        val lift = 0.25f
+        val liftPt = lift * lined.unitPt
+        val lifted = style.copy(baselineLiftUnits = lift)
+        for (markdown in listOf("word ".repeat(80).trim(), "# Title", "- [ ] Task", "| a |\n| - |\n| 1 |")) {
+            val flat = layout(markdown)
+            val raised = layout(markdown, flow = lifted)
+            assertWithMessage(markdown).that(raised.heightUnits).isEqualTo(flat.heightUnits)
+            assertWithMessage(markdown).that(raised.boxUnits).isEqualTo(flat.boxUnits)
+            for (line in 0 until raised.lineCount) {
+                assertWithMessage(
+                    "$markdown line $line",
+                ).that(raised.baselinePt(line)).isWithin(TOLERANCE_PT).of(flat.baselinePt(line) - liftPt)
+            }
+        }
+        val box = layout("- [ ] Task", flow = lifted).decoration as BlockDecoration.Checkbox
+        assertThat(box.topPt).isWithin(TOLERANCE_PT).of((layout("- [ ] Task").decoration as BlockDecoration.Checkbox).topPt - liftPt)
+        val cell = checkNotNull(layout("| a |\n| - |\n| 1 |", flow = lifted).table)
+        assertThat(cell.cellBaselinePt(0, 0)).isWithin(TOLERANCE_PT).of(lined.unitPt - liftPt)
+        assertThat(
+            layouter.build(BlockContent.Empty, WIDTH_PT, lifted, lined).baselinePt(0),
+        ).isWithin(TOLERANCE_PT).of(lined.unitPt - liftPt)
+    }
+
+    @Test
     fun emptyAndRule_oneBodyLine_ruleAtTheBoxCenter() {
         val empty = layouter.build(BlockContent.Empty, WIDTH_PT, style, lined)
         val rule = layout("---")

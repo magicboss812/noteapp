@@ -100,11 +100,21 @@ internal object ManifestMapper {
     fun flowStyleToJson(
         style: FlowStyle,
         autoContinue: Boolean,
-    ): FlowStyleJson = FlowStyleJson(style.fontFamily, style.sizeRatio, style.paragraphGapLines, style.align.name.lowercase(), autoContinue)
+    ): FlowStyleJson =
+        FlowStyleJson(
+            style.fontFamily,
+            style.sizeRatio,
+            style.paragraphGapLines,
+            style.align.name.lowercase(),
+            autoContinue,
+            style.baselineLiftUnits,
+        )
 
     fun flowStyleFromJson(json: FlowStyleJson): FlowStyle {
         val align = TextAlign.entries.firstOrNull { it.name.equals(json.align, ignoreCase = true) } ?: TextAlign.START
-        return FlowStyle(json.fontFamily, json.sizeRatio, json.paragraphGapLines, align)
+        // An out-of-range lift from a foreign file is clamped, never trusted (it would move text off the grid).
+        val lift = FlowStyle.clampBaselineLift(json.baselineLiftUnits)
+        return FlowStyle(json.fontFamily, json.sizeRatio, json.paragraphGapLines, align, lift)
     }
 
     private fun pageToJson(ref: PageRef): ManifestPage {

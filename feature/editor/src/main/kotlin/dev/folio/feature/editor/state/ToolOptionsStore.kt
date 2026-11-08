@@ -109,6 +109,7 @@ private data class LassoJson(
 private data class TextJson(
     val fontFamily: String = FontRegistry.DEFAULT_FAMILY,
     val bodyCap: Float = BodySize.M.capFraction,
+    val baselineLift: Float = 0f,
 )
 
 @Serializable
@@ -137,7 +138,7 @@ private fun ToolOptions.toJson() =
         eraser = EraserJson(eraser.mode, eraser.radiusPt, eraser.highlighterOnly),
         recentColors = recentColors,
         lasso = LassoJson(lasso.mode, lasso.filters),
-        text = TextJson(text.fontFamily, text.bodyCap),
+        text = TextJson(text.fontFamily, text.bodyCap, text.baselineLift),
     )
 
 private fun ToolOptionsJson.toOptions(): ToolOptions {
@@ -159,7 +160,7 @@ private fun ToolOptionsJson.toOptions(): ToolOptions {
         eraser = EraserOptions(eraser.mode, eraser.radiusPt, eraser.highlighterOnly),
         recentColors = recentColors.take(ToolOptions.MAX_RECENT_COLORS).toImmutableList(),
         lasso = LassoOptions(lasso.mode, lasso.filters.toImmutableSet()),
-        // A blank family name breaks the invariant (whole options fall back); a size out of range is clamped.
-        text = TextOptions(text.fontFamily).withBodyCap(text.bodyCap),
+        // A blank family name breaks the invariant (whole options fall back); a size or lift out of range is clamped.
+        text = TextOptions(text.fontFamily).withBodyCap(text.bodyCap).withBaselineLift(text.baselineLift),
     )
 }

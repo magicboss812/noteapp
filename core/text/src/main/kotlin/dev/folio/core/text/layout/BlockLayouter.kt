@@ -112,7 +112,7 @@ class BlockLayouter(
         style: FlowTextStyle,
         grid: LayoutGrid,
     ): BlockLayout {
-        val g = Geometry(grid, widthPt, (grid.unitPt * REFERENCE_SCALE).roundToInt().coerceAtLeast(1))
+        val g = Geometry(grid, widthPt, (grid.unitPt * REFERENCE_SCALE).roundToInt().coerceAtLeast(1), style.baselineLiftUnits)
         val family = registry.resolve(style.familyName)
         return when (content) {
             BlockContent.Empty -> {
@@ -160,14 +160,20 @@ class BlockLayouter(
         }
     }
 
-    /** Grid facts shared by every paragraph of one block: [pitchPx] = one U in layout px (whole). */
+    /**
+     * Grid facts shared by every paragraph of one block: [pitchPx] = one U in layout px (whole); baselines sit
+     * [liftUnits] x U above the bottom of their line box (A-054).
+     */
     private class Geometry(
         val grid: LayoutGrid,
         val widthPt: Float,
         val pitchPx: Int,
+        liftUnits: Float,
     ) {
         val unitPt: Float get() = grid.unitPt
         val refScale: Float = pitchPx / grid.unitPt
+        val liftPx: Float = liftUnits * pitchPx
+        val liftPt: Float = liftUnits * grid.unitPt
     }
 
     private fun textBlock(
@@ -281,6 +287,7 @@ class BlockLayouter(
             decoration = BlockDecoration.None,
             face = BlockFace(mono.fontFamily, bold = false),
             maths = listOf(placement),
+            liftPt = g.liftPt,
         )
     }
 
@@ -305,7 +312,7 @@ class BlockLayouter(
         return when (item.kind) {
             ListKind.TASK -> {
                 val sizePt = CHECKBOX_UNITS * g.unitPt
-                val baseline = TextSizing.boxUnits(TextRole.BODY, cap) * g.unitPt
+                val baseline = TextSizing.boxUnits(TextRole.BODY, cap) * g.unitPt - g.liftPt
                 val box =
                     BlockDecoration.Checkbox(
                         gutterLeft + max(0f, (step - sizePt) / 2f),
@@ -451,6 +458,7 @@ class BlockLayouter(
             maths = maths,
             mathErrors = errors,
             table = geometry,
+            liftPt = g.liftPt,
         )
     }
 
@@ -550,7 +558,7 @@ class BlockLayouter(
     ): GridText {
         val lineHeightPx = (boxUnits * g.pitchPx).toFloat()
         val paragraph = Paragraph(intrinsics, Constraints(maxWidth = max(1, ceil(widthPt * g.refScale).toInt())))
-        return GridText(paragraph, plain, g.refScale, lineHeightPx - paragraph.getLineBaseline(0))
+        return GridText(paragraph, plain, g.refScale, lineHeightPx - g.liftPx - paragraph.getLineBaseline(0))
     }
 
     private fun spanStyles(
@@ -641,7 +649,7 @@ class BlockLayouter(
         ): BlockLayout {
             val units = TextSizing.boxUnits(TextRole.BODY, TextSizing.capFraction(TextRole.BODY, style.bodyCap))
             val decoration = if (rule) BlockDecoration.Rule(yPt = units * g.unitPt / 2f) else BlockDecoration.None
-            return BlockLayout(null, null, g.unitPt, units, 1, 0f, 0f, 0f, decoration)
+            return BlockLayout(null, null, g.unitPt, units, 1, 0f, 0f, 0f, decoration, liftPt = g.liftPt)
         }
 
         /** Math span style: italic source without a renderer, none where a placeholder takes the characters, [invalid] on error. */

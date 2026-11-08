@@ -36,9 +36,9 @@ class FamilyInvariant(
 /**
  * P06-T03 grid invariant regression suite (07-text-engine.md#line-box), shared by the Robolectric
  * test and the instrumented test on the tablet: every block style of [CORPUS] stacked as a flow on
- * the page grid, for every grid in [GRIDS] and body size in [BODY_CAPS], drawn at Pad 7 screen
- * scale x zoom 1, 2, 4. Each line box must be a whole multiple of U and every drawn baseline must lie
- * within [MAX_ERROR_PX] of its rule.
+ * the page grid, for every grid in [GRIDS], body size in [BODY_CAPS] and baseline lift in [LIFTS], drawn at Pad 7
+ * screen scale x zoom 1, 2, 4. Each line box must be a whole multiple of U and every drawn baseline must lie
+ * within [MAX_ERROR_PX] of its rule less the lift.
  */
 object GridInvariantSuite {
     /** Fit-width px per pt on the Pad 7 in landscape: (3200 px - 48 dp at 2.75) / A4 width. */
@@ -62,6 +62,9 @@ object GridInvariantSuite {
 
     /** Body S, M, L and a free size whose body line box is 2U (A-039). */
     val BODY_CAPS = floatArrayOf(BodySize.S.capFraction, BodySize.M.capFraction, BodySize.L.capFraction, 1.2f)
+
+    /** Baseline lifts in U (A-054): none, a step between, the most allowed. Box heights must not change with them. */
+    val LIFTS = floatArrayOf(0f, 0.15f, 0.35f)
 
     private const val TOP_MARGIN_PT = 36f
 
@@ -106,8 +109,8 @@ object GridInvariantSuite {
             "---",
         ).plus(MATH_CORPUS).joinToString("\n\n")
 
-    /** Valid formulas of [CORPUS] (2 before [MATH_CORPUS], 15 in it), each placed once per grid and body size. */
-    val EXPECTED_FORMULAS: Int get() = (2 + 15) * GRIDS.size * BODY_CAPS.size
+    /** Valid formulas of [CORPUS] (2 before [MATH_CORPUS], 15 in it), each placed once per grid, body size and lift. */
+    val EXPECTED_FORMULAS: Int get() = (2 + 15) * GRIDS.size * BODY_CAPS.size * LIFTS.size
 
     /** Runs the corpus for [familyName] on every grid and body size. */
     fun run(
@@ -124,48 +127,60 @@ object GridInvariantSuite {
         var formulas = 0
         val mathPx = FloatArray(ZOOMS.size)
         var measured = 0
+        val unliftedUnits = IntArray(blocks.size)
         for (grid in GRIDS) {
             for (bodyCap in BODY_CAPS) {
-                val style = FlowTextStyle(familyName = familyName, bodyCap = bodyCap)
-                var topUnits = 0 // the flow's first block sits on the rule at the top margin
-                for (block in blocks) {
-                    val layout = layouter.build(block.content, WIDTH_PT, style, grid)
-                    val where = "${grid.unitPt}pt cap $bodyCap ${block.content::class.simpleName} '${block.source.take(LABEL_CHARS)}'"
-                    measured++
-                    lines += layout.lineCount
-                    if (layout.boxUnits < 1 || layout.heightPt != layout.lineCount * layout.boxUnits * grid.unitPt) {
-                        violations += "$where: box ${layout.boxUnits}U, height ${layout.heightPt} for ${layout.lineCount} lines"
-                    }
-                    val topPt = TOP_MARGIN_PT + topUnits * grid.unitPt
-                    val pitchPt = layout.boxUnits * grid.unitPt
-                    ZOOMS.forEachIndexed { z, zoom ->
-                        val scale = PAD7_FIT_SCALE * zoom
-                        for (line in 0 until layout.lineCount) {
-                            val error = abs((topPt + layout.baselinePt(line)) * scale - (topPt + (line + 1) * pitchPt) * scale)
-                            computed[z] = max(computed[z], error)
-                            if (error > MAX_ERROR_PX) violations += "$where line $line zoom $zoom: computed error $error px"
+                for ((l, lift) in LIFTS.withIndex()) {
+                    val style = FlowTextStyle(familyName = familyName, bodyCap = bodyCap, baselineLiftUnits = lift)
+                    val liftPt = lift * grid.unitPt
+                    var topUnits = 0 // the flow's first block sits on the rule at the top margin
+                    for ((b, block) in blocks.withIndex()) {
+                        val layout = layouter.build(block.content, WIDTH_PT, style, grid)
+                        val where =
+                            "${grid.unitPt}pt cap $bodyCap lift $lift ${block.content::class.simpleName} " +
+                                "'${block.source.take(LABEL_CHARS)}'"
+                        measured++
+                        lines += layout.lineCount
+                        if (layout.boxUnits < 1 || layout.heightPt != layout.lineCount * layout.boxUnits * grid.unitPt) {
+                            violations += "$where: box ${layout.boxUnits}U, height ${layout.heightPt} for ${layout.lineCount} lines"
                         }
-                        val placed = checkMath(layout, block.source, scale, "$where zoom $zoom", violations, mathPx, z)
-                        if (z == 0) formulas += placed
-                        if (placed > 0) layout.draw(canvas, 0f, topPt, scale) // draws the formulas without failing
-                        canvas.baselines.clear()
-                        // Formula glyphs sit on their own baselines (scripts, fractions); checkMath places the formulas.
-                        layout.drawText(canvas, 0f, topPt, scale)
-                        val shown = block.content is BlockContent.Math && placed > 0
-                        val hasText = block.content !is BlockContent.Empty && block.content !is BlockContent.Rule && !shown
-                        if (hasText && canvas.baselines.isEmpty()) violations += "$where zoom $zoom: nothing drawn"
-                        if (z == 0) runs += canvas.baselines.size
-                        for (y in canvas.baselines) {
-                            // Nearest line box bottom; the drawn baseline must sit on it and inside the block.
-                            val n = ((y / scale - topPt) / pitchPt).roundToInt()
-                            val error = abs(y - (topPt + n * pitchPt) * scale)
-                            rendered[z] = max(rendered[z], error)
-                            if (n !in 1..layout.lineCount || error > MAX_ERROR_PX) {
-                                violations += "$where zoom $zoom: drawn baseline $y px is $error px off rule $n"
+                        if (l == 0) {
+                            unliftedUnits[b] = layout.heightUnits
+                        } else if (layout.heightUnits != unliftedUnits[b]) {
+                            violations += "$where: ${layout.heightUnits}U tall, ${unliftedUnits[b]}U without lift"
+                        }
+                        val topPt = TOP_MARGIN_PT + topUnits * grid.unitPt
+                        val pitchPt = layout.boxUnits * grid.unitPt
+                        ZOOMS.forEachIndexed { z, zoom ->
+                            val scale = PAD7_FIT_SCALE * zoom
+                            for (line in 0 until layout.lineCount) {
+                                val rule = topPt + (line + 1) * pitchPt
+                                val error = abs((topPt + layout.baselinePt(line)) * scale - (rule - liftPt) * scale)
+                                computed[z] = max(computed[z], error)
+                                if (error > MAX_ERROR_PX) violations += "$where line $line zoom $zoom: computed error $error px"
+                            }
+                            val placed = checkMath(layout, block.source, scale, "$where zoom $zoom", violations, mathPx, z, liftPt)
+                            if (z == 0) formulas += placed
+                            if (placed > 0) layout.draw(canvas, 0f, topPt, scale) // draws the formulas without failing
+                            canvas.baselines.clear()
+                            // Formula glyphs sit on their own baselines (scripts, fractions); checkMath places the formulas.
+                            layout.drawText(canvas, 0f, topPt, scale)
+                            val shown = block.content is BlockContent.Math && placed > 0
+                            val hasText = block.content !is BlockContent.Empty && block.content !is BlockContent.Rule && !shown
+                            if (hasText && canvas.baselines.isEmpty()) violations += "$where zoom $zoom: nothing drawn"
+                            if (z == 0) runs += canvas.baselines.size
+                            for (y in canvas.baselines) {
+                                // Nearest lifted line box bottom; the drawn baseline must sit on it and inside the block.
+                                val n = ((y / scale - topPt + liftPt) / pitchPt).roundToInt()
+                                val error = abs(y - (topPt + n * pitchPt - liftPt) * scale)
+                                rendered[z] = max(rendered[z], error)
+                                if (n !in 1..layout.lineCount || error > MAX_ERROR_PX) {
+                                    violations += "$where zoom $zoom: drawn baseline $y px is $error px off rule $n"
+                                }
                             }
                         }
+                        topUnits += layout.heightUnits
                     }
-                    topUnits += layout.heightUnits
                 }
             }
         }
@@ -173,10 +188,12 @@ object GridInvariantSuite {
     }
 
     /**
-     * Formulas of [layout] (07-text-engine.md#math): an inline formula's baseline lies on a rule of the block and fits
-     * the line box (ascent <= 0.78, depth <= 0.30 box unless flagged tall); a math block's formula lies inside its
-     * whole lines. A block with `$` in [source] must show formulas or report invalid LaTeX. Returns the formulas placed.
+     * Formulas of [layout] (07-text-engine.md#math): an inline formula's baseline lies [liftPt] above a rule of the
+     * block and fits the line box (ascent <= 0.78, depth <= 0.30 box unless flagged tall); a math block's formula lies
+     * inside its whole lines. A block with `$` in [source] must show formulas or report invalid LaTeX. Returns the
+     * formulas placed.
      */
+    @Suppress("LongParameterList") // one check with its report targets
     private fun checkMath(
         layout: BlockLayout,
         source: String,
@@ -185,6 +202,7 @@ object GridInvariantSuite {
         violations: MutableList<String>,
         worstPx: FloatArray,
         zoom: Int,
+        liftPt: Float,
     ): Int {
         if ('$' in source && layout.maths.isEmpty() && layout.mathErrors.isEmpty()) violations += "$where: no formula laid out"
         val boxPt = layout.boxUnits * layout.unitPt
@@ -197,8 +215,8 @@ object GridInvariantSuite {
                 }
                 continue
             }
-            val n = (m.baselinePt / boxPt).roundToInt()
-            val error = abs(m.baselinePt - n * boxPt) * scale
+            val n = ((m.baselinePt + liftPt) / boxPt).roundToInt()
+            val error = abs(m.baselinePt + liftPt - n * boxPt) * scale
             worstPx[zoom] = max(worstPx[zoom], error)
             if (n !in 1..layout.lineCount || error > MAX_ERROR_PX) violations += "$where: formula baseline is $error px off rule $n"
             val fits = m.ascentPt <= ASCENT_MAX * boxPt + EPSILON_PT && m.depthPt <= DEPTH_MAX * boxPt + EPSILON_PT

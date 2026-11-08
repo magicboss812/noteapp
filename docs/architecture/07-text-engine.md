@@ -9,10 +9,11 @@ Typed text is Markdown, laid out on the page grid so that every line sits on the
 
 ## Line box
 - Every text line occupies a line box of height k*U (k = 1 for body text, 2 for H1/H2). Line boxes are stacked without gaps; paragraph gaps are whole empty lines.
-- The baseline of a line is the rule at the bottom of its line box. Descenders extend below the rule into the next box (like handwriting on ruled paper).
+- The baseline of a line is on the rule at the bottom of its line box, raised by the flow's lift. Descenders extend below the baseline, at lift 0 into the next box (like handwriting on ruled paper).
+- Baseline lift (A-054, R-TXT-03, R-TXT-05): `FlowStyle.baselineLiftUnits` / `FlowTextStyle.baselineLiftUnits`, 0..0.35 U in 0.05 U steps, default 0. Every baseline of the flow (text, list markers, task checkboxes, table cells, inline math, empty lines) sits lift x U above its rule; line box heights and block heights do not change. Block math stays centered in its line boxes. The live field follows because it aligns to `BlockLayout.baselinePt`. The Text panel's "Distance above lines" slider sets the lift of flows the tool creates next (A-051).
 - Implementation: Compose text with `TextStyle(lineHeight = k*U, lineHeightStyle = LineHeightStyle(Alignment.Bottom, Trim.None))`. The renderer shifts the block by `baselineCorrection = k*U*r - firstLineBaseline`, measured from the layout result (in reference px), so baselines land exactly on rules. No placement decision uses the font's ascent or descent (A-006: a descent-based shift missed rules by up to 10 px).
 - Layout happens at a fixed reference scale r = round(4*U)/U px per pt (about 4; chosen so one grid unit is a whole number of px, because Compose rounds line heights up to whole px and every non-integer pitch drifts per line) with linear (unhinted, subpixel) glyph metrics, so line breaks do not change with zoom. Drawing scales the canvas by scale / r.
-- Invariant (tested): for every line, |baselineY - (y0 + n*U)| <= 0.5 px at zoom 1, 2, 4, and every line box height is an integer multiple of U.
+- Invariant (tested): for every line, |baselineY - (y0 + n*U - lift*U)| <= 0.5 px at zoom 1, 2, 4 (lift 0, 0.15 and 0.35 U), and every line box height is an integer multiple of U.
 
 ## Font normalization
 - Fonts differ in em-box proportions. Size is therefore derived, not chosen in sp: `sizePx = targetCapHeight / capRatio(typeface)` where `capRatio` = cap height ("H" bounds) / size, measured once per typeface and cached in `FontMetricsCache`.

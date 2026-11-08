@@ -44,6 +44,8 @@ data class FlowTextStyle(
      * by the ids it links to, so a change of this set lays out just the blocks whose links changed state.
      */
     val brokenLinks: Set<String> = emptySet(),
+    /** Every baseline sits this fraction of U above the rule at the bottom of its line box (A-054). */
+    val baselineLiftUnits: Float = 0f,
 )
 
 /**

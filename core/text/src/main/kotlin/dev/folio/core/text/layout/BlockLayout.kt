@@ -338,7 +338,7 @@ class BlockFace internal constructor(
 /**
  * One Markdown block laid out on the grid (07-text-engine.md#line-box, #blocks): [lineCount] line
  * boxes of [boxUnits] x U each, stacked without gaps, every baseline on the rule at the bottom of
- * its box. Positions are pt relative to the block's top-left, which sits on a rule.
+ * its box raised by [liftPt]. Positions are pt relative to the block's top-left, which sits on a rule.
  */
 class BlockLayout internal constructor(
     internal val text: GridText?,
@@ -365,6 +365,8 @@ class BlockLayout internal constructor(
     val mathErrors: List<MathError> = emptyList(),
     /** The cells of a table block (which has no [plainText] of its own), null for other blocks. */
     val table: TableLayout? = null,
+    /** How far every baseline sits above the bottom of its line box: the flow's baseline lift (A-054). */
+    val liftPt: Float = 0f,
 ) {
     /** Height in U: always lineCount x boxUnits. */
     val heightUnits: Int get() = lineCount * boxUnits
@@ -378,8 +380,8 @@ class BlockLayout internal constructor(
     /** Top of the line box of [line]. */
     fun lineTopPt(line: Int): Float = line * boxUnits * unitPt
 
-    /** Baseline of [line]; blocks without text report the bottom of their line box. */
-    fun baselinePt(line: Int): Float = text?.baselinePt(line) ?: ((line + 1) * boxUnits * unitPt)
+    /** Baseline of [line]; blocks without text report the bottom of their line box less the lift. */
+    fun baselinePt(line: Int): Float = text?.baselinePt(line) ?: ((line + 1) * boxUnits * unitPt - liftPt)
 
     /** The text shown in the block's lines (without list labels); empty for blocks without text. */
     val plainText: String get() = text?.plain.orEmpty()

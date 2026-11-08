@@ -192,18 +192,24 @@ data class LassoOptions(
 }
 
 /**
- * Text tool options (10-editor-ui.md#tool-options): font family and body size of new text flows. [bodyCap] is the
- * body cap height as a fraction of U, a [BodySize] preset or a free value (A-039), kept on 0.01 steps.
+ * Text tool options (10-editor-ui.md#tool-options): font family, body size and baseline lift of new text flows.
+ * [bodyCap] is the body cap height as a fraction of U, a [BodySize] preset or a free value (A-039), kept on 0.01
+ * steps; [baselineLift] is how far baselines sit above the rules in U (A-054), kept on [FlowStyle] lift steps.
  */
 @Immutable
 data class TextOptions(
     val fontFamily: String = FontRegistry.DEFAULT_FAMILY,
     val bodyCap: Float = BodySize.M.capFraction,
+    val baselineLift: Float = 0f,
 ) {
     init {
         require(fontFamily.isNotBlank()) { "font family name" }
         require(bodyCap in TextSizing.MIN_BODY_CAP..TextSizing.MAX_BODY_CAP) { "body size out of range" }
+        require(baselineLift in 0f..FlowStyle.MAX_BASELINE_LIFT) { "baseline lift out of range" }
     }
+
+    /** Lift [lift] in U, clamped to 0..0.35 and rounded to a 0.05 step. */
+    fun withBaselineLift(lift: Float): TextOptions = copy(baselineLift = FlowStyle.clampBaselineLift(lift))
 
     /** The preset [bodyCap] equals, null for a free size. */
     val preset: BodySize? get() = BodySize.entries.firstOrNull { abs(it.capFraction - bodyCap) < SIZE_STEP / 2 }
@@ -219,7 +225,7 @@ data class TextOptions(
     }
 
     /** The style new flows get. */
-    fun flowStyle(): FlowStyle = FlowStyle(fontFamily, bodyCap, 0, TextAlign.START)
+    fun flowStyle(): FlowStyle = FlowStyle(fontFamily, bodyCap, 0, TextAlign.START, baselineLift)
 
     /** Steps. */
     companion object {

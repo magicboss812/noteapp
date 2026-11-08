@@ -118,6 +118,8 @@ data class FlowStyleJson(
     val paragraphGapLines: Int = 0,
     val align: String = "start",
     val autoContinue: Boolean = true,
+    /** Baseline lift in U (A-054); absent in files written before it, which means 0. */
+    val baselineLiftUnits: Float = 0f,
 )
 
 /** JSON settings for all format JSON: unknown keys ignored, defaults written, human-readable. */

@@ -40,6 +40,15 @@ class TextTilesScreenshotTest {
     fun screenshot_tables_grid() = captureTables(TemplateKind.GRID)
 
     @Test
+    fun screenshot_baselineLift_sameParagraphAtZeroAndQuarterUnit_lined() {
+        val pages = TextPages(TemplateKind.LINED)
+        for ((name, lift) in listOf("lift0" to 0f, "lift25" to LIFT_QUARTER)) {
+            val content = pages.content(LIFT_PARAGRAPH, style = ModelFixtures.FLOW_STYLE.copy(baselineLiftUnits = lift))
+            render(pages, content, RenderTarget.EXPORT_RASTER).captureRoboImage("src/test/screenshots/TextTiles_LINED_$name.png")
+        }
+    }
+
+    @Test
     fun draw_tableBorders_onTheRowRulesAndColumnEdges() {
         val pages = TextPages()
         val content = pages.content("| a | b |\n| --- | --- |\n| 1 | 2 |")
@@ -231,6 +240,10 @@ class TextTilesScreenshotTest {
 
     private companion object {
         const val SCALE = 1.5f
+        const val LIFT_QUARTER = 0.25f
+        const val LIFT_PARAGRAPH =
+            "Typed notes on lined paper. Every baseline sits the flow's lift above its rule, so descenders " +
+                "like g, j, p, q and y keep clear of the line below while the line boxes stay whole grid units."
         const val GAP_LINES = 6
         const val QUOTE_BAR = 0xFF8E96A3.toInt()
         const val OPAQUE = 0xFF

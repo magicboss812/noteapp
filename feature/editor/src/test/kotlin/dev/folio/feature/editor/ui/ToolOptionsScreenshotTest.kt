@@ -126,6 +126,12 @@ class ToolOptionsScreenshotTest {
     }
 
     @Test
+    fun panel_textLiftQuarter_previewTextAboveTheRule() {
+        panel(EditorTool.TEXT, ToolOptions(text = TextOptions().withBaselineLift(0.25f)))
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolSettings_textLift.png")
+    }
+
+    @Test
     fun panel_textImportedFontDark_scrolledToImportButton() {
         val imported = TextFontFamily("My Hand", FontGroup.IMPORTED, FontFamily.Cursive)
         panel(

@@ -46,4 +46,16 @@ class TextOptionsTest {
 
         assertThat(text.flowStyle()).isEqualTo(FlowStyle("Kalam", 0.6f, 0, TextAlign.START))
     }
+
+    @Test
+    fun withBaselineLift_clampedToStepsAndCarriedIntoFlowStyle() {
+        assertThat(TextOptions().baselineLift).isEqualTo(0f)
+        assertThat(TextOptions().withBaselineLift(0.9f).baselineLift).isEqualTo(FlowStyle.MAX_BASELINE_LIFT)
+        assertThat(TextOptions().withBaselineLift(-1f).baselineLift).isEqualTo(0f)
+        assertThat(TextOptions().withBaselineLift(0.17f).baselineLift).isEqualTo(0.15f)
+
+        val style = TextOptions("Kalam").withBodyCap(0.6f).withBaselineLift(0.25f).flowStyle()
+
+        assertThat(style).isEqualTo(FlowStyle("Kalam", 0.6f, 0, TextAlign.START, baselineLiftUnits = 0.25f))
+    }
 }
