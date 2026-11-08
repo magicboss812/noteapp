@@ -200,3 +200,21 @@ object ShapeHandles {
         return d + 0f // turns -0 into 0
     }
 }
+
+/**
+ * [shape] edited by a drag from [from] to [to] (page pt) that grabbed [handle]; null = the body, which
+ * moves the shape. [keepAspect] applies to corner resizes.
+ */
+fun dragShape(
+    shape: Shape,
+    handle: ShapeHandle?,
+    from: PointPt,
+    to: PointPt,
+    keepAspect: Boolean,
+): Shape =
+    when (handle?.kind) {
+        null -> ShapeHandles.translate(shape, to.x - from.x, to.y - from.y)
+        ShapeHandleKind.RESIZE -> ShapeHandles.resize(shape, handle.index, to, keepAspect)
+        ShapeHandleKind.ROTATE -> ShapeHandles.rotate(shape, to)
+        ShapeHandleKind.POINT -> ShapeHandles.movePoint(shape, handle.index, to)
+    }

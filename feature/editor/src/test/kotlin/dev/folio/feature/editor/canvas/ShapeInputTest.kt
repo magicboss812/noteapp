@@ -7,11 +7,14 @@ import android.view.MotionEvent.ACTION_UP
 import android.view.MotionEvent.TOOL_TYPE_STYLUS
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.PageObject
 import dev.folio.core.model.Shape
 import dev.folio.core.model.ShapeKind
 import dev.folio.core.model.StrokeStyle
 import dev.folio.core.model.geometry.PointPt
+import dev.folio.core.model.shape.ShapeGeometry
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.toViewPx
 import dev.folio.core.testing.ModelFixtures
@@ -27,17 +30,75 @@ class ShapeInputTest {
     private val viewport = Viewport(DENSITY).apply { setPages(pages, VIEW_W, VIEW_H) }
     private var spec = ShapeSpec(ShapeKind.RECTANGLE, STROKE, ShapeFill.TINT.argb(STROKE.argb), constrain = false)
     private val commits = ArrayList<Pair<PageId, Shape>>()
+    private val updates = ArrayList<Shape>()
+    private val hidden = ArrayList<HiddenShape?>()
+    private var objects: List<PageObject> = emptyList()
     private var invalidations = 0
     private val input =
         ShapeInput(
             viewport,
             pageIdAt = { pages.getOrNull(it)?.id },
+            objectsOn = { if (it == pages[0].id) objects else emptyList() },
             spec = { spec },
-            closeRadiusPx = CLOSE_PX,
-            doubleTapMs = DOUBLE_TAP_MS,
+            sizes = ShapeInputSizes(CLOSE_PX, HANDLE_PX, ROTATE_OFFSET_PX, DOUBLE_TAP_MS),
             invalidate = { invalidations++ },
-            onCommit = { page, shape -> commits += page to shape },
+            onHide = { hidden += it },
+            onCommit = { page, shape, added -> if (added) commits += page to shape else updates += shape },
         )
+
+    @Test
+    fun selectedShape_dragBody_movesIt_hidesTheOriginal_commitsAnUpdate() {
+        val rect =
+            ShapeGeometry.create(
+                ObjectId("r"),
+                ShapeKind.RECTANGLE,
+                listOf(PointPt(100f, 100f), PointPt(200f, 160f)),
+                STROKE,
+                0x401A1A1A,
+            )
+        objects = listOf(rect)
+
+        drag(PointPt(150f, 130f), PointPt(170f, 140f)) // inside the filled shape: select and move
+
+        assertThat(commits).isEmpty()
+        val moved = updates.single()
+        assertThat(moved.id).isEqualTo(rect.id)
+        assertNear(moved.points[0], PointPt(120f, 110f))
+        assertThat(hidden.first()).isEqualTo(HiddenShape(pages[0].id, rect.id, keep = null))
+        assertThat(hidden.last()?.keep).isEqualTo(moved)
+        assertThat(input.selectionPage).isEqualTo(0)
+        assertThat(input.selected()).isEqualTo(moved) // pending until the tiles show it
+    }
+
+    @Test
+    fun selectedShape_dragCornerHandle_resizes_tapElsewhereDeselects() {
+        val rect = ShapeGeometry.create(ObjectId("r"), ShapeKind.RECTANGLE, listOf(PointPt(100f, 100f), PointPt(200f, 160f)), STROKE, null)
+        objects = listOf(rect)
+        drag(PointPt(100f, 130f), PointPt(100f, 130f)) // a tap on the outline selects (no change, no commit)
+        assertThat(updates).isEmpty()
+        assertThat(input.selected()).isEqualTo(rect)
+
+        drag(PointPt(200f, 160f), PointPt(240f, 200f)) // bottom-right handle
+
+        assertThat(updates.single().points[1].x).isWithin(0.01f).of(240f)
+        input.committed()
+        objects = listOf(updates.single())
+        drag(PointPt(400f, 600f), PointPt(400f, 600f))
+        assertThat(input.selectionPage).isEqualTo(-1)
+        assertThat(commits).isEmpty() // the tap draws nothing
+    }
+
+    @Test
+    fun selection_shapeRemovedByUndo_dropsTheSelection() {
+        val rect = ShapeGeometry.create(ObjectId("r"), ShapeKind.RECTANGLE, listOf(PointPt(100f, 100f), PointPt(200f, 160f)), STROKE, null)
+        objects = listOf(rect)
+        drag(PointPt(100f, 130f), PointPt(100f, 130f))
+
+        objects = emptyList()
+
+        assertThat(input.selected()).isNull()
+        assertThat(input.selectionPage).isEqualTo(-1)
+    }
 
     @Test
     fun drag_rectangle_commitsOnThePageInPagePoints_previewFollowsThePen() {
@@ -190,6 +251,8 @@ class ShapeInputTest {
         const val VIEW_W = 2136f
         const val VIEW_H = 3200f
         const val CLOSE_PX = 30f
+        const val HANDLE_PX = 60f
+        const val ROTATE_OFFSET_PX = 70f
         const val DOUBLE_TAP_MS = 300L
         val STROKE = StrokeStyle(0xFF1A1A1A.toInt(), 2f, dashed = false)
     }

@@ -31,6 +31,7 @@ import dev.folio.core.model.PageId
 import dev.folio.core.model.PageObject
 import dev.folio.core.model.Shape
 import dev.folio.core.model.edit.AddObjects
+import dev.folio.core.model.edit.UpdateObjects
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.render.DisplayModeHelper
 import dev.folio.core.render.PageRenderer
@@ -171,12 +172,24 @@ class CanvasHostView internal constructor(
         ShapeInput(
             controller.viewport,
             pageIdAt = { index -> document?.pages?.getOrNull(index)?.id },
+            objectsOn = { id -> document?.pageBodies?.get(id)?.objects },
             spec = { controller.activeShape },
-            closeRadiusPx = POLYGON_CLOSE_DP * resources.displayMetrics.density,
-            doubleTapMs = ViewConfiguration.getDoubleTapTimeout().toLong(),
+            sizes =
+                resources.displayMetrics.density.let { d ->
+                    ShapeInputSizes(
+                        POLYGON_CLOSE_DP * d,
+                        SHAPE_HANDLE_DP * d,
+                        SHAPE_ROTATE_OFFSET_DP * d,
+                        ViewConfiguration.getDoubleTapTimeout().toLong(),
+                    )
+                },
             invalidate = { shapePreview.invalidate() },
+            onHide = ::hideShape,
             onCommit = ::commitShape,
         ).also { shapePreview.input = it }
+
+    // The shape a Shape tool drag edits: the tiles leave it out while the preview draws it (P07-T01).
+    private var hiddenShape: HiddenShape? = null
     private val tools =
         StylusTools(
             pen,
@@ -384,6 +397,7 @@ class CanvasHostView internal constructor(
         refreshTiles()
         textField.refresh()
         if (boxOutlines.shown.isNotEmpty()) boxOutlines.invalidate()
+        if (shapeInput.selectionPage >= 0) shapePreview.invalidate() // undo may move or remove the selected shape
     }
 
     /**
@@ -465,9 +479,30 @@ class CanvasHostView internal constructor(
         doc: Document,
         id: PageId,
     ): Page? {
-        val body = doc.pageBodies[id] ?: return null
+        val stored = doc.pageBodies[id] ?: return null
+        val hidden = hiddenShape
+        val body =
+            if (hidden != null &&
+                hidden.hidesIn(stored)
+            ) {
+                stored.copy(objects = stored.objects.removeAll { it.id == hidden.id })
+            } else {
+                stored
+            }
         val preview = erasePreview ?: return body
         return if (preview.pageId == id) preview.applyTo(body) else body
+    }
+
+    private fun hideShape(next: HiddenShape?) {
+        val old = hiddenShape
+        if (old == next) return
+        hiddenShape = next
+        val doc = document ?: return
+        for (id in setOfNotNull(old?.pageId, next?.pageId)) {
+            val ref = doc.pageRef(id) ?: continue
+            contentTiles.setPage(ref, shownBody(doc, id), textOf(id))
+        }
+        refreshTiles()
     }
 
     /** Shows [result] over the document (null: the document as is); tiles under the changes re-render. */
@@ -724,6 +759,7 @@ class CanvasHostView internal constructor(
         if (selectionView.shown != null) selectionView.invalidate()
         if (boxHandles.shown != null) boxHandles.invalidate()
         if (boxOutlines.shown.isNotEmpty()) boxOutlines.invalidate()
+        if (shapeInput.selectionPage >= 0 || shapeInput.draftPage >= 0) shapePreview.invalidate()
         val now = SystemClock.uptimeMillis()
         lastViewportChangeMs = now
         removeCallbacks(idleRequest)
@@ -849,17 +885,21 @@ class CanvasHostView internal constructor(
     // The shape preview hands a committed shape over to the tiles once they draw it (no blink in between).
     private fun checkPendingShape() {
         val pending = shapeInput.pending ?: return
-        if (isDrawn(pending.pageId, pending.shape)) shapeInput.committed()
+        if (!isDrawn(pending.pageId, pending.shape)) return
+        shapeInput.committed()
+        if (hiddenShape?.keep == pending.shape) hideShape(null)
     }
 
     private fun commitShape(
         page: PageId,
         shape: Shape,
+        added: Boolean,
     ) {
+        val command = if (added) AddObjects(page, listOf(shape)) else UpdateObjects(page, listOf(shape))
         scope.launch {
             val accepted =
                 try {
-                    withContext(NonCancellable) { controller.execute(AddObjects(page, listOf(shape))) }
+                    withContext(NonCancellable) { controller.execute(command) }
                 } catch (e: IllegalStateException) {
                     FolioLog.w(TAG, "shape commit failed: ${e.message}", e) // session closed under the view
                     false
@@ -898,7 +938,8 @@ class CanvasHostView internal constructor(
         val doc = document ?: return false
         val stack = viewport.layout ?: return false
         val body = doc.pageBodies[page] ?: return doc.pageRef(page) == null
-        if (body.objects.none { it.id == stroke.id }) return false
+        // An edited shape keeps its id: the shown body must hold this version.
+        if (body.objects.none { it.id == stroke.id && (stroke !is Shape || it == stroke) }) return false
         val index = stack.indexOf(page)
         val b = stroke.bounds
         var drawn = true
@@ -974,6 +1015,10 @@ private const val BOX_SLOP_DP = 8f
 
 // A polygon tap this near its first vertex (or a double tap on its last) closes it (06-ink-input.md#shapes).
 private const val POLYGON_CLOSE_DP = 12f
+
+// Grab radius of a selected shape's handles (48 dp targets) and the rotate handle's distance above the box.
+private const val SHAPE_HANDLE_DP = 24f
+private const val SHAPE_ROTATE_OFFSET_DP = 28f
 
 // The text color of a moved box on a page without a known paper (near-black, like the live field's default).
 private const val BOX_TEXT_ARGB = 0xFF1B1D22.toInt()
