@@ -6,10 +6,11 @@ Exit: all budgets met in the release build; USER-CHECK list empty; FEEDBACK `Ope
 Model: opus medium
 Implements: R-UI-02, R-PAGE-03
 Read: 10-editor-ui.md#settings
-Do: settings screens for every item in 10-editor-ui.md#settings; DataStore; restore defaults; Toolbar section handedness toggle over the stored `ToolbarDocks.withHandedness` (D-025, A-029).
+Do: settings screens for every item in 10-editor-ui.md#settings; DataStore; restore defaults; Toolbar section handedness toggle over the stored `ToolbarDocks.withHandedness` (D-025, A-029). Tilt shading switch (D-014, A-025): store the choice per stroke (or drop tilt at commit) so wet and dry ink agree, and show the pen panel's tilt row (10-editor-ui.md). Math block alignment setting, centered or left (07-text-engine.md#math, D-034, A-047).
 Accept:
 - [ ] screenshot: settings screens
 - [ ] unit: settings round trip and defaults
+- [ ] unit: with tilt shading off, a stroke with tilt inputs renders dry exactly like its wet ink (no tilt); a left-aligned math block lays out at the frame's left edge (D-014, D-034)
 Verify: tests + screenshots
 
 ### P11-T02 Dark UI
@@ -80,7 +81,7 @@ Verify: screenshots + device-tester
 Model: opus high
 Implements: R-PERF-03, R-PERF-04
 Read: 12-performance.md#budgets, .claude/rules/rendering.md
-Do: pan-time `requestTiles` allocates lists, `RectPt`, `VisiblePage` and boxed `Pair` per tile and may log evictions; `DryHandoff.check` allocates and `isDrawn` scans all page objects per pending stroke (D-020). Reuse scratch objects, id-set lookup, no logging on the hot path.
+Do: pan-time `requestTiles` allocates lists, `RectPt`, `VisiblePage` and boxed `Pair` per tile and may log evictions; `DryHandoff.check` allocates and `isDrawn` scans all page objects per pending stroke (D-020). Reuse scratch objects, id-set lookup, no logging on the hot path. User report 2026-11-07: a long pen line hid for a split second at pen-up on an almost empty page at 100 % (not reproduced; `ink-probe` saw no app frame lose a stroke): after the handoff changes, draw 20 long strokes on an empty page and watch for it; if it shows, check androidx.ink's front-buffer layer release against the dry tile commit.
 Accept:
 - [ ] unit: allocation-free `requestTiles` and `DryHandoff.check` in steady state (allocation counter test)
 - [ ] device: pan gfxinfo janky <= 1% with 1500 strokes
@@ -108,6 +109,18 @@ Accept:
 - [ ] unit: search with an empty query and a tag (or folder) filter returns every note with that tag; select all then deselect all clears the selection
 - [ ] screenshot: Bin tab without sort/view/select; 12-notes grid portrait with even margins; selection bar with "Deselect all"; card overflow inset
 Verify: `./gradlew :core:storage:testDebugUnitTest :feature:library:testDebugUnitTest :feature:library:verifyRoborazziDebug`
+
+### P11-T12 Text editing follow-ups
+Model: opus high
+Implements: R-TXT-02, R-TXT-07
+Read: 07-text-engine.md#live-field-as-built, #math-as-built, 10-editor-ui.md#text-tool
+Do: P06 device findings. The math error popup anchors at the bad formula, not at the far right of the page (x 2400-3000 px instead of 460-1000 px). Opening another note never leaves the soft keyboard up with nothing focused; Esc closes it like Back. The task checkbox glyph keeps a gap before its text (today "☐task"). Free text box grip with the pen (D-041, A-045, A-055): HyperOS takes a pen down on a focused box's grip as handwriting; move the grip outside the field's bounds or blur the field on stylus hover over the grip while keeping the handles. At 25 % zoom a finger drag on the grip moves the box instead of panning the page (D-042). P06 REVIEW leftovers: a rejected box drop (`boxCommand` null or execute refused) leaves `BoxHandles`' preview outline at the drop spot (clear it and redraw from the document); a font that arrives after open (FontLibrary sync, Import font) clears the layouter cache but `EditorText.refresh` keeps the fallback layouts until the next edit (add the registry generation to `LayoutInputs`); `CustomFontStore.installed()` reads and parses every font file per `registry()` call (cache by name and size, drop on import or delete).
+Accept:
+- [ ] unit: math error popup position equals the formula's on-screen bounds; checkbox prefix width includes the gap; grip hit wins over pan at zoom 0.25
+- [ ] unit: rejected box drop clears the preview; a font registered after open re-lays out the flows using it; `installed()` parses each font file once
+- [ ] screenshot: task line with a checked and an unchecked box (gap visible)
+- [ ] device: math error popup next to the formula; open note A, focus text, open note B: no keyboard; pen drag on a focused box's grip moves it (no handwriting toast); finger grip drag at 25 % moves the box
+Verify: `./gradlew :core:text:testDebugUnitTest :feature:editor:testDebugUnitTest :feature:editor:verifyRoborazziDebug` + device-tester
 
 ### P11-T07 Final audit and handover
 Model: opus high

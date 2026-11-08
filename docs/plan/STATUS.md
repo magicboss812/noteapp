@@ -16,7 +16,8 @@ updated: 2026-11-08
 - P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07, T08 (a-b), T09 (a-b), T19, T10 (a-b), T18 (a-d), T14 (a-b), T16, T17, T11 (keystroke p95 gap -> D-043)
 
 ## Blocked (needs user; stops dependent tasks)
-- (none)
+- D-040 (P06-T16, .claude edits denied headless): in `.claude/rules/text-engine.md` line 7 replace "each baseline lies on the rule at the bottom of its line box: baselineY = frame.topPt + sum of line-box heights up to and including that line." with "each baseline lies on the rule at the bottom of its line box, raised by the flow's lift (A-054): baselineY = frame.topPt + sum of line-box heights up to and including that line - baselineLiftUnits * U." (or let an interactive session do it).
+- P06 REVIEW (.claude edits denied headless): in `.claude/rules/ink-and-input.md` replace "-> after the frame that shows it, `removeFinishedStrokes(ids)`. Never remove earlier." with "-> once the tiles under the stroke are fresh, invalidate and call `removeFinishedStrokes(ids)` in the same UI-thread run loop (androidx.ink contract, A-046). Never remove before the tiles are drawn."
 
 ## USER-CHECK (human verification; non-blocking)
 - 2026-11-07 P06-T07, T15, T08, T09 run on the tablet by device-tester: T07 PASS, T15 PASS (1-frame blink not provable without screen recording), T08 FAIL (header not bold, remove column off by one, trailing cell space dropped), T09 FAIL (stylus tap in read mode inert); defects -> FEEDBACK Open, fixed in T19. T07 instrumented run on the tablet after T19 (abd5e92): GridInvariantInstrumentedTest 20 fonts, 0 violations, formulas as expected; SizeDerivationInstrumentedTest PASS.
@@ -27,19 +28,13 @@ updated: 2026-11-08
 - P06-T17: Make a text box in the margin with the Text tool, drag its top grip with a finger and with the pen, pull a side knob -> box lands on the lines (also on the next page), text rewraps, one undo each; device-tester 2026-11-08: finger move/next page/resize/undo PASS, pen grip FAIL (D-041).
 
 ## Deferred (id: reason)
-- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06; D-043 -> P11-T05.
+- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06; D-043 -> P11-T05; D-014, D-034 -> P11-T01; D-024 -> P07-T02; D-041, D-042 -> P11-T12.
 - D-038 P06-T14b: a focused live field draws about 2 frames/s while idle (EditText caret blink); since P06-T11 25-36 ms each, layout 0-1 ms, GPU p50 18 ms; 0 frames when not editing.
 - D-043 P06-T11: debug build, 20k-word note: `text:key` p95 16.8-21.0 ms paced (was 37.4), budget < 16 ms; the rest is the frame pipeline (about 18 ms GPU per light frame), not main-thread text work (A-056).
 - D-039 P06-T14b: after a model-driven text change (Ctrl+Z of a replace) Gboard's suggestion strip keeps the old word; the field may need `restartInput` then.
 - D-035 P06-T10a: "Type into page body" is always on; the switch comes with the settings screen (A-050).
 - D-037 P06-T18d: the first Text tool creation after an open takes 68-83 ms tap to caret (fresh process 207-264 ms; first focus 57.5 ms), first-run cost of the debug build; later ones meet 50 ms (A-052).
 - D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
-- D-014 P03-T09: tilt shading has no off switch (A-025): dry rendering applies tilt whenever stored inputs carry tilt; the P11-T01 setting needs a stored per-stroke choice (or dropping tilt at commit) so wet and dry ink agree; the pen panel gets its tilt row then (P06-T13).
-- D-024 P04-T03: highlighter "always straight" is stored and toggled in the highlighter panel, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
-- D-034 P06-T07: math blocks are always centered; 07-text-engine.md#math names a left alignment setting (A-047).
-- D-040 P06-T16: `.claude/rules/text-engine.md` grid invariant line (edit denied headless): "each baseline lies on the rule at the bottom of its line box, raised by the flow's lift (A-054): baselineY = frame.topPt + sum of line-box heights up to and including that line - baselineLiftUnits * U."
-- D-041 P06-T17: on the tablet a pen down on a focused box's grip is taken by the HyperOS handwriting hook (toast "handwriting not supported in this field", IME opens), so only the finger moves boxes there; try a grip above the outline outside the field's bounds, or blur on stylus hover over the grip while keeping the handles (A-045, A-055).
-- D-042 P06-T17: at 25% zoom finger drags on the grip panned the page instead of moving the box (fine at 40% and 100%).
 
 ## Handoff (<= 5 lines, overwritten each session)
 - P06-T11 done with a known gap (A-056, D-043 -> P11-T05): block edits run on the text dispatcher (`EditorText.blockEdit`), the live field refuses IME cursor-anchor monitoring, and the canvas AndroidView has its own graphics layer. `text:key` p95 went from 37 to 17-21 ms in the debug build; scroll 0.05% janky; PSS 618 MB (perf.md).

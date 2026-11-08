@@ -4,12 +4,10 @@ Claude turns `Open` entries into task blocks at every phase REVIEW (next-task sk
 Format: `- YYYY-MM-DD <what bothers you or what you want> [now]` (the date and `[now]` are optional).
 
 ## Open
-- 2026-11-07 (user) a long pen line hid for a split second at pen-up on an almost empty page at 100 %; seemed better on the next try with no app change. `ink-probe` saw no app frame lose a stroke (injected and real pen); if it returns, record the screen to check androidx.ink's front-buffer layer
-- 2026-11-07 (P06-T07 USER-CHECK, device-tester) the math error popup is anchored far right (x~2400-3000 px) instead of at the bad formula (x~460-1000 px)
-- 2026-11-07 (P06-T15 USER-CHECK, device-tester) opening another note can leave the soft keyboard up with nothing focused; Esc does not close it, Back does
-- 2026-11-07 (P06-T09 USER-CHECK, device-tester) the task checkbox glyph touches its text ("☐task", no gap); .device/screens/t09-broken2.png
 
 ## Converted
+- 2026-11-07 (user) a long pen line hid for a split second at pen-up on an almost empty page at 100 %; `ink-probe` saw no app frame lose a stroke -> P11-T09 (watch + front-buffer check).
+- 2026-11-07 (P06-T07/T15/T09 USER-CHECKs, device-tester) math error popup anchored far right; soft keyboard left up after opening another note (Esc does not close it); task checkbox glyph touches its text -> P11-T12.
 - 2026-11-07 (P06-T08/T09 USER-CHECKs, device-tester) table header not bold; remove column hits the left column from a cell start or empty cell; trailing space in a cell dropped; stylus tap on checkbox/link inert in read mode -> P06-T19.
 - 2026-11-07 (P06-T07/T15 USER-CHECKs, device-tester) with the soft keyboard up the caret line is not scrolled into view; toolbars float over the typed lines -> P06-T18 (2).
 - 2026-10-23 (P06-T13 USER-CHECK) each stroke disappears shortly after lifting the pen and reappears; any reload must be seamless -> P06-T15 (fixed, A-046).

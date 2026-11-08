@@ -16,9 +16,10 @@ Verify: tests + screenshots
 Model: opus high
 Implements: R-INK-05
 Read: 06-ink-input.md#shape-recognition
-Do: dwell detection (pen still within 4 dp for 450 ms at stroke end), recognizer (resample, corner detection, fits for line, arrow, triangle, rectangle, ellipse/circle, polygon), confidence threshold, replacement with a shape object while the pen stays down (continue dragging to adjust), highlighter straight-line snap.
+Do: dwell detection (pen still within 4 dp for 450 ms at stroke end), recognizer (resample, corner detection, fits for line, arrow, triangle, rectangle, ellipse/circle, polygon), confidence threshold, replacement with a shape object while the pen stays down (continue dragging to adjust), highlighter straight-line snap; the highlighter's stored "always straight" option (P04-T03, D-024) snaps every highlighter stroke to a straight line without a hold.
 Accept:
 - [ ] unit: synthetic noisy inputs classified correctly (>= 95% on a 200-sample seeded set); scribbles stay ink
+- [ ] unit: with "always straight" on, a wavy highlighter stroke commits as a straight segment from its first to its last point (D-024)
 - [ ] user: "Draw shapes and hold the pen at the end. Do they snap when intended and never when not?"
 Verify: tests
 
