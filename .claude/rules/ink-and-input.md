@@ -10,7 +10,7 @@ paths:
 - `InputRouter` classifies pointers: stylus/eraser tool types -> active tool; finger -> 1-finger pan, 2-finger pinch zoom; `FLAG_CANCELED` and finger touches within 300 ms of stylus down/hover are dropped (palm). Fingers never draw.
 - Feed complete MotionEvents (with historical samples) to ink, or StrokeInput batches when a tool modifies input (ruler snapping).
 - `BrushSpec` <-> `BrushFamily` only via `BrushCatalog` with explicit versions. A visual change = new brush version; old strokes keep theirs.
-- Dry handoff: `onStrokesFinished` -> `AddObjects` command -> tile update -> after the frame that shows it, `removeFinishedStrokes(ids)`. Never remove earlier.
+- Dry handoff: `onStrokesFinished` -> `AddObjects` command -> tile update -> once the tiles under the stroke are fresh, invalidate and call `removeFinishedStrokes(ids)` in the same UI-thread run loop (androidx.ink contract, A-046). Never remove before the tiles are drawn.
 - Persist our `StrokeInputs` (x, y, t, pressure, tilt, orientation). Build `StrokeInputBatch` on load.
 - Partial eraser splits inputs, not meshes (keeps strokes serializable). One erase gesture = one undo entry.
 - Tilt, hover, and stylus buttons come from runtime `StylusCapabilities`. Never assume them.

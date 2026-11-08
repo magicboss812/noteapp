@@ -4,7 +4,7 @@ paths:
   - "feature/editor/**/text/**"
 ---
 # Text engine rules
-- Grid invariant: every line box height = k * U (integer k >= 1) and each baseline lies on the rule at the bottom of its line box: baselineY = frame.topPt + sum of line-box heights up to and including that line. Tests assert it for every style.
+- Grid invariant: every line box height = k * U (integer k >= 1) and each baseline lies on the rule at the bottom of its line box, raised by the flow's lift (A-054): baselineY = frame.topPt + sum of line-box heights up to and including that line - baselineLiftUnits * U. A box's user-set vertical offset (A-057) shifts all its baselines alike. Tests assert it for every style.
 - Font size is derived: size such that cap height = ratio * U (ratio per style) from `FontMetricsCache`. The user picks S/M/L ratios, never raw sp.
 - Fixed line box via `TextStyle(lineHeight, LineHeightStyle(Alignment.Bottom, Trim.None))` laid out at the grid-pitch reference scale r = round(4*U)/U px per pt, then shifted by the measured `k*U*r - firstLineBaseline` (A-006). Never rely on font ascent/descent for placement.
 - Inline math: `MathRenderer` box scaled to fit (ascent <= 0.78 U, depth <= 0.30 U, min scale 0.55). Its placeholder never exceeds the line box.

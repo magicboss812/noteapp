@@ -114,12 +114,12 @@ Verify: `./gradlew :core:storage:testDebugUnitTest :feature:library:testDebugUni
 Model: opus high
 Implements: R-TXT-02, R-TXT-07
 Read: 07-text-engine.md#live-field-as-built, #math-as-built, 10-editor-ui.md#text-tool
-Do: P06 device findings. The math error popup anchors at the bad formula, not at the far right of the page (x 2400-3000 px instead of 460-1000 px). Opening another note never leaves the soft keyboard up with nothing focused; Esc closes it like Back. The task checkbox glyph keeps a gap before its text (today "☐task"). Free text box grip with the pen (D-041, A-045, A-055): HyperOS takes a pen down on a focused box's grip as handwriting; move the grip outside the field's bounds or blur the field on stylus hover over the grip while keeping the handles. At 25 % zoom a finger drag on the grip moves the box instead of panning the page (D-042). P06 REVIEW leftovers: a rejected box drop (`boxCommand` null or execute refused) leaves `BoxHandles`' preview outline at the drop spot (clear it and redraw from the document); a font that arrives after open (FontLibrary sync, Import font) clears the layouter cache but `EditorText.refresh` keeps the fallback layouts until the next edit (add the registry generation to `LayoutInputs`); `CustomFontStore.installed()` reads and parses every font file per `registry()` call (cache by name and size, drop on import or delete).
+Do: P06 device findings. The math error popup anchors at the bad formula, not at the far right of the page (x 2400-3000 px instead of 460-1000 px). Opening another note never leaves the soft keyboard up with nothing focused; Esc closes it like Back. The task checkbox glyph keeps a gap before its text (today "☐task"). The box grip (D-041, D-042) and the rejected box drop preview moved to P07-T13 (A-057). P06 REVIEW leftovers: a font that arrives after open (FontLibrary sync, Import font) clears the layouter cache but `EditorText.refresh` keeps the fallback layouts until the next edit (add the registry generation to `LayoutInputs`); `CustomFontStore.installed()` reads and parses every font file per `registry()` call (cache by name and size, drop on import or delete).
 Accept:
-- [ ] unit: math error popup position equals the formula's on-screen bounds; checkbox prefix width includes the gap; grip hit wins over pan at zoom 0.25
-- [ ] unit: rejected box drop clears the preview; a font registered after open re-lays out the flows using it; `installed()` parses each font file once
+- [ ] unit: math error popup position equals the formula's on-screen bounds; checkbox prefix width includes the gap
+- [ ] unit: a font registered after open re-lays out the flows using it; `installed()` parses each font file once
 - [ ] screenshot: task line with a checked and an unchecked box (gap visible)
-- [ ] device: math error popup next to the formula; open note A, focus text, open note B: no keyboard; pen drag on a focused box's grip moves it (no handwriting toast); finger grip drag at 25 % moves the box
+- [ ] device: math error popup next to the formula; open note A, focus text, open note B: no keyboard
 Verify: `./gradlew :core:text:testDebugUnitTest :feature:editor:testDebugUnitTest :feature:editor:verifyRoborazziDebug` + device-tester
 
 ### P11-T07 Final audit and handover

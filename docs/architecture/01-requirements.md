@@ -32,6 +32,8 @@ Source: the user's answers to the requirements questionnaire (2026-09-26). IDs a
 - R-TXT-06 Line spacing: global per page (the template grid). Per-paragraph spacing is backlog (B-03).
 - R-TXT-07 Both free-placed text boxes and a flowing page body that continues onto following pages automatically.
 - R-TXT-08 Fonts: bundled Google Fonts selection plus import of custom font files.
+- R-TXT-09 Text boxes are created where the user taps, show an outline when selected, and can be moved (finger, pen, arrow keys), resized on both sides, switched to fill width, aligned (left, center, right, justify), recolored, resized in font and deleted from a toolbar above the box (A-057).
+- R-TXT-10 Text being edited keeps the page layout (page breaks, line breaks), always shows a caret, and can be selected by touch (A-057).
 
 ## Pages (R-PAGE)
 - R-PAGE-01 Templates: blank, lined (narrow/college/wide), grid, dotted, Cornell, graph with axes, music staff, planner (daily, weekly), and custom templates from PNG or PDF.

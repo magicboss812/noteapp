@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P07
-next: P07-T01
+next: P07-T10
 updated: 2026-11-08
 
 ## Completed
@@ -17,19 +17,17 @@ updated: 2026-11-08
 - P07: (none yet)
 
 ## Blocked (needs user; stops dependent tasks)
-- D-040 (P06-T16, .claude edits denied headless): in `.claude/rules/text-engine.md` line 7 replace "each baseline lies on the rule at the bottom of its line box: baselineY = frame.topPt + sum of line-box heights up to and including that line." with "each baseline lies on the rule at the bottom of its line box, raised by the flow's lift (A-054): baselineY = frame.topPt + sum of line-box heights up to and including that line - baselineLiftUnits * U." (or let an interactive session do it).
-- P06 REVIEW (.claude edits denied headless): in `.claude/rules/ink-and-input.md` replace "-> after the frame that shows it, `removeFinishedStrokes(ids)`. Never remove earlier." with "-> once the tiles under the stroke are fresh, invalidate and call `removeFinishedStrokes(ids)` in the same UI-thread run loop (androidx.ink contract, A-046). Never remove before the tiles are drawn."
+- (none)
 
 ## USER-CHECK (human verification; non-blocking)
 - 2026-11-07 P06-T07, T15, T08, T09 run on the tablet by device-tester: T07 PASS, T15 PASS (1-frame blink not provable without screen recording), T08 FAIL (header not bold, remove column off by one, trailing cell space dropped), T09 FAIL (stylus tap in read mode inert); defects -> FEEDBACK Open, fixed in T19. T07 instrumented run on the tablet after T19 (abd5e92): GridInvariantInstrumentedTest 20 fonts, 0 violations, formulas as expected; SizeDerivationInstrumentedTest PASS.
 - P06-T10: Type a page of notes with the keyboard mixing headings, lists, math -> text never jumps off the lines or lags; also pick a font and a free size in the Text panel (new text takes them) and try Import font with a .ttf.
 - P06-T18: Tap into text and out again a few times, also low on the page -> nothing flashes or hides behind the keyboard.
-- P06-T14: Select across blocks with Shift+arrows and the finger handles (also over a page break), copy, paste into another note -> headings and lists kept, highlight follows; device-tester PASS 2026-11-08.
 - P06-T16: Set the distance above lines in the Text panel, then type new text -> it sits where you want above the rules, also while typing (it applies to text you create next; existing text keeps its distance).
-- P06-T17: Make a text box in the margin with the Text tool, drag its top grip with a finger and with the pen, pull a side knob -> box lands on the lines (also on the next page), text rewraps, one undo each; device-tester 2026-11-08: finger move/next page/resize/undo PASS, pen grip FAIL (D-041).
+- 2026-11-08 user: P06-T14 and P06-T17 FAIL (no box outline or move, edited text over the page gap, no caret in empty blocks, no touch selection, highlight offset) -> A-057, P07-T10 to T17.
 
 ## Deferred (id: reason)
-- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06; D-043 -> P11-T05; D-014, D-034 -> P11-T01; D-024 -> P07-T02; D-041, D-042 -> P11-T12.
+- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06; D-043 -> P11-T05; D-014, D-034 -> P11-T01; D-024 -> P07-T02; D-041, D-042 -> P07-T13.
 - D-038 P06-T14b: a focused live field draws about 2 frames/s while idle (EditText caret blink); since P06-T11 25-36 ms each, layout 0-1 ms, GPU p50 18 ms; 0 frames when not editing.
 - D-043 P06-T11: debug build, 20k-word note: `text:key` p95 16.8-21.0 ms paced (was 37.4), budget < 16 ms; the rest is the frame pipeline (about 18 ms GPU per light frame), not main-thread text work (A-056).
 - D-039 P06-T14b: after a model-driven text change (Ctrl+Z of a replace) Gboard's suggestion strip keeps the old word; the field may need `restartInput` then.
@@ -38,8 +36,8 @@ updated: 2026-11-08
 - D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06 closed (tag p06-done). Block edits carry their base flow text (`EditFlow.base`) and are refused once an undo or another edit changed the flow; entering read mode blurs the text, grip/selection handles are inert in NAVIGATE.
-- NEXT P07-T01 (shape tool and shape objects). Read the P07 header once. Untracked orphan `core/text/src/test/screenshots/FontSpecimen_compact.png` (test removed in P06-T03) left unstaged: stage explicit paths, not `git add -A`.
-- Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay.
-- Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]`, `open lined:N`; the first stylus tap after a debug command is dropped. Test APK installs can be refused (INSTALL_FAILED_USER_RESTRICTED): check the result XML. Tool row y 1963 px, mode pill y 171 px in landscape.
-- Two Blocked lines are .claude rule edits only (no task waits on them).
+- User feedback 2026-11-08 became the text box redesign: spec 10-editor-ui.md#text-boxes, A-057, tasks P07-T10..T17 placed before P07-T01 (shots: docs/design/reference/feedback-2026-11-08-*.png). Root causes noted in each task's Do.
+- NEXT P07-T10 (edited text drawn from the page layout). Grid invariant now allows a whole-box vertical offset (A-057, user-approved; CLAUDE.md + rules updated). Both Blocked rule edits done.
+- Untracked orphan `core/text/src/test/screenshots/FontSpecimen_compact.png` may still exist: stage explicit paths, not `git add -A`.
+- Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; `CaretPlans`/`FlowHits` for taps.
+- Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]`, `open lined:N`; first stylus tap after a debug command is dropped. Tool row y 1963 px, mode pill y 171 px in landscape.

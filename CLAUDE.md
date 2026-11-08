@@ -10,7 +10,7 @@ Native Android hybrid note app (pen ink + grid-snapped Markdown text) for one de
 - Never touch the release package `dev.folio.notes` or `Documents/Folio/` on the device.
 - Pen input never triggers Compose recomposition per motion event. Wet ink = androidx.ink InProgressStrokesView inside the canvas host view.
 - `.folio` files in the library folder are the source of truth. The Room index is a disposable cache.
-- Grid invariant: every text line's baseline sits on a template grid line, raised by the flow's lift (0..0.35 U, A-054); every text line box is an integer multiple of the grid unit U. Fonts, inline LaTeX, tables, headings must not break it.
+- Grid invariant: every text line's baseline sits on a template grid line, raised by the flow's lift (0..0.35 U, A-054), or shifted with its whole box by a user-set vertical offset (Shift+Up/Down, A-057); every text line box is an integer multiple of the grid unit U. Fonts, inline LaTeX, tables, headings must not break it.
 
 ## Session protocol
 1. The STATUS.md snapshot is injected at session start. If missing, read `docs/plan/STATUS.md`.

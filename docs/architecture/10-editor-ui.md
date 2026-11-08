@@ -64,6 +64,47 @@ Color dot: 22 dp with a 1 dp border; the selected color and width preset get a 4
 - Hardware keyboard typing with nothing focused: appends to the current page's body flow (setting "Type into page body", default on).
 - Escape or tapping empty canvas with another tool unfocuses. Focus never needs more than one tap.
 - As built (A-050): a tap in the body zone of a page before or between the body flow's pages makes a body-width box on the tapped line (a body frame there would pull the following text back); a body frame is added only on a page after the flow's last one. The filled blank lines are empty paragraphs, one undo step with the new flow or frame. Typing with nothing focused goes to the end of the body text shown on the page (a new paragraph where the flow ends) and is its own undo step. "Type into page body" is always on until P11-T01 (D-035). No hover ring with the Text tool.
+- Superseded by #text-boxes (A-057, P07-T10 to T17) where they disagree: placement by tap, body text capturing the whole page, filled blank lines, box snapping.
+
+## Text boxes
+Target design from the user feedback of 2026-11-08 (A-057; reference shots in `docs/design/reference/`: `text-box-toolbar-reference.png`, `feedback-2026-11-08-*.png`). "Box" here means one text flow with its frames (a free box, or the body flow of older notes); a box holds Markdown blocks.
+
+Model and placement (P07-T12)
+- Every text flow is a box with a left and right border (page pt), its top on a line and its lines below. The body flow of an existing note is a box in fill width. Any box whose lines pass the bottom of the page's text zone continues on the next page between the same borders from the zone top (a continuation page is added after the last page, removed again when empty), also while it is edited. Infinite pages stay unbounded.
+- Hit area of a box on a page: its borders by its used lines on that page (at least one line), plus 8 dp slop. Nothing else on the page belongs to a box.
+- A Text tool tap (pen or finger) outside every box creates an empty box in Edit with the caret at the tap. Line: the one whose band holds the tap (baseline on the rule below the tap, raised by the lift). The first glyph starts at the tap x, so the left border sits one inner padding (0.5 U) left of it. Right border: the page text zone's right edge, at least 20 mm wide (near the right edge the box shifts left). The tap point is stored as the box's anchor and moves with the box.
+- An empty box is removed when it loses the selection; its creation and removal leave no undo step.
+- With the Text tool active every box on screen shows a faint dashed outline (overlay only, never in tiles, thumbnails or export), so it is always clear whether a tap lands inside a box.
+- Keyboard typing with nothing selected goes to the end of the last box on the current page, or makes a box on the first line of the page's text zone.
+
+Modes (P07-T13)
+- Not selected. A tap on a box (Text tool with pen or finger; a finger with another tool outside read mode) selects it in Preview.
+- Preview: solid accent outline, top grip, left and right width knobs, box toolbar. Keyboard hidden, no caret, no text selection; the field is not focused, so HyperOS never takes the pen (A-045). A drag that starts anywhere inside the box or on the grip moves the box.
+- Edit: the same outline, knobs and toolbar (Edit button active), keyboard up, caret always visible and blinking (also in an empty box, at the line height of the box's style), text selection by touch and keys.
+- Transitions: a tap on a selected box (no drag) enters Edit with the caret at the tap; the Edit button toggles Preview and Edit (entering puts the caret at the end); Escape goes Edit -> Preview -> not selected; a pen with an ink tool hovering over a box in Edit drops it to Preview (A-045); a tap with another tool outside every box ends the selection; a Text tool tap outside every box ends it and starts a new box there. A long-press on a word of a box that is not in Edit enters Edit with that word selected.
+
+Box toolbar (P07-T13, buttons filled in by T15 to T17)
+- Dark rounded pill above the box top, the same screen size at every zoom, centered on the box; it flips below the box or clamps to the screen edge when there is no room. Buttons left to right: Edit (pencil), Color (filled circle of the text color), Font size (number in pt), Alignment (icon of the current one), Fill width (highlighted while on), divider, Delete (red trash).
+- Delete removes the box with its text as one undo step.
+
+Move (P07-T13 drag, P07-T14 keys)
+- Drag with finger or pen in Preview: x follows smoothly (no column or millimeter snapping); y moves in whole line steps (U) and keeps the lift, so the baselines stay on the rules; outline and text follow live, also onto another page; one undo step on release. A drag clears a vertical offset.
+- Hardware arrow keys in Preview. Left/Right move smoothly: a press moves 1 pt at once, while held the speed is vmax * min(1, (t / 0.8 s)^2), vmax 900 dp/s on screen (tunable constants in one place). Up/Down move one line per step, held steps follow the same curve up to 15 lines/s. Shift+Left/Right as Left/Right. Shift+Up/Down move smoothly like Left/Right and leave the box between the lines (a vertical offset of the whole box, A-057 grid exception). The next Up/Down without Shift first snaps to the nearest line in that direction, which removes the offset. One undo step per key hold; the viewport keeps the box in view like the caret.
+
+Width (P07-T15)
+- Knobs at the middle of the left and right border: drawn 10 dp, touch and pen target 48 dp at every zoom; the pen on a knob or the grip never writes. A knob moves its border smoothly (no snapping), at least 20 mm wide, inside the page; the text rewraps live; one undo step. In Center alignment both borders move symmetrically around the anchor.
+- Fill width keeps two border sets, custom and fill; fill starts at the page text zone edges. The button switches the active set; a knob changes only the active set; the other keeps its last borders in page coordinates. Sequence: custom -> press -> fill (zone edges the first time, later the last adjusted fill borders) -> press -> last custom borders -> press -> last fill borders.
+
+Alignment (P07-T16)
+- Per box: Left, Center, Right, Justify. Paragraphs, list items and quotes take it (Justify: every line but the last of a paragraph spans both borders); headings take Left, Center or Right (Justify reads as Left); code, tables and block math keep their own. Visible while editing too.
+- Left, Right and Justify never change the borders. Center (outside fill width) saves the current borders and sets them symmetric around the anchor: half width = the larger of the anchor's distances to the current borders, limited so both borders stay inside the page. The text's middle then sits on the spot where the box was created. Leaving Center for any other alignment restores the saved borders. A box without an anchor (older boxes, the body flow) uses its middle. In fill width, Center centers the text between the fill borders without moving them.
+
+Font size and color (P07-T17)
+- The size number opens a popup with S, M, L and the Text panel's free size (A-051); the color circle opens the pen palette plus Auto (today's near-black on light paper, near-white on dark). Both apply to the whole box in Preview without opening the keyboard, keep the grid invariant, and are one undo step each.
+
+Editing look (P07-T10, P07-T11)
+- Text being edited is drawn from the same paginated page layout as all other text: it breaks at the page bottom and continues on the next page while typing. Line breaks match the unedited text; only the dimmed Markdown markers and raw math of the block holding the caret differ. The EditText stays the IME connection but draws nothing; caret, selection highlight and handles come from the page layout, so the highlight sits exactly under the handles. Entering or leaving Edit never flashes, and the keystroke budget (R-PERF-05) holds.
+- Touch selection in Edit: a tap places the caret; a long-press selects the word under the finger (haptic tick) and a drag after it extends by words; a double tap selects a word; the handles (44 dp) drag by letter, across blocks and pages; a one-finger drag that starts neither with a long-press nor on a handle pans the page. A floating menu above a selection offers Cut, Copy, Paste and Select all.
 
 ## Pages
 - Page panel (left drawer, 280 dp): thumbnails with page numbers; drag to reorder; per-page menu: duplicate, delete, insert blank before/after, page settings, expand to infinite, move to another document (later).
