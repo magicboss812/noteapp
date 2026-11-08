@@ -44,6 +44,7 @@ class PageRenderer(
 ) {
     private val templates = TemplateRenderer(assets)
     private val text = TextRunPainter()
+    private val shapes = ShapePainter()
     private val toDevice = Matrix()
     private val regionF = RectF()
     private val paper = Paint()
@@ -112,8 +113,10 @@ class PageRenderer(
                 // Unfocused text is painted at its frame's place in the z-order from the cached block layouts (P06-T05).
                 is FlowFrame -> text.draw(canvas, content.text.runsOf(o.id), regionPt, scale, textArgb, borderArgb)
 
+                is Shape -> shapes.draw(canvas, o)
+
                 // Painters for these arrive with their features (P07); a sticky note paints its own flow there.
-                is Shape, is ImageObject, is StickyNote, is Attachment -> Unit
+                is ImageObject, is StickyNote, is Attachment -> Unit
             }
         }
     }

@@ -89,6 +89,7 @@ data class FlowBox(val anchorXPt: Float?, val autoWidth: Boolean, val fill: Bool
 data class Borders(val leftPt: Float, val rightPt: Float)
 ```
 Box geometry (10-editor-ui.md#text-boxes): every flow is a box. Its frames hold the text column per page (the active border set); `FlowBox` keeps what the frames cannot: the anchor x of the creating tap, auto width, which set is active (fill), the inactive sets, the borders saved before Center, and the vertical offset of the whole box (A-057). `textArgb` null = Auto color.
+Shape `points` per kind and the rotation pivot: 06-ink-input.md#shapes (A-064).
 Z-order rules: new objects go on top. Body flow frames are created at the bottom of the z-order so ink drawn later lies above text. Highlighter strokes are ordinary strokes drawn with transparency.
 Tables, links, math, checklists live inside flow Markdown, not as page objects.
 

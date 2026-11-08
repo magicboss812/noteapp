@@ -10,6 +10,7 @@ import dev.folio.core.model.StickyNote
 import dev.folio.core.model.geometry.Affine
 import dev.folio.core.model.geometry.PointPt
 import dev.folio.core.model.geometry.RectPt
+import dev.folio.core.model.shape.ShapeGeometry
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
@@ -93,7 +94,7 @@ private fun transformShape(
         points = points,
         rotationDeg = deg,
         stroke = shape.stroke.copy(widthPt = width),
-        bounds = shapeBounds(points, deg, width),
+        bounds = ShapeGeometry.bounds(shape.kind, points, deg, width),
     )
 }
 

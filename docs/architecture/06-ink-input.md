@@ -51,6 +51,7 @@ Default palette (editable per tool, persisted): ink black `#1A1A1A`, blue `#2563
 ## Shapes
 Shape tool: pen drag from start to end creates the chosen kind (line, arrow, rectangle, ellipse, triangle, polygon via taps + double-tap to close). Shift-like constraint: holding the stylus button (if available) or enabling "constrain" snaps to 15 deg angles and equal sides. Style: stroke color, width, dashed, fill (none or color at 25% or 100%).
 Shapes are editable when selected: move, resize (8 handles), rotate, and for line/arrow/polygon drag individual points.
+Geometry as built (A-064, `core:model` `shape/ShapeGeometry`, `ShapeHandles`; painter `core:render` `ShapePainter`): points are start/end (line, arrow), opposite box corners (rectangle, ellipse), vertices (triangle, polygon); rotation is around the points' bounds center. Lines and arrows edit by their two point handles only (no box, no rotate handle). Arrow heads: open 28 deg barbs, 4 widths long (8 pt min, half the shaft max), inside the stored bounds. Round joins and caps, dashes 3 widths on and off; the rotate handle snaps within 3 deg of 15 deg detents.
 
 ## Shape recognition
 - Trigger: while drawing with pen/highlighter, the pen stays within 4 dp for 450 ms at the stroke's end (still touching).

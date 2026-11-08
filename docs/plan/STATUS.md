@@ -48,8 +48,8 @@ updated: 2026-11-08
 - D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P07-T17 done (A-063): box toolbar popups generalized (`BoxPopup` COLOR/SIZE/ALIGN in `BoxToolbar`, one open popup in `BoxHandles`); `BoxCommands.restyle` -> `EditorText.sizeCommand`/`colorCommand`; color rides on `FlowTextStyle.textArgb` -> `TextRun.textArgb` (layout cache ignores it), painted by `TextRunPainter`; `TextSizing.steppedBodyCap` for minus/plus.
-- NEXT P07-T01 (shape tool, first of the objects tasks). Device: the first tap after a debug command is dropped (finger too); `magick` is denied; `launch.sh --doc perf/...` stays on the library, use `debugcmd.sh open <path>`.
+- P07-T01a done (A-064): `core:model` `shape/ShapeGeometry` (drag points, constrain, bounds incl. arrow head, hit test) + `ShapeHandles` (8 resize, rotate, points; resize/rotate/movePoint/translate), `core:render` `ShapePainter` wired into `PageRenderer`, golden `ShapePainter_allKindsAndStyles`.
+- NEXT P07-T01b: editor wiring: `CanvasTool.SHAPE`, `ShapeOptions` in ToolOptions/Store + Shape panel, stylus drag preview + `AddObjects` commit, polygon taps; then T01c: selection handles view for a tapped shape. Device: the first tap after a debug command is dropped (finger too); `magick` is denied; `launch.sh --doc perf/...` stays on the library, use `debugcmd.sh open <path>`.
 - Modified `scripts/auto/run-loop.sh` is the user's: stage explicit paths, not `git add -A`. Device: `debugcmd open lined:N` reuses `perf/lined-N.folio`; wipe the debug library first for a clean note.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; `CaretPlans`/`FlowHits` for taps.
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]`, `open lined:N`; first stylus tap after a debug command is dropped. Tool row y 1963 px, mode pill y 171 px in landscape.
