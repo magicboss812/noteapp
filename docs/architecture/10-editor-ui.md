@@ -77,13 +77,13 @@ Model and placement (P07-T12)
 - Text never leaves the page: no border lies outside the page text zone, and lines past the page bottom continue on the next page (also while editing).
 - An empty box is removed when it loses the selection; its creation and removal leave no undo step.
 - With the Text tool active every box on screen shows a dashed outline like Notewise's: 1 dp, neutral gray, clearly visible on the paper but quieter than the selected outline (overlay only, never in tiles, thumbnails or export), so it is always clear whether a tap lands inside a box.
-- Keyboard typing with nothing selected goes to the end of the last box on the current page, or makes a box on the first line of the page's text zone.
+- Keyboard typing with nothing selected goes to the end of the last box on the current page, or makes a box on the first line of the page's text zone. Typing with a box in Preview goes to the end of that box (A-060).
 
 Modes (P07-T13)
 - Not selected. A tap on a box (Text tool with pen or finger; a finger with another tool outside read mode) selects it in Preview.
 - Preview: solid accent outline, top grip, left and right width knobs, box toolbar. Keyboard hidden, no caret, no text selection; the field is not focused, so HyperOS never takes the pen (A-045). A drag that starts anywhere inside the box or on the grip moves the box, also after a press-and-hold.
 - Edit: the same outline, knobs and toolbar (Edit button active), keyboard up, caret always visible and blinking (also in an empty box, at the line height of the box's style), text selection by touch and keys.
-- Transitions: only the Edit button enters Edit (caret at the end of the text); a tap on a selected box does not (it may come later if the button gets tiresome, B-13). The Edit button in Edit, the system Back gesture or Escape go Edit -> Preview; Back or Escape in Preview ends the selection. A pen with an ink tool hovering over a box in Edit drops it to Preview (A-045). A tap with another tool outside every box ends the selection; a Text tool tap outside every box ends it and starts a new box there.
+- Transitions: only the Edit button enters Edit (caret where the box was last tapped, else at the end of the text, A-060); a tap on a selected box does not (it may come later if the button gets tiresome, B-13). The Edit button in Edit, the system Back gesture or Escape go Edit -> Preview (with the soft keyboard up, Back closes it and the closing keyboard leaves Edit, A-060); Back or Escape in Preview ends the selection. A pen with an ink tool hovering over a box in Edit drops it to Preview (A-045). A tap with another tool outside every box ends the selection; a Text tool tap outside every box ends it and starts a new box there.
 - Text selection exists only in Edit. Outside Edit no gesture selects words or letters: a long-press or press-and-hold on a box in Preview starts a move like any drag, never a selection.
 
 Box toolbar (P07-T13, buttons filled in by T15 to T17)

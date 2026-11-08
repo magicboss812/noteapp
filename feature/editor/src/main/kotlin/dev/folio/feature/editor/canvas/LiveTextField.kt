@@ -17,6 +17,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
+import android.view.ViewTreeObserver
 import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -71,6 +72,29 @@ internal class LiveTextField(
 
     /** Escape was pressed. */
     var onEscape: () -> Unit = {}
+
+    /**
+     * The soft keyboard went away while this field had focus: Back with the keyboard up (the keyboard takes that Back,
+     * the app never sees it, A-060) or the keyboard swiped down. The box leaves Edit, as Back does without a keyboard.
+     */
+    var onKeyboardHidden: () -> Unit = {}
+    private var keyboardShown = false
+    private val keyboardWatcher =
+        ViewTreeObserver.OnGlobalLayoutListener {
+            keyboardVisible(rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true)
+        }
+
+    /** Takes the keyboard's visibility now (the window's insets after a layout); tests call it directly. */
+    fun keyboardVisible(shown: Boolean) {
+        val went = keyboardShown && !shown
+        keyboardShown = shown
+        if (went && isFocused && visibility == VISIBLE) onKeyboardHidden()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        viewTreeObserver.addOnGlobalLayoutListener(keyboardWatcher)
+    }
 
     /** Up (true) or Down at the first or last line, with the caret's x in the host view, px. */
     var onVertical: (up: Boolean, caretXPx: Float) -> Unit = { _, _ -> }
@@ -328,6 +352,7 @@ internal class LiveTextField(
     // The editor leaves (another note opens, the library shows) while a block is focused: the keyboard goes with it.
     override fun onDetachedFromWindow() {
         if (visibility != GONE) hide()
+        viewTreeObserver.removeOnGlobalLayoutListener(keyboardWatcher)
         super.onDetachedFromWindow()
     }
 

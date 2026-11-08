@@ -436,6 +436,27 @@ class LiveTextFieldTest {
     }
 
     @Test
+    fun keyboardHidden_whileFocused_reportsItOnce_notWhenItWasNeverUpOrTheFieldIsHidden() {
+        // With the keyboard up the IME takes Back to hide itself; the app sees only the keyboard going (P07-T13 device run).
+        var hidden = 0
+        field.onKeyboardHidden = { hidden++ }
+        show(spec("ab"))
+        field.requestFocus()
+
+        field.keyboardVisible(false)
+        assertThat(hidden).isEqualTo(0)
+        field.keyboardVisible(true)
+        field.keyboardVisible(false)
+        field.keyboardVisible(false)
+        assertThat(hidden).isEqualTo(1)
+
+        field.keyboardVisible(true)
+        field.hide()
+        field.keyboardVisible(false)
+        assertThat(hidden).isEqualTo(1)
+    }
+
+    @Test
     fun ctrlChord_goesToTheShortcutRegistry() {
         show(spec("ab", caret = 1))
 

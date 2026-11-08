@@ -63,6 +63,10 @@ class PageText private constructor(
     /** Union of the ink bounds of the runs in frame [frameId] (empty when there are none). */
     fun boundsOf(frameId: ObjectId): RectPt = runsOf(frameId).fold(RectPt.EMPTY) { acc, run -> acc.union(run.bounds) }
 
+    /** This page text without the runs of [frames] (a box the canvas overlay draws while it is dragged); this when it has none. */
+    fun without(frames: Set<ObjectId>): PageText =
+        if (runs.none { it.frameId in frames }) this else of(runs.filter { it.frameId !in frames })
+
     /** True when no run can put ink inside [rect]. */
     fun isEmptyIn(rect: RectPt): Boolean {
         for (i in runs.indices) if (runs[i].bounds.intersects(rect)) return false

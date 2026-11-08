@@ -25,6 +25,7 @@ import dev.folio.core.ink.input.StylusCapabilities
 import dev.folio.core.ink.input.StylusFeatures
 import dev.folio.core.model.Document
 import dev.folio.core.model.InkStroke
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.Page
 import dev.folio.core.model.PageId
 import dev.folio.core.model.geometry.RectPt
@@ -222,8 +223,30 @@ class CanvasHostView internal constructor(
     /** The dashed outlines of the text boxes while the Text tool is active (tests read what it shows). */
     internal val boxOutlines = BoxOutlines(context, controller.viewport) { document }
 
-    /** The grip and width handles of a focused free text box (tests read what it shows). */
-    internal val boxHandles = BoxHandles(context, controller.viewport, controller) { document }
+    /** The outline, grip, knobs and toolbar of the selected text box (tests read what it shows). */
+    internal val boxHandles =
+        BoxHandles(
+            context,
+            controller.viewport,
+            controller,
+            { document },
+            BoxHost(
+                runsOf = { page, frame -> pageTexts[page]?.runsOf(frame).orEmpty() },
+                textArgb = { page ->
+                    document
+                        ?.page(page)
+                        ?.background
+                        ?.paperArgb
+                        ?.let(PageRenderer::textArgb) ?: BOX_TEXT_ARGB
+                },
+                hide = ::hideBoxText,
+                isDrawn = ::isTextDrawn,
+                tap = { x, y, stylus -> if (stylus) onTextToolTap(x, y) else onFingerTap(x, y) },
+            ),
+        )
+
+    // Frames of a box being moved: the tiles leave their text out while the box chrome draws it (P07-T13).
+    private var hiddenFrames: Set<ObjectId> = emptySet()
 
     /** The live text field once a block was focused, null before (tests and debug automation read its state). */
     internal val liveTextField: LiveTextField? get() = textField.liveField
@@ -335,7 +358,6 @@ class CanvasHostView internal constructor(
         contentTiles.retainPages(keep)
         refreshTiles()
         textField.refresh()
-        boxHandles.refresh()
         if (boxOutlines.shown.isNotEmpty()) boxOutlines.invalidate()
     }
 
@@ -357,11 +379,51 @@ class CanvasHostView internal constructor(
         }
         textField.show(next.field)
         selectionView.show(next.selection)
-        boxHandles.show(next.box?.flowId ?: next.field?.focus?.flowId)
+        boxHandles.show(next.box)
         boxOutlines.show(next.outlines)
     }
 
-    private fun textOf(id: PageId): PageText = pageTexts[id] ?: PageText.EMPTY
+    private fun textOf(id: PageId): PageText {
+        val text = pageTexts[id] ?: return PageText.EMPTY
+        return if (hiddenFrames.isEmpty()) text else text.without(hiddenFrames)
+    }
+
+    // The tiles leave out the text of [frames] (a box the chrome draws while it moves); an empty set shows all again.
+    private fun hideBoxText(frames: Set<ObjectId>) {
+        if (frames == hiddenFrames) return
+        val before = hiddenFrames
+        hiddenFrames = frames
+        val doc = document ?: return
+        for (ref in doc.pages) {
+            val runs = pageTexts[ref.id]?.runs ?: continue
+            if (runs.any { it.frameId in before || it.frameId in frames }) contentTiles.setPage(ref, shownBody(doc, ref.id), textOf(ref.id))
+        }
+        refreshTiles()
+    }
+
+    // True when the content tiles under [rect] of page [page] (the visible part) are drawn and fresh.
+    private fun isTextDrawn(
+        page: PageId,
+        rect: RectPt,
+    ): Boolean {
+        val stack = viewport.layout ?: return true
+        val index = stack.indexOf(page)
+        var drawn = true
+        viewport.forEachVisiblePage(width.toFloat(), height.toFloat()) { i, _, _, l, t, r, b ->
+            if (i == index) {
+                drawn =
+                    contentTiles.isDrawn(
+                        page.value,
+                        max(l, rect.left),
+                        max(t, rect.top),
+                        min(r, rect.right),
+                        min(b, rect.bottom),
+                        viewport.scale,
+                    )
+            }
+        }
+        return drawn
+    }
 
     private fun refreshTiles() {
         invalidateLayers()
@@ -545,14 +607,22 @@ class CanvasHostView internal constructor(
         return super.dispatchGenericMotionEvent(event) || routed
     }
 
-    // The pen writes over a focused block: its editing ends first, on hover or at the latest at the stylus down (A-045).
+    // The pen writes over a box being edited: it drops to Preview first, on hover or at the latest at the stylus down
+    // (A-045, 10-editor-ui.md#text-boxes). The pen on the grip or a knob moves the box, so the box drops to Preview there
+    // too (D-041); over the toolbar or the selection menu it taps; with the Text tool it places the caret.
     private fun yieldTextToStylus(event: MotionEvent) {
         // HOT PATH: per hover event; no allocation.
         val tool = event.getToolType(0)
         if (tool != MotionEvent.TOOL_TYPE_STYLUS && tool != MotionEvent.TOOL_TYPE_ERASER) return
-        // The pen takes the box's grip or a width handle (not in read mode, where it only navigates) or taps the selection menu.
-        val onBox = controller.activeTool != CanvasTool.NAVIGATE && boxHandles.covers(event.x, event.y)
-        if (!onBox && !selectionView.menuCovers(event.x, event.y)) textField.yieldToStylus(event.x, event.y)
+        val active = controller.activeTool
+        val x = event.x
+        val y = event.y
+        if (boxHandles.toolbarCovers(x, y) || selectionView.menuCovers(x, y)) return
+        if (boxHandles.covers(x, y)) {
+            if (boxHandles.editing) controller.textController?.blur()
+        } else if (active != CanvasTool.TEXT || tool == MotionEvent.TOOL_TYPE_ERASER) {
+            textField.yieldToStylus(x, y)
+        }
     }
 
     /** While the ring is the hover cursor, the system stylus pointer (HyperOS draws a dot) is hidden (D-017). */
@@ -745,6 +815,7 @@ class CanvasHostView internal constructor(
         if (contentTiles.pendingCount == 0) contentTiles.warmUp(lastVisible)
         handoff.check()
         textField.check()
+        boxHandles.check()
     }
 
     /** Hands [strokes] to the session; the synchronous part runs inside the `ink:commit` section. */
@@ -850,6 +921,9 @@ private const val CARET_MARGIN_DP = 24f
 
 // Slop around a text box's used lines that still takes a tap (10-editor-ui.md#text-boxes).
 private const val BOX_SLOP_DP = 8f
+
+// The text color of a moved box on a page without a known paper (near-black, like the live field's default).
+private const val BOX_TEXT_ARGB = 0xFF1B1D22.toInt()
 
 private fun tileBudgetBytes(context: Context): Long {
     val reported = context.getSystemService(ActivityManager::class.java)?.largeMemoryClass ?: 0

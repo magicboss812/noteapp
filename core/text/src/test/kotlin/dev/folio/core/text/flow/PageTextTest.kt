@@ -63,6 +63,14 @@ class PageTextTest {
     }
 
     @Test
+    fun without_leavesOutTheRunsOfThoseFrames_sameInstanceWhenNoneAreThere() {
+        val text = textOf(doc("Alpha\n\nBeta", body))
+
+        assertThat(text.without(setOf(body.id)).runs).isEmpty()
+        assertThat(text.without(setOf(ObjectId("other")))).isSameInstanceAs(text)
+    }
+
+    @Test
     fun of_focusedTableCell_keepsTheTableRun_hidesOnlyThatCell_focusedBlockLeavesOut() {
         val d = doc("Alpha\n\n| a | b |\n| --- | --- |\n| 1 | 2 |", body)
         val layouts = PageTexts.layouts(d, layouter)

@@ -215,6 +215,7 @@ internal class TextFieldHost(
             }
             it.onShortcut = { keyCode, ctrl, shift, alt -> onShortcut(keyCode, ctrl, shift, alt) }
             it.onEscape = { controller.textController?.blur() }
+            it.onKeyboardHidden = { controller.textController?.blur() }
             it.onVertical = navigation::moveVertically
             it.onExtend = navigation::extend
             it.onSelectAll = { controller.textController?.selectAll() }
