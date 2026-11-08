@@ -13,6 +13,7 @@ import dev.folio.core.model.FrameRole
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.PageRef
+import dev.folio.core.model.StickyNote
 import dev.folio.core.model.TextFlow
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.Batch
@@ -20,6 +21,7 @@ import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.EditFlow
 import dev.folio.core.model.edit.RemoveObjects
 import dev.folio.core.model.edit.TextEdit
+import dev.folio.core.model.edit.UpdateFlows
 import dev.folio.core.model.edit.UpdateObjects
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.storage.session.DocumentSession
@@ -242,14 +244,18 @@ class EditorText internal constructor(
         yPt: Float,
     ): LinkTap? = mutableSnapshot.value.tapAt(pageId, xPt, yPt, mutableFocus.value)
 
-    /** Focuses the block at ([xPt], [yPt]) of page [pageId]; no block there ends editing. True if a block got focus. */
+    /**
+     * Focuses the block at ([xPt], [yPt]) of page [pageId] (a box takes taps up to [slopPt] beside its lines); no block
+     * there ends editing. True if a block got focus.
+     */
     fun focusAt(
         pageId: PageId,
         xPt: Float,
         yPt: Float,
+        slopPt: Float = 0f,
     ): Boolean =
         PerfMonitor.trace(TRACE_FOCUS) {
-            val focus = mutableSnapshot.value.focusAt(pageId, xPt, yPt, mutableFocus.value?.revision ?: 0)
+            val focus = mutableSnapshot.value.focusAt(pageId, xPt, yPt, mutableFocus.value?.revision ?: 0, slopPt)
             mutableFocus.value = focus
             focus != null
         }
@@ -383,13 +389,17 @@ class EditorText internal constructor(
         }
     }
 
-    /** Where a Text tool tap at ([xPt], [yPt]) on page [pageId] puts the caret; new flows get [style]. Main thread. */
+    /**
+     * Where a Text tool tap at ([xPt], [yPt]) on page [pageId] puts the caret, a box taking taps up to [slopPt] beside
+     * its lines; new flows get [style]. Main thread.
+     */
     internal fun planTap(
         pageId: PageId,
         xPt: Float,
         yPt: Float,
         style: FlowStyle,
-    ): CaretPlan? = CaretPlans.forTap(documentSession.document.value, mutableSnapshot.value.layouts, pageId, xPt, yPt, style)
+        slopPt: Float = 0f,
+    ): CaretPlan? = CaretPlans.forTap(documentSession.document.value, mutableSnapshot.value.layouts, pageId, xPt, yPt, style, slopPt)
 
     /** Where typing with nothing focused on page [pageId] puts the caret; new flows get [style]. Main thread. */
     internal fun planTyping(
@@ -398,26 +408,18 @@ class EditorText internal constructor(
     ): CaretPlan? = CaretPlans.forTyping(documentSession.document.value, mutableSnapshot.value.layouts, pageId, style)
 
     /**
-     * [plan] as one command: its setup (a new flow and frame), the empty paragraphs down to the tapped line and the
-     * reflow they need execute and undo together. Null when nothing changes or the plan no longer fits the document.
+     * [plan] as one command: the new box's flow and frame and the reflow they need execute and undo together. Null
+     * when the plan no longer fits the document.
      */
-    internal suspend fun appendCommand(plan: CaretPlan.Append): EditCommand? {
+    internal suspend fun newBoxCommand(plan: CaretPlan.NewBox): EditCommand? {
         val doc = documentSession.document.value
         return withContext(dispatchers.text) {
             try {
                 val commands = ArrayList<EditCommand>(plan.setup)
                 var after = doc
                 for (command in plan.setup) after = command.execute(after).doc
-                val flow = checkNotNull(after.flows[plan.flowId])
-                CaretPlans.emptyParagraphs(flow.markdown, parses.of(flow), plan.lines)?.let {
-                    val edit = EditFlow(plan.flowId, listOf(it))
-                    after = edit.execute(after).doc
-                    commands += edit
-                }
-                if (commands.isNotEmpty()) {
-                    val reflow = engine.reflow.plan(after, plan.flowId, parses.of(checkNotNull(after.flows[plan.flowId])))
-                    reflow.command?.let { commands += it }
-                }
+                val reflow = engine.reflow.plan(after, plan.flowId, parses.of(checkNotNull(after.flows[plan.flowId])))
+                reflow.command?.let { commands += it }
                 if (commands.size > 1) Batch(commands) else commands.singleOrNull()
             } catch (e: IllegalArgumentException) {
                 FolioLog.w(TAG, "caret plan rejected: ${e.message}")
@@ -427,6 +429,23 @@ class EditorText internal constructor(
                 null
             }
         }
+    }
+
+    /**
+     * The command that removes flow [flowId] with its frames when it is an empty text box (blank text, box frames
+     * only, A-059); null for any other flow. Main thread.
+     */
+    internal fun emptyBoxRemoval(flowId: FlowId): EditCommand? {
+        val doc = documentSession.document.value
+        val flow = doc.flows[flowId]?.takeIf { it.markdown.isBlank() } ?: return null
+        val removals = ArrayList<EditCommand>()
+        for (ref in doc.pages) {
+            val objects = doc.page(ref.id)?.objects ?: continue
+            val own = objects.filter { (it is FlowFrame && it.flow == flowId) || (it is StickyNote && it.flow == flowId) }
+            if (own.any { it !is FlowFrame || it.role != FrameRole.BOX }) return null
+            if (own.isNotEmpty()) removals += RemoveObjects(ref.id, own.map { it.id })
+        }
+        return Batch(removals + UpdateFlows(emptyList(), remove = listOf(flow.id)))
     }
 
     /** Returns once [snapshot] shows the current text of flow [flowId]; false if the flow is gone (an undo came first). */
@@ -486,11 +505,14 @@ class EditorText internal constructor(
     ): EditCommand? {
         val edit = EditFlow(flowId, edits, coalesceKey, base)
         val doc = documentSession.document.value
+        val focused = mutableFocus.value?.takeIf { it.flowId == flowId }?.blockId
         return withContext(dispatchers.text) {
             try {
                 val after = edit.execute(doc).doc
-                val flow = checkNotNull(after.flows[flowId])
-                val reflow = engine.reflow.plan(after, flowId, parses.of(flow))
+                val parsed = parses.of(checkNotNull(after.flows[flowId]))
+                // The focused block shows its source: the pages and the auto width follow that (A-059).
+                val editBlock = focused?.let { parsed.indexOf(it) } ?: FlowLayout.NO_BLOCK
+                val reflow = engine.reflow.plan(after, flowId, parsed, editBlock = editBlock)
                 reflow.command?.let { Batch(listOf(edit, it), coalesceKey) } ?: edit
             } catch (e: IllegalArgumentException) {
                 FolioLog.w(TAG, "flow edit rejected: ${e.message}")

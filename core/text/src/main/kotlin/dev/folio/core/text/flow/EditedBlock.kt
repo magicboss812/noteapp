@@ -72,7 +72,9 @@ internal fun retype(
     val first = flow.slices(start).firstOrNull { it.blockIndex == index } ?: return null
     val slot = flow.slots[start]
     val block = MarkdownBlock(old.id, source, old.gap, parser.parse(source))
-    val layout = blockLayouter.editLayout(block, slot.rect.widthPt, flow.style, slot.grid)
+    // An auto width box widens with the text (A-059): the keystroke is laid out at the widest borders, as the reflow
+    // will set them, so a line does not wrap for a frame.
+    val layout = blockLayouter.editLayout(block, slot.growRect.widthPt, flow.style, slot.grid)
     val item = FlowLayouter.itemOf(block.content, layout)
     val distribution =
         FlowDistributor.distribute(
@@ -91,8 +93,9 @@ internal fun retype(
         for (slice in slices) {
             val line = slice.fromUnit / layout.boxUnits
             val top = s.rect.top + slice.topUnit * s.grid.unitPt - layout.lineTopPt(line)
+            val column = s.growRect
             val run =
-                TextRun(s.frameId, layout, line, slice.heightUnits / layout.boxUnits, s.rect.left, top, s.rect.widthPt, codeBackground)
+                TextRun(s.frameId, layout, line, slice.heightUnits / layout.boxUnits, column.left, top, column.widthPt, codeBackground)
             pieces += EditedPiece(s.pageId, run)
         }
     }

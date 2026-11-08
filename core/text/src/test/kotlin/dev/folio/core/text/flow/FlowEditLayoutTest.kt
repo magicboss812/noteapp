@@ -5,11 +5,13 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowBox
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FrameRole
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.TextAlign
 import dev.folio.core.model.TextZones
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.text.edit.Caret
@@ -65,6 +67,22 @@ class FlowEditLayoutTest {
         assertThat(layout.slices(1).first().blockIndex).isEqualTo(last)
         assertThat(layout.slices(0).last().toUnit).isEqualTo(layout.slices(1).first().fromUnit)
         assertThat(layout.runs(1, FlowLayout.NO_BLOCK, FlowLayout.NO_CELL)).isNotEmpty()
+    }
+
+    @Test
+    fun retype_inAnAutoWidthBox_laysTheLineOutAtTheWidestBordersWithoutWrapping() {
+        val template = ModelFixtures.LINED_BACKGROUND.template
+        val rect = TextZones.newBoxAt(ModelFixtures.A4, template, 200f, bodyRect.top + 3.5f * unitPt, 0f, TextAlign.START)
+        val frame = FlowFrame(ObjectId("b"), flowId, rect, 0, FrameRole.BOX, autoGrow = true)
+        val flow = ModelFixtures.flow(flowId.value, "H").copy(autoContinue = true, box = FlowBox.created(rect.left))
+        val doc = ModelFixtures.document(listOf(ModelFixtures.page("p1", listOf(frame))), flows = listOf(flow))
+
+        val typed = checkNotNull(layouter.retype(doc.layout(editBlock = 0), 0, "Hi there, friend"))
+
+        assertThat(typed.layout.lineCount).isEqualTo(1)
+        val run = typed.pieces.single().run
+        assertThat(run.leftPt).isEqualTo(rect.left)
+        assertThat(run.widthPt).isGreaterThan(rect.widthPt)
     }
 
     @Test

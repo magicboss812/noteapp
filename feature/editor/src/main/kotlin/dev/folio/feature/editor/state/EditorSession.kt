@@ -4,6 +4,7 @@ import androidx.annotation.MainThread
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
+import dev.folio.core.common.getOrNull
 import dev.folio.core.ink.brush.BrushCatalog
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.Background
@@ -29,8 +30,10 @@ import dev.folio.core.text.markdown.MarkdownDocument
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
+import dev.folio.feature.editor.canvas.boxOutlines
 import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.EditorText
+import dev.folio.feature.editor.text.RevocableSteps
 import dev.folio.feature.editor.text.TextController
 import dev.folio.feature.editor.text.TextEditor
 import dev.folio.feature.editor.text.TextEngine
@@ -42,6 +45,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
@@ -69,15 +73,21 @@ class EditorSession(
 ) : CanvasController {
     private val mutableTool = MutableStateFlow(EditorTool.PEN)
     private val mutableOptions = MutableStateFlow(initialOptions)
+    private val mutableReadMode = MutableStateFlow(false)
 
     /** Layout and editing of the document's text; null in a session without a text engine (the canvas then shows no text). */
     val text: EditorText? = textEngine?.let { EditorText(documentSession, it, dispatchers, scope, missingLinks) }
 
+    // The selection comes with the field it belongs to; box outlines show while the Text tool is active (A-059).
+    private val outlined = combine(mutableTool, mutableReadMode) { tool, read -> !read && tool.canvasTool == CanvasTool.TEXT }
+
     override val canvasText: Flow<CanvasText> =
         text
             ?.snapshot
-            ?.map { CanvasText(it.canvas, it.field, it.selection) } // the selection comes with the field it belongs to
-            ?.distinctUntilChanged { a, b -> a.pages == b.pages && a.field === b.field } ?: emptyFlow()
+            ?.combine(outlined) { snap, outlined ->
+                CanvasText(snap.canvas, snap.field, snap.selection, if (outlined) boxOutlines(snap, document.value) else emptyMap())
+            }?.distinctUntilChanged { a, b -> a.pages == b.pages && a.field === b.field && a.outlines == b.outlines }
+            ?: emptyFlow()
 
     /** The selected toolbar tool (chrome state; the canvas reads [activeTool] at stylus down). */
     val tool: StateFlow<EditorTool> = mutableTool.asStateFlow()
@@ -92,7 +102,17 @@ class EditorSession(
         (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
 
     override val textController: TextController? =
-        text?.let { TextEditor(it, ::editText, scope, mainDispatcher, ::execute, newFlowStyle = { mutableOptions.value.text.flowStyle() }) }
+        text?.let {
+            TextEditor(
+                it,
+                ::editText,
+                scope,
+                mainDispatcher,
+                ::execute,
+                RevocableSteps(::executeRevocable, ::revoke),
+                newFlowStyle = { mutableOptions.value.text.flowStyle() },
+            )
+        }
 
     // Built once per options change, not per stylus down.
     private var penBrush = initialOptions.pen.brush(BRUSH_VERSION)
@@ -100,8 +120,6 @@ class EditorSession(
 
     override val activeBrush: BrushSpec
         get() = if (mutableTool.value == EditorTool.HIGHLIGHTER) highlighterBrush else penBrush
-
-    private val mutableReadMode = MutableStateFlow(false)
 
     /** Read mode (10-editor-ui.md#read-mode): chrome hidden, the stylus only navigates (chrome state). */
     val readMode: StateFlow<Boolean> = mutableReadMode.asStateFlow()
@@ -327,6 +345,20 @@ class EditorSession(
 
     override suspend fun execute(command: EditCommand): Boolean =
         succeeded("execute ${command::class.simpleName}") { documentSession.execute(command) }
+
+    // A step [revoke] can take back while it is the newest (a new text box, A-059); its token, null if it failed.
+    private suspend fun executeRevocable(command: EditCommand): Any? {
+        val result = withContext(dispatchers.io) { documentSession.executeRevocable(command) }
+        if (result is Outcome.Failure) FolioLog.w(TAG, "execute ${command::class.simpleName}: ${result.message}", result.cause)
+        return result.getOrNull()
+    }
+
+    // Takes the step of [token] back without an undo or redo step; false if another step came after it.
+    private suspend fun revoke(token: Any): Boolean {
+        val result = withContext(dispatchers.io) { documentSession.revoke(token) }
+        if (result is Outcome.Failure) FolioLog.w(TAG, "revoke: ${result.message}", result.cause)
+        return result.getOrNull() == true
+    }
 
     /** Undoes the last step; false if there was none or it failed. */
     suspend fun undo(): Boolean = succeeded("undo") { documentSession.undo() }

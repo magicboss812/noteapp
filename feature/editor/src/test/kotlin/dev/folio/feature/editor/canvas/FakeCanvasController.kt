@@ -49,6 +49,7 @@ internal class FakeTextController : TextController {
         pageId: PageId,
         xPt: Float,
         yPt: Float,
+        slopPt: Float,
     ): Boolean {
         focusCalls += Triple(pageId, xPt, yPt)
         return focusResult

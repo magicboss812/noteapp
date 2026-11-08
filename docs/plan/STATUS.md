@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P07
-next: P07-T12
+next: P07-T13
 updated: 2026-11-08
 
 ## Completed
@@ -14,7 +14,7 @@ updated: 2026-11-08
 - P06 done 2026-11-08 (tag p06-done): Markdown blocks, fonts + import, grid line boxes (20 fonts 0 violations on device), flows + reflow, live field, math, tables, links/tasks, selection + clipboard, baseline lift, free text boxes; `text:key` p95 17-21 ms debug (D-043); REVIEW fixed 2 blocking findings (stale flow edits after undo, read mode kept text focus); intake -> P11-T01/T09/T12, P07-T02; A-037..A-056; qa green.
 
 ## Current phase progress
-- P07: T10, T11
+- P07: T10, T11, T12
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -27,11 +27,12 @@ updated: 2026-11-08
 - 2026-11-08 user: P06-T14 and P06-T17 FAIL (no box outline or move, edited text over the page gap, no caret in empty blocks, no touch selection, highlight offset) -> A-057, P07-T10 to T17.
 - P07-T10: Type a long paragraph over a page break (also in an empty line), select across `==marked==`, then tap out -> text continues on the next page with the caret, nothing jumps, flickers or lags; highlight under the handles.
 - P07-T11: In a text block you are editing, long-press a word, drag to grow it, double tap another word, drag a handle letter by letter, use Copy/Paste from the menu -> words and single letters select easily with your finger, a quick drag still pans.
+- P07-T12: With the Text tool, place a few boxes on lines and spots of your choice and type into them, one near a page bottom -> text starts where you tapped, the box grows with it up to the page edge then wraps, goes on at the next page's top; dashed outlines show only with the Text tool; a box left empty disappears. (Device run 2026-11-08 all PASS; the text there was about 3 lines tall, likely a leftover free size in the Text panel.)
 
 ## Deferred (id: reason)
-- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06; D-043 -> P11-T05; D-014, D-034 -> P11-T01; D-024 -> P07-T02; D-041, D-042 -> P07-T13; D-045 -> P07-T12.
+- D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06; D-043 -> P11-T05; D-014, D-034 -> P11-T01; D-024 -> P07-T02; D-041, D-042, D-045 -> P07-T13.
 - D-038 P06-T14b: a focused block draws about 2 frames/s while idle (caret blink; since P07-T10 the overlay's, which re-records its block text: 40-46 ms each, UI draw 10-17 ms); 0 frames when not editing. A caret-only view would make blink frames cheap.
-- D-045 P07-T10: a finger tap at the end of a blurred paragraph that spills onto the next page once its markers show puts the caret mid-paragraph (2/2 on device); the tap maps on the blurred layout (P07-T12 scope).
+- D-045 P07-T10: a finger tap at the end of a blurred paragraph that spills onto the next page once its markers show puts the caret mid-paragraph (2/2 on device); the tap maps on the blurred layout (P07-T13: the Edit button places the caret, A-059).
 - D-047 P07-T11 device: with the keyboard up a one-finger pan can drag the page top about 1100 px down the screen and it stays there; the pan clamp should keep the first page top in view.
 - D-046 P07-T10: Home/End (MOVE_HOME/END) follow the hidden field's line breaks, which differ from the overlay's; route them through `FieldNavigation` on the page layout like Up/Down.
 - D-043 P06-T11: debug build, 20k-word note: `text:key` p95 16.8-21.0 ms paced (was 37.4), budget < 16 ms; the rest is the frame pipeline (about 18 ms GPU per light frame), not main-thread text work (A-056).
@@ -41,8 +42,8 @@ updated: 2026-11-08
 - D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P07-T12a+b done: `FlowBox` in `flows/<id>.json` (A-059); core:text `FlowLayout.hit(.., slopPt)`/`outlineOf` by used lines + 0.5 U padding, `TextZones.newBoxAt`/`autoBorders`/`boxZone`, `FlowReflow.plan(.., editBlock)` auto width + box continuation pages. P07-T11 device notes: a heading caret is its full line-box tall (T13).
-- NEXT P07-T12c (editor: `CaretPlans` new box via `newBoxAt` + `FlowBox.created` + autoContinue outside every box (hit with 8 dp slop), typing with nothing focused, empty box removed on blur without undo, dashed outlines (`outlineOf`) with the Text tool, retype at auto width, pass editBlock to plan, D-045, screenshots, device, amend A-050/A-055 lines).
-- Untracked orphan `core/text/src/test/screenshots/FontSpecimen_compact.png` and modified `scripts/auto/run-loop.sh` (user's): stage explicit paths, not `git add -A`.
+- P07-T12 done (a format, b core:text, c editor): Text tool tap outside every outline makes an auto width box (`CaretPlan.NewBox`), empty new box revoked on blur (`DocumentSession.executeRevocable`/`revoke`), `BoxOutlines` dashed overlay with the Text tool, retype at `FrameSlot.growRect` (A-059). Device: with the Pen picked a focused box keeps its handles and the formatting bar (T13 modes); the view jumped ~350 px on that tool tap.
+- NEXT P07-T13 (Preview/Edit modes, toolbar, move, delete; D-041, D-042, D-045 in its Do). P07-T11 note: a heading caret is its full line-box tall.
+- Modified `scripts/auto/run-loop.sh` is the user's: stage explicit paths, not `git add -A`. Device: `debugcmd open lined:N` reuses `perf/lined-N.folio`; wipe the debug library first for a clean note.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; `CaretPlans`/`FlowHits` for taps.
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]`, `open lined:N`; first stylus tap after a debug command is dropped. Tool row y 1963 px, mode pill y 171 px in landscape.

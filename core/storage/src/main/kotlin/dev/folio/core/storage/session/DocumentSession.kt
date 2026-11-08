@@ -102,14 +102,35 @@ class DocumentSession internal constructor(
 
     /** Applies [command] as one undo step. Invalid commands fail without changing the document. */
     suspend fun execute(command: EditCommand): Outcome<Unit> =
+        when (val result = executeRevocable(command)) {
+            is Outcome.Success -> Outcome.Success(Unit)
+            is Outcome.Failure -> result
+        }
+
+    /** Like [execute]; the token is for [revoke] while the step is the newest. */
+    suspend fun executeRevocable(command: EditCommand): Outcome<Any> =
         mutex.withLock {
             check(!closed) { "session is closed" }
             ensureLoaded(command.requiredPages).let { if (it is Outcome.Failure) return@withLock it }
             val applied = apply { command.execute(state.value) } ?: return@withLock Outcome.Failure("invalid command $command")
             undoManager.push(applied)
             commit(applied.doc, command.requiredPages)
-            Outcome.Success(Unit)
+            Outcome.Success(checkNotNull(undoManager.newest))
         }
+
+    /**
+     * Reverts the step [token] stands for ([executeRevocable]) if it is still the newest, leaving neither an undo nor a
+     * redo step (an empty text box dropped again, A-059); false when another step came after it.
+     */
+    suspend fun revoke(token: Any): Outcome<Boolean> {
+        var revoked = false
+        val result =
+            history {
+                val command = if (undoManager.newest === token) undoManager.nextUndo else null
+                command to { doc -> undoManager.revoke(doc, token)?.also { revoked = true } }
+            }
+        return if (result is Outcome.Failure) result else Outcome.Success(revoked)
+    }
 
     /** Reverts the last step (no-op if none). */
     suspend fun undo(): Outcome<Unit> = history { undoManager.nextUndo to { doc -> undoManager.undo(doc) } }

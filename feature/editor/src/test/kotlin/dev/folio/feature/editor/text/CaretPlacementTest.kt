@@ -3,11 +3,13 @@ package dev.folio.feature.editor.text
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.common.Outcome
+import dev.folio.core.model.FlowBox
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.FrameRole
 import dev.folio.core.model.PageId
 import dev.folio.core.model.TextAlign
+import dev.folio.core.model.TextZones
 import dev.folio.core.storage.repo.NewDocumentSpec
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.text.markdown.BlockContent
@@ -56,25 +58,108 @@ class CaretPlacementTest : EditorTextFixture() {
             .objects
             .filterIsInstance<FlowFrame>()
 
+    private val boxZone = TextZones.boxZone(ModelFixtures.A4, ModelFixtures.LINED_BACKGROUND.template)
+
     @Test
-    fun placeCaret_belowTheLastBlock_fillsEmptyParagraphsDownToTheTappedLineAsOneUndoStep() =
+    fun placeCaret_belowTheLastBlock_startsAnAutoWidthBoxAtTheTapInsteadOfFillingTheBody() =
         runTest(main.testDispatcher) {
             val path = note(1, listOf(0), "alpha")
             val (session, text, pages) = ready(path, this)
+            val x = bodyRect.left + 40f
 
-            checkNotNull(session.textController).placeCaret(pages[0], bodyRect.left + 10f, lineY(3))
+            checkNotNull(session.textController).placeCaret(pages[0], x, lineY(3))
             val focus = text.focus.first { it != null }!!
 
-            val blocks = text.parsed(body)!!.blocks
-            assertThat(blocks.map { it.content is BlockContent.Empty }).containsExactly(false, true, true, true).inOrder()
-            assertThat(focus.flowId).isEqualTo(body)
-            assertThat(focus.blockIndex).isEqualTo(3)
+            assertThat(markdown(session.documentSession)).isEqualTo("alpha")
+            val box = session.frames(pages[0]).single { it.role == FrameRole.BOX }
+            assertThat(box.flow).isEqualTo(focus.flowId)
+            assertThat(box.autoGrow).isTrue()
+            assertThat(box.rect.left).isEqualTo(x)
+            assertThat(box.rect.top).isWithin(0.5f).of(bodyRect.top + 3 * lineBoxPt)
+            val flow = session.documentSession.document.value.flows[focus.flowId]!!
+            assertThat(flow.autoContinue).isTrue()
+            assertThat(flow.box).isEqualTo(FlowBox.created(x))
             val field = text.field.first { it != null }!!
             assertThat(field.placement.topPt).isWithin(0.5f).of(bodyRect.top + 3 * lineBoxPt)
 
             assertThat(session.undo()).isTrue()
-            assertThat(markdown(session.documentSession)).isEqualTo("alpha")
+            assertThat(session.frames(pages[0]).map { it.role }).containsExactly(FrameRole.BODY)
             assertThat(session.documentSession.canUndo.value).isFalse()
+        }
+
+    @Test
+    fun placeCaret_justBelowABoxsLastLine_startsANewBoxThere() =
+        runTest(main.testDispatcher) {
+            val path = blankNote(1)
+            val (session, text, pages) = ready(path, this)
+            val controller = checkNotNull(session.textController)
+            assertThat(controller.typeIntoPage(pages[0], "alpha")).isTrue()
+            val first = text.focus.first { it != null }!!.flowId
+            controller.blur()
+
+            controller.placeCaret(pages[0], boxZone.left + 4f, boxZone.top + lineBoxPt + 2f)
+            val second = text.focus.first { it != null && it.flowId != first }!!.flowId
+
+            val boxes = session.frames(pages[0])
+            assertThat(boxes.map { it.flow }).containsExactly(first, second)
+            assertThat(boxes.single { it.flow == second }.rect.top).isWithin(0.5f).of(boxZone.top + lineBoxPt)
+        }
+
+    @Test
+    fun blur_emptyNewBox_removesItWithoutAnUndoStep() =
+        runTest(main.testDispatcher) {
+            val path = blankNote(1)
+            val (session, text, pages) = ready(path, this)
+            val controller = checkNotNull(session.textController)
+
+            controller.placeCaret(pages[0], boxZone.left + 20f, lineY(2))
+            text.focus.first { it != null }
+            controller.blur()
+            session.documentSession.document.first { it.flows.isEmpty() }
+
+            assertThat(session.frames(pages[0])).isEmpty()
+            assertThat(session.documentSession.canUndo.value).isFalse()
+            assertThat(session.documentSession.canRedo.value).isFalse()
+        }
+
+    @Test
+    fun placeCaret_elsewhereFromAnEmptyNewBox_movesTheNewBoxThereAsOneUndoStep() =
+        runTest(main.testDispatcher) {
+            val path = blankNote(1)
+            val (session, text, pages) = ready(path, this)
+            val controller = checkNotNull(session.textController)
+
+            controller.placeCaret(pages[0], boxZone.left + 20f, lineY(2))
+            val first = text.focus.first { it != null }!!.flowId
+            controller.placeCaret(pages[0], boxZone.left + 60f, lineY(6))
+            val second = text.focus.first { it != null && it.flowId != first }!!.flowId
+            session.documentSession.document.first { first !in it.flows }
+
+            val box = session.frames(pages[0]).single()
+            assertThat(box.flow).isEqualTo(second)
+            assertThat(box.rect.left).isEqualTo(boxZone.left + 60f)
+            assertThat(session.undo()).isTrue()
+            assertThat(session.documentSession.document.value.flows).isEmpty()
+            assertThat(session.documentSession.canUndo.value).isFalse()
+        }
+
+    @Test
+    fun blur_newBoxWithText_keepsIt() =
+        runTest(main.testDispatcher) {
+            val path = blankNote(1)
+            val (session, text, pages) = ready(path, this)
+            val controller = checkNotNull(session.textController)
+
+            controller.typeIntoPage(pages[0], "H")
+            val focus = text.focus.first { it != null }!!
+            controller.blur()
+            testScheduler.advanceUntilIdle()
+
+            assertThat(
+                session.documentSession.document.value.flows[focus.flowId]!!
+                    .markdown,
+            ).isEqualTo("H")
+            assertThat(session.frames(pages[0]).single().flow).isEqualTo(focus.flowId)
         }
 
     @Test
@@ -102,12 +187,13 @@ class CaretPlacementTest : EditorTextFixture() {
             val box = session.frames(pages[0]).single { it.role == FrameRole.BOX }
             assertThat(box.flow).isEqualTo(focus.flowId)
             assertThat(box.autoGrow).isTrue()
+            assertThat(box.rect.left).isEqualTo(boxZone.left)
             assertThat(box.rect.top).isAtMost(lineY(5))
             assertThat(lineY(5) - box.rect.top).isLessThan(ModelFixtures.LINED_BACKGROUND.template.spacingPt)
             assertThat(
                 session.documentSession.document.value.flows[focus.flowId]!!
                     .autoContinue,
-            ).isFalse()
+            ).isTrue()
 
             assertThat(session.undo()).isTrue()
             assertThat(session.frames(pages[0]).map { it.role }).containsExactly(FrameRole.BODY)
@@ -115,7 +201,7 @@ class CaretPlacementTest : EditorTextFixture() {
         }
 
     @Test
-    fun placeCaret_documentWithoutText_createsTheBodyFlowWithTheCaretOnTheTappedLine() =
+    fun placeCaret_documentWithoutText_createsABoxWithTheCaretAtTheTap() =
         runTest(main.testDispatcher) {
             val path = blankNote(1)
             val (session, text, pages) = ready(path, this)
@@ -124,17 +210,12 @@ class CaretPlacementTest : EditorTextFixture() {
             val focus = text.focus.first { it != null }!!
 
             val frame = session.frames(pages[0]).single()
-            assertThat(frame.role).isEqualTo(FrameRole.BODY)
-            assertThat(frame.rect).isEqualTo(bodyRect)
-            assertThat(
-                session.documentSession.document.value.flows[frame.flow]!!
-                    .autoContinue,
-            ).isTrue()
+            assertThat(frame.role).isEqualTo(FrameRole.BOX)
+            assertThat(frame.rect.left).isEqualTo(bodyRect.left + 10f)
+            assertThat(frame.rect.top).isWithin(0.5f).of(bodyRect.top + 2 * lineBoxPt)
             assertThat(focus.flowId).isEqualTo(frame.flow)
-            assertThat(focus.blockIndex).isEqualTo(2)
-            assertThat(
-                text.parsed(frame.flow)!!.blocks.map { it.content },
-            ).containsExactly(BlockContent.Empty, BlockContent.Empty, BlockContent.Empty)
+            assertThat(focus.blockIndex).isEqualTo(0)
+            assertThat(text.parsed(frame.flow)!!.blocks.map { it.content }).containsExactly(BlockContent.Empty)
 
             assertThat(session.undo()).isTrue()
             assertThat(session.documentSession.document.value.flows).isEmpty()
@@ -142,17 +223,19 @@ class CaretPlacementTest : EditorTextFixture() {
         }
 
     @Test
-    fun placeCaret_pageAfterTheBodyText_continuesTheBodyFlowWithAFrameThere() =
+    fun placeCaret_pageAfterTheBodyText_startsABoxThereInsteadOfContinuingTheBody() =
         runTest(main.testDispatcher) {
             val path = note(2, listOf(0), "alpha")
             val (session, text, pages) = ready(path, this)
 
             checkNotNull(session.textController).placeCaret(pages[1], bodyRect.left + 10f, lineY(1))
-            text.focus.first { it != null }
+            val focus = text.focus.first { it != null }!!
 
             val frame = session.frames(pages[1]).single()
-            assertThat(frame.flow).isEqualTo(body)
-            assertThat(frame.role).isEqualTo(FrameRole.BODY)
+            assertThat(frame.flow).isEqualTo(focus.flowId)
+            assertThat(frame.flow).isNotEqualTo(body)
+            assertThat(frame.role).isEqualTo(FrameRole.BOX)
+            assertThat(markdown(session.documentSession)).isEqualTo("alpha")
             val field = text.field.first { it != null }!!
             assertThat(field.pageId).isEqualTo(pages[1])
             assertThat(field.placement.topPt).isWithin(0.5f).of(bodyRect.top + lineBoxPt)
@@ -170,13 +253,12 @@ class CaretPlacementTest : EditorTextFixture() {
             val box = session.frames(pages[0]).single()
             assertThat(box.role).isEqualTo(FrameRole.BOX)
             assertThat(box.flow).isEqualTo(focus.flowId)
-            assertThat(box.rect.left).isEqualTo(bodyRect.left)
-            assertThat(box.rect.right).isEqualTo(bodyRect.right)
+            assertThat(box.rect.left).isEqualTo(bodyRect.left + 10f)
             assertThat(markdown(session.documentSession)).isEqualTo("alpha")
         }
 
     @Test
-    fun typeIntoPage_nothingFocused_typesANewParagraphAfterThePageText() =
+    fun typeIntoPage_nothingFocused_typesAtTheEndOfTheLastBoxOnThePage() =
         runTest(main.testDispatcher) {
             val path = note(1, listOf(0), "alpha")
             val (session, text, pages) = ready(path, this)
@@ -184,15 +266,14 @@ class CaretPlacementTest : EditorTextFixture() {
             assertThat(checkNotNull(session.textController).typeIntoPage(pages[0], "xy")).isTrue()
             val focus = text.focus.first { it != null }!!
 
-            val blocks = text.parsed(body)!!.blocks
-            assertThat(blocks.map { it.source }).containsExactly("alpha", "xy").inOrder()
-            assertThat(focus.blockIndex).isEqualTo(1)
-            assertThat(focus.caret).isEqualTo(2)
-            assertThat(text.fieldSource()).isEqualTo("xy")
+            assertThat(text.parsed(body)!!.blocks.map { it.source }).containsExactly("alphaxy")
+            assertThat(focus.blockIndex).isEqualTo(0)
+            assertThat(focus.caret).isEqualTo(7)
+            assertThat(text.fieldSource()).isEqualTo("alphaxy")
         }
 
     @Test
-    fun typeIntoPage_blankDocument_createsTheBodyFlowWithTheText() =
+    fun typeIntoPage_blankDocument_createsABoxOnTheFirstLineOfTheTextZone() =
         runTest(main.testDispatcher) {
             val path = blankNote(1)
             val (session, text, pages) = ready(path, this)
@@ -204,7 +285,10 @@ class CaretPlacementTest : EditorTextFixture() {
                 session.documentSession.document.value.flows[focus.flowId]!!
                     .markdown,
             ).isEqualTo("H")
-            assertThat(session.frames(pages[0]).single().role).isEqualTo(FrameRole.BODY)
+            val box = session.frames(pages[0]).single()
+            assertThat(box.role).isEqualTo(FrameRole.BOX)
+            assertThat(box.rect.left).isEqualTo(boxZone.left)
+            assertThat(box.rect.top).isEqualTo(boxZone.top)
             assertThat(focus.caret).isEqualTo(1)
         }
 

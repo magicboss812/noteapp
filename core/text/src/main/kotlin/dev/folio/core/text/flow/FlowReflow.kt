@@ -38,15 +38,26 @@ object FlowFrames {
         doc: Document,
         flowId: FlowId,
     ): List<FrameSlot> {
-        val continues = doc.flows[flowId]?.autoContinue == true
+        val flow = doc.flows[flowId]
+        val continues = flow?.autoContinue == true
         val slots = ArrayList<FrameSlot>()
         for (ref in doc.pages) {
             val page = doc.page(ref.id) ?: continue
+            val widest = flow?.let { widestBorders(ref, it) }
             page.objects
                 .filter { it is FlowFrame && it.flow == flowId }
                 .map { it as FlowFrame }
                 .sortedBy { it.order }
-                .mapTo(slots) { slotOf(ref, it, continues) }
+                .mapTo(slots) { frame ->
+                    val slot = slotOf(ref, frame, continues)
+                    if (widest == null ||
+                        !frame.autoGrow
+                    ) {
+                        slot
+                    } else {
+                        slot.copy(growRect = RectPt(widest.leftPt, slot.rect.top, widest.rightPt, slot.rect.bottom))
+                    }
+                }
             page.objects
                 .filterIsInstance<StickyNote>()
                 .filter { it.flow == flowId }
@@ -86,6 +97,16 @@ object FlowFrames {
                 }
             }
         return FrameSlot(ref.id, frame.id, frame.rect, LayoutGrid.of(unit), capacity)
+    }
+
+    // The widest borders of an auto width [flow] on page [ref] (A-059), null for fixed borders.
+    private fun widestBorders(
+        ref: PageRef,
+        flow: TextFlow,
+    ): Borders? {
+        val anchor = flow.box.anchorXPt?.takeIf { flow.box.autoWidth } ?: return null
+        val zone = TextZones.boxZone(ref.spec, ref.background.template)
+        return TextZones.autoBorders(zone, anchor, flow.style.align, Float.POSITIVE_INFINITY)
     }
 
     /** Slot of [sticky]: its padded content rect in sticky coordinates, lines at the page's U without column snapping. */

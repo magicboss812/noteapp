@@ -90,6 +90,28 @@ class DocumentSessionTest : RepositoryTestBase() {
         }
 
     @Test
+    fun revoke_newestStep_leavesNoUndoOrRedo() =
+        runTest {
+            val ref = documents.create(spec("Revoke", pages = 1)).orThrow()
+            val session = sessions(backgroundScope).open(ref.path).orThrow()
+            val pageId =
+                session.document.value.pages[0]
+                    .id
+            val stroke = ModelFixtures.randomStroke(random, ObjectId("s1"))
+            val token = session.executeRevocable(AddObjects(pageId, listOf(stroke))).orThrow()
+
+            assertThat(session.revoke(token).orThrow()).isTrue()
+            assertThat(
+                session.document.value
+                    .page(pageId)!!
+                    .objects,
+            ).isEmpty()
+            assertThat(session.canUndo.value).isFalse()
+            assertThat(session.canRedo.value).isFalse()
+            assertThat(session.revoke(token).orThrow()).isFalse()
+        }
+
+    @Test
     fun loadPages_manyPages_holdsAtMost30AndEditsSurviveEviction() =
         runTest {
             val ref = documents.create(spec("Big", pages = 80)).orThrow()

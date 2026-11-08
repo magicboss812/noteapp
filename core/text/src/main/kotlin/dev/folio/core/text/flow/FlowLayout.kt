@@ -23,7 +23,8 @@ import dev.folio.core.text.markdown.MarkdownDocument
  * A frame a flow is laid out into: [rect] in the coordinates its text is drawn in (page pt; sticky-local for sticky
  * notes), [rect] top on a rule of [grid]. [capacityUnits] is the number of whole line boxes it holds
  * ([FlowDistributor.UNBOUNDED] on infinite pages and for auto-growing boxes). [frameId] is the `FlowFrame` or
- * `StickyNote` the slot belongs to.
+ * `StickyNote` the slot belongs to. [growRect] is the widest column an auto width box may take (A-059), [rect]
+ * otherwise; a keystroke is laid out there before the reflow sets the borders ([FlowLayouter.retype]).
  */
 data class FrameSlot(
     val pageId: PageId,
@@ -31,6 +32,7 @@ data class FrameSlot(
     val rect: RectPt,
     val grid: LayoutGrid,
     val capacityUnits: Int,
+    val growRect: RectPt = rect,
 )
 
 /**

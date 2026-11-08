@@ -98,6 +98,31 @@ class UndoManagerTest {
             }
         }
 
+    @Test
+    fun revoke_newestEntry_revertsWithoutUndoOrRedoStep() {
+        val undo = UndoManager(clock)
+        var doc = type(base, "a", null).also { undo.push(it) }.doc
+        doc = type(doc, "b", null).also { undo.push(it) }.doc
+        val token = checkNotNull(undo.newest)
+        doc = type(doc, "c", "k").also { undo.push(it) }.doc
+        doc = undo.undo(doc)!!.doc
+        assertThat(undo.newest).isSameInstanceAs(token)
+        doc = undo.revoke(doc, token)!!.doc
+        assertThat(doc.flows.getValue(FlowId("f")).markdown).isEqualTo("a")
+        assertThat(undo.undoDepth).isEqualTo(1)
+        assertThat(undo.redoDepth).isEqualTo(0)
+    }
+
+    @Test
+    fun revoke_afterAnotherPush_isRefused() {
+        val undo = UndoManager(clock)
+        var doc = type(base, "a", null).also { undo.push(it) }.doc
+        val token = checkNotNull(undo.newest)
+        doc = type(doc, "b", null).also { undo.push(it) }.doc
+        assertThat(undo.revoke(doc, token)).isNull()
+        assertThat(undo.undoDepth).isEqualTo(2)
+    }
+
     private fun type(
         doc: dev.folio.core.model.Document,
         text: String,

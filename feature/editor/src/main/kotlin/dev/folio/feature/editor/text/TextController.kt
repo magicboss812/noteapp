@@ -84,6 +84,8 @@ class CanvasText(
     val field: TextFieldSpec?,
     /** The selection of [field]'s flow the canvas draws, null while it is collapsed. */
     val selection: SelectionHighlight? = null,
+    /** Dashed box outlines by page (page pt), shown while the Text tool is active; empty otherwise (A-059). */
+    val outlines: Map<PageId, List<RectPt>> = emptyMap(),
 ) {
     /** Constants. */
     companion object {
@@ -290,12 +292,14 @@ interface TextController {
 
     /**
      * Focuses the block shown at ([xPt], [yPt]) of page [pageId] with the caret under that point, or ends editing when
-     * the point is on no text frame; true if a block got focus. Main thread, traced as `text:focus`.
+     * the point is on no box (its used lines and [slopPt] around them, A-059); true if a block got focus. Main thread,
+     * traced as `text:focus`.
      */
     fun focusAt(
         pageId: PageId,
         xPt: Float,
         yPt: Float,
+        slopPt: Float = 0f,
     ): Boolean
 
     /** Like [focusAt], but a point on no text frame leaves the focus where it is (arrow keys at the edge of the flow). */
@@ -415,13 +419,14 @@ interface TextController {
     ) = Unit
 
     /**
-     * A Text tool tap at ([xPt], [yPt]) of page [pageId] (10-editor-ui.md#text-tool): the caret goes to the text there,
-     * to the tapped line below the end of a flow, into the body flow of the page or into a new text box. Main thread.
+     * A Text tool tap at ([xPt], [yPt]) of page [pageId] (10-editor-ui.md#text-boxes): the caret goes to the box there
+     * (its used lines and [slopPt] around them), else into a new box at the tap. Main thread.
      */
     fun placeCaret(
         pageId: PageId,
         xPt: Float,
         yPt: Float,
+        slopPt: Float = 0f,
     ) = Unit
 
     /**

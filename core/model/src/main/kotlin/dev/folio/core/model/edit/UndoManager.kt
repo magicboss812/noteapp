@@ -51,6 +51,26 @@ class UndoManager(
     /** Command [redo] will execute next. */
     val nextRedo: EditCommand? get() = redoStack.lastOrNull()?.command
 
+    /** An opaque token of the newest undo entry for [revoke], null without one; a coalesced push makes a new one. */
+    val newest: Any? get() = undoStack.lastOrNull()
+
+    /**
+     * Reverts the newest entry on [doc] if it is still the one of [token] ([newest] after its push) and forgets it: no
+     * redo entry, and the redo entries pushed on top of it are dropped. Null if [token] is not the newest entry.
+     */
+    fun revoke(
+        doc: Document,
+        token: Any,
+    ): Applied? {
+        val entry = undoStack.lastOrNull()?.takeIf { it === token } ?: return null
+        val applied = entry.command.execute(doc)
+        undoStack.removeLast()
+        redoStack.clear()
+        coalesceOpen = false
+        publish()
+        return applied
+    }
+
     /** Records an executed command. Clears the redo stack. */
     fun push(applied: Applied) {
         redoStack.clear()

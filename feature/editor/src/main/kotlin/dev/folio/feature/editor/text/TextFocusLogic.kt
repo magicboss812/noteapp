@@ -53,16 +53,28 @@ internal fun TextFocus.shownIn(layouts: Map<FlowId, FlowLayout>): FocusedBlock {
 /**
  * The focus a tap at ([xPt], [yPt]) of page [pageId] means: the block under the point in the first flow with a frame
  * there, the caret at the character nearest to it (the end of the block below the last line). Null on no text frame.
- * [revision] is the revision of the focus before; the new one is the next.
+ * A box takes taps up to [slopPt] beside its lines (A-059). [revision] is the revision of the focus before; the new
+ * one is the next.
  */
 internal fun TextSnapshot.focusAt(
     pageId: PageId,
     xPt: Float,
     yPt: Float,
     revision: Int,
+    slopPt: Float = 0f,
+): TextFocus? =
+    // A box under the point wins over one whose slop reaches it.
+    focusWithin(pageId, xPt, yPt, revision, 0f) ?: if (slopPt > 0f) focusWithin(pageId, xPt, yPt, revision, slopPt) else null
+
+private fun TextSnapshot.focusWithin(
+    pageId: PageId,
+    xPt: Float,
+    yPt: Float,
+    revision: Int,
+    slopPt: Float,
 ): TextFocus? =
     layouts.firstNotNullOfOrNull { (flowId, layout) ->
-        val hit = layout.hit(pageId, xPt, yPt)
+        val hit = layout.hit(pageId, xPt, yPt, slopPt)
         val block = hit?.let { layout.markdown.blocks.getOrNull(it.blockIndex) }
         if (hit == null || block == null) {
             null

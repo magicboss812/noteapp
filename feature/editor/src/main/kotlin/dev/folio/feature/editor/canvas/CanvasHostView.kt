@@ -219,6 +219,9 @@ class CanvasHostView internal constructor(
             textField.liveField?.onTextContextMenuItem(id)
         }
 
+    /** The dashed outlines of the text boxes while the Text tool is active (tests read what it shows). */
+    internal val boxOutlines = BoxOutlines(context, controller.viewport) { document }
+
     /** The grip and width handles of a focused free text box (tests read what it shows). */
     internal val boxHandles = BoxHandles(context, controller.viewport, controller) { document }
 
@@ -280,6 +283,7 @@ class CanvasHostView internal constructor(
         val match = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
         addView(background, match)
         addView(content, LayoutParams(match))
+        addView(boxOutlines, LayoutParams(match))
         addView(overlay, LayoutParams(match))
         addView(selectionView, LayoutParams(match))
         addView(boxHandles, LayoutParams(match))
@@ -332,6 +336,7 @@ class CanvasHostView internal constructor(
         refreshTiles()
         textField.refresh()
         boxHandles.refresh()
+        if (boxOutlines.shown.isNotEmpty()) boxOutlines.invalidate()
     }
 
     /**
@@ -353,6 +358,7 @@ class CanvasHostView internal constructor(
         textField.show(next.field)
         selectionView.show(next.selection)
         boxHandles.show(next.field?.focus?.flowId)
+        boxOutlines.show(next.outlines)
     }
 
     private fun textOf(id: PageId): PageText = pageTexts[id] ?: PageText.EMPTY
@@ -593,10 +599,13 @@ class CanvasHostView internal constructor(
         // Checkboxes and links act in every tool; placing a caret needs a tool other than navigate.
         if (texts.tapAt(pageId, pt.x, pt.y) || controller.activeTool == CanvasTool.NAVIGATE) return
         textField.tapped(System.nanoTime())
-        texts.focusAt(pageId, pt.x, pt.y)
+        texts.focusAt(pageId, pt.x, pt.y, boxSlopPt())
     }
 
-    // A pen tap with the Text tool: the caret goes to the text there, the tapped body line or a new box (10-editor-ui.md#text-tool).
+    // The slop around a box's lines that still takes a tap (A-059), in page pt at the current zoom.
+    private fun boxSlopPt(): Float = BOX_SLOP_DP * resources.displayMetrics.density / viewport.scale
+
+    // A pen tap with the Text tool: the caret goes to the box there or into a new box at the tap (10-editor-ui.md#text-boxes).
     private fun onTextToolTap(
         xPx: Float,
         yPx: Float,
@@ -606,7 +615,7 @@ class CanvasHostView internal constructor(
         val pt = viewport.toPagePt(pageId, PointPx(xPx, yPx))
         if (texts.tapAt(pageId, pt.x, pt.y)) return
         textField.tapped(System.nanoTime())
-        texts.placeCaret(pageId, pt.x, pt.y)
+        texts.placeCaret(pageId, pt.x, pt.y, boxSlopPt())
     }
 
     private fun onViewportChanged() {
@@ -615,6 +624,7 @@ class CanvasHostView internal constructor(
         textField.place()
         if (selectionView.shown != null) selectionView.invalidate()
         if (boxHandles.shown != null) boxHandles.invalidate()
+        if (boxOutlines.shown.isNotEmpty()) boxOutlines.invalidate()
         val now = SystemClock.uptimeMillis()
         lastViewportChangeMs = now
         removeCallbacks(idleRequest)
@@ -835,6 +845,9 @@ private const val PAGE_JUMP_MS = 200L
 
 // Room kept between the caret line and the view top or the chrome covering the canvas bottom.
 private const val CARET_MARGIN_DP = 24f
+
+// Slop around a text box's used lines that still takes a tap (10-editor-ui.md#text-boxes).
+private const val BOX_SLOP_DP = 8f
 
 private fun tileBudgetBytes(context: Context): Long {
     val reported = context.getSystemService(ActivityManager::class.java)?.largeMemoryClass ?: 0
