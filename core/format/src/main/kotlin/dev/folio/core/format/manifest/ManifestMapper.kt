@@ -11,6 +11,7 @@ import dev.folio.core.model.Background
 import dev.folio.core.model.DocId
 import dev.folio.core.model.Document
 import dev.folio.core.model.DocumentMeta
+import dev.folio.core.model.FlowBox
 import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.Orientation
 import dev.folio.core.model.PageId
@@ -100,6 +101,7 @@ internal object ManifestMapper {
     fun flowStyleToJson(
         style: FlowStyle,
         autoContinue: Boolean,
+        box: FlowBox = FlowBox.FIXED,
     ): FlowStyleJson =
         FlowStyleJson(
             style.fontFamily,
@@ -108,14 +110,19 @@ internal object ManifestMapper {
             style.align.name.lowercase(),
             autoContinue,
             style.baselineLiftUnits,
+            style.textArgb?.let(::formatArgb),
+            FlowBoxMapper.toJson(box),
         )
 
     fun flowStyleFromJson(json: FlowStyleJson): FlowStyle {
         val align = TextAlign.entries.firstOrNull { it.name.equals(json.align, ignoreCase = true) } ?: TextAlign.START
         // An out-of-range lift from a foreign file is clamped, never trusted (it would move text off the grid).
         val lift = FlowStyle.clampBaselineLift(json.baselineLiftUnits)
-        return FlowStyle(json.fontFamily, json.sizeRatio, json.paragraphGapLines, align, lift)
+        return FlowStyle(json.fontFamily, json.sizeRatio, json.paragraphGapLines, align, lift, json.textArgb?.let(::parseArgb))
     }
+
+    /** The box of a flow style file; files written before boxes existed: the body flow (auto-continuing) fills. */
+    fun flowBoxFromJson(json: FlowStyleJson): FlowBox = FlowBoxMapper.fromJson(json.box, json.autoContinue)
 
     private fun pageToJson(ref: PageRef): ManifestPage {
         val f = SpecFields.of(ref.spec)

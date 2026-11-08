@@ -41,8 +41,8 @@ updated: 2026-11-08
 - D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P07-T11 done: touch selection (`SelectionGestures` + pure `TextTouch` in canvas, `WordRanges` in core:text, floating menu in `SelectionOverlay`); 07-text-engine.md#selection-as-built. Device 7/7 PASS. Device notes: switching to the pen tool keeps text editing; a heading caret is its full line-box tall (look at in T12/T13).
-- NEXT P07-T12. Text box redesign spec 10-editor-ui.md#text-boxes, A-057; tasks P07-T12..T17 run before P07-T01. Word selection is limited to the edited block until T13.
+- P07-T12a done: `FlowBox` on `TextFlow` (anchor, auto width, fill, border sets, offset), `TextAlign.END`, `FlowStyle.textArgb`, all in `flows/<id>.json` (A-059, legacy read = body flow fills). P07-T11 device notes: a heading caret is its full line-box tall (T13).
+- NEXT P07-T12b (core:text: `FlowLayout.hit` by used lines + slop, `TextZones` new box at the tap, auto width borders, BOX frames of auto-continuing flows continue on a continuation page), then T12c (editor: `CaretPlans` new box outside every box, typing with nothing focused, empty box removed without undo, dashed outlines with the Text tool, screenshots, device), then D-045.
 - Untracked orphan `core/text/src/test/screenshots/FontSpecimen_compact.png` and modified `scripts/auto/run-loop.sh` (user's): stage explicit paths, not `git add -A`.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; `CaretPlans`/`FlowHits` for taps.
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]`, `open lined:N`; first stylus tap after a debug command is dropped. Tool row y 1963 px, mode pill y 171 px in landscape.

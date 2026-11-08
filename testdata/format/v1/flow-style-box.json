@@ -1,0 +1,18 @@
+{
+    "fontFamily": "Kalam",
+    "sizeRatio": 0.6,
+    "paragraphGapLines": 1,
+    "align": "end",
+    "autoContinue": true,
+    "baselineLiftUnits": 0.2,
+    "textArgb": "#FF1E5AA8",
+    "box": {
+        "anchorXPt": 140.5,
+        "autoWidth": true,
+        "fill": false,
+        "custom": [130.5, 300.0],
+        "fillBorders": [62.0, 550.0],
+        "centerSaved": [100.0, 260.0],
+        "offsetPt": -4.5
+    }
+}

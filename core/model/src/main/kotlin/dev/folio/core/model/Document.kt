@@ -6,12 +6,13 @@ import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentMapOf
 import kotlin.math.roundToInt
 
-/** Text alignment of a flow. */
-enum class TextAlign { START, CENTER, JUSTIFIED }
+/** Text alignment of a flow: START (left), CENTER, END (right), JUSTIFIED. */
+enum class TextAlign { START, CENTER, END, JUSTIFIED }
 
 /**
  * Per-flow text style; [sizeRatio] is the target cap height as a fraction of the grid unit U. [baselineLiftUnits]
  * raises every baseline of the flow that fraction of U above its rule (07-text-engine.md#line-box, A-054).
+ * [textArgb] is the flow's text color, null for Auto (near-black on light paper, near-white on dark).
  */
 data class FlowStyle(
     val fontFamily: String,
@@ -19,6 +20,7 @@ data class FlowStyle(
     val paragraphGapLines: Int,
     val align: TextAlign,
     val baselineLiftUnits: Float = 0f,
+    val textArgb: Int? = null,
 ) {
     /** Lift range and step. */
     companion object {
@@ -40,12 +42,16 @@ data class FlowStyle(
     }
 }
 
-/** A Markdown text flow laid out across frames; [autoContinue] adds pages when the text overflows. */
+/**
+ * A Markdown text flow laid out across frames; [autoContinue] adds pages when the text overflows. [box] is its box
+ * geometry (10-editor-ui.md#text-boxes).
+ */
 data class TextFlow(
     val id: FlowId,
     val markdown: String,
     val style: FlowStyle,
     val autoContinue: Boolean,
+    val box: FlowBox = FlowBox.FIXED,
 )
 
 /** An asset stored once per document (images, PDFs, attachments, custom templates). */

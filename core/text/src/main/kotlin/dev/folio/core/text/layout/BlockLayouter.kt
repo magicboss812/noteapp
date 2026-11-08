@@ -851,6 +851,7 @@ class BlockLayouter(
             when (alignment) {
                 FlowAlignment.START -> TextAlign.Start
                 FlowAlignment.CENTER -> TextAlign.Center
+                FlowAlignment.END -> TextAlign.End
                 FlowAlignment.JUSTIFIED -> if (justify) TextAlign.Justify else TextAlign.Start
             }
 

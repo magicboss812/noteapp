@@ -5,6 +5,7 @@ import dev.folio.core.format.manifest.ManifestApp
 import dev.folio.core.model.AssetId
 import dev.folio.core.model.AssetInfo
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowBox
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageSpec
@@ -75,8 +76,9 @@ class GoldenContainerTest {
                 listOf(flow),
                 listOf(AssetInfo(ASSET, "image/png", PNG_1X1.size.toLong(), "dot.png")),
             )
+        // The golden predates box geometry (P07-T12): its auto-continuing flow reads as the fill width body flow.
         return doc
-            .copy(meta = doc.meta.copy(title = "Physics 11 - Kinematics"), flows = doc.flows)
+            .copy(meta = doc.meta.copy(title = "Physics 11 - Kinematics"), flows = doc.flows.put(flow.id, flow.copy(box = FlowBox.FILL)))
             .also { check(it.flows.containsKey(FlowId(flow.id.value))) }
     }
 

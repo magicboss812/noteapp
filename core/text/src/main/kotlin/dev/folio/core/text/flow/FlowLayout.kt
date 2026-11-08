@@ -272,6 +272,7 @@ fun FlowStyle.toTextStyle(): FlowTextStyle =
             when (align) {
                 TextAlign.START -> FlowAlignment.START
                 TextAlign.CENTER -> FlowAlignment.CENTER
+                TextAlign.END -> FlowAlignment.END
                 TextAlign.JUSTIFIED -> FlowAlignment.JUSTIFIED
             },
         baselineLiftUnits = FlowStyle.clampBaselineLift(baselineLiftUnits),

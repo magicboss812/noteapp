@@ -6,7 +6,7 @@ import dev.folio.core.text.fonts.BodySize
 import dev.folio.core.text.fonts.FontRegistry
 
 /** Horizontal alignment of a flow (07-text-engine.md#block-styles); JUSTIFIED applies to paragraphs only. */
-enum class FlowAlignment { START, CENTER, JUSTIFIED }
+enum class FlowAlignment { START, CENTER, END, JUSTIFIED }
 
 /**
  * Colors baked into span styles. Body text color is chosen at draw time; links, highlight bands and

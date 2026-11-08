@@ -100,7 +100,12 @@ object DocumentCodec {
                 } else {
                     Outcome.Success(FlowStyleJson())
                 }
-            styleJson.map { s -> TextFlow(id, md.decodeToString(), ManifestMapper.flowStyleFromJson(s), s.autoContinue) }
+            styleJson.flatMap { s ->
+                guard(styleName) {
+                    val style = ManifestMapper.flowStyleFromJson(s)
+                    Outcome.Success(TextFlow(id, md.decodeToString(), style, s.autoContinue, ManifestMapper.flowBoxFromJson(s)))
+                }
+            }
         }
 
     private fun readFlows(

@@ -120,6 +120,22 @@ data class FlowStyleJson(
     val autoContinue: Boolean = true,
     /** Baseline lift in U (A-054); absent in files written before it, which means 0. */
     val baselineLiftUnits: Float = 0f,
+    /** Text color `#AARRGGBB`, null for Auto (P07-T12). */
+    val textArgb: String? = null,
+    /** Box geometry (P07-T12); absent in older files: the body flow (auto-continuing) fills, other flows keep their frames. */
+    val box: FlowBoxJson? = null,
+)
+
+/** Box geometry of a flow inside `flows/<flowId>.json`; border sets are `[left, right]` in page pt. */
+@Serializable
+data class FlowBoxJson(
+    val anchorXPt: Float? = null,
+    val autoWidth: Boolean = false,
+    val fill: Boolean = false,
+    val custom: List<Float>? = null,
+    val fillBorders: List<Float>? = null,
+    val centerSaved: List<Float>? = null,
+    val offsetPt: Float = 0f,
 )
 
 /** JSON settings for all format JSON: unknown keys ignored, defaults written, human-readable. */

@@ -79,10 +79,16 @@ data class StickyNote(override val id: ObjectId, val flow: FlowId, val rect: Rec
                       val rotationDeg: Float, val argb: Int) : PageObject
 data class Attachment(override val id: ObjectId, val asset: AssetId, val displayName: String,
                       val mime: String, val position: PointPt) : PageObject
-data class TextFlow(val id: FlowId, val markdown: String, val style: FlowStyle, val autoContinue: Boolean)
+data class TextFlow(val id: FlowId, val markdown: String, val style: FlowStyle, val autoContinue: Boolean,
+                    val box: FlowBox = FlowBox.FIXED)
 data class FlowStyle(val fontFamily: String, val sizeRatio: Float, val paragraphGapLines: Int,
-                     val align: TextAlign)
+                     val align: TextAlign, val baselineLiftUnits: Float = 0f, val textArgb: Int? = null)
+enum class TextAlign { START, CENTER, END, JUSTIFIED }
+data class FlowBox(val anchorXPt: Float?, val autoWidth: Boolean, val fill: Boolean,   // P07-T12, A-059
+                   val custom: Borders?, val fillBorders: Borders?, val centerSaved: Borders?, val offsetPt: Float)
+data class Borders(val leftPt: Float, val rightPt: Float)
 ```
+Box geometry (10-editor-ui.md#text-boxes): every flow is a box. Its frames hold the text column per page (the active border set); `FlowBox` keeps what the frames cannot: the anchor x of the creating tap, auto width, which set is active (fill), the inactive sets, the borders saved before Center, and the vertical offset of the whole box (A-057). `textArgb` null = Auto color.
 Z-order rules: new objects go on top. Body flow frames are created at the bottom of the z-order so ink drawn later lies above text. Highlighter strokes are ordinary strokes drawn with transparency.
 Tables, links, math, checklists live inside flow Markdown, not as page objects.
 

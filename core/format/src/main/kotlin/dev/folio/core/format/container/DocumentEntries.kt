@@ -30,7 +30,7 @@ object DocumentEntries {
 
     /** `flows/<id>.md` and `flows/<id>.json` entries. */
     fun encodeFlow(flow: TextFlow): List<Pair<String, ByteArray>> {
-        val style = ManifestMapper.flowStyleToJson(flow.style, flow.autoContinue)
+        val style = ManifestMapper.flowStyleToJson(flow.style, flow.autoContinue, flow.box)
         return listOf(
             FolioEntries.flowText(flow.id) to flow.markdown.encodeToByteArray(),
             FolioEntries.flowStyle(flow.id) to FolioJson.encodeToString(FlowStyleJson.serializer(), style).encodeToByteArray(),
