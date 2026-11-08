@@ -48,7 +48,9 @@ internal class TextRunPainter {
         for (i in runs.indices) {
             val run = runs[i]
             if (!run.bounds.intersects(regionPt)) continue
-            decorate(canvas, run, scale, textArgb, borderArgb)
+            // A flow with its own color (P07-T17) paints in it; Auto takes the caller's color for the paper.
+            val argb = run.textArgb ?: textArgb
+            decorate(canvas, run, scale, argb, borderArgb)
             // A block continued in another frame shows only its own line boxes; the rest of the paragraph is clipped away,
             // including the descenders the line before the slice hangs below its rule.
             val clipped = run.partial
@@ -63,7 +65,7 @@ internal class TextRunPainter {
                     run.sliceBottomPt + overhang,
                 )
             }
-            run.layout.paint(target, run.leftPt, run.topPt, 1f, textArgb, run.hiddenCell)
+            run.layout.paint(target, run.leftPt, run.topPt, 1f, argb, run.hiddenCell)
             if (clipped) canvas.restore()
         }
     }

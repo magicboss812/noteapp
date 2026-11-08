@@ -16,6 +16,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.google.common.truth.Truth.assertThat
+import dev.folio.core.ink.brush.BrushPresets
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FrameRole
@@ -32,6 +33,7 @@ import dev.folio.core.text.flow.PageTexts
 import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.layout.BlockLayouter
 import dev.folio.feature.editor.canvas.TouchEvents.event
+import dev.folio.feature.editor.text.BoxLooks
 import dev.folio.feature.editor.text.BoxPiece
 import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.SelectedBox
@@ -91,6 +93,7 @@ class BoxHandlesTest {
         topPt: Float = 180f,
         fill: Boolean = false,
         align: TextAlign = TextAlign.START,
+        looks: BoxLooks = BoxLooks(sizePt = 11f),
     ): RectPt {
         val pages = controller.document.value.pages
         val page = pages[0].id
@@ -105,7 +108,7 @@ class BoxHandlesTest {
                 flows =
                     listOf(
                         ModelFixtures.flow(boxFlow.value, "A free text box that holds two lines of text.").let {
-                            it.copy(style = it.style.copy(align = align))
+                            it.copy(style = it.style.copy(align = align, sizeRatio = looks.sizeRatio, textArgb = looks.textArgb))
                         },
                     ),
             )
@@ -115,7 +118,15 @@ class BoxHandlesTest {
         val focus = if (editing) TextFocus(boxFlow, block.id, 0, block.source.length, 1) else null
         outline = layout.outlineOf(0)
         val selected =
-            SelectedBox(boxFlow, editing, listOf(BoxPiece(page, boxId, rect, outline)), movable = true, fill = fill, align = align)
+            SelectedBox(
+                boxFlow,
+                editing,
+                listOf(BoxPiece(page, boxId, rect, outline)),
+                movable = true,
+                fill = fill,
+                align = align,
+                looks = looks,
+            )
         compose.runOnUiThread {
             controller.document.value = doc
             controller.canvasText.value =
@@ -518,7 +529,7 @@ class BoxHandlesTest {
         compose.onRoot().captureRoboImage("src/test/screenshots/CanvasHost_boxAlignPopup.png")
         // Places the toolbar and the popup as a touch does.
         handles.toolbarCovers(-1f, -1f)
-        val popup = handles.toolbar.alignPopup
+        val popup = handles.toolbar.popup
         assertThat(popup.isEmpty).isFalse()
         assertThat(popup.bottom).isAtMost(handles.toolbar.pill.top)
         // Four icons: the second one is Center.
@@ -532,6 +543,59 @@ class BoxHandlesTest {
         assertThat(handles.alignsOpen).isFalse()
         assertThat(texts.boxTaps).isEmpty()
         assertThat(texts.movedBoxes).isEmpty()
+    }
+
+    // The middle of item [item] of the open popup (view px).
+    private fun itemCenter(item: Int): Pair<Float, Float> {
+        val handles = hostView().boxHandles
+        handles.toolbarCovers(-1f, -1f)
+        val popup = handles.toolbar.popup
+        val kind = checkNotNull(handles.toolbar.popupKind)
+        return popup.left + popup.width() * (item + 0.5f) / kind.items to popup.centerY()
+    }
+
+    @Test
+    fun sizeButton_opensSmallerSmlLarger_pickingStaysInPreviewAndKeepsThePopupOpen() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        showBox(looks = BoxLooks(sizeRatio = 0.45f, sizePt = 11f))
+        val handles = hostView().boxHandles
+
+        tap(buttonCenter(BoxButton.SIZE))
+
+        assertThat(handles.openPopup).isEqualTo(BoxPopup.SIZE)
+        compose.onRoot().captureRoboImage("src/test/screenshots/CanvasHost_boxSizePopup.png")
+        tap(itemCenter(3))
+        tap(itemCenter(4))
+        tap(itemCenter(0))
+        assertThat(texts.sized).containsExactly(0.52f, 0.5f, 0.4f).inOrder()
+        assertThat(handles.openPopup).isEqualTo(BoxPopup.SIZE)
+        assertThat(texts.editBoxCount).isEqualTo(0)
+        assertThat(texts.boxTaps).isEmpty()
+
+        tap(buttonCenter(BoxButton.SIZE))
+        assertThat(handles.openPopup).isNull()
+    }
+
+    @Test
+    fun colorButton_opensAutoAndThePenPalette_pickingColorsTheBoxAndClosesIt() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        showBox(looks = BoxLooks(sizePt = 11f, textArgb = BrushPresets.PEN_PALETTE[1]))
+        val handles = hostView().boxHandles
+
+        tap(buttonCenter(BoxButton.COLOR))
+
+        assertThat(handles.openPopup).isEqualTo(BoxPopup.COLOR)
+        compose.onRoot().captureRoboImage("src/test/screenshots/CanvasHost_boxColorPopup.png")
+        tap(itemCenter(3))
+        assertThat(texts.colored).containsExactly(BrushPresets.PEN_PALETTE[2])
+        assertThat(handles.openPopup).isNull()
+
+        tap(buttonCenter(BoxButton.COLOR))
+        tap(itemCenter(0))
+        assertThat(texts.colored).containsExactly(BrushPresets.PEN_PALETTE[2], null).inOrder()
+        assertThat(texts.editBoxCount).isEqualTo(0)
     }
 
     @Test

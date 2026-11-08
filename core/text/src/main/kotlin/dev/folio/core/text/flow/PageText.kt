@@ -23,6 +23,8 @@ data class TextRun(
     val codeBackgroundArgb: Int,
     /** Table cell the live field draws instead ([dev.folio.core.text.layout.TableLayout.cellIndex]), -1 for none. */
     val hiddenCell: Int = -1,
+    /** The flow's text color (P07-T17), null for Auto: the painter's color for the paper. */
+    val textArgb: Int? = null,
 ) {
     /** Top of the first line box shown. */
     val sliceTopPt: Float get() = topPt + layout.lineTopPt(firstLine)

@@ -21,6 +21,7 @@ Typed text is Markdown, laid out on the page grid so that every line sits on the
 - Target cap heights (fraction of U): body S 0.38, M 0.45 (default), L 0.52; H1 0.95 (2U box); H2 0.75 (2U box); H3 0.55 bold (1U box); code 0.40 (monospace); table cells = body; sticky notes = body.
 - The user picks S/M/L per flow and a font family per flow. Mixed fonts inside a flow: code spans use the monospace family, math uses the math renderer; all share the line box.
 - Free size (A-039): the flow's body cap fraction may also be any value in 0.30..1.80; every role scales by body/0.45 and its line box is max(role minimum, ceil(cap / 0.66)) x U (the table above is the M case: H1/H2 minimum 2U, others 1U). Text never moves inside its box: baselines stay on rules.
+- Box toolbar (A-063): minus and plus step the body cap fraction by 0.05 inside the free range (`TextSizing.steppedBodyCap`); a test lays out every bundled font at every reachable size and checks whole-U boxes and baselines on the rules.
 - Bold roles (H1..H3) are sized from the bold face's own cap ratio. `TextSizing.derive` returns font size, cap fraction and box units; tests assert the cap height within 1% for all bundled fonts.
 
 ## Fonts

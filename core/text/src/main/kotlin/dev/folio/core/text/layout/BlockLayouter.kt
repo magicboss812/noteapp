@@ -125,6 +125,12 @@ class BlockLayouter(
         return layout
     }
 
+    /** Body font size in pt of [style] on a grid of [unitPt] (the box toolbar's size number, P07-T17). */
+    fun bodyFontSizePt(
+        style: FlowTextStyle,
+        unitPt: Float,
+    ): Float = TextSizing.derive(metrics, fonts().resolve(style.familyName), TextRole.BODY, style.bodyCap, unitPt).fontSizePt
+
     /** Drops every cached layout (fonts or palette changed). */
     fun clear() {
         synchronized(cache) { cache.clear() }
@@ -817,10 +823,12 @@ class BlockLayouter(
             content: BlockContent,
             style: FlowTextStyle,
         ): FlowTextStyle {
-            if (style.brokenLinks.isEmpty()) return style
+            // The text color is applied when painting, so boxes in different colors share their layouts.
+            val plain = if (style.textArgb == null) style else style.copy(textArgb = null)
+            if (plain.brokenLinks.isEmpty()) return plain
             val linked = content.linkedDocIds()
-            val broken = if (linked.isEmpty()) emptySet() else linked.filterTo(HashSet()) { it in style.brokenLinks }
-            return style.copy(brokenLinks = broken)
+            val broken = if (linked.isEmpty()) emptySet() else linked.filterTo(HashSet()) { it in plain.brokenLinks }
+            return plain.copy(brokenLinks = broken)
         }
 
         /** A note link to a missing document: muted and struck through. */

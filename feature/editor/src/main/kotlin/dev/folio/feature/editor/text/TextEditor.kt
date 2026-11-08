@@ -499,6 +499,16 @@ internal class TextEditor(
         scope.launch(dispatcher) { text.alignCommand(flowId, align)?.let { execute(it) } }
     }
 
+    override fun sizeBox(sizeRatio: Float) {
+        val flowId = text.mode.flowId ?: return
+        scope.launch(dispatcher) { text.sizeCommand(flowId, sizeRatio)?.let { execute(it) } }
+    }
+
+    override fun colorBox(argb: Int?) {
+        val flowId = text.mode.flowId ?: return
+        scope.launch(dispatcher) { text.colorCommand(flowId, argb)?.let { execute(it) } }
+    }
+
     override fun typeIntoPage(
         pageId: PageId,
         text: String,

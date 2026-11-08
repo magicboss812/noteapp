@@ -90,6 +90,7 @@ class FlowLayout internal constructor(
                         slot.rect.widthPt,
                         codeBackground,
                         hiddenCell,
+                        style.textArgb,
                     )
             }
         }
@@ -157,6 +158,10 @@ class FlowLayout internal constructor(
 class FlowLayouter(
     private val blockLayouter: BlockLayouter,
 ) {
+    /** Body font size in pt of [layout]'s flow on its first slot's grid (the box toolbar's size number, P07-T17); 0 without slots. */
+    fun bodyFontSizePt(layout: FlowLayout): Float =
+        layout.slots.firstOrNull()?.let { blockLayouter.bodyFontSizePt(layout.style, it.grid.unitPt) } ?: 0f
+
     /**
      * [markdown] distributed over [slots] in order. When they run out, [continuation] is asked for one more slot
      * after the given last one (auto-continue); null ends the flow with an overflow. At most [maxContinuations]
@@ -311,4 +316,5 @@ fun FlowStyle.toTextStyle(): FlowTextStyle =
                 TextAlign.JUSTIFIED -> FlowAlignment.JUSTIFIED
             },
         baselineLiftUnits = FlowStyle.clampBaselineLift(baselineLiftUnits),
+        textArgb = textArgb,
     )

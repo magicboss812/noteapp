@@ -19,6 +19,7 @@ import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.SelectionBox
 import dev.folio.core.text.flow.TapTarget
 import dev.folio.core.text.flow.TextRun
+import dev.folio.core.text.fonts.BodySize
 import dev.folio.core.text.layout.BlockFace
 import dev.folio.core.text.layout.BlockLayout
 import dev.folio.core.text.markdown.BlockContent
@@ -104,7 +105,7 @@ class CanvasText(
  * The selected text box (10-editor-ui.md#text-boxes, Modes): flow [flowId] in Edit when [editing], else in Preview,
  * with one [BoxPiece] per frame on a page, first frame first. [movable] when a drag may move it (its first frame is a
  * free box; the body frames of older notes stay where the page puts them); [fill] while fill width is on (P07-T15);
- * [align] its alignment (P07-T16).
+ * [align] its alignment (P07-T16), [looks] its size and color (P07-T17).
  */
 data class SelectedBox(
     val flowId: FlowId,
@@ -113,6 +114,17 @@ data class SelectedBox(
     val movable: Boolean,
     val fill: Boolean = false,
     val align: TextAlign = TextAlign.START,
+    val looks: BoxLooks = BoxLooks(),
+)
+
+/**
+ * Size and color of a box as the toolbar shows them (P07-T17): [sizeRatio] the flow's body cap fraction, [sizePt] its
+ * body font size in pt on the page grid (the Font size button's number), [textArgb] its color (null for Auto).
+ */
+data class BoxLooks(
+    val sizeRatio: Float = BodySize.M.capFraction,
+    val sizePt: Float = 0f,
+    val textArgb: Int? = null,
 )
 
 /**
@@ -339,6 +351,7 @@ enum class FormatAction {
 }
 
 /** What the canvas host asks of the text engine: focus a block by tapping it, the field to show for it, its edits. */
+@Suppress("TooManyFunctions") // the canvas's only door to the text engine: one function per text action it can trigger
 interface TextController {
     /** The live field to show, null while no block has focus or its place is not known (chrome state; the canvas uses [CanvasText]). */
     val field: Flow<TextFieldSpec?>
@@ -555,6 +568,12 @@ interface TextController {
 
     /** The toolbar's Alignment popup: the selected box takes [align] (P07-T16), one undo step. Main thread. */
     fun alignBox(align: TextAlign) = Unit
+
+    /** The toolbar's Font size popup: the selected box takes body size [sizeRatio] (P07-T17), one undo step. Main thread. */
+    fun sizeBox(sizeRatio: Float) = Unit
+
+    /** The toolbar's Color popup: the selected box takes text color [argb] (null for Auto, P07-T17), one undo step. Main thread. */
+    fun colorBox(argb: Int?) = Unit
 
     /**
      * Hardware keyboard [text] typed while no block has focus: it goes to the end of page [pageId]'s body text (the

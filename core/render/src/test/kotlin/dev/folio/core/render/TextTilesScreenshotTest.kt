@@ -59,6 +59,29 @@ class TextTilesScreenshotTest {
     }
 
     @Test
+    fun screenshot_flowColors_threeBoxesInTheirOwnColor_lined() {
+        val pages = TextPages(TemplateKind.LINED)
+        val colors = listOf(null, BLUE_ARGB, RED_ARGB)
+        // The same paragraph three times, each flow in its color, stacked four lines apart in one frame.
+        val runs =
+            colors.flatMapIndexed { i, argb ->
+                val content = pages.content(COLOR_PARAGRAPH, style = ModelFixtures.FLOW_STYLE.copy(textArgb = argb))
+                val dy = i * COLOR_LINES * ModelFixtures.LINED_BACKGROUND.template.spacingPt
+                content.text.runs.map { it.copy(topPt = it.topPt + dy) }
+            }
+        val content = PageContent.of(pages.page(), PageText.of(runs))
+
+        val bitmap = render(pages, content, RenderTarget.EXPORT_RASTER)
+
+        bitmap.captureRoboImage("src/test/screenshots/TextTiles_LINED_flowColors.png")
+        val ink = render(pages, content, RenderTarget.SCREEN_CONTENT)
+        val pixels = IntArray(ink.width * ink.height)
+        ink.getPixels(pixels, 0, ink.width, 0, 0, ink.width, ink.height)
+        val opaque = pixels.filter { Color.alpha(it) == OPAQUE }.toSet()
+        assertThat(opaque).containsAtLeast(PageRenderer.textArgb(Color.WHITE), BLUE_ARGB, RED_ARGB)
+    }
+
+    @Test
     fun draw_tableBorders_onTheRowRulesAndColumnEdges() {
         val pages = TextPages()
         val content = pages.content("| a | b |\n| --- | --- |\n| 1 | 2 |")
@@ -267,6 +290,10 @@ class TextTilesScreenshotTest {
                 "```\ncode stays left\n```"
         const val QUOTE_BAR = 0xFF8E96A3.toInt()
         const val OPAQUE = 0xFF
+        const val BLUE_ARGB = 0xFF2563EB.toInt()
+        const val RED_ARGB = 0xFFDC2626.toInt()
+        const val COLOR_LINES = 4
+        const val COLOR_PARAGRAPH = "A text box in its own color: **bold**, *italic* and `code` follow it."
         const val MISSING_DOC = "missing-id"
 
         /** Math corpus page (P06-T07): inline math in every context, a tall formula, invalid LaTeX, block math. */

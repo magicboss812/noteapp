@@ -6,6 +6,7 @@ import dev.folio.core.model.BoxWidth
 import dev.folio.core.model.Document
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
+import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.FrameRole
 import dev.folio.core.model.PageId
 import dev.folio.core.model.StickyNote
@@ -22,8 +23,9 @@ import dev.folio.core.model.edit.UpdateObjects
 import dev.folio.core.model.geometry.RectPt
 
 /**
- * The page changes of the box operations (10-editor-ui.md#text-boxes: Move, Width, Alignment, Delete) on a document, before the
- * reflow [EditorText] runs after them; pure, so they run on any thread. Null where nothing would change.
+ * The page changes of the box operations (10-editor-ui.md#text-boxes: Move, Width, Alignment, Font size and color,
+ * Delete) on a document, before the reflow [EditorText] runs after them; pure, so they run on any thread. Null where
+ * nothing would change.
  */
 internal object BoxCommands {
     /**
@@ -105,6 +107,21 @@ internal object BoxCommands {
         val active = Borders(first.rect.left, first.rect.right)
         val change = BoxAlign.aligned(flow.box, flow.style.align, align, active, Borders(zone.left, zone.right))
         return bordersOf(flow, frames, change.borders, aligned.copy(box = change.box))
+    }
+
+    /**
+     * Box [flowId] restyled by [change] as a whole (P07-T17: its body size or text color). Sizes stay derived, so the
+     * reflow keeps every line on the rules. Null for an unknown flow, a flow without frames, or the same style.
+     */
+    fun restyle(
+        doc: Document,
+        flowId: FlowId,
+        change: (FlowStyle) -> FlowStyle,
+    ): EditCommand? {
+        val flow = doc.flows[flowId] ?: return null
+        if (framesOf(doc, flowId).isEmpty()) return null
+        val style = change(flow.style)
+        return if (style == flow.style) null else UpdateFlows(listOf(flow.copy(style = style)))
     }
 
     /**

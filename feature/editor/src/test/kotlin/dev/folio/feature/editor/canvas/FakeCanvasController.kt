@@ -172,6 +172,20 @@ internal class FakeTextController : TextController {
         aligned += align
     }
 
+    /** Body sizes picked in the box toolbar's Font size popup. */
+    val sized = mutableListOf<Float>()
+
+    override fun sizeBox(sizeRatio: Float) {
+        sized += sizeRatio
+    }
+
+    /** Colors picked in the box toolbar's Color popup (null for Auto). */
+    val colored = mutableListOf<Int?>()
+
+    override fun colorBox(argb: Int?) {
+        colored += argb
+    }
+
     /** Boxes moved by a drag: flow, to page, rect. */
     val movedBoxes = ArrayList<Triple<FlowId, PageId, RectPt>>()
 

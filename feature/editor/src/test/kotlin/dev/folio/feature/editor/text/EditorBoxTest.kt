@@ -19,6 +19,7 @@ import dev.folio.core.model.edit.UpdateFlows
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.storage.repo.NewDocumentSpec
 import dev.folio.core.testing.ModelFixtures
+import dev.folio.core.text.fonts.BodySize
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -27,7 +28,10 @@ import org.junit.runner.RunWith
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** Moving and resizing a free text box (P07-T13, P07-T15): placed rects, knob borders, fill width, reflow and one undo step each. */
+/**
+ * Moving, resizing and restyling a free text box (P07-T13, P07-T15 to P07-T17): placed rects, knob borders, fill width,
+ * alignment, size and color, reflow and one undo step each.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 class EditorBoxTest : EditorTextFixture() {
@@ -71,6 +75,23 @@ class EditorBoxTest : EditorTextFixture() {
                 .firstOrNull { it.id == boxId }
                 ?.let { id to it }
         }
+
+    // The box's runs as the pages show them: painted in [argb], every baseline on a rule (less the lift).
+    private fun assertRunsOnTheRules(
+        text: EditorText,
+        argb: Int?,
+    ) {
+        val runs =
+            text.snapshot.value.pages.values
+                .flatMap { it.runsOf(boxId) }
+        assertThat(runs).isNotEmpty()
+        for (run in runs) {
+            assertThat(run.textArgb).isEqualTo(argb)
+            for (line in run.firstLine until run.firstLine + run.lineCount) {
+                assertThat(onRule(run.topPt + run.layout.baselinePt(line) + run.layout.liftPt)).isTrue()
+            }
+        }
+    }
 
     private fun onRule(yPt: Float): Boolean {
         val n = (yPt - template.marginTopPt) / u
@@ -336,6 +357,65 @@ class EditorBoxTest : EditorTextFixture() {
         }
 
     @Test
+    fun sizeAndColorInPreview_wholeBoxNoKeyboard_linesOnTheRules_oneUndoStepEach_keptAfterReopen() =
+        runTest(main.testDispatcher) {
+            val path = boxNote("A box whose size and color change from the toolbar while it stays in Preview.")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val controller = checkNotNull(session.textController)
+            val (_, before) = checkNotNull(documentSession.document.value.box())
+            val style = checkNotNull(documentSession.document.value.flows[boxFlow]).style
+            text.selectBox(boxFlow)
+            val smallPt =
+                text.snapshot
+                    .first { it.box != null }
+                    .box!!
+                    .looks.sizePt
+
+            assertThat(text.sizeCommand(boxFlow, style.sizeRatio)).isNull()
+            controller.sizeBox(BodySize.L.capFraction)
+            documentSession.document.first { it.flows[boxFlow]?.style?.sizeRatio == BodySize.L.capFraction }
+            controller.colorBox(BLUE_ARGB)
+            documentSession.document.first { it.flows[boxFlow]?.style?.textArgb == BLUE_ARGB }
+            text.snapshot.first { it.box?.looks?.textArgb == BLUE_ARGB }
+
+            val styled = checkNotNull(documentSession.document.value.flows[boxFlow]).style
+            assertThat(styled.sizeRatio).isEqualTo(BodySize.L.capFraction)
+            assertThat(styled.textArgb).isEqualTo(BLUE_ARGB)
+            assertThat(text.focus.value).isNull()
+            assertThat(text.mode).isEqualTo(BoxMode.Preview(boxFlow))
+            val looks = checkNotNull(text.snapshot.value.box).looks
+            assertThat(looks.textArgb).isEqualTo(BLUE_ARGB)
+            assertThat(looks.sizePt).isGreaterThan(smallPt)
+            val (_, grown) = checkNotNull(documentSession.document.value.box())
+            assertThat(grown.rect.top).isEqualTo(before.rect.top)
+            val units = grown.rect.heightPt / u
+            assertThat(abs(units - units.roundToInt())).isLessThan(1e-3f)
+            assertRunsOnTheRules(text, BLUE_ARGB)
+
+            assertThat(session.undo()).isTrue()
+            assertThat(checkNotNull(documentSession.document.value.flows[boxFlow]).style.textArgb).isNull()
+            assertThat(session.undo()).isTrue()
+            assertThat(checkNotNull(documentSession.document.value.flows[boxFlow]).style).isEqualTo(style)
+            assertThat(
+                documentSession.document.value
+                    .box()
+                    ?.second,
+            ).isEqualTo(before)
+            assertThat(documentSession.canUndo.value).isFalse()
+
+            assertThat(session.redo()).isTrue()
+            assertThat(session.redo()).isTrue()
+            sessions.close(documentSession)
+            val reopened = (sessions.open(path) as Outcome.Success).value
+            val kept = checkNotNull(reopened.document.value.flows[boxFlow]).style
+            assertThat(kept.sizeRatio).isEqualTo(BodySize.L.capFraction)
+            assertThat(kept.textArgb).isEqualTo(BLUE_ARGB)
+            sessions.close(reopened)
+        }
+
+    @Test
     fun widthPreview_laysTheBoxOutAtTheKnobBorders_documentUnchanged() =
         runTest(main.testDispatcher) {
             val (session, documentSession) = open(boxNote("word ".repeat(40).trim()), this)
@@ -391,5 +471,6 @@ class EditorBoxTest : EditorTextFixture() {
 
     private companion object {
         const val MM = 72f / 25.4f
+        const val BLUE_ARGB = 0xFF2563EB.toInt()
     }
 }

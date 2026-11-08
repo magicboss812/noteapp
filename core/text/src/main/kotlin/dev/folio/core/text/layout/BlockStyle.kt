@@ -49,6 +49,11 @@ data class FlowTextStyle(
     val brokenLinks: Set<String> = emptySet(),
     /** Every baseline sits this fraction of U above the rule at the bottom of its line box (A-054). */
     val baselineLiftUnits: Float = 0f,
+    /**
+     * The flow's text color, null for Auto (the painter's paper-dependent color). Layout does not depend on it: the
+     * layout cache drops it from its key and the runs carry it to the painters ([dev.folio.core.text.flow.TextRun]).
+     */
+    val textArgb: Int? = null,
 )
 
 /**

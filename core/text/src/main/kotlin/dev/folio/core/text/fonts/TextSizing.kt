@@ -2,6 +2,7 @@ package dev.folio.core.text.fonts
 
 import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 /** Body size presets a flow can pick; [capFraction] is the body cap height as a fraction of U. */
 enum class BodySize(
@@ -56,8 +57,25 @@ object TextSizing {
     /** Absorbs float noise so a cap of exactly n x [MAX_CAP_PER_UNIT] stays in n units. */
     private const val EPSILON = 1e-4f
 
+    /** Step of the box toolbar's smaller and larger buttons (P07-T17), as a body cap fraction. */
+    const val FREE_STEP = 0.05f
+
+    private const val STEPS_PER_UNIT = 100f
+
     /** [bodyCap] clamped to the free size range. */
     fun clampBodyCap(bodyCap: Float): Float = if (bodyCap.isNaN()) BodySize.M.capFraction else bodyCap.coerceIn(MIN_BODY_CAP, MAX_BODY_CAP)
+
+    /**
+     * [bodyCap] one [FREE_STEP] larger ([up]) or smaller, rounded to the 0.01 steps of the free size slider and kept in
+     * the free size range.
+     */
+    fun steppedBodyCap(
+        bodyCap: Float,
+        up: Boolean,
+    ): Float {
+        val next = clampBodyCap(bodyCap) + if (up) FREE_STEP else -FREE_STEP
+        return clampBodyCap((next * STEPS_PER_UNIT).roundToInt() / STEPS_PER_UNIT)
+    }
 
     /** Cap height of [role] as a fraction of U in a flow whose body cap fraction is [bodyCap]. */
     fun capFraction(

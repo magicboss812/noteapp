@@ -118,12 +118,16 @@ internal class BoxHandles(
     private var grabYPx = 0f
     private var pressed: BoxButton? = null
 
-    // The Alignment popup (P07-T16): open after the Alignment button, and the alignment pressed in it.
-    private var alignOpen = false
-    private var pressedAlign: TextAlign? = null
+    // The open toolbar popup (Alignment P07-T16, Font size and Color P07-T17), null for none, and the item pressed in it
+    // (-1 for none).
+    private var open: BoxPopup? = null
+    private var pressedItem = -1
+
+    /** The open toolbar popup, null for none (tests). */
+    val openPopup: BoxPopup? get() = open
 
     /** True while the Alignment popup is open (tests). */
-    val alignsOpen: Boolean get() = alignOpen
+    val alignsOpen: Boolean get() = open == BoxPopup.ALIGN
 
     /** The selected box's first frame as shown (page, text column), null for none (tests). */
     val shown: Pair<PageId, RectPt>? get() = box?.pieces?.firstOrNull()?.let { it.pageId to it.rect }
@@ -156,7 +160,7 @@ internal class BoxHandles(
         if (next == null || next.flowId != before?.flowId) {
             dragging = NONE
             owned = false
-            alignOpen = false
+            open = null
             keyed = false
             keyPage = null
             endResize()
@@ -366,8 +370,9 @@ internal class BoxHandles(
         current: SelectedBox,
     ) {
         if (!placeToolbar(current)) return
-        toolbar.draw(canvas, current.editing, current.fill, current.align)
-        if (alignOpen) toolbar.drawAligns(canvas, current.align)
+        val auto = host.textArgb(current.pieces.first().pageId)
+        toolbar.draw(canvas, current.editing, current.fill, current.align, current.looks, auto)
+        if (open != null) toolbar.drawPopup(canvas, current.align, current.looks, auto)
     }
 
     // Puts the toolbar over the first frame's outline as shown now; false when that page is not laid out.
@@ -380,7 +385,7 @@ internal class BoxHandles(
         val y = viewport.pageOriginViewY(index).toFloat()
         val o = first.outline
         toolbar.place(x + (o.left + o.right) / 2 * scale, y + o.top * scale, y + o.bottom * scale, width.toFloat(), height.toFloat())
-        if (alignOpen) toolbar.placeAligns(width.toFloat(), height.toFloat())
+        open?.let { toolbar.placePopup(it, width.toFloat(), height.toFloat()) }
         return true
     }
 
@@ -393,14 +398,14 @@ internal class BoxHandles(
         yPx: Float,
     ): Boolean = partAt(xPx, yPx, stylus = true) in GRIP..RIGHT
 
-    /** True if ([xPx], [yPx]) is on the toolbar or its open Alignment popup (the pen taps their buttons). */
+    /** True if ([xPx], [yPx]) is on the toolbar or its open popup (the pen taps their buttons). */
     fun toolbarCovers(
         xPx: Float,
         yPx: Float,
     ): Boolean {
         val current = box ?: return false
         if (!placeToolbar(current)) return false
-        return toolbar.pill.contains(xPx, yPx) || (alignOpen && toolbar.alignPopup.contains(xPx, yPx))
+        return toolbar.pill.contains(xPx, yPx) || (open != null && toolbar.popup.contains(xPx, yPx))
     }
 
     /**
@@ -425,7 +430,7 @@ internal class BoxHandles(
             dragging = NONE
             owned = false
             pressed = null
-            pressedAlign = null
+            pressedItem = -1
             invalidate()
         }
         return true
@@ -442,7 +447,7 @@ internal class BoxHandles(
         val y = event.y
         val covered = !inert && pressAt(x, y)
         dragging = if (inert || covered) NONE else partAt(x, y, stylus)
-        owned = pressed != null || pressedAlign != null || dragging != NONE
+        owned = pressed != null || pressedItem >= 0 || dragging != NONE
         downXPx = x
         downYPx = y
         if (dragging == LEFT || dragging == RIGHT) {
@@ -452,17 +457,18 @@ internal class BoxHandles(
         if (dragging != NONE) grab(x, y)
     }
 
-    // A down at ([xPx], [yPx]) on the toolbar or the open Alignment popup presses what is there; a touch anywhere but on
-    // the popup or the Alignment button closes the popup. True if the toolbar or popup covers the point.
+    // A down at ([xPx], [yPx]) on the toolbar or the open popup presses what is there; a touch anywhere but on the
+    // popup or its button closes the popup. True if the toolbar or popup covers the point.
     private fun pressAt(
         xPx: Float,
         yPx: Float,
     ): Boolean {
         val covered = toolbarCovers(xPx, yPx)
-        pressedAlign = if (covered && alignOpen) toolbar.alignAt(xPx, yPx) else null
-        pressed = if (!covered || pressedAlign != null) null else toolbar.buttonAt(xPx, yPx)
-        if (alignOpen && pressedAlign == null && pressed != BoxButton.ALIGN) {
-            alignOpen = false
+        val popup = open
+        pressedItem = if (covered && popup != null) toolbar.itemAt(xPx, yPx) else -1
+        pressed = if (!covered || pressedItem >= 0) null else toolbar.buttonAt(xPx, yPx)
+        if (popup != null && pressedItem < 0 && pressed != popup.button) {
+            open = null
             invalidate()
         }
         return covered
@@ -483,13 +489,10 @@ internal class BoxHandles(
 
     private fun up(event: MotionEvent) {
         val button = pressed
-        val align = pressedAlign
+        val item = pressedItem
         when {
-            align != null -> {
-                if (toolbar.alignAt(event.x, event.y) == align) {
-                    alignOpen = false
-                    controller.textController?.alignBox(align)
-                }
+            item >= 0 -> {
+                if (toolbar.itemAt(event.x, event.y) == item) choose(item)
             }
 
             button != null -> {
@@ -512,8 +515,39 @@ internal class BoxHandles(
             BoxButton.EDIT -> texts.editBox()
             BoxButton.DELETE -> texts.deleteBox()
             BoxButton.FILL -> texts.fillWidth()
-            BoxButton.ALIGN -> alignOpen = !alignOpen
-            BoxButton.COLOR, BoxButton.SIZE -> Unit
+            BoxButton.ALIGN -> toggle(BoxPopup.ALIGN)
+            BoxButton.SIZE -> toggle(BoxPopup.SIZE)
+            BoxButton.COLOR -> toggle(BoxPopup.COLOR)
+        }
+    }
+
+    private fun toggle(kind: BoxPopup) {
+        open = if (open == kind) null else kind
+    }
+
+    // Item [item] of the open popup picked: the box takes it (Preview stays; no keyboard). The size popup stays open, so
+    // smaller and larger can be pressed again; the others close.
+    private fun choose(item: Int) {
+        val texts = controller.textController ?: return
+        val current = box ?: return
+        when (open) {
+            BoxPopup.ALIGN -> {
+                open = null
+                BoxToolbar.alignOf(item)?.let(texts::alignBox)
+            }
+
+            BoxPopup.SIZE -> {
+                texts.sizeBox(BoxToolbar.sizeOf(item, current.looks.sizeRatio))
+            }
+
+            BoxPopup.COLOR -> {
+                open = null
+                texts.colorBox(BoxToolbar.colorOf(item))
+            }
+
+            null -> {
+                Unit
+            }
         }
     }
 

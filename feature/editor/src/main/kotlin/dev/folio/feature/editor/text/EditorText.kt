@@ -43,6 +43,8 @@ import dev.folio.core.text.flow.FlowSearch
 import dev.folio.core.text.flow.FocusedBlock
 import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.PageTexts
+import dev.folio.core.text.fonts.BodySize
+import dev.folio.core.text.fonts.TextSizing
 import dev.folio.core.text.markdown.MarkdownDocument
 import dev.folio.core.text.markdown.linkedDocIds
 import kotlinx.coroutines.CompletableDeferred
@@ -228,7 +230,11 @@ class EditorText internal constructor(
         val flow = doc.flows[flowId]
         val fill = flow?.box?.fill == true
         val align = flow?.style?.align ?: TextAlign.START
-        return if (pieces.isEmpty()) null else SelectedBox(flowId, focus != null, pieces, movable, fill, align)
+        return pieces.takeIf { it.isNotEmpty() }?.let {
+            val looks =
+                BoxLooks(flow?.style?.sizeRatio ?: BodySize.M.capFraction, engine.layouter.bodyFontSizePt(layout), flow?.style?.textArgb)
+            SelectedBox(flowId, focus != null, it, movable, fill, align, looks)
+        }
     }
 
     // The focused flow laid out with the edited block as its source and paginated with the rest (A-058): hits, caret and
@@ -614,6 +620,22 @@ class EditorText internal constructor(
         flowId: FlowId,
         align: TextAlign,
     ): EditCommand? = BoxCommands.align(documentSession.document.value, flowId, align)?.let { reflowed(it, flowId, "box align") }
+
+    /** Box [flowId] at body size [sizeRatio] (P07-T17) as one command: [BoxCommands.size] and the reflow; null if nothing changes. */
+    suspend fun sizeCommand(
+        flowId: FlowId,
+        sizeRatio: Float,
+    ): EditCommand? =
+        BoxCommands
+            .restyle(documentSession.document.value, flowId) { it.copy(sizeRatio = TextSizing.clampBodyCap(sizeRatio)) }
+            ?.let { reflowed(it, flowId, "box size") }
+
+    /** Box [flowId] in text color [argb] (P07-T17, null for Auto) as one command; null if nothing changes. */
+    suspend fun colorCommand(
+        flowId: FlowId,
+        argb: Int?,
+    ): EditCommand? =
+        BoxCommands.restyle(documentSession.document.value, flowId) { it.copy(textArgb = argb) }?.let { reflowed(it, flowId, "box color") }
 
     /**
      * Box [flowId] laid out between [borders] for a width knob that is still dragged (P07-T15): what each of its

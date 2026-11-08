@@ -1,11 +1,19 @@
 package dev.folio.feature.editor.canvas
 
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Typeface
 import androidx.core.graphics.PathParser
+import dev.folio.core.ink.brush.BrushPresets
 import dev.folio.core.model.TextAlign
+import dev.folio.core.text.fonts.BodySize
+import dev.folio.core.text.fonts.TextSizing
+import dev.folio.feature.editor.text.BoxLooks
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /** The buttons of the box toolbar, left to right (10-editor-ui.md#text-boxes, Box toolbar). */
 internal enum class BoxButton(
@@ -13,11 +21,26 @@ internal enum class BoxButton(
     val shown: Boolean,
 ) {
     EDIT(true),
-    COLOR(false), // P07-T17
-    SIZE(false), // P07-T17
+    COLOR(true),
+    SIZE(true),
     ALIGN(true),
     FILL(true),
     DELETE(true),
+}
+
+/** The popups of the box toolbar: the button that opens each and its number of items, left to right. */
+internal enum class BoxPopup(
+    val button: BoxButton,
+    val items: Int,
+) {
+    /** Auto, then the pen palette (P07-T17). */
+    COLOR(BoxButton.COLOR, 1 + BrushPresets.PEN_PALETTE.size),
+
+    /** Smaller, S, M, L, larger (P07-T17). */
+    SIZE(BoxButton.SIZE, 5),
+
+    /** Left, Center, Right, Justify (P07-T16). */
+    ALIGN(BoxButton.ALIGN, 4),
 }
 
 /**
@@ -25,6 +48,7 @@ internal enum class BoxButton(
  * centered above the box's outline, below it when there is no room above, kept inside the view. Pure geometry in view
  * px so tests place it without a canvas; [draw] paints it.
  */
+@Suppress("TooManyFunctions") // placing, hit testing and painting of the pill and its three popups
 internal class BoxToolbar(
     private val density: Float,
 ) {
@@ -78,36 +102,48 @@ internal class BoxToolbar(
         return pill.left + padPx + i * buttonPx + divider
     }
 
-    /** The Alignment popup in view px (four icons, P07-T16); empty until [placeAligns]. */
-    val alignPopup = RectF()
+    /** The open popup in view px (one row of items); empty until [placePopup]. */
+    val popup = RectF()
+
+    /** The popup [placePopup] placed last, null before. */
+    var popupKind: BoxPopup? = null
+        private set
 
     /**
-     * Places the Alignment popup after [place]: centered on the Alignment button, on the side of the pill away from the
-     * box (above it, below it when the pill sits below the box), kept inside a view [viewWidthPx] x [viewHeightPx].
+     * Places popup [kind] after [place]: centered on its button, on the side of the pill away from the box (above it,
+     * below it when the pill sits below the box), kept inside a view [viewWidthPx] x [viewHeightPx].
      */
-    fun placeAligns(
+    fun placePopup(
+        kind: BoxPopup,
         viewWidthPx: Float,
         viewHeightPx: Float,
     ) {
-        val index = buttons.indexOf(BoxButton.ALIGN)
-        if (index < 0) return alignPopup.setEmpty()
-        val width = 2 * padPx + ALIGNS.size * buttonPx
+        popupKind = kind
+        val index = buttons.indexOf(kind.button)
+        if (index < 0) return popup.setEmpty()
+        val width = 2 * padPx + kind.items * buttonPx
         val cx = buttonLeft(index) + buttonPx / 2
         val left = (cx - width / 2).coerceIn(marginPx, maxOf(marginPx, viewWidthPx - marginPx - width))
         val wanted = if (below) pill.bottom + POPUP_GAP_DP * density else pill.top - POPUP_GAP_DP * density - heightPx
         val top = wanted.coerceIn(marginPx, maxOf(marginPx, viewHeightPx - marginPx - heightPx))
-        alignPopup.set(left, top, left + width, top + heightPx)
+        popup.set(left, top, left + width, top + heightPx)
     }
 
-    /** The alignment at ([xPx], [yPx]) in the popup placed last, null outside it. */
+    /** The item at ([xPx], [yPx]) in the popup placed last, -1 outside it. */
+    fun itemAt(
+        xPx: Float,
+        yPx: Float,
+    ): Int {
+        val kind = popupKind ?: return -1
+        if (popup.isEmpty || !popup.contains(xPx, yPx)) return -1
+        return ((xPx - popup.left - padPx) / buttonPx).toInt().coerceIn(0, kind.items - 1)
+    }
+
+    /** The alignment at ([xPx], [yPx]) in the Alignment popup placed last, null outside it or for another popup. */
     fun alignAt(
         xPx: Float,
         yPx: Float,
-    ): TextAlign? {
-        if (alignPopup.isEmpty || !alignPopup.contains(xPx, yPx)) return null
-        val i = ((xPx - alignPopup.left - padPx) / buttonPx).toInt().coerceIn(0, ALIGNS.size - 1)
-        return ALIGNS[i]
-    }
+    ): TextAlign? = if (popupKind == BoxPopup.ALIGN) alignOf(itemAt(xPx, yPx)) else null
 
     private val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = PILL_ARGB }
     private val borderPaint =
@@ -133,16 +169,37 @@ internal class BoxToolbar(
     private val trash: Path = PathParser.createPathFromPathData(TRASH)
     private val fillWidth: Path = PathParser.createPathFromPathData(MOVE_HORIZONTAL)
     private val alignIcons: Array<Path> = Array(ALIGNS.size) { PathParser.createPathFromPathData(ALIGN_PATHS[it]) }
+    private val swatchPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val ringPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ICON_ARGB
+            style = Paint.Style.STROKE
+            strokeWidth = RING_DP * density
+        }
+    private val labelPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ICON_ARGB
+            textAlign = Paint.Align.CENTER
+            textSize = LABEL_DP * density
+            typeface = Typeface.DEFAULT_BOLD
+        }
+
+    // The Font size button's number, made again only when the rounded size changes (drawing allocates nothing).
+    private var sizeShown = -1
+    private var sizeLabel = ""
 
     /**
      * Paints the pill at [pill]; the Edit button shows [editing] as active, the Fill width button [fill], the Alignment
-     * button the icon of [align].
+     * button the icon of [align], the Color button a circle of the box's color ([looks], [autoArgb] for Auto) and the
+     * Font size button its size in pt.
      */
     fun draw(
         canvas: Canvas,
         editing: Boolean,
         fill: Boolean = false,
         align: TextAlign = TextAlign.START,
+        looks: BoxLooks = BoxLooks(),
+        autoArgb: Int = AUTO_FALLBACK_ARGB,
     ) {
         // HOT PATH: per viewport change while a box is selected; no allocation.
         val radius = heightPx / 2
@@ -175,29 +232,95 @@ internal class BoxToolbar(
                     icon(canvas, alignIcons[ALIGNS.indexOf(align)], cx, cy, ICON_ARGB)
                 }
 
-                BoxButton.COLOR, BoxButton.SIZE -> {
-                    Unit
+                BoxButton.COLOR -> {
+                    swatch(canvas, cx, cy, looks.textArgb ?: autoArgb)
+                }
+
+                BoxButton.SIZE -> {
+                    val pt = looks.sizePt.roundToInt()
+                    if (pt != sizeShown) {
+                        sizeShown = pt
+                        sizeLabel = pt.toString()
+                    }
+                    label(canvas, sizeLabel, cx, cy)
                 }
             }
         }
     }
 
-    /** Paints the Alignment popup at [alignPopup], the current [align] highlighted. */
-    fun drawAligns(
+    /**
+     * Paints the open popup at [popup] with the box's current choice highlighted: the Alignment icons ([align]), the
+     * sizes (a preset equal to [looks]' size), or Auto ([autoArgb], marked "A") and the pen palette.
+     */
+    fun drawPopup(
         canvas: Canvas,
         align: TextAlign,
+        looks: BoxLooks,
+        autoArgb: Int,
     ) {
         // HOT PATH: per viewport change while the popup is open; no allocation.
-        if (alignPopup.isEmpty) return
+        val kind = popupKind ?: return
+        if (popup.isEmpty) return
         val radius = heightPx / 2
-        canvas.drawRoundRect(alignPopup, radius, radius, pillPaint)
-        canvas.drawRoundRect(alignPopup, radius, radius, borderPaint)
-        val cy = alignPopup.centerY()
-        for (i in ALIGNS.indices) {
-            val cx = alignPopup.left + padPx + i * buttonPx + buttonPx / 2
-            if (ALIGNS[i] == align) canvas.drawCircle(cx, cy, buttonPx / 2 - padPx / 2, activePaint)
-            icon(canvas, alignIcons[i], cx, cy, ICON_ARGB)
+        canvas.drawRoundRect(popup, radius, radius, pillPaint)
+        canvas.drawRoundRect(popup, radius, radius, borderPaint)
+        val cy = popup.centerY()
+        for (i in 0 until kind.items) {
+            val cx = popup.left + padPx + i * buttonPx + buttonPx / 2
+            if (isCurrent(kind, i, align, looks)) canvas.drawCircle(cx, cy, buttonPx / 2 - padPx / 2, activePaint)
+            when (kind) {
+                BoxPopup.ALIGN -> {
+                    icon(canvas, alignIcons[i], cx, cy, ICON_ARGB)
+                }
+
+                BoxPopup.SIZE -> {
+                    label(canvas, SIZE_LABELS[i], cx, cy)
+                }
+
+                BoxPopup.COLOR -> {
+                    swatch(canvas, cx, cy, colorOf(i) ?: autoArgb)
+                    if (i == 0) label(canvas, AUTO_LABEL, cx, cy, if (luma(autoArgb) < DARK_LUMA) ICON_ARGB else PILL_ARGB)
+                }
+            }
         }
+    }
+
+    // True when item [i] of popup [kind] is the box's current choice.
+    private fun isCurrent(
+        kind: BoxPopup,
+        i: Int,
+        align: TextAlign,
+        looks: BoxLooks,
+    ): Boolean =
+        when (kind) {
+            BoxPopup.ALIGN -> ALIGNS[i] == align
+            BoxPopup.SIZE -> i in 1..BodySize.entries.size && abs(BodySize.entries[i - 1].capFraction - looks.sizeRatio) < SAME_SIZE
+            BoxPopup.COLOR -> colorOf(i) == looks.textArgb
+        }
+
+    // A filled circle of [argb] with a light ring, so dark colors show on the dark pill.
+    private fun swatch(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        argb: Int,
+    ) {
+        val r = SWATCH_DP * density
+        swatchPaint.color = argb
+        canvas.drawCircle(cx, cy, r, swatchPaint)
+        canvas.drawCircle(cx, cy, r, ringPaint)
+    }
+
+    // [text] centered on ([cx], [cy]).
+    private fun label(
+        canvas: Canvas,
+        text: String,
+        cx: Float,
+        cy: Float,
+        argb: Int = ICON_ARGB,
+    ) {
+        labelPaint.color = argb
+        canvas.drawText(text, cx, cy - (labelPaint.ascent() + labelPaint.descent()) / 2, labelPaint)
     }
 
     // A Lucide icon (24 x 24 viewport) centered on ([cx], [cy]) at the icon size.
@@ -218,6 +341,43 @@ internal class BoxToolbar(
     }
 
     companion object {
+        /** Alignment of Alignment popup item [item], null for none. */
+        fun alignOf(item: Int): TextAlign? = ALIGNS.getOrNull(item)
+
+        /** Color of Color popup item [item]: null for Auto (item 0), then the pen palette. */
+        fun colorOf(item: Int): Int? = if (item <= 0) null else BrushPresets.PEN_PALETTE.getOrNull(item - 1)
+
+        /** Body size (cap fraction) of Font size popup item [item] for a box at [current]: smaller, S, M, L, larger. */
+        fun sizeOf(
+            item: Int,
+            current: Float,
+        ): Float =
+            when (item) {
+                0 -> TextSizing.steppedBodyCap(current, up = false)
+                in 1..BodySize.entries.size -> BodySize.entries[item - 1].capFraction
+                else -> TextSizing.steppedBodyCap(current, up = true)
+            }
+
+        private fun luma(argb: Int): Float = LUMA_R * Color.red(argb) + LUMA_G * Color.green(argb) + LUMA_B * Color.blue(argb)
+
+        private const val LUMA_R = 0.299f
+        private const val LUMA_G = 0.587f
+        private const val LUMA_B = 0.114f
+        private const val DARK_LUMA = 110f
+
+        // Font size popup labels: smaller and larger are a minus and a plus sign.
+        private val SIZE_LABELS = arrayOf("−", "S", "M", "L", "+")
+        private const val AUTO_LABEL = "A"
+
+        /** Two body sizes closer than this are the same preset. */
+        private const val SAME_SIZE = 0.001f
+
+        /** Auto's color when the host gives none (near-black text on light paper). */
+        private const val AUTO_FALLBACK_ARGB = 0xFF1B1D22.toInt()
+        private const val SWATCH_DP = 9f
+        private const val RING_DP = 1.5f
+        private const val LABEL_DP = 15f
+
         private const val BUTTON_DP = 44f
         private const val HEIGHT_DP = 48f
         private const val PAD_DP = 4f
@@ -230,7 +390,7 @@ internal class BoxToolbar(
         /** The pill keeps this far from the view edges. */
         private const val MARGIN_DP = 8f
 
-        /** Between the toolbar and the Alignment popup. */
+        /** Between the toolbar and its popups. */
         private const val POPUP_GAP_DP = 6f
 
         /** The popup's alignments, left to right. */

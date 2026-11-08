@@ -105,6 +105,7 @@ Alignment (P07-T16)
 
 Font size and color (P07-T17)
 - The size number opens a popup with S, M, L and the Text panel's free size (A-051); the color circle opens the pen palette plus Auto (today's near-black on light paper, near-white on dark). Both apply to the whole box in Preview without opening the keyboard, keep the grid invariant, and are one undo step each.
+- As built (A-063): the size popup is minus, S, M, L, plus (minus and plus step the free size by 0.05 cap fraction and keep the popup open); the number is the body font size in pt. The color rides on the text runs, so every painter (tiles, thumbnails, export, overlay) uses it without a relayout.
 
 Editing look (P07-T10, P07-T11)
 - Text being edited is drawn from the same paginated page layout as all other text: it breaks at the page bottom and continues on the next page while typing. Line breaks match the unedited text; only the dimmed Markdown markers and raw math of the block holding the caret differ. The EditText stays the IME connection but draws nothing; caret, selection highlight and handles come from the page layout, so the highlight sits exactly under the handles. Entering or leaving Edit never flashes, and the keystroke budget (R-PERF-05) holds.

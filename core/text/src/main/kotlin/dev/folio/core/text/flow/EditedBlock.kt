@@ -95,7 +95,17 @@ internal fun retype(
             val top = s.rect.top + slice.topUnit * s.grid.unitPt - layout.lineTopPt(line)
             val column = s.growRect
             val run =
-                TextRun(s.frameId, layout, line, slice.heightUnits / layout.boxUnits, column.left, top, column.widthPt, codeBackground)
+                TextRun(
+                    s.frameId,
+                    layout,
+                    line,
+                    slice.heightUnits / layout.boxUnits,
+                    column.left,
+                    top,
+                    column.widthPt,
+                    codeBackground,
+                    textArgb = flow.style.textArgb,
+                )
             pieces += EditedPiece(s.pageId, run)
         }
     }
