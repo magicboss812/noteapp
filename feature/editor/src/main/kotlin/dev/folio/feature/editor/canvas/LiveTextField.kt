@@ -179,7 +179,8 @@ internal class LiveTextField(
     /**
      * Shows [spec] in text color [textArgb] at the zoom of [viewport] on page [pageIndex]. The text and the caret are
      * only touched when the block, the caret revision or the source (not a keystroke's echo) changed. [masked] draws
-     * the caret but no text: the tiles still show the block until they are rendered without it (P06-T18).
+     * the caret but no text: the tiles still show the block until they are rendered without it (P06-T18). [overlaid]
+     * draws nothing at all, no text, caret or selection: the canvas overlay draws the block ([EditedTextView], A-058).
      */
     fun show(
         spec: TextFieldSpec,
@@ -187,11 +188,17 @@ internal class LiveTextField(
         viewport: Viewport,
         pageIndex: Int,
         masked: Boolean = false,
+        overlaid: Boolean = false,
     ) {
         val appearing = shown == null
         val startNs = if (appearing || spec !== synced) System.nanoTime() else 0L
         shown = spec
-        style(spec, textArgb, viewport.scale, masked)
+        style(spec, textArgb, viewport.scale, masked || overlaid)
+        if (overlaid != isOverlaid) {
+            isOverlaid = overlaid
+            isCursorVisible = !overlaid
+            highlightColor = if (overlaid) Color.TRANSPARENT else SelectionOverlay.BOX_ARGB
+        }
         // The host shows the same spec again when the document or viewport changes: only a new answer is synced.
         if (spec !== synced) {
             sync(spec)
@@ -330,8 +337,12 @@ internal class LiveTextField(
         return translationX + (layout?.getPrimaryHorizontal(offset) ?: 0f)
     }
 
-    /** True while the text is drawn transparent (only the caret shows). */
+    /** True while the text is drawn transparent (only the caret shows, or nothing when [isOverlaid]). */
     val isMasked: Boolean get() = styledMasked
+
+    /** True while the field draws nothing and the canvas overlay draws its block. */
+    var isOverlaid = false
+        private set
 
     private fun style(
         spec: TextFieldSpec,

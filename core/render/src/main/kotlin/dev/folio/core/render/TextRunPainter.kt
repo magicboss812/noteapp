@@ -5,7 +5,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
-import androidx.annotation.WorkerThread
+import androidx.annotation.AnyThread
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.text.flow.TextRun
 import dev.folio.core.text.layout.BlockDecoration
@@ -30,9 +30,10 @@ internal class TextRunPainter {
 
     /**
      * Paints the runs of [runs] that reach [regionPt]; [scale] px per pt (only used for hairline widths). Table borders
-     * are [borderArgb] (the template line color darkened by 20%).
+     * are [borderArgb] (the template line color darkened by 20%). Tiles paint on a render thread, the canvas overlay
+     * ([OverlayTextPainter]) on the main thread, each with its own painter.
      */
-    @WorkerThread
+    @AnyThread
     fun draw(
         canvas: Canvas,
         runs: List<TextRun>,
@@ -48,12 +49,19 @@ internal class TextRunPainter {
             val run = runs[i]
             if (!run.bounds.intersects(regionPt)) continue
             decorate(canvas, run, scale, textArgb, borderArgb)
-            // A block continued in another frame shows only its own line boxes; the rest of the paragraph is clipped away.
+            // A block continued in another frame shows only its own line boxes; the rest of the paragraph is clipped away,
+            // including the descenders the line before the slice hangs below its rule.
             val clipped = run.partial
             if (clipped) {
                 canvas.save()
                 val overhang = run.overhangPt
-                canvas.clipRect(run.leftPt - overhang, run.sliceTopPt, run.leftPt + run.widthPt + overhang, run.sliceBottomPt + overhang)
+                val above = if (run.firstLine > 0) max(0f, overhang - run.layout.liftPt) else 0f
+                canvas.clipRect(
+                    run.leftPt - overhang,
+                    run.sliceTopPt + above,
+                    run.leftPt + run.widthPt + overhang,
+                    run.sliceBottomPt + overhang,
+                )
             }
             run.layout.paint(target, run.leftPt, run.topPt, 1f, textArgb, run.hiddenCell)
             if (clipped) canvas.restore()

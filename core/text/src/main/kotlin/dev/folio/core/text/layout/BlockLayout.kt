@@ -367,6 +367,8 @@ class BlockLayout internal constructor(
     val table: TableLayout? = null,
     /** How far every baseline sits above the bottom of its line box: the flow's baseline lift (A-054). */
     val liftPt: Float = 0f,
+    /** True for the layout of an edited block ([BlockLayouter.editLayout]): [plainText] is the source, offsets are source offsets. */
+    val editsSource: Boolean = false,
 ) {
     /** Height in U: always lineCount x boxUnits. */
     val heightUnits: Int get() = lineCount * boxUnits

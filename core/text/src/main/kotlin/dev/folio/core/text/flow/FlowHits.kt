@@ -88,6 +88,9 @@ fun FlowLayout.sourceOffsetAt(
         val span = TableEditing.spanOf(block.source, TableCell(row, column))
         val plain = table.cellOffsetAt(index, x, hit.line)
         SourceOffsets.fromCellPlain(block.source, span.start, span.end, table.cellText(index), plain)
+    } else if (layout != null && layout.editsSource && !hit.pastEnd) {
+        // The edited block shows its source: the character under the tap is the offset.
+        layout.plainOffsetAt(xPt - slots[hit.slot].rect.left, hit.line)
     } else if (layout == null || visible == null || hit.pastEnd) {
         block.source.length
     } else {

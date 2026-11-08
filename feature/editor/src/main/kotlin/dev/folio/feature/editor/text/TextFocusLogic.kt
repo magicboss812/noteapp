@@ -8,6 +8,7 @@ import dev.folio.core.text.flow.FlowLayout
 import dev.folio.core.text.flow.FocusedBlock
 import dev.folio.core.text.flow.TapTarget
 import dev.folio.core.text.flow.caretSpot
+import dev.folio.core.text.flow.editedBlock
 import dev.folio.core.text.flow.hit
 import dev.folio.core.text.flow.placementOf
 import dev.folio.core.text.flow.selectionBoxes
@@ -113,7 +114,7 @@ internal fun Map<FlowId, FlowLayout>.fieldOf(focus: TextFocus?): TextFieldSpec? 
             layout.markdown.indexOf(anchor.blockId) < index -> 0
             else -> block.source.length
         }
-    return TextFieldSpec(focus, block, blockLayout, placement, anchorOffset = anchorOffset)
+    return TextFieldSpec(focus, block, blockLayout, placement, anchorOffset = anchorOffset, edited = layout.editedBlock(index))
 }
 
 /** What the canvas draws of the selection of [focus] (07-text-engine.md#selection-as-built); null while it is collapsed. */
@@ -121,6 +122,9 @@ internal fun Map<FlowId, FlowLayout>.highlightOf(focus: TextFocus?): SelectionHi
     val anchor = focus?.anchor ?: return null
     val layout = this[focus.flowId] ?: return null
     val caret = Caret(focus.blockId, focus.caret)
-    val boxes = layout.selectionBoxes(TextSelection(anchor, caret), skipBlock = focus.blockIndex)
+    // The overlay draws an edited block from its source layout, so its boxes come from there too; only a table cell's
+    // field draws its own part.
+    val drawsSource = layout.layoutOf(focus.blockIndex)?.editsSource == true
+    val boxes = layout.selectionBoxes(TextSelection(anchor, caret), skipBlock = if (drawsSource) FlowLayout.NO_BLOCK else focus.blockIndex)
     return SelectionHighlight(boxes, layout.caretSpot(anchor), layout.caretSpot(caret))
 }

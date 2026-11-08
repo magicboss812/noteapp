@@ -15,6 +15,7 @@ import dev.folio.core.text.edit.LinkEdits
 import dev.folio.core.text.edit.SelectionEditing
 import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.edit.TextSelection
+import dev.folio.core.text.flow.EditedBlock
 import dev.folio.core.text.flow.TapTarget
 import dev.folio.core.text.markdown.MarkdownDocument
 import kotlinx.coroutines.CoroutineDispatcher
@@ -203,6 +204,8 @@ internal class TextEditor(
         clearQuery()
         text.select(flowId, next)
     }
+
+    override fun retype(source: String): EditedBlock? = text.retype(source)
 
     override fun selectAll() {
         val focus = text.focus.value ?: return

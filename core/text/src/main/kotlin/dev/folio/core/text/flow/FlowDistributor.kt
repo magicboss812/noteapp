@@ -89,19 +89,21 @@ object FlowDistributor {
     /**
      * [capacity] returns the capacity in U of frame n, or null when there is no frame n (auto-continue may create
      * one on demand). [item] returns block b laid out for frame f; it may be asked for the same block more than once.
+     * The first frame is already filled to [startUnits] (one block distributed again from where it starts).
      */
     fun distribute(
         blockCount: Int,
         gapUnits: Int,
         capacity: (frame: Int) -> Int?,
         item: (block: Int, frame: Int) -> FlowItem,
+        startUnits: Int = 0,
     ): Distribution {
         val startFrames = IntArray(blockCount) { -1 }
         val frames = ArrayList<List<FlowSlice>>()
         var frame = 0
         var cap = capacity(0) ?: return Distribution(frames, if (blockCount > 0) 0 else -1, 0, startFrames)
         var slices = ArrayList<FlowSlice>().also { frames += it }
-        var used = 0
+        var used = startUnits
         var block = 0
         var from = 0
         while (block < blockCount) {

@@ -11,6 +11,7 @@ import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.edit.TableEditing
 import dev.folio.core.text.flow.BlockPlacement
 import dev.folio.core.text.flow.CaretSpot
+import dev.folio.core.text.flow.EditedBlock
 import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.SelectionBox
 import dev.folio.core.text.flow.TapTarget
@@ -47,7 +48,8 @@ data class TextFocus(
  * first line box of the block, page pt). In a table the field edits one [cell] only and shows its [text]. [dimmed]
  * lists the marker ranges of [text] as start/end pairs; [markerLength] is the length of the marker at the start of
  * [text] (a caret inside it counts as block start). The field's selection runs from [anchorOffset] to the caret: the
- * anchor's offset in this block, the block start or end when the anchor lies in a block before or after.
+ * anchor's offset in this block, the block start or end when the anchor lies in a block before or after. [edited] is
+ * the block as the canvas overlay draws it (A-058); null in a table, where the field draws its cell itself.
  */
 class TextFieldSpec(
     val focus: TextFocus,
@@ -58,6 +60,7 @@ class TextFieldSpec(
     val dimmed: IntArray = EditMarkers.ranges(block).let { cell?.clip(it) ?: it },
     val markerLength: Int = if (cell == null) BlockEditing.markerLength(block) else 0,
     val anchorOffset: Int = focus.anchor?.takeIf { it.blockId == block.id }?.offset ?: focus.caret,
+    val edited: EditedBlock? = null,
 ) {
     /** Page the field sits on. */
     val pageId: PageId get() = placement.pageId
@@ -352,6 +355,12 @@ interface TextController {
 
     /** Ctrl+A: the focused block, then the whole flow. Main thread. */
     fun selectAll() = Unit
+
+    /**
+     * The focused block with [source] typed into it, laid out and paginated from where it starts, for the overlay to
+     * draw before the flow reflows (A-058); null when nothing is edited. Main thread.
+     */
+    fun retype(source: String): EditedBlock? = null
 
     /** The selected Markdown, as in the flow (block markers and blank lines included); null for none. Main thread. */
     fun copySelection(): String? = null

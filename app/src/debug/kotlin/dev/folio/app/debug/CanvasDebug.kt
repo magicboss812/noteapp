@@ -380,6 +380,7 @@ internal class CanvasDebug(
                 },
             )
         }
+        put("textOverlay", host?.textOverlayState)
         host?.touchCounts?.let { t ->
             put(
                 "touches",

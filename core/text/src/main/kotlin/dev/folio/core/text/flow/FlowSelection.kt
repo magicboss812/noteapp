@@ -53,7 +53,7 @@ fun FlowLayout.caretSpot(caret: Caret): CaretSpot? {
     val block = markdown.blocks[index]
     val visible = SourceOffsets.visibleText(block.content)
     val atEnd = caret.offset >= block.source.length && block.content != BlockContent.Empty
-    val plain = if (visible == null) -1 else plainOf(block, layout, caret.offset)
+    val plain = if (visible == null && !layout.editsSource) -1 else plainOf(block, layout, caret.offset)
     val line =
         if (plain >= 0) {
             layout.lineForOffset(plain)
@@ -98,7 +98,7 @@ private fun FlowLayout.boxesOf(
     val first = firstLine(slice)
     val top = slot.rect.top + slice.topUnit * unitPt - layout.lineTopPt(first)
     val empty = block.content == BlockContent.Empty
-    val whole = !empty && SourceOffsets.visibleText(block.content) == null
+    val whole = !empty && !layout.editsSource && SourceOffsets.visibleText(block.content) == null
     // A block before the last one is selected to its end and its line break.
     val from = if (index == range.first) plainOf(block, layout, range.startOffset) else 0
     val to = if (index == range.last) plainOf(block, layout, range.endOffset) else layout.plainText.length + 1
@@ -143,12 +143,14 @@ private fun BlockLayout.plainSpanOnLine(
     return left..right
 }
 
-// Offset into the block's laid-out text (a callout's title first) of source offset [sourceOffset].
+// Offset into the block's laid-out text (a callout's title first) of source offset [sourceOffset]; the same offset in
+// the layout of an edited block, which shows the source.
 private fun plainOf(
     block: MarkdownBlock,
     layout: BlockLayout,
     sourceOffset: Int,
 ): Int {
+    if (layout.editsSource) return sourceOffset.coerceIn(0, layout.plainText.length)
     val visible = SourceOffsets.visibleText(block.content)?.length ?: 0
     return layout.plainText.length - visible + SourceOffsets.toPlain(block, sourceOffset)
 }

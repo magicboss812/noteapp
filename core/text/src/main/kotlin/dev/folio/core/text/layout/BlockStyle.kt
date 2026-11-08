@@ -20,10 +20,13 @@ data class TextPalette(
     val mathError: Color = MATH_ERROR,
     /** Note links whose document is not in the library (09-storage-library.md#links); drawn struck through. */
     val brokenLink: Color = BROKEN_LINK,
+    /** Markdown syntax of the edited block (`**`, `## `, fences); a mid gray readable on light and dark papers. */
+    val marker: Color = MARKER,
 ) {
     companion object {
         private val MATH_ERROR = Color(0xFFD0342C)
         private val BROKEN_LINK = Color(0xFF8E96A3)
+        private val MARKER = Color(0xFF9AA0A8)
 
         /** Ink-on-paper defaults: blue links, marker yellow, light gray code, red invalid LaTeX. */
         val Paper = TextPalette(link = Color(0xFF2F6FDE), highlight = Color(0x66FFE14D), codeBackground = Color(0x1F000000))

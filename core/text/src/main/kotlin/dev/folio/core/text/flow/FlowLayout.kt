@@ -15,6 +15,7 @@ import dev.folio.core.text.layout.FlowAlignment
 import dev.folio.core.text.layout.FlowTextStyle
 import dev.folio.core.text.layout.LayoutGrid
 import dev.folio.core.text.markdown.BlockContent
+import dev.folio.core.text.markdown.BlockParser
 import dev.folio.core.text.markdown.MarkdownDocument
 
 /**
@@ -44,7 +45,7 @@ class FlowLayout internal constructor(
     val distribution: Distribution,
     /** Number of slots that came from auto-continue (the last ones in [slots]). */
     val continuationCount: Int,
-    private val style: FlowTextStyle,
+    internal val style: FlowTextStyle,
 ) {
     /** Slices of slot [frame], top to bottom. */
     fun slices(frame: Int): List<FlowSlice> = distribution.frames.getOrNull(frame).orEmpty()
@@ -53,12 +54,14 @@ class FlowLayout internal constructor(
      * Runs to paint for slot [frame] (07-text-engine.md#rendering): one per slice, positioned from the slot's top at
      * `topUnit` x U, minus the top of the slice's first line so a block continued from another frame starts mid-block.
      * The slices of block [skipBlock] are left out (the focused block, which its live field draws); when it is a table
-     * and [skipCell] is a cell index, only that cell is left out of its runs.
+     * and [skipCell] is a cell index, only that cell is left out of its runs. With [onlyBlock] set, only that block's
+     * slices are run.
      */
     fun runs(
         frame: Int,
         skipBlock: Int = NO_BLOCK,
         skipCell: Int = NO_CELL,
+        onlyBlock: Int = NO_BLOCK,
     ): List<TextRun> {
         val slot = slots.getOrNull(frame) ?: return emptyList()
         val slices = slices(frame)
@@ -66,6 +69,7 @@ class FlowLayout internal constructor(
         val codeBackground = style.palette.codeBackground.toArgb()
         val out = ArrayList<TextRun>(slices.size)
         for (slice in slices) {
+            if (onlyBlock != NO_BLOCK && slice.blockIndex != onlyBlock) continue
             val layout = layouts[slice.blockIndex]
             val skipped = slice.blockIndex == skipBlock
             val hiddenCell = if (skipped && layout?.table != null) skipCell else NO_CELL
@@ -147,7 +151,8 @@ class FlowLayouter(
     /**
      * [markdown] distributed over [slots] in order. When they run out, [continuation] is asked for one more slot
      * after the given last one (auto-continue); null ends the flow with an overflow. At most [maxContinuations]
-     * slots are added.
+     * slots are added. Block [editBlock] (the one being edited) is laid out as its source
+     * ([BlockLayouter.editLayout]) and paginated like the others.
      */
     fun layout(
         markdown: MarkdownDocument,
@@ -156,6 +161,7 @@ class FlowLayouter(
         slots: List<FrameSlot>,
         continuation: ((last: FrameSlot) -> FrameSlot?)? = null,
         maxContinuations: Int = MAX_CONTINUATIONS,
+        editBlock: Int = FlowLayout.NO_BLOCK,
     ): FlowLayout =
         PerfMonitor.trace(TRACE_FLOW) {
             val all = ArrayList(slots)
@@ -169,7 +175,11 @@ class FlowLayouter(
                 frame: Int,
             ): BlockLayout {
                 val slot = all[frame]
-                return blockLayouter.layout(blocks[block], slot.rect.widthPt, style, slot.grid)
+                return if (block == editBlock) {
+                    blockLayouter.editLayout(blocks[block], slot.rect.widthPt, style, slot.grid)
+                } else {
+                    blockLayouter.layout(blocks[block], slot.rect.widthPt, style, slot.grid)
+                }
             }
             val distribution =
                 FlowDistributor.distribute(
@@ -193,11 +203,24 @@ class FlowLayouter(
             FlowLayout(all, markdown, layouts, distribution, added, style)
         }
 
+    /**
+     * Block [index] of [flow] with [source] typed into it, laid out as its source and distributed from where it starts
+     * (the edited block between a keystroke and the reflow; see [EditedBlock]). One caller thread only (the main one).
+     */
+    fun retype(
+        flow: FlowLayout,
+        index: Int,
+        source: String,
+    ): EditedBlock? = PerfMonitor.trace(TRACE_RETYPE) { retype(blockLayouter, retypeParser, flow, index, source) }
+
+    private val retypeParser by lazy { BlockParser() }
+
     companion object {
         /** Safety limit of continuation pages per layout pass. */
         const val MAX_CONTINUATIONS = 2000
 
         private const val TRACE_FLOW = "text:flow"
+        private const val TRACE_RETYPE = "text:retype"
 
         // Header and two body rows: the least a table needs to break (never right after the header).
         private const val MIN_SPLIT_TABLE_ROWS = 3

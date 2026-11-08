@@ -43,13 +43,31 @@ object PageTexts {
         brokenLinks: Set<String> = emptySet(),
     ): Map<FlowId, FlowLayout> {
         val out = LinkedHashMap<FlowId, FlowLayout>()
-        for ((flowId, flow) in doc.flows) {
-            val slots = FlowFrames.slotsOf(doc, flowId)
-            if (slots.isEmpty()) continue
-            val style = flow.style.toTextStyle().let { if (brokenLinks.isEmpty()) it else it.copy(brokenLinks = brokenLinks) }
-            out[flowId] = layouter.layout(markdown(flow), style, flow.style.paragraphGapLines, slots)
+        for (flowId in doc.flows.keys) {
+            flowLayout(doc, flowId, layouter, markdown, brokenLinks, editBlockId = null)?.let { out[flowId] = it }
         }
         return out
+    }
+
+    /**
+     * Layout of flow [flowId] as [layouts] makes it, null when it has no frames on loaded pages; block [editBlockId]
+     * (the edited one, A-058) is laid out as its source and paginated with the rest.
+     */
+    fun flowLayout(
+        doc: Document,
+        flowId: FlowId,
+        layouter: FlowLayouter,
+        markdown: (TextFlow) -> MarkdownDocument = parseFlow,
+        brokenLinks: Set<String> = emptySet(),
+        editBlockId: Long? = null,
+    ): FlowLayout? {
+        val flow = doc.flows[flowId] ?: return null
+        val slots = FlowFrames.slotsOf(doc, flowId)
+        if (slots.isEmpty()) return null
+        val style = flow.style.toTextStyle().let { if (brokenLinks.isEmpty()) it else it.copy(brokenLinks = brokenLinks) }
+        val parsed = markdown(flow)
+        val edit = editBlockId?.let(parsed::indexOf) ?: FlowLayout.NO_BLOCK
+        return layouter.layout(parsed, style, flow.style.paragraphGapLines, slots, editBlock = edit)
     }
 
     /** Page texts of [layouts]; the runs of [focused] are left out. */

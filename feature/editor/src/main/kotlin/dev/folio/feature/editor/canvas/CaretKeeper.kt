@@ -5,19 +5,20 @@ import androidx.annotation.MainThread
 import kotlin.math.max
 
 /**
- * Scrolls the canvas ([scrollBy], px, positive moves the content down) so the caret line of the live field stays
- * between [marginPx] below the top of [host] and [marginPx] above what the chrome covers ([coveredBottomPx]), whenever
- * the caret moved (a new block, typing) or the covered height changed (the keyboard came up). A pan by the user moves
- * nothing (P06-T18).
+ * Scrolls the canvas ([scrollBy], px, positive moves the content down) so the caret line stays between [marginPx]
+ * below the top of [host] and [marginPx] above what the chrome covers ([coveredBottomPx]), whenever the caret moved
+ * (a new block, typing) or the covered height changed (the keyboard came up). [caretLine] fills the line's top and
+ * bottom in host px, false without a shown field. A pan by the user moves nothing (P06-T18).
  */
 @MainThread
 internal class CaretKeeper(
     private val host: View,
     private val marginPx: Float,
-    private val liveField: () -> LiveTextField?,
+    private val caretLine: (FloatArray) -> Boolean,
     private val scrollBy: (dyPx: Float) -> Unit,
 ) {
     private val location = IntArray(2)
+    private val line = FloatArray(2)
 
     /** How far up from the window bottom the chrome covers the canvas (keyboard, bottom-docked toolbox), px. */
     var coveredBottomPx = 0
@@ -29,13 +30,12 @@ internal class CaretKeeper(
 
     /** Scrolls if the caret line of a shown field is outside the clear band. */
     fun check() {
-        val shown = liveField() ?: return
-        if (shown.visibility != View.VISIBLE || shown.spec == null || host.height == 0) return
+        if (host.height == 0 || !caretLine(line)) return
         host.getLocationInWindow(location)
         val belowHostPx = host.rootView.height - (location[1] + host.height)
         val coveredPx = max(0, coveredBottomPx - belowHostPx)
         val clearBottomPx = host.height - coveredPx - marginPx
-        val dy = scrollIntoBand(shown.caretLineTopPx(), shown.caretLineBottomPx(), marginPx, clearBottomPx)
+        val dy = scrollIntoBand(line[0], line[1], marginPx, clearBottomPx)
         if (dy != 0f) scrollBy(dy)
     }
 }

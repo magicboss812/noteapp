@@ -1,6 +1,7 @@
 package dev.folio.feature.editor.canvas
 
 import android.content.Context
+import android.text.TextUtils
 import android.view.View
 import android.widget.FrameLayout
 import androidx.annotation.MainThread
@@ -11,6 +12,7 @@ import dev.folio.core.render.PageRenderer
 import dev.folio.core.render.tiles.TileLayer
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.ViewportMode
+import dev.folio.core.text.flow.EditedBlock
 import dev.folio.feature.editor.text.TextFieldSpec
 import kotlin.math.max
 import kotlin.math.min
@@ -34,7 +36,12 @@ internal class TextFieldHost(
     private val document: () -> Document?,
 ) {
     private var view: LiveTextField? = null
+    private var edited: EditedTextView? = null
     private var ghost: TextGhost? = null
+
+    // The block laid out from the field text before the model answered for it, and the shown block's text color.
+    private var typed: EditedBlock? = null
+    private var textArgb = DEFAULT_TEXT_ARGB
     private var spec: TextFieldSpec? = null
     private var pageIndex = -1
     private var tapNs = 0L
@@ -47,6 +54,9 @@ internal class TextFieldHost(
 
     /** The live field, null until [prepare] or the first focused block built it. */
     val liveField: LiveTextField? get() = view
+
+    /** The overlay that draws the edited block, null until [prepare] (tests). */
+    internal val editedView: EditedTextView? get() = edited
 
     /** A finger tap may focus a block now ([nowNs], System.nanoTime): the field that shows next traces tap to caret. */
     fun tapped(nowNs: Long) {
@@ -62,6 +72,7 @@ internal class TextFieldHost(
     fun show(next: TextFieldSpec?) {
         val moved = next != null && next.focus.revision != spec?.focus?.revision
         spec = next
+        if (moved) typed = null
         handoff.show(next)
         if (handoff.isPending) {
             overlay.removeCallbacks(expire)
@@ -91,22 +102,62 @@ internal class TextFieldHost(
         val index = if (current == null) -1 else indexOf(current.pageId)
         if (current == null || index < 0) {
             view?.hide()
+            typed = null
+            edited?.show(null, textArgb, EditedTextView.NO_CARET, withText = false)
             return
         }
         val paper = document()?.page(current.pageId)?.background?.paperArgb
-        val argb = if (paper == null) DEFAULT_TEXT_ARGB else PageRenderer.textArgb(paper)
-        prepare().show(current, argb, viewport, index, handoff.isMasked)
+        textArgb = if (paper == null) DEFAULT_TEXT_ARGB else PageRenderer.textArgb(paper)
+        prepare().show(current, textArgb, viewport, index, handoff.isMasked, overlaid = current.drawnByOverlay)
+        showEdited()
+    }
+
+    /**
+     * Shows the edited block as the field holds it on the canvas overlay (A-058): the model's layout once it has that
+     * source, before that the block laid out again from the field text, so a keystroke shows in its own frame.
+     */
+    private fun showEdited() {
+        // HOT PATH: per keystroke and caret move; a retype allocates the new layout only when the text changed.
+        val target = edited ?: return
+        val field = view
+        val current = spec?.takeIf { it.drawnByOverlay }
+        val laidOut = current?.edited
+        if (field == null || laidOut == null) {
+            target.show(null, textArgb, EditedTextView.NO_CARET, withText = false)
+            return
+        }
+        val text = field.text
+        val block =
+            when {
+                TextUtils.equals(text, laidOut.source) -> laidOut
+                typed != null && TextUtils.equals(text, typed?.source) -> typed
+                else -> controller.textController?.retype(text.toString())?.also { typed = it }
+            } ?: laidOut
+        val start = field.selectionStart
+        val end = field.selectionEnd
+        val caretAt = if (start == end && end >= 0) end else EditedTextView.NO_CARET
+        target.show(block, textArgb, caretAt, withText = !handoff.isMasked)
     }
 
     // The tiles and the field change in this run: both show in the same frame.
     private fun applyHandoff() {
         invalidateTiles()
         refresh()
-        if (handoff.leaving == null) ghost?.hide()
+        if (handoff.leaving == null) {
+            ghost?.hide()
+            edited?.settled()
+        }
         if (!handoff.isPending) overlay.removeCallbacks(expire)
     }
 
+    // The block that left the field stays drawn until the tiles show it: the overlay keeps its laid-out text, a table
+    // cell's field is captured as a picture.
     private fun capture(leaving: TextFieldSpec) {
+        val overlaid = edited?.shown
+        if (leaving.drawnByOverlay && overlaid != null) {
+            edited?.leave(overlaid)
+            return
+        }
         val field = view ?: return
         val index = indexOf(leaving.pageId)
         val picture =
@@ -140,6 +191,7 @@ internal class TextFieldHost(
     fun place() {
         // HOT PATH: per viewport change; no allocation.
         ghost?.place(viewport)
+        edited?.invalidate()
         val current = spec ?: return
         val index = indexOf(current.pageId)
         if (index >= 0) view?.place(viewport, index)
@@ -151,8 +203,16 @@ internal class TextFieldHost(
      */
     fun prepare(): LiveTextField =
         view ?: LiveTextField(context).also {
-            it.onEdit = { edit -> controller.textController?.edit(edit) }
-            it.onSelection = { start, end, extending -> controller.textController?.select(start, end, it.spec?.cell?.cell, extending) }
+            // Under the field, which draws nothing while the overlay draws its block.
+            edited = EditedTextView(context, viewport, ::indexOf).also(overlay::addView)
+            it.onEdit = { edit ->
+                controller.textController?.edit(edit)
+                showEdited()
+            }
+            it.onSelection = { start, end, extending ->
+                controller.textController?.select(start, end, it.spec?.cell?.cell, extending)
+                showEdited()
+            }
             it.onShortcut = { keyCode, ctrl, shift, alt -> onShortcut(keyCode, ctrl, shift, alt) }
             it.onEscape = { controller.textController?.blur() }
             it.onVertical = navigation::moveVertically
@@ -184,6 +244,39 @@ internal class TextFieldHost(
         // A field that shows later than this after a tap did not come from it.
         private const val MAX_TAP_TRACE_NS = 1_000_000_000L
     }
+}
+
+// The overlay draws the block from its source layout; a table cell's field draws the cell itself.
+private val TextFieldSpec.drawnByOverlay: Boolean get() = edited != null && cell == null
+
+/**
+ * Puts the top and bottom of the caret's line (host view px) into [out]: where the overlay draws it when it draws the
+ * block (a paragraph continued on the next page has its caret there), else the field's own. False without a shown field.
+ */
+internal fun TextFieldHost.caretLinePx(out: FloatArray): Boolean {
+    val field = liveField ?: return false
+    val shown = field.spec
+    if (field.visibility != View.VISIBLE || shown == null) return false
+    val overlaid = shown.drawnByOverlay && editedView?.linePx(field.selectionEnd.coerceAtLeast(0), out) == true
+    if (!overlaid) {
+        out[0] = field.caretLineTopPx()
+        out[1] = field.caretLineBottomPx()
+    }
+    return true
+}
+
+/** The field and overlay state in one line (debug automation): selection, overlay caret, blink, block, caret spot. */
+internal fun TextFieldHost.describe(): String {
+    val field = liveField
+    val overlay = editedView
+    val block = overlay?.shown
+    val caret = overlay?.caretOffset ?: EditedTextView.NO_CARET
+    val spot = if (caret >= 0) block?.caretSpot(caret) else null
+    return "field=${field?.visibility} spec=${field?.spec != null} overlaid=${field?.spec?.drawnByOverlay} " +
+        "sel=${field?.selectionStart}..${field?.selectionEnd} len=${field?.text?.length} " +
+        "block=${block?.source?.length} pieces=${block?.pieces?.size} lines=${block?.layout?.lineCount} " +
+        "caret=$caret blink=${overlay?.blinkOn} text=${overlay?.drawsText} left=${overlay?.left != null} " +
+        "spot=${spot?.let { "${it.pageId.value}@${it.topPt}" }} handoff=$isHandingOff"
 }
 
 // The overlay fills the host view, so the field's position in it is in host px.

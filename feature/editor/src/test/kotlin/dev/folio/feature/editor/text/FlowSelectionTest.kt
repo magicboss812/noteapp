@@ -220,7 +220,7 @@ class FlowSelectionTest : EditorTextFixture() {
         }
 
     @Test
-    fun selectionAcrossBlocks_snapshotHighlightsTheBlocksOutsideTheField() =
+    fun selectionAcrossBlocks_snapshotHighlightsEveryBlockIncludingTheEditedOne() =
         runTest(main.testDispatcher) {
             val path = note(1, listOf(0), "alpha\n\nbeta\n\ngamma")
             val (_, text, page) = focusedFlow(path, this)
@@ -232,13 +232,19 @@ class FlowSelectionTest : EditorTextFixture() {
 
             val highlight = checkNotNull(text.snapshot.value.selection)
             val focus = checkNotNull(highlight.focus)
-            assertThat(highlight.boxes).hasSize(2) // alpha and beta; gamma is the live field's
+            // gamma too: the overlay draws the edited block from the page layout, its boxes come from there (A-058)
+            assertThat(highlight.boxes).hasSize(3)
             assertThat(highlight.boxes.map { it.pageId }.distinct()).containsExactly(page)
             assertThat(
                 highlight.boxes
                     .last()
-                    .rect.bottom,
-            ).isAtMost(focus.topPt)
+                    .rect.top,
+            ).isEqualTo(focus.topPt)
+            assertThat(
+                highlight.boxes
+                    .last()
+                    .rect.right,
+            ).isEqualTo(focus.xPt)
             assertThat(checkNotNull(highlight.anchor).xPt).isGreaterThan(bodyRect.left)
             assertThat(focus.xPt).isGreaterThan(bodyRect.left)
         }

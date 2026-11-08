@@ -1,5 +1,6 @@
 package dev.folio.feature.editor.text
 
+import androidx.annotation.MainThread
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
@@ -28,6 +29,7 @@ import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.edit.FlowTextDiff
 import dev.folio.core.text.edit.TableEditing
 import dev.folio.core.text.edit.TextSelection
+import dev.folio.core.text.flow.EditedBlock
 import dev.folio.core.text.flow.FlowLayout
 import dev.folio.core.text.flow.FlowSearch
 import dev.folio.core.text.flow.FocusedBlock
@@ -100,6 +102,10 @@ class EditorText internal constructor(
     private var inputs: LayoutInputs? = null
     private var shown: FocusedBlock? = null
 
+    // The layouts without an edited block (thumbnails) and the edited (flow, block) of the snapshot's layouts.
+    private var plainLayouts: Map<FlowId, FlowLayout> = emptyMap()
+    private var edited: Pair<FlowId, Long>? = null
+
     // The latest focus revision a relayout replaced (its block was gone) and the revision it gave the new focus.
     @Volatile private var resolved: Pair<Int, Int>? = null
 
@@ -150,20 +156,54 @@ class EditorText internal constructor(
         val rebroken = next.flows != inputs?.flows && checkLinks(doc)
         val relaid = next != inputs || rebroken
         val current = mutableSnapshot.value
-        val layouts = if (relaid) PageTexts.layouts(doc, engine.layouter, parses::of, broken) else current.layouts
+        val base = if (relaid) PageTexts.layouts(doc, engine.layouter, parses::of, broken) else plainLayouts
+        plainLayouts = base
         inputs = next
-        val focus = resolveFocus(layouts)
-        // The canvas leaves out the block the field shows, so tiles and field come from one layout (P06-T18).
+        val focus = resolveFocus(base)
+        val layouts = if (relaid) editLayouts(doc, base, focus, null) else editLayouts(doc, base, focus, current.layouts)
+        // The canvas leaves out the block the overlay draws, so tiles and overlay come from one layout (P06-T18).
         val field = if (focus == null) null else layouts.fieldOf(focus) ?: current.field
         val focused = field?.focus?.shownIn(layouts)
-        if (relaid || focused != shown || field?.focus != current.field?.focus) {
+        // A relayout always gives new layouts.
+        if (layouts !== current.layouts || focused != shown || field?.focus != current.field?.focus) {
             shown = focused
-            val pages = if (relaid) keepUnchanged(current.pages, PageTexts.of(doc, layouts)) else current.pages
+            val pages = if (relaid) keepUnchanged(current.pages, PageTexts.of(doc, base)) else current.pages
             val canvas = if (focused == null) pages else keepUnchanged(current.canvas, PageTexts.of(doc, layouts, focused))
             mutableSnapshot.value = TextSnapshot(layouts, pages, canvas, field, layouts.highlightOf(field?.focus))
         }
         PerfMonitor.record(TRACE_REFRESH, PerfMonitor.clock.monotonicNs() - startNs)
         ready.complete(Unit)
+    }
+
+    // The focused flow laid out with the edited block as its source and paginated with the rest (A-058): hits, caret and
+    // selection use that layout, so they match what the canvas overlay draws. [kept] are the layouts to keep while the
+    // edited block is the same one (null after a relayout).
+    private fun editLayouts(
+        doc: Document,
+        base: Map<FlowId, FlowLayout>,
+        focus: TextFocus?,
+        kept: Map<FlowId, FlowLayout>?,
+    ): Map<FlowId, FlowLayout> {
+        val edit = focus?.let { it.flowId to it.blockId }
+        val same = edit == edited
+        edited = edit
+        return when {
+            focus == null -> {
+                base
+            }
+
+            kept != null && same -> {
+                kept
+            }
+
+            else -> {
+                PageTexts.flowLayout(doc, focus.flowId, engine.layouter, parses::of, broken, focus.blockId)?.let {
+                    base +
+                        (focus.flowId to it)
+                }
+                    ?: base
+            }
+        }
     }
 
     // The focused block's id changes when undo or redo parses the text again, and an edit may merge it away: the block
@@ -284,6 +324,18 @@ class EditorText internal constructor(
 
     /** The parse of flow [flowId] its current layout shows, null while it has none. */
     internal fun laidOut(flowId: FlowId): MarkdownDocument? = mutableSnapshot.value.layouts[flowId]?.markdown
+
+    /**
+     * The focused block laid out as [source] in place of its current text and paginated from where it starts, for the
+     * overlay to draw a keystroke before the reflow lands (A-058); null without focus.
+     */
+    @MainThread
+    fun retype(source: String): EditedBlock? {
+        val focus = mutableFocus.value ?: return null
+        val flow = mutableSnapshot.value.layouts[focus.flowId] ?: return null
+        val index = flow.markdown.indexOf(focus.blockId)
+        return if (index < 0) null else engine.layouter.retype(flow, index, source)
+    }
 
     /**
      * Puts the focus where block editing left the caret ([result] of flow [flowId]). A keystroke ([edit]) whose text is

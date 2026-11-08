@@ -16,6 +16,7 @@ import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.text.edit.TableCell
+import dev.folio.core.text.flow.EditedBlock
 import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.FieldEdit
 import dev.folio.feature.editor.text.FormatAction
@@ -34,6 +35,15 @@ internal class FakeTextController : TextController {
     val edits = ArrayList<FieldEdit>()
     val formats = ArrayList<FormatAction>()
     var blurCount = 0
+
+    /** What [retype] returns; the sources it got are in [retypeCalls]. */
+    var retyped: EditedBlock? = null
+    val retypeCalls = ArrayList<String>()
+
+    override fun retype(source: String): EditedBlock? {
+        retypeCalls += source
+        return retyped
+    }
 
     override fun focusAt(
         pageId: PageId,

@@ -221,7 +221,7 @@ class CanvasHostView internal constructor(
 
     /** Keeps the caret line above the keyboard and the toolbox; CanvasHost sets what the chrome covers. */
     internal val caret: CaretKeeper =
-        CaretKeeper(this, CARET_MARGIN_DP * resources.displayMetrics.density, { textField.liveField }) {
+        CaretKeeper(this, CARET_MARGIN_DP * resources.displayMetrics.density, { textField.caretLinePx(it) }) {
             animator.scrollBy(it, KEY_ANIMATION_MS)
         }
 
@@ -243,6 +243,9 @@ class CanvasHostView internal constructor(
 
     /** Pointer downs and taps that reached this view (debug automation). */
     val touchCounts = TouchCounts { textField.caretTaps }
+
+    /** The live field and the edited-text overlay in one line (debug automation). */
+    val textOverlayState: String get() = textField.describe()
 
     /** Dry handoff counters. */
     val handoffStats: HandoffStats get() = HandoffStats(handoff.committedCount, handoff.pendingCount, handoff.removedCount)

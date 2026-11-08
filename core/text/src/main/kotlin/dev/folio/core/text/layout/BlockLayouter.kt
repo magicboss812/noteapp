@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
 import dev.folio.core.common.Outcome
 import dev.folio.core.common.PerfMonitor
+import dev.folio.core.text.edit.EditMarkers
 import dev.folio.core.text.fonts.DerivedSize
 import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.fonts.FontRegistry
@@ -66,6 +67,7 @@ class BlockLayouter(
         val widthPt: Float,
         val style: FlowTextStyle,
         val grid: LayoutGrid,
+        val edit: Boolean,
     )
 
     private val cache =
@@ -84,6 +86,27 @@ class BlockLayouter(
         widthPt: Float,
         style: FlowTextStyle,
         grid: LayoutGrid,
+    ): BlockLayout = cached(block, widthPt, style, grid, edit = false)
+
+    /**
+     * Layout of [block] while it is edited (07-text-engine.md#rendering, A-058): its source in the block's role, indent
+     * and frame width with the markers dimmed and math as LaTeX, so the canvas draws the edited text paginated like any
+     * other block. Offsets into its [BlockLayout.plainText] are source offsets ([BlockLayout.editsSource]). A table keeps
+     * its normal layout (the live field edits one cell).
+     */
+    fun editLayout(
+        block: MarkdownBlock,
+        widthPt: Float,
+        style: FlowTextStyle,
+        grid: LayoutGrid,
+    ): BlockLayout = cached(block, widthPt, style, grid, edit = true)
+
+    private fun cached(
+        block: MarkdownBlock,
+        widthPt: Float,
+        style: FlowTextStyle,
+        grid: LayoutGrid,
+        edit: Boolean,
     ): BlockLayout {
         val current = fonts()
         if (current !== registry) {
@@ -92,9 +115,12 @@ class BlockLayouter(
             registry = current
         }
         val keyStyle = styleFor(block.content, style)
-        val key = Key(block.source, widthPt, keyStyle, grid)
+        val key = Key(block.source, widthPt, keyStyle, grid, edit)
         synchronized(cache) { cache[key] }?.let { return it }
-        val layout = PerfMonitor.trace(TRACE_LAYOUT) { build(block.content, widthPt, keyStyle, grid) }
+        val layout =
+            PerfMonitor.trace(TRACE_LAYOUT) {
+                if (edit) buildEdit(block, widthPt, keyStyle, grid) else build(block.content, widthPt, keyStyle, grid)
+            }
         synchronized(cache) { cache[key] = layout }
         return layout
     }
@@ -112,7 +138,7 @@ class BlockLayouter(
         style: FlowTextStyle,
         grid: LayoutGrid,
     ): BlockLayout {
-        val g = Geometry(grid, widthPt, (grid.unitPt * REFERENCE_SCALE).roundToInt().coerceAtLeast(1), style.baselineLiftUnits)
+        val g = geometry(grid, widthPt, style)
         val family = registry.resolve(style.familyName)
         return when (content) {
             BlockContent.Empty -> {
@@ -159,6 +185,118 @@ class BlockLayouter(
             }
         }
     }
+
+    // The source of [block] laid out for editing; see editLayout.
+    private fun buildEdit(
+        block: MarkdownBlock,
+        widthPt: Float,
+        style: FlowTextStyle,
+        grid: LayoutGrid,
+    ): BlockLayout {
+        val content = block.content
+        if (content is BlockContent.Table) return build(content, widthPt, style, grid)
+        val g = geometry(grid, widthPt, style)
+        val family = registry.resolve(style.familyName)
+        val step = g.grid.indentStepPt
+        val source = EditSource(block.source, EditMarkers.ranges(block), layout(block, widthPt, style, grid).mathErrors)
+        return when (content) {
+            BlockContent.Empty, BlockContent.Rule, is BlockContent.Table -> {
+                sourceBlock(g, style, family, TextRole.BODY, source, null, TextAlign.Start)
+            }
+
+            is BlockContent.Paragraph -> {
+                sourceBlock(g, style, family, TextRole.BODY, source, content.text, align(style.alignment, justify = true))
+            }
+
+            is BlockContent.Heading -> {
+                sourceBlock(g, style, family, headingRole(content.level), source, content.text, align(style.alignment, justify = false))
+            }
+
+            is BlockContent.ListItem -> {
+                // The marker takes the gutter: the source starts where the bullet is drawn.
+                val left = min(content.level * step, g.widthPt / 2f)
+                sourceBlock(g, style, family, TextRole.BODY, source, content.text, TextAlign.Start, leftPt = left)
+            }
+
+            is BlockContent.Quote -> {
+                val bar = BlockDecoration.QuoteBar(step * QUOTE_BAR_LEFT, g.unitPt * QUOTE_BAR_UNITS, content.callout)
+                sourceBlock(g, style, family, TextRole.BODY, source, content.text, TextAlign.Start, leftPt = step, decoration = bar)
+            }
+
+            is BlockContent.Code -> {
+                val inset = CODE_INSET_UNITS * g.unitPt
+                val mono = registry.codeFamily(style.familyName)
+                sourceBlock(g, style, mono, TextRole.CODE, source, null, TextAlign.Start, inset, inset, BlockDecoration.CodeBackground)
+            }
+
+            is BlockContent.Math -> {
+                sourceBlock(g, style, registry.codeFamily(style.familyName), TextRole.CODE, source, null, TextAlign.Start)
+            }
+        }
+    }
+
+    // A block's source with its syntax ranges (dimmed) and the formula errors of its normal layout (the field shows them).
+    private class EditSource(
+        val text: String,
+        val dimmed: IntArray,
+        val mathErrors: List<MathError>,
+    )
+
+    private fun sourceBlock(
+        g: Geometry,
+        style: FlowTextStyle,
+        family: TextFontFamily,
+        role: TextRole,
+        source: EditSource,
+        inline: InlineText?,
+        textAlign: TextAlign,
+        leftPt: Float = 0f,
+        rightPt: Float = 0f,
+        decoration: BlockDecoration = BlockDecoration.None,
+    ): BlockLayout {
+        val size = TextSizing.derive(metrics, family, role, style.bodyCap, g.unitPt)
+        val length = source.text.length
+        val spans = ArrayList<AnnotatedString.Range<SpanStyle>>()
+        if (inline != null) {
+            val code by lazy { monoStyle(family, size.capFraction, g).copy(background = style.palette.codeBackground) }
+            for (span in inline.spans) {
+                val start = span.sourceStart.coerceIn(0, length)
+                val end = span.sourceEnd.coerceIn(start, length)
+                // Math stays LaTeX in the body face; marks keep their look around the dimmed delimiters.
+                val spanStyle = if (span.kind == SpanKind.CODE) code else markStyle(span.kind, style.palette)
+                if (start < end && spanStyle != null) spans += AnnotatedString.Range(spanStyle, start, end)
+            }
+        }
+        val dim = SpanStyle(color = style.palette.marker)
+        for (i in 0 until source.dimmed.size - 1 step 2) {
+            val start = source.dimmed[i].coerceIn(0, length)
+            val end = source.dimmed[i + 1].coerceIn(start, length)
+            if (start < end) spans += AnnotatedString.Range(dim, start, end)
+        }
+        val text =
+            gridText(source.text, spans, family, role.bold, size.fontSizePt, size.boxUnits, g, g.widthPt - leftPt - rightPt, textAlign)
+        return BlockLayout(
+            text = text,
+            marker = null,
+            unitPt = g.unitPt,
+            boxUnits = size.boxUnits,
+            lineCount = text.lineCount,
+            textLeftPt = leftPt,
+            markerLeftPt = leftPt,
+            fontSizePt = size.fontSizePt,
+            decoration = decoration,
+            face = BlockFace(family.fontFamily, role.bold),
+            mathErrors = source.mathErrors,
+            liftPt = g.liftPt,
+            editsSource = true,
+        )
+    }
+
+    private fun geometry(
+        grid: LayoutGrid,
+        widthPt: Float,
+        style: FlowTextStyle,
+    ): Geometry = Geometry(grid, widthPt, (grid.unitPt * REFERENCE_SCALE).roundToInt().coerceAtLeast(1), style.baselineLiftUnits)
 
     /**
      * Grid facts shared by every paragraph of one block: [pitchPx] = one U in layout px (whole); baselines sit
@@ -574,12 +712,7 @@ class BlockLayouter(
         if (inline.spans.isEmpty()) return out
         val length = inline.plain.length
         // Inline code (and invalid LaTeX): the monospace family at the code-to-body cap ratio of the surrounding role.
-        val mono by lazy {
-            val mono = registry.codeFamily(family.name)
-            val cap = roleCap * TextRole.CODE.capFractionAtM / TextRole.BODY.capFractionAtM
-            val sizePt = TextSizing.fontSizePt(metrics.proportions(mono).capRatio, cap, g.unitPt)
-            SpanStyle(fontFamily = mono.fontFamily, fontSize = (sizePt * g.refScale).sp)
-        }
+        val mono by lazy { monoStyle(family, roleCap, g) }
         val code by lazy { mono.copy(background = style.palette.codeBackground) }
         val invalidMath by lazy { mono.copy(color = style.palette.mathError) }
         for (span in inline.spans) {
@@ -612,6 +745,18 @@ class BlockLayouter(
             if (start < end && spanStyle != null) out += AnnotatedString.Range(spanStyle, start + offset, end + offset)
         }
         return out
+    }
+
+    // Inline code: the monospace family at the code-to-body cap ratio of the surrounding role ([roleCap]).
+    private fun monoStyle(
+        family: TextFontFamily,
+        roleCap: Float,
+        g: Geometry,
+    ): SpanStyle {
+        val mono = registry.codeFamily(family.name)
+        val cap = roleCap * TextRole.CODE.capFractionAtM / TextRole.BODY.capFractionAtM
+        val sizePt = TextSizing.fontSizePt(metrics.proportions(mono).capRatio, cap, g.unitPt)
+        return SpanStyle(fontFamily = mono.fontFamily, fontSize = (sizePt * g.refScale).sp)
     }
 
     companion object {
