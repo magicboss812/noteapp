@@ -288,40 +288,6 @@ object TextZones {
         return if (abs(offset) < EPS) 0f else offset
     }
 
-    /**
-     * Free text box [rect] with its left and right edges dragged to [leftPt] and [rightPt] (P06-T17): each moved edge
-     * snaps to the nearest grid column (1 mm on pages without columns), inside the page, at least 20 mm wide. The
-     * caller reflows the box, whose height follows in whole U.
-     */
-    fun resizedBox(
-        spec: PageSpec,
-        template: Template,
-        rect: RectPt,
-        leftPt: Float,
-        rightPt: Float,
-    ): RectPt {
-        val grid = GridUnit.of(template)
-        val step = columnStep(grid)
-        val minWidth = step * ceil(BOX_MIN_WIDTH_PT / step - EPS)
-        var left = rect.left
-        var right = rect.right
-        if (leftPt != rect.left) {
-            left = snap(min(leftPt, right - minWidth), columnOrigin(grid), step)
-            if (left < 0f) left += step * ceil(-left / step - EPS)
-        }
-        if (rightPt != rect.right) {
-            right = snap(max(rightPt, left + minWidth), columnOrigin(grid), step)
-            if (right > spec.widthPt) right -= step * ceil((right - spec.widthPt) / step - EPS)
-        }
-        if (right - left < minWidth - EPS) right = left + minWidth
-        return rect.copy(left = left, right = right)
-    }
-
-    // Columns a box edge snaps to: the grid columns, or millimeters from the page edge.
-    private fun columnStep(grid: GridUnit): Float = if (grid.snapsColumns) grid.unitPt else PT_PER_MM
-
-    private fun columnOrigin(grid: GridUnit): Float = if (grid.snapsColumns) grid.originXPt else 0f
-
     private fun snap(
         valuePt: Float,
         originPt: Float,

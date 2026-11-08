@@ -104,7 +104,7 @@ object FlowFrames {
         ref: PageRef,
         flow: TextFlow,
     ): Borders? {
-        val anchor = flow.box.anchorXPt?.takeIf { flow.box.autoWidth } ?: return null
+        val anchor = flow.box.anchorXPt?.takeIf { flow.box.fitsText } ?: return null
         val zone = TextZones.boxZone(ref.spec, ref.background.template)
         return TextZones.autoBorders(zone, anchor, flow.style.align, Float.POSITIVE_INFINITY)
     }
@@ -256,7 +256,7 @@ class FlowReflow(
         val first = slots.first()
         val frame = frameOf(doc, first)?.takeIf { it.role == FrameRole.BOX }
         val ref = doc.pageRef(first.pageId)
-        if (!flow.box.autoWidth || frame == null || ref == null) return null
+        if (!flow.box.fitsText || frame == null || ref == null) return null
         val zone = TextZones.boxZone(ref.spec, ref.background.template)
         val align = flow.style.align
         val anchor = flow.box.anchorXPt ?: TextZones.anchorOf(frame.rect, align)

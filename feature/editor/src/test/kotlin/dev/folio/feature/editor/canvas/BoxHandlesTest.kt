@@ -35,6 +35,7 @@ import dev.folio.feature.editor.text.BoxPiece
 import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.SelectedBox
 import dev.folio.feature.editor.text.TextFocus
+import dev.folio.feature.editor.text.WidthPreview
 import dev.folio.feature.editor.text.fieldOf
 import dev.folio.feature.editor.text.shownIn
 import org.junit.Rule
@@ -80,10 +81,14 @@ class BoxHandlesTest {
         controller.document.value.pages[0]
             .id
 
-    // A two-line box on the first page, selected in Preview or (with the caret at its end) in Edit.
+    // The outline of the box the last showBox showed (page pt).
+    private var outline = RectPt.EMPTY
+
+    // A two-line box on the first page, selected in Preview or (with the caret at its end) in Edit, [fill] width on or off.
     private fun showBox(
         editing: Boolean = false,
         topPt: Float = 180f,
+        fill: Boolean = false,
     ): RectPt {
         val pages = controller.document.value.pages
         val page = pages[0].id
@@ -101,7 +106,8 @@ class BoxHandlesTest {
         val layout = checkNotNull(PageTexts.flowLayout(doc, boxFlow, layouter, editBlockId = if (editing) block.id else null))
         val layouts = mapOf(boxFlow to layout)
         val focus = if (editing) TextFocus(boxFlow, block.id, 0, block.source.length, 1) else null
-        val selected = SelectedBox(boxFlow, editing, listOf(BoxPiece(page, boxId, rect, layout.outlineOf(0))), movable = true)
+        outline = layout.outlineOf(0)
+        val selected = SelectedBox(boxFlow, editing, listOf(BoxPiece(page, boxId, rect, outline)), movable = true, fill = fill)
         compose.runOnUiThread {
             controller.document.value = doc
             controller.canvasText.value =
@@ -393,21 +399,87 @@ class BoxHandlesTest {
     }
 
     @Test
-    fun rightKnob_resizesTheWidthInMillimeters_leftEdgeStays() {
+    fun rightKnob_movesTheBorderSmoothly_leftEdgeStays_oneResize() {
         val texts = FakeTextController().also { controller.textController = it }
         show()
         val rect = showBox()
-        val knob = controller.viewport.toViewPx(firstPage(), PointPt(rect.right, (rect.top + rect.bottom) / 2))
+        val knob = controller.viewport.toViewPx(firstPage(), PointPt(outline.right, (outline.top + outline.bottom) / 2))
 
         drag(knob.x to knob.y, knob.x - 150f to knob.y + 5f)
 
-        val placed = texts.placedBoxes.single()
-        assertThat(placed.rect.left).isEqualTo(rect.left)
-        assertThat(placed.rect.top).isEqualTo(rect.top)
-        assertThat(placed.rect.right).isLessThan(rect.right)
-        val mm = placed.rect.right / (72f / 25.4f)
-        assertThat(abs(mm - mm.roundToInt())).isLessThan(1e-3f)
+        val (flow, borders) = texts.resizedBoxes.single()
+        assertThat(flow).isEqualTo(boxFlow)
+        assertThat(borders.leftPt).isEqualTo(rect.left)
+        assertThat(borders.rightPt).isWithin(0.05f).of(rect.right - 150f / controller.viewport.scale)
         assertThat(texts.movedBoxes).isEmpty()
+    }
+
+    @Test
+    fun knobDrag_asksForTheTextLaidOutAtTheNewWidth_whileItRuns() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val rect = showBox()
+        val knob = controller.viewport.toViewPx(firstPage(), PointPt(outline.left, (outline.top + outline.bottom) / 2))
+        val narrower = outline.copy(left = outline.left + 40f, bottom = outline.bottom + template.spacingPt)
+        texts.widthPreview = WidthPreview(emptyMap(), mapOf(boxId to narrower))
+
+        compose.runOnUiThread {
+            val view = hostView()
+            view.dispatchTouchEvent(event(ACTION_DOWN, 0, knob.x to knob.y))
+            view.dispatchTouchEvent(event(ACTION_MOVE, 50, knob.x + 40f * controller.viewport.scale to knob.y))
+        }
+
+        val asked = texts.widthPreviews.single()
+        assertThat(asked.leftPt).isWithin(0.05f).of(rect.left + 40f)
+        assertThat(asked.rightPt).isEqualTo(rect.right)
+        assertThat(
+            hostView()
+                .boxHandles.preview
+                ?.second
+                ?.left,
+        ).isWithin(0.05f).of(rect.left + 40f)
+        assertThat(texts.resizedBoxes).isEmpty()
+        compose.runOnUiThread { hostView().dispatchTouchEvent(event(ACTION_UP, 100, knob.x + 40f * controller.viewport.scale to knob.y)) }
+        assertThat(texts.resizedBoxes).hasSize(1)
+    }
+
+    @Test
+    fun knobTarget_is48dpAtZoomQuarterOneAndFour() {
+        controller.textController = FakeTextController()
+        show()
+        showBox()
+        val reachPx = 24f * hostView().resources.displayMetrics.density
+        for (zoom in listOf(0.25f, 1f, 4f)) {
+            compose.runOnUiThread { controller.viewport.zoomTo(zoom, 0f, 0f) }
+            val knob = controller.viewport.toViewPx(firstPage(), PointPt(outline.right, (outline.top + outline.bottom) / 2))
+            val handles = hostView().boxHandles
+
+            assertThat(handles.covers(knob.x + reachPx - 1f, knob.y)).isTrue()
+            assertThat(handles.covers(knob.x + reachPx + 1f, knob.y)).isFalse()
+            assertThat(handles.covers(knob.x + reachPx - 1f, knob.y + reachPx - 1f)).isTrue()
+            assertThat(handles.covers(knob.x + reachPx - 1f, knob.y + reachPx + 1f)).isFalse()
+        }
+    }
+
+    @Test
+    fun fillWidthButton_pressesFillWidth_highlightedWhileOn() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        showBox(fill = true)
+        val handles = hostView().boxHandles
+        handles.toolbarCovers(-1f, -1f)
+        val pill = handles.toolbar.pill
+        val x =
+            (pill.left.roundToInt()..pill.right.roundToInt()).first {
+                handles.toolbar.buttonAt(it.toFloat(), pill.centerY()) ==
+                    BoxButton.FILL
+            }
+
+        tap(x + 20f to pill.centerY())
+
+        assertThat(texts.fillWidthCount).isEqualTo(1)
+        assertThat(texts.boxTaps).isEmpty()
+        compose.onRoot().captureRoboImage("src/test/screenshots/CanvasHost_boxFillWidth.png")
     }
 
     private companion object {

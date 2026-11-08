@@ -1,9 +1,9 @@
 package dev.folio.feature.editor.text
 
 import dev.folio.core.common.PerfMonitor
+import dev.folio.core.model.Borders
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FlowStyle
-import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.TextAlign
 import dev.folio.core.model.edit.EditCommand
@@ -473,14 +473,25 @@ internal class TextEditor(
         if (created == null || !steps.revoke(created.token)) execute(removal)
     }
 
-    override fun placeBox(
-        frameId: ObjectId,
-        fromPage: PageId,
-        toPage: PageId,
-        rect: RectPt,
+    override fun resizeBox(
+        flowId: FlowId,
+        borders: Borders,
         done: (Boolean) -> Unit,
     ) {
-        scope.launch(dispatcher) { done(text.boxCommand(frameId, fromPage, toPage, rect)?.let { execute(it) } ?: false) }
+        scope.launch(dispatcher) { done(text.widthCommand(flowId, borders)?.let { execute(it) } ?: false) }
+    }
+
+    override fun previewWidth(
+        flowId: FlowId,
+        borders: Borders,
+        shown: (WidthPreview?) -> Unit,
+    ) {
+        scope.launch(dispatcher) { shown(text.widthPreview(flowId, borders)) }
+    }
+
+    override fun fillWidth() {
+        val flowId = text.mode.flowId ?: return
+        scope.launch(dispatcher) { text.fillCommand(flowId)?.let { execute(it) } }
     }
 
     override fun typeIntoPage(

@@ -3,6 +3,7 @@ package dev.folio.feature.editor.text
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.common.Outcome
+import dev.folio.core.model.Borders
 import dev.folio.core.model.Document
 import dev.folio.core.model.FlowBox
 import dev.folio.core.model.FlowFrame
@@ -25,7 +26,7 @@ import org.junit.runner.RunWith
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** Moving and resizing a free text box (P06-T17): snapped rects, reflow and one undo step each. */
+/** Moving and resizing a free text box (P07-T13, P07-T15): placed rects, knob borders, fill width, reflow and one undo step each. */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 class EditorBoxTest : EditorTextFixture() {
@@ -198,18 +199,19 @@ class EditorBoxTest : EditorTextFixture() {
         }
 
     @Test
-    fun boxCommand_resizeNarrower_reflowsTallerInWholeUnits_oneUndoStep() =
+    fun widthCommand_narrower_unsnapped_reflowsTallerInWholeUnits_oneUndoStep() =
         runTest(main.testDispatcher) {
             val (session, documentSession) = open(boxNote("word ".repeat(40).trim()), this)
             val text = checkNotNull(session.text)
             text.awaitReady()
-            val (page, before) = checkNotNull(documentSession.document.value.box())
-            val target = TextZones.resizedBox(spec, template, before.rect, before.rect.left, before.rect.left + 30f * MM)
+            val (_, before) = checkNotNull(documentSession.document.value.box())
+            val right = before.rect.left + 30.37f * MM
 
-            assertThat(session.execute(checkNotNull(text.boxCommand(boxId, page, page, target)))).isTrue()
+            assertThat(session.execute(checkNotNull(text.widthCommand(boxFlow, Borders(before.rect.left, right))))).isTrue()
 
             val (_, resized) = checkNotNull(documentSession.document.value.box())
-            assertThat(resized.rect.right).isEqualTo(target.right)
+            assertThat(resized.rect.left).isEqualTo(before.rect.left)
+            assertThat(resized.rect.right).isEqualTo(right)
             assertThat(resized.rect.heightPt).isGreaterThan(before.rect.heightPt)
             val units = resized.rect.heightPt / u
             assertThat(abs(units - units.roundToInt())).isLessThan(1e-3f)
@@ -225,15 +227,85 @@ class EditorBoxTest : EditorTextFixture() {
         }
 
     @Test
-    fun boxCommand_sameRectOrNotABox_isNull() =
+    fun widthCommand_autoWidthBox_endsAutoWidth_theReflowKeepsTheKnobBorders() =
+        runTest(main.testDispatcher) {
+            val (session, documentSession) = open(boxNote("Short", autoWidth = true), this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val (_, before) = checkNotNull(documentSession.document.value.box())
+            val wide = Borders(before.rect.left, before.rect.left + 90f * MM)
+
+            assertThat(session.execute(checkNotNull(text.widthCommand(boxFlow, wide)))).isTrue()
+
+            val (_, resized) = checkNotNull(documentSession.document.value.box())
+            assertThat(resized.rect.right).isEqualTo(wide.rightPt)
+            assertThat(checkNotNull(documentSession.document.value.flows[boxFlow]).box.autoWidth).isFalse()
+        }
+
+    @Test
+    fun fillCommand_customFillAdjustCustomFill_followsTheSpecSequence_oneUndoStepEach() =
+        runTest(main.testDispatcher) {
+            val (session, documentSession) = open(boxNote("Fill me"), this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val (_, before) = checkNotNull(documentSession.document.value.box())
+            val zone = TextZones.boxZone(spec, template)
+
+            fun borders(): Pair<Float, Float> = checkNotNull(documentSession.document.value.box()).second.rect.let { it.left to it.right }
+
+            fun fill(): Boolean = checkNotNull(documentSession.document.value.flows[boxFlow]).box.fill
+
+            assertThat(session.execute(checkNotNull(text.fillCommand(boxFlow)))).isTrue()
+            assertThat(fill()).isTrue()
+            assertThat(borders()).isEqualTo(zone.left to zone.right)
+
+            val adjusted = Borders(zone.left + 20f * MM, zone.right)
+            assertThat(session.execute(checkNotNull(text.widthCommand(boxFlow, adjusted)))).isTrue()
+            assertThat(fill()).isTrue()
+
+            assertThat(session.execute(checkNotNull(text.fillCommand(boxFlow)))).isTrue()
+            assertThat(fill()).isFalse()
+            assertThat(borders()).isEqualTo(before.rect.left to before.rect.right)
+
+            assertThat(session.execute(checkNotNull(text.fillCommand(boxFlow)))).isTrue()
+            assertThat(borders()).isEqualTo(adjusted.leftPt to adjusted.rightPt)
+
+            assertThat(session.undo()).isTrue()
+            assertThat(fill()).isFalse()
+            assertThat(borders()).isEqualTo(before.rect.left to before.rect.right)
+        }
+
+    @Test
+    fun widthPreview_laysTheBoxOutAtTheKnobBorders_documentUnchanged() =
+        runTest(main.testDispatcher) {
+            val (session, documentSession) = open(boxNote("word ".repeat(40).trim()), this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val doc = documentSession.document.value
+            val (_, before) = checkNotNull(doc.box())
+            val narrow = Borders(before.rect.left, before.rect.left + 30f * MM)
+
+            val preview = checkNotNull(text.widthPreview(boxFlow, narrow))
+
+            val runs = checkNotNull(preview.runs[boxId])
+            assertThat(runs).isNotEmpty()
+            assertThat(runs.all { it.leftPt == narrow.leftPt && it.widthPt == narrow.widthPt }).isTrue()
+            assertThat(checkNotNull(preview.outlines[boxId]).heightPt).isGreaterThan(before.rect.heightPt)
+            assertThat(documentSession.document.value).isSameInstanceAs(doc)
+            assertThat(documentSession.canUndo.value).isFalse()
+        }
+
+    @Test
+    fun widthAndFill_sameBordersOrNotABox_isNull() =
         runTest(main.testDispatcher) {
             val (session, documentSession) = open(boxNote("Still"), this)
             val text = checkNotNull(session.text)
             text.awaitReady()
             val (page, before) = checkNotNull(documentSession.document.value.box())
 
-            assertThat(text.boxCommand(boxId, page, page, before.rect)).isNull()
-            assertThat(text.boxCommand(ObjectId("nope"), page, page, RectPt(0f, 0f, 10f, 10f))).isNull()
+            assertThat(text.widthCommand(boxFlow, Borders(before.rect.left, before.rect.right))).isNull()
+            assertThat(text.widthCommand(FlowId("nope"), Borders(0f, 100f))).isNull()
+            assertThat(text.fillCommand(FlowId("nope"))).isNull()
             assertThat(text.moveBoxCommand(boxFlow, page, before.rect)).isNull()
             assertThat(text.moveBoxCommand(FlowId("nope"), page, before.rect)).isNull()
         }

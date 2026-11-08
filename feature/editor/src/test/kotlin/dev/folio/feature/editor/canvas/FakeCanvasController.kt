@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.ink.input.StylusPreferences
+import dev.folio.core.model.Borders
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
@@ -23,6 +24,7 @@ import dev.folio.feature.editor.text.FieldEdit
 import dev.folio.feature.editor.text.FormatAction
 import dev.folio.feature.editor.text.TextController
 import dev.folio.feature.editor.text.TextFieldSpec
+import dev.folio.feature.editor.text.WidthPreview
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,21 +130,38 @@ internal class FakeTextController : TextController {
 
     override fun cutSelection(): String? = copied.also { cutCount++ }
 
-    /** Boxes placed by a handle drag: frame, from page, to page, rect. */
-    val placedBoxes = ArrayList<PlacedBox>()
+    /** Boxes resized by a width knob: flow and borders. */
+    val resizedBoxes = ArrayList<Pair<FlowId, Borders>>()
 
-    /** What a box placement or move reports to its caller (false: refused). */
+    /** What a box resize or move reports to its caller (false: refused). */
     var placeResult = true
 
-    override fun placeBox(
-        frameId: ObjectId,
-        fromPage: PageId,
-        toPage: PageId,
-        rect: RectPt,
+    override fun resizeBox(
+        flowId: FlowId,
+        borders: Borders,
         done: (Boolean) -> Unit,
     ) {
-        placedBoxes += PlacedBox(frameId, fromPage, toPage, rect)
+        resizedBoxes += flowId to borders
         done(placeResult)
+    }
+
+    /** Borders a knob drag asked to preview, and what the preview gives back. */
+    val widthPreviews = ArrayList<Borders>()
+    var widthPreview: WidthPreview? = null
+
+    override fun previewWidth(
+        flowId: FlowId,
+        borders: Borders,
+        shown: (WidthPreview?) -> Unit,
+    ) {
+        widthPreviews += borders
+        shown(widthPreview)
+    }
+
+    var fillWidthCount = 0
+
+    override fun fillWidth() {
+        fillWidthCount++
     }
 
     /** Boxes moved by a drag: flow, to page, rect. */
@@ -184,13 +203,6 @@ internal class FakeTextController : TextController {
     override fun deleteBox() {
         deleteBoxCount++
     }
-
-    data class PlacedBox(
-        val frameId: ObjectId,
-        val fromPage: PageId,
-        val toPage: PageId,
-        val rect: RectPt,
-    )
 }
 
 /** Controller over an in-memory document of [pages] lined A4 pages; commands apply synchronously. */

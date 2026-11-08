@@ -6,7 +6,9 @@ import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.common.PerfMonitor
 import dev.folio.core.model.Borders
+import dev.folio.core.model.BoxWidth
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowBox
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FlowStyle
@@ -222,7 +224,8 @@ class EditorText internal constructor(
             if (pieces.isEmpty()) movable = frame.role == FrameRole.BOX
             pieces += BoxPiece(slot.pageId, slot.frameId, slot.rect, layout.outlineOf(i))
         }
-        return if (pieces.isEmpty()) null else SelectedBox(flowId, focus != null, pieces, movable)
+        val fill = doc.flows[flowId]?.box?.fill == true
+        return if (pieces.isEmpty()) null else SelectedBox(flowId, focus != null, pieces, movable, fill)
     }
 
     // The focused flow laid out with the edited block as its source and paginated with the rest (A-058): hits, caret and
@@ -591,139 +594,51 @@ class EditorText internal constructor(
     }
 
     /**
-     * Free text box [frameId] of page [fromPage] placed at [rect] of page [toPage] (P06-T17) as one command: the frame
-     * moves or resizes in place, or leaves its page for [toPage] (on top there), and its flow reflows (an auto-grow
-     * box takes the height its text needs). Null if the frame is not a box there or nothing changes.
+     * Box [flowId] with a width knob let go at [borders] (P07-T15, 10-editor-ui.md#text-boxes Width) as one command:
+     * [BoxCommands.width] and the reflow, the box's height following in whole U. Null if refused or nothing changes.
      */
-    suspend fun boxCommand(
-        frameId: ObjectId,
-        fromPage: PageId,
-        toPage: PageId,
-        rect: RectPt,
-    ): EditCommand? {
+    suspend fun widthCommand(
+        flowId: FlowId,
+        borders: Borders,
+    ): EditCommand? = BoxCommands.width(documentSession.document.value, flowId, borders)?.let { reflowed(it, flowId, "box width") }
+
+    /** The fill width button on box [flowId] (P07-T15) as one command: [BoxCommands.fill] and the reflow; null if refused. */
+    suspend fun fillCommand(flowId: FlowId): EditCommand? =
+        BoxCommands.fill(documentSession.document.value, flowId)?.let { reflowed(it, flowId, "fill width") }
+
+    /**
+     * Box [flowId] laid out between [borders] for a width knob that is still dragged (P07-T15): what each of its
+     * frames would show, on the `text` dispatcher; nothing changes in the document. Null if the box is not a free box.
+     */
+    suspend fun widthPreview(
+        flowId: FlowId,
+        borders: Borders,
+    ): WidthPreview? {
         val doc = documentSession.document.value
-        val frame = doc.page(fromPage)?.objects?.firstOrNull { it.id == frameId } as? FlowFrame ?: return null
-        if (frame.role != FrameRole.BOX || doc.page(toPage) == null) return null
-        if (fromPage == toPage && frame.rect == rect) return null
-        val moved = frame.copy(rect = rect)
-        val place =
-            if (fromPage == toPage) {
-                UpdateObjects(fromPage, listOf(moved))
-            } else {
-                Batch(listOf(RemoveObjects(fromPage, listOf(frameId)), AddObjects(toPage, listOf(moved))))
+        val place = BoxCommands.width(doc, flowId, borders) ?: return null
+        return withContext(dispatchers.text) {
+            try {
+                val after = place.execute(doc).doc
+                PageTexts.flowLayout(after, flowId, engine.layouter, parses::of)?.let(WidthPreview::of)
+            } catch (e: IllegalArgumentException) {
+                FolioLog.w(TAG, "width preview rejected: ${e.message}")
+                null
             }
-        return reflowed(place, frame.flow, "box resize")
+        }
     }
 
     /**
-     * Box [flowId] dragged so that its first frame's text column is [rect] on page [toPage] (P07-T13), as one command:
-     * the first frame goes there; the box's anchor and saved custom borders move along in x and its vertical offset
-     * becomes the distance of [rect]'s top from its nearest rule (0 after a drag, which snaps; P07-T14 keys may leave it
-     * between the lines); the frames on later pages of an auto-continuing box go (with their page when it held nothing else), so
-     * the reflow continues the box from its new place, while other frames only move in x. Null if the first frame is
-     * not a free box, [toPage] is unknown, or nothing changes.
+     * Box [flowId] dragged so that its first frame's text column is [rect] on page [toPage] (P07-T13, P07-T14), as one
+     * command: [BoxCommands.move] and the reflow from the new place. Null if refused or nothing changes.
      */
     suspend fun moveBoxCommand(
         flowId: FlowId,
         toPage: PageId,
         rect: RectPt,
-    ): EditCommand? {
-        val doc = documentSession.document.value
-        val flow = doc.flows[flowId] ?: return null
-        val frames = framesOf(doc, flowId)
-        val (fromPage, first) = frames.firstOrNull() ?: return null
-        val target = doc.pageRef(toPage)
-        if (first.role != FrameRole.BOX || target == null || doc.page(toPage) == null) return null
-        val dx = rect.left - first.rect.left
-        val placed = RectPt(rect.left, rect.top, rect.left + first.rect.widthPt, rect.top + first.rect.heightPt)
-        val offset = TextZones.offsetOf(target.background.template, placed.top)
-        if (fromPage == toPage && placed == first.rect && flow.box.offsetPt == offset) return null
-        val moved = first.copy(rect = placed)
-        val commands = ArrayList<EditCommand>()
-        if (fromPage == toPage) {
-            commands += UpdateObjects(fromPage, listOf(moved))
-        } else {
-            commands += RemoveObjects(fromPage, listOf(first.id))
-            commands += AddObjects(toPage, listOf(moved))
-        }
-        commands += followers(doc, flow, frames, toPage, dx)
-        val box = flow.box
-        val shifted =
-            box.copy(
-                anchorXPt = box.anchorXPt?.plus(dx),
-                custom = box.custom?.shiftedX(dx),
-                centerSaved = box.centerSaved?.shiftedX(dx),
-                offsetPt = offset,
-            )
-        if (shifted != box) commands += UpdateFlows(listOf(flow.copy(box = shifted)))
-        return reflowed(Batch(commands), flowId, "box move")
-    }
+    ): EditCommand? = BoxCommands.move(documentSession.document.value, flowId, toPage, rect)?.let { reflowed(it, flowId, "box move") }
 
-    /**
-     * Box [flowId] removed with its text (P07-T13 Delete) as one command: its frames, its flow, and the pages after
-     * its first one that held nothing but its frame when the box continues there by itself. Null for an unknown flow
-     * or a flow without frames (sticky notes keep theirs).
-     */
-    fun deleteBoxCommand(flowId: FlowId): EditCommand? {
-        val doc = documentSession.document.value
-        val flow = doc.flows[flowId] ?: return null
-        val frames = framesOf(doc, flowId)
-        if (frames.isEmpty()) return null
-        if (doc.pageBodies.values.any { page -> page.objects.any { it is StickyNote && it.flow == flowId } }) return null
-        val commands = ArrayList<EditCommand>()
-        val emptied = ArrayList<PageId>()
-        for ((pageId, ids) in frames.groupBy({ it.first }, { it.second.id })) {
-            commands += RemoveObjects(pageId, ids)
-            val alone = doc.page(pageId)?.objects?.size == ids.size
-            if (flow.autoContinue && alone && pageId != frames.first().first) emptied += pageId
-        }
-        if (emptied.isNotEmpty()) commands += RemovePages(emptied)
-        commands += UpdateFlows(emptyList(), remove = listOf(flowId))
-        return Batch(commands)
-    }
-
-    // What a move by [dx] does to the frames after the first ([frames] of [flow], the first one going to [toPage]): an
-    // auto-continuing box drops them (and their pages that held nothing else), so its reflow continues from the new
-    // place; other boxes move them along in x.
-    private fun followers(
-        doc: Document,
-        flow: TextFlow,
-        frames: List<Pair<PageId, FlowFrame>>,
-        toPage: PageId,
-        dx: Float,
-    ): List<EditCommand> {
-        val commands = ArrayList<EditCommand>()
-        val emptied = ArrayList<PageId>()
-        val fromPage = frames.first().first
-        for ((pageId, frame) in frames.drop(1)) {
-            if (flow.autoContinue) {
-                commands += RemoveObjects(pageId, listOf(frame.id))
-                val alone = doc.page(pageId)?.objects?.size == 1
-                if (alone && pageId != toPage && pageId != fromPage) emptied += pageId
-            } else {
-                commands += UpdateObjects(pageId, listOf(frame.copy(rect = frame.rect.shiftedX(dx))))
-            }
-        }
-        if (emptied.isNotEmpty()) commands += RemovePages(emptied.distinct())
-        return commands
-    }
-
-    // The frames of [flowId] on the loaded pages, in page order and then frame order.
-    private fun framesOf(
-        doc: Document,
-        flowId: FlowId,
-    ): List<Pair<PageId, FlowFrame>> {
-        val out = ArrayList<Pair<PageId, FlowFrame>>()
-        for (ref in doc.pages) {
-            val page = doc.page(ref.id) ?: continue
-            page.objects
-                .filterIsInstance<FlowFrame>()
-                .filter { it.flow == flowId }
-                .sortedBy { it.order }
-                .forEach { out += ref.id to it }
-        }
-        return out
-    }
+    /** Box [flowId] removed with its text (P07-T13 Delete) as one command ([BoxCommands.delete]); null if refused. */
+    fun deleteBoxCommand(flowId: FlowId): EditCommand? = BoxCommands.delete(documentSession.document.value, flowId)
 
     // [place] and the reflow of flow [flowId] after it as one command; null if either is refused ([what] for the log).
     private suspend fun reflowed(
@@ -747,10 +662,6 @@ class EditorText internal constructor(
             }
         }
     }
-
-    private fun RectPt.shiftedX(dx: Float): RectPt = copy(left = left + dx, right = right + dx)
-
-    private fun Borders.shiftedX(dx: Float): Borders = Borders(leftPt + dx, rightPt + dx)
 
     /**
      * The parse of flow [flowId] block editing starts from; its block ids stay the same until undo or redo changes the

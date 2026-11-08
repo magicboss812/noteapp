@@ -9,7 +9,10 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import androidx.annotation.MainThread
+import dev.folio.core.model.Borders
+import dev.folio.core.model.BoxWidth
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowId
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.TextZones
@@ -24,6 +27,7 @@ import dev.folio.core.render.viewport.toPagePt
 import dev.folio.core.text.flow.TextRun
 import dev.folio.feature.editor.text.BoxPiece
 import dev.folio.feature.editor.text.SelectedBox
+import dev.folio.feature.editor.text.WidthPreview
 import kotlin.math.abs
 
 /**
@@ -43,8 +47,9 @@ internal class BoxHost(
  * The chrome of the selected text box (10-editor-ui.md#text-boxes, P07-T13), a plain view above the selection: an
  * accent outline around every frame of the box, a grip on top, a width knob on each side and the box toolbar. A drag
  * on the grip, or anywhere inside a box in Preview (a finger, or the pen with the Text tool), moves the box: x follows,
- * y in whole lines, and its text moves along drawn here while the tiles leave it out; one move on release. The knobs
- * resize (P06-T17 until P07-T15). The toolbar's Edit and Delete act on release. Everything else passes on.
+ * y in whole lines, and its text moves along drawn here while the tiles leave it out; one move on release. A knob
+ * moves its border smoothly (P07-T15): the text rewraps live from a layout made off the main thread, one resize on
+ * release. The toolbar's buttons act on release. Everything else passes on.
  */
 @MainThread
 @Suppress("TooManyFunctions") // drawing, hit testing and the move and resize gestures of one box
@@ -92,6 +97,15 @@ internal class BoxHandles(
     private var landingMs = 0L
     private var moving = false
 
+    // A knob drag (P07-T15) from its grab until the resized box lands: the box laid out at the knob's borders once the
+    // text engine made it ([resized]), whether a layout is being made, and the borders to lay out next; [resizeCount]
+    // tells a layout of an earlier drag from one of this drag.
+    private var resizing = false
+    private var resizeCount = 0
+    private var resized: WidthPreview? = null
+    private var widthAsked = false
+    private var widthNext: Borders? = null
+
     // The part held (NONE when none), where it went down, and where the pointer took hold of the box (px from the first
     // frame's top-left, or from the held edge).
     private var dragging = NONE
@@ -135,6 +149,7 @@ internal class BoxHandles(
             owned = false
             keyed = false
             keyPage = null
+            endResize()
         }
         if (keyed && next != null) {
             // An earlier key move landed while keys still move the box: this view keeps drawing its text.
@@ -149,6 +164,7 @@ internal class BoxHandles(
             moving = false
             previewPage = null
             previewRect = null
+            endResize()
             if (carried.isNotEmpty()) {
                 host.hide(emptySet())
                 landingMs = SystemClock.uptimeMillis()
@@ -181,13 +197,14 @@ internal class BoxHandles(
         val dl = edgeShift[0]
         val dt = edgeShift[1]
         val dr = edgeShift[2]
-        if (carried.isNotEmpty()) drawCarried(canvas, current, page, dl, dt)
+        // A resize rewraps the text in place: nothing moves it.
+        if (carried.isNotEmpty()) drawCarried(canvas, current, page, if (resizing) 0f else dl, if (resizing) 0f else dt)
         for (i in pieces.indices) {
-            // The first frame goes where the move puts it, the others follow in x.
+            // The first frame goes where the move puts it, the others follow in x (a resize: by their borders).
             if (i == 0 && shifted) {
                 drawPiece(canvas, current, pieces[0], page, dl, dt, dr)
             } else {
-                drawPiece(canvas, current, pieces[i], dl)
+                drawPiece(canvas, current, pieces[i], dl, dr)
             }
         }
         // The toolbar shows again once the moved box landed where the document has it.
@@ -232,22 +249,32 @@ internal class BoxHandles(
         val index = indexOf(onPage ?: piece.pageId)
         if (index < 0) return
         val o = piece.outline
-        outline(index, o.left + dl, o.top + dt, o.right + dr, o.bottom + dt)
+        val w = widthOutline(piece)
+        if (w !=
+            null
+        ) {
+            outline(index, w.left, w.top, w.right, w.bottom)
+        } else {
+            outline(index, o.left + dl, o.top + dt, o.right + dr, o.bottom + dt)
+        }
         canvas.drawRect(outlineRect, outlinePaint)
         if (current.movable) drawGripAndKnobs(canvas, outlineRect.left, outlineRect.top, outlineRect.right, outlineRect.bottom)
     }
 
-    // A frame's outline shifted by [dx] (the first one also gets the grip and knobs unless it is body text).
+    // A frame's outline with its left and right edges moved by [dl] and [dr] (the first one also gets the grip and
+    // knobs unless it is body text).
     private fun drawPiece(
         canvas: Canvas,
         current: SelectedBox,
         piece: BoxPiece,
-        dx: Float,
+        dl: Float,
+        dr: Float,
     ) {
         val index = indexOf(piece.pageId)
         if (index < 0) return
         val o = piece.outline
-        outline(index, o.left + dx, o.top, o.right + dx, o.bottom)
+        val w = widthOutline(piece)
+        if (w != null) outline(index, w.left, w.top, w.right, w.bottom) else outline(index, o.left + dl, o.top, o.right + dr, o.bottom)
         canvas.drawRect(outlineRect, outlinePaint)
         // The body text of older notes stays where its pages put it: no grip or knobs.
         if (piece == current.pieces[0] && current.movable) {
@@ -289,10 +316,14 @@ internal class BoxHandles(
             canvas.save()
             canvas.translate(viewport.pageOriginViewX(index).toFloat() + dx * scale, viewport.pageOriginViewY(index).toFloat() + oy * scale)
             canvas.scale(scale, scale)
-            painter.draw(canvas, host.runsOf(piece.pageId, piece.frameId), WHOLE_PAGE, scale, host.textArgb(onPage))
+            val runs = resized?.runs?.get(piece.frameId) ?: host.runsOf(piece.pageId, piece.frameId)
+            painter.draw(canvas, runs, WHOLE_PAGE, scale, host.textArgb(onPage))
             canvas.restore()
         }
     }
+
+    // The outline of [piece] in the knob's width preview, null without one.
+    private fun widthOutline(piece: BoxPiece): RectPt? = resized?.outlines?.get(piece.frameId)
 
     private fun drawGripAndKnobs(
         canvas: Canvas,
@@ -325,7 +356,7 @@ internal class BoxHandles(
         current: SelectedBox,
     ) {
         if (!placeToolbar(current)) return
-        toolbar.draw(canvas, current.editing)
+        toolbar.draw(canvas, current.editing, current.fill)
     }
 
     // Puts the toolbar over the first frame's outline as shown now; false when that page is not laid out.
@@ -400,6 +431,10 @@ internal class BoxHandles(
         owned = pressed != null || dragging != NONE
         downXPx = x
         downYPx = y
+        if (dragging == LEFT || dragging == RIGHT) {
+            endResize()
+            resizing = true
+        }
         if (dragging != NONE) grab(x, y)
     }
 
@@ -412,7 +447,7 @@ internal class BoxHandles(
             dragging = GRIP
         }
         if (dragging == NONE) return
-        if (dragging == GRIP) carry()
+        carry()
         drag(xPx, yPx)
     }
 
@@ -438,7 +473,8 @@ internal class BoxHandles(
         when (button) {
             BoxButton.EDIT -> texts.editBox()
             BoxButton.DELETE -> texts.deleteBox()
-            BoxButton.COLOR, BoxButton.SIZE, BoxButton.ALIGN, BoxButton.FILL -> Unit
+            BoxButton.FILL -> texts.fillWidth()
+            BoxButton.COLOR, BoxButton.SIZE, BoxButton.ALIGN -> Unit
         }
     }
 
@@ -463,6 +499,7 @@ internal class BoxHandles(
         moving = false
         previewPage = null
         previewRect = null
+        endResize()
         // Keys still move the box: this view goes on drawing its text.
         if (carried.isNotEmpty() && !keyed) {
             carried = emptySet()
@@ -552,13 +589,14 @@ internal class BoxHandles(
     }
 
     // The box where the pointer is now: a move carries it to the page under its top edge (x free, top on a rule), a
-    // knob moves its edge on the box's own page (snapped, P06-T17).
+    // knob moves its border smoothly inside the page text zone (P07-T15) and the text rewraps there.
     private fun drag(
         xPx: Float,
         yPx: Float,
     ) {
         val doc = document() ?: return
-        val first = box?.pieces?.firstOrNull() ?: return
+        val current = box ?: return
+        val first = current.pieces.firstOrNull() ?: return
         val r = first.rect
         val edgeX = xPx - grabXPx
         val topY = yPx - grabYPx
@@ -566,14 +604,49 @@ internal class BoxHandles(
         val ref = doc.pageRef(target) ?: return
         val pt = viewport.toPagePt(target, PointPx(edgeX, topY))
         val template = ref.background.template
-        previewRect =
-            when (dragging) {
-                GRIP -> TextZones.movedBox(ref.spec, template, r, pt.x, pt.y)
-                LEFT -> TextZones.resizedBox(ref.spec, template, r, pt.x, r.right)
-                else -> TextZones.resizedBox(ref.spec, template, r, r.left, pt.x)
-            }
+        if (dragging == GRIP) {
+            previewRect = TextZones.movedBox(ref.spec, template, r, pt.x, pt.y)
+        } else {
+            val zone = TextZones.boxZone(ref.spec, template)
+            val borders = BoxWidth.knob(Borders(zone.left, zone.right), Borders(r.left, r.right), dragging == LEFT, pt.x)
+            val before = previewRect
+            previewRect = r.copy(left = borders.leftPt, right = borders.rightPt)
+            if (before == null || before.left != borders.leftPt || before.right != borders.rightPt) askWidth(current.flowId, borders)
+        }
         previewPage = target
         invalidate()
+    }
+
+    // Asks the text engine for box [flowId] laid out between [borders]; while a layout is being made only the newest
+    // borders wait, so a fast drag lays out at most one width behind the knob.
+    private fun askWidth(
+        flowId: FlowId,
+        borders: Borders,
+    ) {
+        val texts = controller.textController ?: return
+        if (widthAsked) {
+            widthNext = borders
+            return
+        }
+        widthAsked = true
+        widthNext = null
+        val drag = resizeCount
+        texts.previewWidth(flowId, borders) { preview ->
+            widthAsked = false
+            if (resizing && box?.flowId == flowId) {
+                if (preview != null && drag == resizeCount) resized = preview
+                invalidate()
+                widthNext?.let { askWidth(flowId, it) }
+            }
+        }
+    }
+
+    // The knob drag is over (landed, refused, or another box): the width preview goes.
+    private fun endResize() {
+        resizing = false
+        resizeCount++
+        resized = null
+        widthNext = null
     }
 
     private fun drop() {
@@ -584,8 +657,8 @@ internal class BoxHandles(
         place(current, first, to, r, move = dragging == GRIP)
     }
 
-    // The box goes to text column [r] of page [to] (a move, else a knob's resize of [first]) as one undo step; the
-    // preview stays until the document has it, or clears when the step is refused or changes nothing.
+    // The box goes to text column [r] of page [to] (a move, else a knob's new borders for all its frames) as one undo
+    // step; the preview stays until the document has it, or clears when the step is refused or changes nothing.
     private fun place(
         current: SelectedBox,
         first: BoxPiece,
@@ -600,7 +673,7 @@ internal class BoxHandles(
         if (move) {
             texts.moveBox(current.flowId, to, r, done)
         } else {
-            texts.placeBox(first.frameId, first.pageId, to, r, done)
+            texts.resizeBox(current.flowId, Borders(r.left, r.right), done)
         }
     }
 

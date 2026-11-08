@@ -26,6 +26,9 @@ data class FlowBox(
     val centerSaved: Borders? = null,
     val offsetPt: Float = 0f,
 ) {
+    /** True while the borders follow the text: auto width with the custom set active (fill width keeps its own, P07-T15). */
+    val fitsText: Boolean get() = autoWidth && !fill
+
     /** Defaults. */
     companion object {
         /** A box with fixed borders taken from its frames (older free boxes, page duplicates). */

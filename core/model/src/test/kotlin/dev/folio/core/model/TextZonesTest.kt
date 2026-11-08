@@ -182,30 +182,6 @@ class TextZonesTest {
     }
 
     @Test
-    fun resizedBox_grid_movedEdgeOnColumn_otherEdgeKept_minWidth() {
-        val u = grid.spacingPt
-        val box = RectPt(10f * u, 4f * u, 30f * u, 5f * u)
-        val wider = TextZones.resizedBox(a4, grid, box, box.left, 33.4f * u)
-        assertThat(wider.left).isEqualTo(box.left)
-        assertThat(wider.right).isWithin(1e-3f).of(33f * u)
-        assertThat(wider.top).isEqualTo(box.top)
-        val narrowed = TextZones.resizedBox(a4, grid, box, 29f * u, box.right)
-        assertThat(narrowed.right).isWithin(1e-3f).of(box.right)
-        assertThat(narrowed.widthPt).isAtLeast(TextZones.BOX_MIN_WIDTH_PT - 1e-3f)
-        assertThat(onGrid(narrowed.left, 0f, u)).isTrue()
-        val clamped = TextZones.resizedBox(a4, grid, box, box.left, a4.widthPt + 80f)
-        assertThat(clamped.right).isAtMost(a4.widthPt + 1e-3f)
-        assertThat(onGrid(clamped.right, 0f, u)).isTrue()
-    }
-
-    @Test
-    fun resizedBox_lined_snapsToMillimeters() {
-        val box = RectPt(40f * PT_PER_MM, 100f, 120f * PT_PER_MM, 120f)
-        val resized = TextZones.resizedBox(a4, lined, box, 35.3f * PT_PER_MM, box.right)
-        assertThat(resized.left).isWithin(1e-3f).of(35f * PT_PER_MM)
-    }
-
-    @Test
     fun grownBox_wholeUnits_atLeastOne() {
         val rect = RectPt(10f, 100f, 200f, 120f)
         assertThat(TextZones.grownBox(rect, 3, 20f)).isEqualTo(RectPt(10f, 100f, 200f, 160f))

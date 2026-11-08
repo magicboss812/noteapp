@@ -15,7 +15,7 @@ internal enum class BoxButton(
     COLOR(false), // P07-T17
     SIZE(false), // P07-T17
     ALIGN(false), // P07-T16
-    FILL(false), // P07-T15
+    FILL(true),
     DELETE(true),
 }
 
@@ -99,11 +99,13 @@ internal class BoxToolbar(
         }
     private val pencil: Path = PathParser.createPathFromPathData(PENCIL)
     private val trash: Path = PathParser.createPathFromPathData(TRASH)
+    private val fillWidth: Path = PathParser.createPathFromPathData(MOVE_HORIZONTAL)
 
-    /** Paints the pill at [pill]; the Edit button shows [editing] as active. */
+    /** Paints the pill at [pill]; the Edit button shows [editing] as active, the Fill width button [fill]. */
     fun draw(
         canvas: Canvas,
         editing: Boolean,
+        fill: Boolean = false,
     ) {
         // HOT PATH: per viewport change while a box is selected; no allocation.
         val radius = heightPx / 2
@@ -127,7 +129,12 @@ internal class BoxToolbar(
                     icon(canvas, trash, cx, cy, DELETE_ARGB)
                 }
 
-                BoxButton.COLOR, BoxButton.SIZE, BoxButton.ALIGN, BoxButton.FILL -> {
+                BoxButton.FILL -> {
+                    if (fill) canvas.drawCircle(cx, cy, buttonPx / 2 - padPx / 2, activePaint)
+                    icon(canvas, fillWidth, cx, cy, ICON_ARGB)
+                }
+
+                BoxButton.COLOR, BoxButton.SIZE, BoxButton.ALIGN -> {
                     Unit
                 }
             }
@@ -172,6 +179,9 @@ internal class BoxToolbar(
         private const val ICON_ARGB = 0xFFE8E8EC.toInt()
         private const val ACTIVE_ARGB = 0xFF4B85E0.toInt()
         private const val DELETE_ARGB = 0xFFF4A39E.toInt()
+
+        // Lucide `move-horizontal` (fill width), with absolute moves so its three parts make one path.
+        private const val MOVE_HORIZONTAL = "M18 8l4 4-4 4M2 12h20M6 8l-4 4 4 4"
 
         // Lucide `pencil` and `trash` (core:designsystem FolioIcons), as one path each.
         private const val PENCIL =

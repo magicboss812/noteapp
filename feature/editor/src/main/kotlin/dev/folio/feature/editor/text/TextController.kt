@@ -1,5 +1,6 @@
 package dev.folio.feature.editor.text
 
+import dev.folio.core.model.Borders
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
@@ -12,9 +13,11 @@ import dev.folio.core.text.edit.TableEditing
 import dev.folio.core.text.flow.BlockPlacement
 import dev.folio.core.text.flow.CaretSpot
 import dev.folio.core.text.flow.EditedBlock
+import dev.folio.core.text.flow.FlowLayout
 import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.SelectionBox
 import dev.folio.core.text.flow.TapTarget
+import dev.folio.core.text.flow.TextRun
 import dev.folio.core.text.layout.BlockFace
 import dev.folio.core.text.layout.BlockLayout
 import dev.folio.core.text.markdown.BlockContent
@@ -99,14 +102,39 @@ class CanvasText(
 /**
  * The selected text box (10-editor-ui.md#text-boxes, Modes): flow [flowId] in Edit when [editing], else in Preview,
  * with one [BoxPiece] per frame on a page, first frame first. [movable] when a drag may move it (its first frame is a
- * free box; the body frames of older notes stay where the page puts them).
+ * free box; the body frames of older notes stay where the page puts them); [fill] while fill width is on (P07-T15).
  */
 data class SelectedBox(
     val flowId: FlowId,
     val editing: Boolean,
     val pieces: List<BoxPiece>,
     val movable: Boolean,
+    val fill: Boolean = false,
 )
+
+/**
+ * A box laid out at the borders of a width knob that is still dragged (P07-T15): per frame the text [runs] it would
+ * show and its [outlines] (page pt), for the box chrome to draw until the document has the new width.
+ */
+class WidthPreview(
+    val runs: Map<ObjectId, List<TextRun>>,
+    val outlines: Map<ObjectId, RectPt>,
+) {
+    /** Companion. */
+    companion object {
+        /** The preview of [layout], frame by frame. */
+        fun of(layout: FlowLayout): WidthPreview {
+            val runs = HashMap<ObjectId, List<TextRun>>()
+            val outlines = HashMap<ObjectId, RectPt>()
+            for (i in layout.slots.indices) {
+                val frameId = layout.slots[i].frameId
+                runs[frameId] = layout.runs(i)
+                outlines[frameId] = layout.outlineOf(i)
+            }
+            return WidthPreview(runs, outlines)
+        }
+    }
+}
 
 /** One frame of a selected box: frame [frameId] on page [pageId], its text column [rect] and its [outline] (page pt). */
 data class BoxPiece(
@@ -499,17 +527,28 @@ interface TextController {
     ) = Unit
 
     /**
-     * A width handle of free text box [frameId] on page [fromPage] let go (P06-T17): the box goes to [rect] (already
-     * snapped to the grid) of page [toPage] and reflows, as one undo step; the focus stays. [done] gets false when the
-     * change was refused or changed nothing. Main thread.
+     * A width knob of box [flowId] let go (P07-T15): its frames go between [borders] (from `BoxWidth.knob`) and it
+     * reflows, as one undo step; the focus stays. [done] gets false when the change was refused or changed nothing.
+     * Main thread.
      */
-    fun placeBox(
-        frameId: ObjectId,
-        fromPage: PageId,
-        toPage: PageId,
-        rect: RectPt,
+    fun resizeBox(
+        flowId: FlowId,
+        borders: Borders,
         done: (Boolean) -> Unit = {},
     ) = done(false)
+
+    /**
+     * A width knob of box [flowId] dragged to [borders]: [shown] gets the box laid out there (off the main thread; null
+     * when it cannot be), on the main thread. Main thread.
+     */
+    fun previewWidth(
+        flowId: FlowId,
+        borders: Borders,
+        shown: (WidthPreview?) -> Unit,
+    ) = shown(null)
+
+    /** The toolbar's Fill width: the selected box switches between its custom and fill borders, one undo step. Main thread. */
+    fun fillWidth() = Unit
 
     /**
      * Hardware keyboard [text] typed while no block has focus: it goes to the end of page [pageId]'s body text (the
