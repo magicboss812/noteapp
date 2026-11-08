@@ -101,4 +101,28 @@ class SourceOffsetsTest {
     fun fromPlain_negativeOffset_isTheStartOfTheText() {
         assertThat(SourceOffsets.fromPlain(block("> said"), -3)).isEqualTo(2)
     }
+
+    @Test
+    fun toPlain_boldHeading_countsTheShownCharactersBefore() {
+        val heading = block("## a **bc** d")
+
+        assertThat(SourceOffsets.toPlain(heading, 0)).isEqualTo(0)
+        assertThat(SourceOffsets.toPlain(heading, 3)).isEqualTo(0)
+        assertThat(SourceOffsets.toPlain(heading, 7)).isEqualTo(2) // before "b"
+        assertThat(SourceOffsets.toPlain(heading, 8)).isEqualTo(3)
+        assertThat(SourceOffsets.toPlain(heading, heading.source.length)).isEqualTo(6)
+    }
+
+    @Test
+    fun toPlain_isTheInverseOfFromPlain() {
+        val item = block("- [x] see [link](http://x) now")
+        val plain = checkNotNull(SourceOffsets.visibleText(item.content))
+
+        for (i in 0..plain.length) assertThat(SourceOffsets.toPlain(item, SourceOffsets.fromPlain(item, i))).isEqualTo(i)
+    }
+
+    @Test
+    fun toPlain_blockWithoutOwnText_isZero() {
+        assertThat(SourceOffsets.toPlain(block("---"), 3)).isEqualTo(0)
+    }
 }

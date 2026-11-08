@@ -210,6 +210,9 @@ class CanvasHostView internal constructor(
             onCaretChanged = { caret.check() },
         ) { document }
 
+    /** The selection boxes and handles above the live field (tests read what it shows). */
+    internal val selectionView = SelectionOverlay(context, controller.viewport, controller) { document }
+
     /** The live text field once a block was focused, null before (tests and debug automation read its state). */
     internal val liveTextField: LiveTextField? get() = textField.liveField
 
@@ -266,6 +269,7 @@ class CanvasHostView internal constructor(
         addView(background, match)
         addView(content, LayoutParams(match))
         addView(overlay, LayoutParams(match))
+        addView(selectionView, LayoutParams(match))
         addView(hoverRing, LayoutParams(match))
         addView(wetLayer, LayoutParams(match))
         wet.onFinished = handoff::onFinished
@@ -333,6 +337,7 @@ class CanvasHostView internal constructor(
             }
         }
         textField.show(next.field)
+        selectionView.show(next.selection)
     }
 
     private fun textOf(id: PageId): PageText = pageTexts[id] ?: PageText.EMPTY
@@ -500,7 +505,8 @@ class CanvasHostView internal constructor(
                 gestures.stopFling()
                 yieldTextToStylus(event)
             }
-            router.onTouchEvent(event)
+            // A finger on a selection handle drags that end; the router never sees that gesture.
+            if (!selectionView.handleTouch(event)) router.onTouchEvent(event)
         }
         return true
     }
@@ -588,6 +594,7 @@ class CanvasHostView internal constructor(
         // HOT PATH: per gesture event and animation frame.
         invalidateLayers()
         textField.place()
+        if (selectionView.shown != null) selectionView.invalidate()
         val now = SystemClock.uptimeMillis()
         lastViewportChangeMs = now
         removeCallbacks(idleRequest)

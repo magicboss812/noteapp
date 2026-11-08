@@ -16,6 +16,7 @@ import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.EditFlow
 import dev.folio.core.model.edit.TextEdit
 import dev.folio.core.storage.session.DocumentSession
+import dev.folio.core.text.edit.Caret
 import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.edit.FlowTextDiff
 import dev.folio.core.text.edit.TableEditing
@@ -51,6 +52,8 @@ class TextSnapshot(
     val canvas: Map<PageId, PageText> = pages,
     /** The live field of the focused block in these layouts, null while nothing has focus. */
     val field: TextFieldSpec? = null,
+    /** The selection of [field]'s focus as the canvas draws it, null while it is collapsed. */
+    val selection: SelectionHighlight? = null,
 ) {
     /** Constants. */
     companion object {
@@ -83,6 +86,9 @@ class EditorText internal constructor(
     private var discovered = false
     private var inputs: LayoutInputs? = null
     private var shown: FocusedBlock? = null
+
+    // The latest focus revision a relayout replaced (its block was gone) and the revision it gave the new focus.
+    @Volatile private var resolved: Pair<Int, Int>? = null
 
     // The note ids the flows link to, and those of them no note in the library has (drawn broken).
     private var linked: Set<String> = emptySet()
@@ -133,9 +139,7 @@ class EditorText internal constructor(
         val current = mutableSnapshot.value
         val layouts = if (relaid) PageTexts.layouts(doc, engine.layouter, parses::of, broken) else current.layouts
         inputs = next
-        // The focused block's id changes when undo or redo parses the text again: the block at the same place gets the focus.
-        mutableFocus.update { it?.resolvedIn(layouts) }
-        val focus = mutableFocus.value
+        val focus = resolveFocus(layouts)
         // The canvas leaves out the block the field shows, so tiles and field come from one layout (P06-T18).
         val field = if (focus == null) null else layouts.fieldOf(focus) ?: current.field
         val focused = field?.focus?.shownIn(layouts)
@@ -143,10 +147,24 @@ class EditorText internal constructor(
             shown = focused
             val pages = if (relaid) keepUnchanged(current.pages, PageTexts.of(doc, layouts)) else current.pages
             val canvas = if (focused == null) pages else keepUnchanged(current.canvas, PageTexts.of(doc, layouts, focused))
-            mutableSnapshot.value = TextSnapshot(layouts, pages, canvas, field)
+            mutableSnapshot.value = TextSnapshot(layouts, pages, canvas, field, layouts.highlightOf(field?.focus))
         }
         PerfMonitor.record(TRACE_REFRESH, PerfMonitor.clock.monotonicNs() - startNs)
         ready.complete(Unit)
+    }
+
+    // The focused block's id changes when undo or redo parses the text again, and an edit may merge it away: the block
+    // at the same place gets the focus, and [isFocusAt] still knows it as the old revision's.
+    private fun resolveFocus(layouts: Map<FlowId, FlowLayout>): TextFocus? {
+        var moved: Pair<Int, Int>? = null
+        mutableFocus.update { before ->
+            before?.resolvedIn(layouts).also { after ->
+                moved =
+                    if (before != null && after != null && after.revision != before.revision) before.revision to after.revision else null
+            }
+        }
+        moved?.let { resolved = it }
+        return mutableFocus.value
     }
 
     // Asks the library which linked notes are missing when the set of linked ids changed; true if [broken] changed.
@@ -218,9 +236,30 @@ class EditorText internal constructor(
         return true
     }
 
-    /** The selection collapsed in the field (a plain arrow key): its end in another block is let go, the field keeps its caret. */
-    internal fun dropAnchor() {
-        mutableFocus.update { if (it?.anchor == null) it else it.copy(anchor = null) }
+    /**
+     * The field's selection changed to [anchorOffset]..[caret] (offsets of the focused block) without a new focus: the
+     * focus follows it so the canvas draws the selection, keeping the revision (the field owns its caret). An end in
+     * another block stays only while the change [extending]s the selection (Shift held).
+     */
+    internal fun track(
+        anchorOffset: Int,
+        caret: Int,
+        extending: Boolean,
+    ) {
+        mutableFocus.update { focus ->
+            val other = focus?.anchor?.takeIf { extending && it.blockId != focus.blockId }
+            val anchor = other ?: focus?.let { Caret(it.blockId, anchorOffset) }?.takeIf { anchorOffset != caret }
+            if (focus == null || (focus.anchor == anchor && focus.caret == caret)) focus else focus.copy(caret = caret, anchor = anchor)
+        }
+    }
+
+    /**
+     * True while the focus is still the one of [revision]: unchanged, or only moved by a relayout because its block
+     * went away (an edit that merged it away still places the caret). A tap, a blur or another edit's focus is not.
+     */
+    internal fun isFocusAt(revision: Int): Boolean {
+        val current = mutableFocus.value?.revision ?: return false
+        return current == revision || resolved?.let { it.first == revision && it.second == current } == true
     }
 
     /** The flow and caret under ([xPt], [yPt]) of page [pageId] (as a tap would focus it), null on no text frame. */

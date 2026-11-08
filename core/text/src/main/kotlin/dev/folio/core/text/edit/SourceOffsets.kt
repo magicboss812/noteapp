@@ -26,6 +26,29 @@ object SourceOffsets {
     }
 
     /**
+     * The inverse of [fromPlain]: how many characters of the visible text of [block] lie before source offset
+     * [sourceOffset] (an offset inside a marker counts none of the text after it); 0 for blocks that show no text of
+     * their own.
+     */
+    fun toPlain(
+        block: MarkdownBlock,
+        sourceOffset: Int,
+    ): Int {
+        val plain = visibleText(block.content) ?: return 0
+        val start = textStart(block)
+        var at = start
+        var count = 0
+        while (count < plain.length) {
+            val found = find(block.source, at, plain[count])
+            if (found < 0) return (sourceOffset - start).coerceIn(0, plain.length)
+            if (found >= sourceOffset) break
+            at = found + 1
+            count++
+        }
+        return count
+    }
+
+    /**
      * Offset into the table [source] of the caret before character [plainOffset] of a cell's visible text [plain],
      * the cell's Markdown being `source[start, end)`; the end of the cell at or past the end of its text.
      */

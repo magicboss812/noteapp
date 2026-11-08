@@ -355,6 +355,30 @@ class BlockEditingTest {
     }
 
     @Test
+    fun paste_headingAfterTextOfTheBlock_startsABlockOfItsOwn() {
+        val m = marked("# Section 1^\n\nend")
+
+        val result = BlockEditing.paste(m.doc, m.selection, "# Heading one\n\n- item")
+
+        assertThat(result.document.blocks.map { it.source }).containsExactly("# Section 1", "# Heading one", "- item", "end").inOrder()
+    }
+
+    @Test
+    fun paste_plainTextOrIntoAnEmptyBlock_goesInAsInsertDoes() {
+        val inline = marked("ab^c")
+        val empty = marked("a\n\n\n^")
+
+        assertThat(BlockEditing.paste(inline.doc, inline.selection, "X\n\n- y").render()).isEqualTo("abX\n\n- y^c")
+        assertThat(
+            BlockEditing
+                .paste(empty.doc, empty.selection, "# H")
+                .document.blocks
+                .map { it.source },
+        ).containsExactly("a", "# H")
+            .inOrder()
+    }
+
+    @Test
     fun normalizePaste_windowsLineEndingsAndControlCharacters_areCleaned() {
         assertThat(BlockEditing.normalizePaste("a\r\nb\rc\u0000d\u000Ce")).isEqualTo("a\nb\ncde")
     }

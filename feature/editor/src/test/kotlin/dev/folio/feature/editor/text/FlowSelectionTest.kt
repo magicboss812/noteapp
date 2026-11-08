@@ -13,6 +13,10 @@ import org.junit.runner.RunWith
 /** A selection across the blocks of a flow (07-text-engine.md#selection-as-built), through the editor's text controller. */
 @RunWith(AndroidJUnit4::class)
 class FlowSelectionTest : EditorTextFixture() {
+    private companion object {
+        const val RELAYOUT_YIELDS = 10
+    }
+
     @Test
     fun shiftDown_fromTheLastLine_extendsIntoTheNextBlock() =
         runTest(main.testDispatcher) {
@@ -73,6 +77,22 @@ class FlowSelectionTest : EditorTextFixture() {
         }
 
     @Test
+    fun paste_ofAHeadingAtTheEndOfAHeading_keepsBothHeadings() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "# Section 1\n\nbeta")
+            val (session, text, page) = focusedFlow(path, this)
+            val texts = checkNotNull(session.textController)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            texts.select(11, 11)
+
+            texts.edit(FieldEdit.Replace("# Heading one\n\n- item", paste = true))
+            yield()
+
+            val sources = checkNotNull(text.parsed(body)).blocks.map { it.source }
+            assertThat(sources).containsExactly("# Section 1", "# Heading one", "- item", "beta").inOrder()
+        }
+
+    @Test
     fun selectAll_twice_selectsTheBlockThenTheFlow() =
         runTest(main.testDispatcher) {
             val path = note(1, listOf(0), "alpha\n\nbeta\n\ngamma")
@@ -119,6 +139,68 @@ class FlowSelectionTest : EditorTextFixture() {
         }
 
     @Test
+    fun typing_overThreeBlocksWithBlocksAfter_focusesTheMergedBlockAndUndoesInOneStep() =
+        runTest(main.testDispatcher) {
+            val original = "alpha\n\nbeta\n\ngamma\n\ndelta\n\nepsilon"
+            val path = note(1, listOf(0), original)
+            val (session, text, page) = focusedFlow(path, this)
+            val texts = checkNotNull(session.textController)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            texts.select(2, 2)
+            texts.extendTo(page, bodyRect.left + 1f, secondLineY())
+            yield()
+            texts.select(0, 0, extending = true) // the field reports the selection it was given
+            texts.extendTo(page, bodyRect.left + 12f, firstLineY() + 2 * (secondLineY() - firstLineY()))
+            yield()
+            texts.select(0, 2, extending = true)
+            assertThat(checkNotNull(text.focus.value).blockIndex).isEqualTo(2)
+
+            texts.edit(FieldEdit.Replace("X"))
+            yield()
+            texts.select(3, 3, extending = true) // the field shows the merged block
+
+            val merged = checkNotNull(text.parsed(body)).blocks[0]
+            val focus = checkNotNull(text.focus.value)
+            assertThat(merged.source).startsWith("alX")
+            assertThat(focus.blockIndex).isEqualTo(0)
+            assertThat(focus.blockId).isEqualTo(merged.id)
+            assertThat(focus.anchor).isNull()
+            assertThat(text.fieldSource()).isEqualTo(merged.source)
+            assertThat(session.undo()).isTrue()
+            assertThat(markdown(session.documentSession)).isEqualTo(original)
+        }
+
+    @Test
+    fun typing_overASelection_relayoutBeforeTheFocusMoves_stillFocusesTheMergedBlock() =
+        runTest(main.testDispatcher) {
+            val original = "alpha\n\nbeta\n\ngamma\n\ndelta\n\nepsilon"
+            val path = note(1, listOf(0), original)
+            val (session, text, page) = focusedFlow(path, this)
+            // The device order: the relayout of the edited flow lands before the edit puts the focus.
+            val runner: BlockEditRunner = {
+                flowId,
+                key,
+                op,
+                ->
+                session.editText(flowId, key, op).also { repeat(RELAYOUT_YIELDS) { yield() } }
+            }
+            val editor = TextEditor(text, runner, backgroundScope, main.testDispatcher)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            val blocks = checkNotNull(text.parsed(body)).blocks
+            text.select(body, TextSelection(Caret(blocks[0].id, 2), Caret(blocks[2].id, 2)))
+            yield()
+
+            editor.edit(FieldEdit.Replace("X"))
+            repeat(RELAYOUT_YIELDS * 2) { yield() }
+
+            val merged = checkNotNull(text.parsed(body)).blocks[0]
+            val focus = checkNotNull(text.focus.value)
+            assertThat(merged.source).isEqualTo("alXmma")
+            assertThat(focus.blockId).isEqualTo(merged.id)
+            assertThat(focus.caret).isEqualTo(3)
+        }
+
+    @Test
     fun bold_overASelectionAcrossBlocks_formatsEachBlock() =
         runTest(main.testDispatcher) {
             val path = note(1, listOf(0), "alpha\n\nbeta")
@@ -135,6 +217,30 @@ class FlowSelectionTest : EditorTextFixture() {
             assertThat(markdown(session.documentSession)).isEqualTo("**alpha**\n\n**beta**")
             assertThat(session.undo()).isTrue()
             assertThat(markdown(session.documentSession)).isEqualTo("alpha\n\nbeta")
+        }
+
+    @Test
+    fun selectionAcrossBlocks_snapshotHighlightsTheBlocksOutsideTheField() =
+        runTest(main.testDispatcher) {
+            val path = note(1, listOf(0), "alpha\n\nbeta\n\ngamma")
+            val (_, text, page) = focusedFlow(path, this)
+            text.focusAt(page, bodyRect.left + 4f, firstLineY())
+            val blocks = checkNotNull(text.parsed(body)).blocks
+            text.select(body, TextSelection(Caret(blocks[0].id, 2), Caret(blocks[2].id, 3)))
+            yield()
+            checkNotNull(text.field.first())
+
+            val highlight = checkNotNull(text.snapshot.value.selection)
+            val focus = checkNotNull(highlight.focus)
+            assertThat(highlight.boxes).hasSize(2) // alpha and beta; gamma is the live field's
+            assertThat(highlight.boxes.map { it.pageId }.distinct()).containsExactly(page)
+            assertThat(
+                highlight.boxes
+                    .last()
+                    .rect.bottom,
+            ).isAtMost(focus.topPt)
+            assertThat(checkNotNull(highlight.anchor).xPt).isGreaterThan(bodyRect.left)
+            assertThat(focus.xPt).isGreaterThan(bodyRect.left)
         }
 
     @Test

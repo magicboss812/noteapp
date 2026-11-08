@@ -75,6 +75,28 @@ object BlockEditing {
         }
     }
 
+    /**
+     * A paste of [text] over [selection]: [insert], except that Markdown opening with a block of its own (a heading,
+     * list, quote, fence, table) after visible text of the block starts a new block there instead of joining that text.
+     */
+    fun paste(
+        doc: MarkdownDocument,
+        selection: TextSelection,
+        text: String,
+    ): EditResult {
+        val range = Range.of(doc, selection)
+        val afterText = SourceOffsets.toPlain(doc.blocks[range.first], range.startOffset) > 0
+        val opensBlock =
+            afterText &&
+                MarkdownDocument
+                    .parse(text)
+                    .blocks
+                    .firstOrNull()
+                    ?.content
+                    .let { it != null && it !is BlockContent.Paragraph && it != BlockContent.Empty }
+        return insert(doc, selection, if (opensBlock) "\n\n$text" else text)
+    }
+
     /** Text from the clipboard as the flow takes it: line terminators `\n`, no NUL or form feed. */
     fun normalizePaste(text: String): String = text.replace("\r\n", "\n").replace('\r', '\n').filter { it != '\u0000' && it != '\u000C' }
 

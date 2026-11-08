@@ -301,6 +301,15 @@ internal class GridText(
     /** Right edge of the ink advance of [line] (start-aligned text). */
     fun lineRightPt(line: Int): Float = paragraph.getLineRight(line) / refScale
 
+    /** First offset of [line]. */
+    fun lineStart(line: Int): Int = paragraph.getLineStart(line)
+
+    /** Offset after the last character of [line] (its trailing space or break included). */
+    fun lineEnd(line: Int): Int = paragraph.getLineEnd(line)
+
+    /** The x of the caret before character [offset], from the text's left edge. */
+    fun xPt(offset: Int): Float = paragraph.getHorizontalPosition(offset.coerceIn(0, plain.length), true) / refScale
+
     // HOT PATH: runs once per block and tile render; no allocation here beyond what Paragraph.paint does itself.
     fun draw(
         target: TextCanvas,
@@ -332,7 +341,7 @@ class BlockFace internal constructor(
  * its box. Positions are pt relative to the block's top-left, which sits on a rule.
  */
 class BlockLayout internal constructor(
-    private val text: GridText?,
+    internal val text: GridText?,
     private val marker: GridText?,
     /** Grid unit U in pt. */
     val unitPt: Float,

@@ -8,7 +8,9 @@ import dev.folio.core.text.edit.EditMarkers
 import dev.folio.core.text.edit.TableCell
 import dev.folio.core.text.edit.TableEditing
 import dev.folio.core.text.flow.BlockPlacement
+import dev.folio.core.text.flow.CaretSpot
 import dev.folio.core.text.flow.PageText
+import dev.folio.core.text.flow.SelectionBox
 import dev.folio.core.text.flow.TapTarget
 import dev.folio.core.text.layout.BlockFace
 import dev.folio.core.text.layout.BlockLayout
@@ -75,6 +77,8 @@ class CanvasText(
     val pages: Map<PageId, PageText>,
     /** The live field to show; null while no block has focus. */
     val field: TextFieldSpec?,
+    /** The selection of [field]'s flow the canvas draws, null while it is collapsed. */
+    val selection: SelectionHighlight? = null,
 ) {
     /** Constants. */
     companion object {
@@ -82,6 +86,17 @@ class CanvasText(
         val EMPTY = CanvasText(emptyMap(), null)
     }
 }
+
+/**
+ * A selection as the canvas draws it (07-text-engine.md#selection-as-built): the [boxes] of its lines outside the live
+ * field (which shows its own part), and where its [anchor] and [focus] ends are for the drag handles (null when that
+ * end is not placed on a page).
+ */
+class SelectionHighlight(
+    val boxes: List<SelectionBox>,
+    val anchor: CaretSpot?,
+    val focus: CaretSpot?,
+)
 
 /**
  * The table cell the live field edits (07-text-engine.md#tables-as-built): [cell] with Markdown [text], found at
@@ -217,10 +232,12 @@ sealed interface FieldEdit {
 
     /**
      * [text] replaces the selection (07-text-engine.md#selection-as-built): a paste, or typing and deleting over a
-     * selection that spans blocks. Markdown with blank lines becomes several blocks.
+     * selection that spans blocks. Markdown with blank lines becomes several blocks; a [paste] that opens with a block
+     * of its own after text starts a new block (BlockEditing.paste).
      */
     data class Replace(
         val text: String,
+        val paste: Boolean = false,
     ) : FieldEdit
 
     /** The `[[` picker's choice: source [start] to [caret] (the typed `[[query`) becomes a link to note [docId] named [title]. */

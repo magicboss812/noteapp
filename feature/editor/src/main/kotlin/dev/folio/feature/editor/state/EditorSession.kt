@@ -77,7 +77,7 @@ class EditorSession(
     override val canvasText: Flow<CanvasText> =
         text
             ?.snapshot
-            ?.map { CanvasText(it.canvas, it.field) }
+            ?.map { CanvasText(it.canvas, it.field, it.selection) } // the selection comes with the field it belongs to
             ?.distinctUntilChanged { a, b -> a.pages == b.pages && a.field === b.field } ?: emptyFlow()
 
     /** The selected toolbar tool (chrome state; the canvas reads [activeTool] at stylus down). */

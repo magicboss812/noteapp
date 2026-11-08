@@ -30,20 +30,29 @@ import dev.folio.core.ink.input.StylusPreferences
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
+import dev.folio.core.model.FrameRole
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.InputTool
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.PageSpec
 import dev.folio.core.model.StrokeInputs
+import dev.folio.core.model.TextZones
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.geometry.PointPt
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.toViewPx
 import dev.folio.core.testing.ModelFixtures
+import dev.folio.core.text.edit.Caret
+import dev.folio.core.text.edit.TextSelection
 import dev.folio.core.text.flow.BlockPlacement
+import dev.folio.core.text.flow.FlowLayouter
+import dev.folio.core.text.flow.PageTexts
+import dev.folio.core.text.flow.caretSpot
+import dev.folio.core.text.flow.selectionBoxes
 import dev.folio.core.text.fonts.FontMetricsCache
 import dev.folio.core.text.layout.BlockLayouter
 import dev.folio.core.text.layout.FlowTextStyle
@@ -51,6 +60,7 @@ import dev.folio.core.text.layout.LayoutGrid
 import dev.folio.core.text.markdown.MarkdownDocument
 import dev.folio.feature.editor.canvas.TouchEvents.event
 import dev.folio.feature.editor.text.CanvasText
+import dev.folio.feature.editor.text.SelectionHighlight
 import dev.folio.feature.editor.text.TextFieldSpec
 import dev.folio.feature.editor.text.TextFocus
 import kotlinx.coroutines.CompletableDeferred
@@ -225,6 +235,76 @@ class CanvasHostTest {
             PerfMonitor.enabled = false
             PerfMonitor.reset()
         }
+    }
+
+    // A heading, a paragraph and a list on the first page, selected from inside the heading into the list.
+    private fun showThreeBlockSelection(): SelectionHighlight {
+        val page =
+            controller.document.value.pages[0]
+                .id
+        val resolver = createFontFamilyResolver(ApplicationProvider.getApplicationContext<Context>())
+        val layouter = FlowLayouter(BlockLayouter(resolver, FontMetricsCache(resolver)))
+        val flowId = FlowId("body")
+        val bodyRect = checkNotNull(TextZones.bodyRect(ModelFixtures.A4, ModelFixtures.LINED_BACKGROUND.template))
+        val frame = FlowFrame(ObjectId("frame0"), flowId, bodyRect, 0, FrameRole.BODY, autoGrow = false)
+        val markdown =
+            "# Selection\n\nA paragraph of body text that runs past the end of its first line and keeps going onto the next one.\n\n" +
+                "- first item\n- second item"
+        val pages = controller.document.value.pages.size
+        val doc =
+            ModelFixtures.document(
+                List(pages) { if (it == 0) ModelFixtures.page(page.value, listOf(frame)) else ModelFixtures.page("p$it") },
+                flows = listOf(ModelFixtures.flow(flowId.value, markdown)),
+            )
+        val layouts = PageTexts.layouts(doc, layouter)
+        val layout = checkNotNull(layouts[flowId])
+        val blocks = layout.markdown.blocks
+        val selection = TextSelection(Caret(blocks[0].id, 4), Caret(blocks[2].id, 9))
+        val highlight =
+            SelectionHighlight(layout.selectionBoxes(selection), layout.caretSpot(selection.anchor), layout.caretSpot(selection.focus))
+        compose.runOnUiThread {
+            controller.document.value = doc
+            controller.canvasText.value = CanvasText(PageTexts.of(doc, layouts), null, highlight)
+        }
+        settle()
+        return highlight
+    }
+
+    @Test
+    fun selectionOverThreeBlocks_showsBoxesAndBothHandles() {
+        controller.textController = FakeTextController()
+        show()
+
+        val highlight = showThreeBlockSelection()
+
+        assertThat(highlight.boxes.size).isAtLeast(3)
+        assertThat(hostView().selectionView.shown).isSameInstanceAs(highlight)
+        compose.onRoot().captureRoboImage("src/test/screenshots/CanvasHost_selectionThreeBlocks.png")
+    }
+
+    @Test
+    fun fingerOnTheFocusHandle_dragsThatEndInsteadOfPanning() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val focus = checkNotNull(showThreeBlockSelection().focus)
+        val vp = controller.viewport
+        val line = vp.toViewPx(focus.pageId, PointPt(focus.xPt, (focus.topPt + focus.bottomPt) / 2))
+        val knobY = vp.toViewPx(focus.pageId, PointPt(focus.xPt, focus.bottomPt)).y + 8f * vp.density
+        val offsetBefore = vp.offsetYPx
+
+        compose.runOnUiThread {
+            val view = hostView()
+            view.dispatchTouchEvent(event(ACTION_DOWN, 0, line.x to knobY))
+            view.dispatchTouchEvent(event(ACTION_MOVE, 50, line.x to knobY + 100f))
+            view.dispatchTouchEvent(event(ACTION_UP, 100, line.x to knobY + 100f))
+        }
+
+        assertThat(vp.offsetYPx).isEqualTo(offsetBefore)
+        assertThat(texts.focusCalls).isEmpty()
+        val drag = texts.extends.single().split(' ', ',')
+        assertThat(drag[0]).isEqualTo("caret")
+        assertThat(drag[1].toFloat()).isWithin(0.1f).of(focus.xPt)
+        assertThat(drag[2].toFloat()).isWithin(0.1f).of((focus.topPt + focus.bottomPt) / 2 + 100f / vp.scale)
     }
 
     @Test

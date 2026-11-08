@@ -2,11 +2,15 @@ package dev.folio.feature.editor.text
 
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.PageId
+import dev.folio.core.text.edit.Caret
+import dev.folio.core.text.edit.TextSelection
 import dev.folio.core.text.flow.FlowLayout
 import dev.folio.core.text.flow.FocusedBlock
 import dev.folio.core.text.flow.TapTarget
+import dev.folio.core.text.flow.caretSpot
 import dev.folio.core.text.flow.hit
 import dev.folio.core.text.flow.placementOf
+import dev.folio.core.text.flow.selectionBoxes
 import dev.folio.core.text.flow.sourceOffsetAt
 import dev.folio.core.text.flow.tapTargetAt
 
@@ -110,4 +114,13 @@ internal fun Map<FlowId, FlowLayout>.fieldOf(focus: TextFocus?): TextFieldSpec? 
             else -> block.source.length
         }
     return TextFieldSpec(focus, block, blockLayout, placement, anchorOffset = anchorOffset)
+}
+
+/** What the canvas draws of the selection of [focus] (07-text-engine.md#selection-as-built); null while it is collapsed. */
+internal fun Map<FlowId, FlowLayout>.highlightOf(focus: TextFocus?): SelectionHighlight? {
+    val anchor = focus?.anchor ?: return null
+    val layout = this[focus.flowId] ?: return null
+    val caret = Caret(focus.blockId, focus.caret)
+    val boxes = layout.selectionBoxes(TextSelection(anchor, caret), skipBlock = focus.blockIndex)
+    return SelectionHighlight(boxes, layout.caretSpot(anchor), layout.caretSpot(caret))
 }

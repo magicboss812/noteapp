@@ -558,7 +558,7 @@ class LiveTextFieldTest {
 
         field.onTextContextMenuItem(android.R.id.paste)
 
-        assertThat(edits).containsExactly(FieldEdit.Replace("x\ny"))
+        assertThat(edits).containsExactly(FieldEdit.Replace("x\ny", paste = true))
     }
 
     @Test
@@ -568,7 +568,7 @@ class LiveTextFieldTest {
 
         press(KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON)
 
-        assertThat(edits).containsExactly(FieldEdit.Replace("# H"))
+        assertThat(edits).containsExactly(FieldEdit.Replace("# H", paste = true))
     }
 
     // A focus whose selection runs from the start of this block back into the block before it.
@@ -612,6 +612,31 @@ class LiveTextFieldTest {
 
         assertThat(extending.first()).isTrue()
         assertThat(extending.last()).isFalse()
+        assertThat(edits.filterIsInstance<FieldEdit.Replace>()).isEmpty()
+    }
+
+    @Test
+    fun imeReplaceText_overASelectionAcrossBlocks_replacesTheWholeSelection() {
+        show(spanning("hello", caret = 3))
+
+        input().replaceText(0, 3, "glide", 1, null)
+
+        assertThat(edits).containsExactly(FieldEdit.Replace("glide"))
+        assertThat(field.text.toString()).isEqualTo("hello")
+    }
+
+    @Test
+    fun plainArrow_onACollapsedFieldPartOfASelectionAcrossBlocks_collapsesItWithoutLeaving() {
+        val selections = ArrayList<Triple<Int, Int, Boolean>>()
+        field.onSelection = { start, end, ext -> selections += Triple(start, end, ext) }
+        show(spanning("hello", caret = 0))
+        layOut()
+
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        input().commitText("!", 1)
+
+        assertThat(selections.last()).isEqualTo(Triple(1, 1, false))
+        assertThat(edits.filterIsInstance<FieldEdit.Key>()).isEmpty()
         assertThat(edits.filterIsInstance<FieldEdit.Replace>()).isEmpty()
     }
 

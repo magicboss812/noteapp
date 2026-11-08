@@ -22,6 +22,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputConnectionWrapper
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.TextAttribute
 import android.widget.EditText
 import android.widget.FrameLayout
 import androidx.annotation.MainThread
@@ -157,6 +158,7 @@ internal class LiveTextField(
         hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
         isAutoHandwritingEnabled = false
         defaultFocusHighlightEnabled = false
+        highlightColor = SelectionOverlay.BOX_ARGB // the field's part of a selection looks like the page's
         importantForAutofill = IMPORTANT_FOR_AUTOFILL_NO
         isFocusableInTouchMode = true
         visibility = GONE
@@ -477,7 +479,28 @@ internal class LiveTextField(
         event: KeyEvent,
     ): Boolean {
         onChord(keyCode, event)?.let { return it }
-        return (spanning && overSelection(keyCode, event)) || structural(keyCode, event.isShiftPressed) || viewKey(keyCode, event)
+        return (spanning && (collapse(keyCode, event) || overSelection(keyCode, event))) ||
+            structural(keyCode, event.isShiftPressed) ||
+            viewKey(keyCode, event)
+    }
+
+    // A plain arrow ends a selection over blocks at the field's caret, which stays where it is; the field's part of the
+    // selection may be collapsed already, so its view would not report the change.
+    private fun collapse(
+        keyCode: Int,
+        event: KeyEvent,
+    ): Boolean {
+        val arrow =
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> true
+                else -> false
+            }
+        val plain = !event.isShiftPressed && !event.isCtrlPressed && !event.isAltPressed
+        if (!arrow || !plain) return false
+        spanning = false
+        val caret = selectionEnd
+        if (isCollapsed) onSelection?.invoke(caret, caret, false) else setSelection(caret)
+        return true
     }
 
     // The view's own handling; with Shift held its selection changes extend the selection.
@@ -607,6 +630,18 @@ internal class LiveTextField(
                 return true
             }
 
+            // Gesture typing and corrections replace a range directly (API 34), past commitText.
+            override fun replaceText(
+                start: Int,
+                end: Int,
+                text: CharSequence,
+                newCursorPosition: Int,
+                textAttribute: TextAttribute?,
+            ): Boolean {
+                if (spanning) return consume { onEdit(FieldEdit.Replace(text.toString())) }
+                return super.replaceText(start, end, text, newCursorPosition, textAttribute)
+            }
+
             override fun deleteSurroundingText(
                 beforeLength: Int,
                 afterLength: Int,
@@ -661,7 +696,7 @@ internal class LiveTextField(
         if (clip.itemCount == 0) return
         val pasted = BlockEditing.normalizePaste(clip.getItemAt(0).coerceToText(context).toString())
         if (shown?.cell == null) {
-            onEdit(FieldEdit.Replace(pasted))
+            onEdit(FieldEdit.Replace(pasted, paste = true))
             return
         }
         val start = minOf(selectionStart, selectionEnd).coerceAtLeast(0)

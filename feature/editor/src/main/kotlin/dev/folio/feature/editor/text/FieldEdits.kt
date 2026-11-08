@@ -79,7 +79,7 @@ internal fun FieldEdit.applyAcross(
 ): EditResult? {
     if (doc.indexOf(selection.anchor.blockId) < 0 || doc.indexOf(selection.focus.blockId) < 0) return null
     return when (this) {
-        is FieldEdit.Replace -> BlockEditing.insert(doc, selection, text)
+        is FieldEdit.Replace -> if (paste) BlockEditing.paste(doc, selection, text) else BlockEditing.insert(doc, selection, text)
         is FieldEdit.Key -> keyAcross(doc, selection)
         is FieldEdit.Format -> INLINE_KINDS[action]?.let { SelectionEditing.toggleInline(doc, selection, it) }
         is FieldEdit.Typed, is FieldEdit.Cell, is FieldEdit.NoteLink -> null

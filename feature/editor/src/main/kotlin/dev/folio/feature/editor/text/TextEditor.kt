@@ -131,7 +131,8 @@ internal class TextEditor(
         cell: TableCell?,
         extending: Boolean,
     ) {
-        // HOT PATH: per caret move; ints and a reference, no allocation (a dropped anchor copies the focus once).
+        // HOT PATH: per caret move; ints and a reference, no allocation while the caret moves without a selection (a
+        // selection, and its collapse, copy the focus so the canvas draws it).
         selectionStart = minOf(start, end).coerceAtLeast(0)
         selectionEnd = maxOf(start, end).coerceAtLeast(0)
         selectionCell = cell
@@ -139,7 +140,7 @@ internal class TextEditor(
         fieldCaret = end.coerceAtLeast(0)
         val focus = text.focus.value
         selectionRevision = focus?.revision ?: NO_REVISION
-        if (!extending && focus?.anchor != null) text.dropAnchor()
+        if (cell == null && (start != end || focus?.anchor != null)) text.track(fieldAnchor, fieldCaret, extending)
         val caretStays = start == end && start == queryCaret && cell == null
         if (queryStart >= 0 && !caretStays) clearQuery()
     }
@@ -375,7 +376,7 @@ internal class TextEditor(
                     edit.applyTo(doc, item.blockId)
                 }
             }
-        if (text.focus.value?.revision != item.revision) return
+        if (!text.isFocusAt(item.revision)) return
         when {
             result != null -> text.focusAfter(item.flowId, result, edit)
             edit is FieldEdit.Typed -> text.resync(edit.caret)
