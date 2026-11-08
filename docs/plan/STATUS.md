@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P06
-next: P06-T17
+next: P06-T11
 updated: 2026-11-08
 
 ## Completed
@@ -13,7 +13,7 @@ updated: 2026-11-08
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07, T08 (a-b), T09 (a-b), T19, T10 (a-b), T18 (a-d), T14 (a-b), T16
+- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07, T08 (a-b), T09 (a-b), T19, T10 (a-b), T18 (a-d), T14 (a-b), T16, T17
 
 ## Blocked (needs user; stops dependent tasks)
 - (none)
@@ -24,6 +24,7 @@ updated: 2026-11-08
 - P06-T18: Tap into text and out again a few times, also low on the page -> nothing flashes or hides behind the keyboard.
 - P06-T14: Select across blocks with Shift+arrows and the finger handles (also over a page break), copy, paste into another note -> headings and lists kept, highlight follows; device-tester PASS 2026-11-08.
 - P06-T16: Set the distance above lines in the Text panel, then type new text -> it sits where you want above the rules, also while typing (it applies to text you create next; existing text keeps its distance).
+- P06-T17: Make a text box in the margin with the Text tool, drag its top grip with a finger and with the pen, pull a side knob -> box lands on the lines (also on the next page), text rewraps, one undo each; device-tester 2026-11-08: finger move/next page/resize/undo PASS, pen grip FAIL (D-041).
 
 ## Deferred (id: reason)
 - D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06.
@@ -36,10 +37,12 @@ updated: 2026-11-08
 - D-024 P04-T03: highlighter "always straight" is stored and toggled in the highlighter panel, but the canvas does not snap yet; honor it with the highlighter straight-line snap (P07-T02).
 - D-034 P06-T07: math blocks are always centered; 07-text-engine.md#math names a left alignment setting (A-047).
 - D-040 P06-T16: `.claude/rules/text-engine.md` grid invariant line (edit denied headless): "each baseline lies on the rule at the bottom of its line box, raised by the flow's lift (A-054): baselineY = frame.topPt + sum of line-box heights up to and including that line - baselineLiftUnits * U."
+- D-041 P06-T17: on the tablet a pen down on a focused box's grip is taken by the HyperOS handwriting hook (toast "handwriting not supported in this field", IME opens), so only the finger moves boxes there; try a grip above the outline outside the field's bounds, or blur on stylus hover over the grip while keeping the handles (A-045, A-055).
+- D-042 P06-T17: at 25% zoom finger drags on the grip panned the page instead of moving the box (fine at 40% and 100%).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T16 done: baseline lift (A-054, 07-text-engine.md#line-box): `FlowStyle.baselineLiftUnits` -> `FlowTextStyle` -> `BlockLayouter.Geometry.liftPx/liftPt` (GridText shift, checkbox, `BlockLayout.liftPt`); flow JSON field clamped on read; Text panel slider + `LiftPreview` set `TextOptions.baselineLift` for new flows. Grid suite now runs lifts 0/0.15/0.35.
-- NEXT P06-T17. Debug probes `FolioTouch`, `FolioMain`. Untracked orphan `core/text/src/test/screenshots/FontSpecimen_compact.png` (test removed in T03) left unstaged.
+- P06-T17 done (A-055): `TextZones.movedBox/resizedBox` snap (rule + column, 1 mm on lined); `canvas/BoxHandles` view (outline, grip, side knobs) before selection in `CanvasHostView.dispatchTouchEvent`; `TextController.placeBox` -> `EditorText.boxCommand` (UpdateObjects or Remove+Add across pages, plus reflow, one undo step). Pen grip on device: D-041.
+- NEXT P06-T11, then P06 REVIEW. Debug probes `FolioTouch`, `FolioMain`. Untracked orphan `core/text/src/test/screenshots/FontSpecimen_compact.png` (test removed in T03) left unstaged.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`).
 - Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]` seeds a body flow (`open lined:N`: N is the page count and reuses that file; the first stylus tap after a debug command is dropped). Test APK installs can still be refused (INSTALL_FAILED_USER_RESTRICTED): check the result XML, not Gradle's SUCCESS.
-- Remaining P06 order: T17, T11. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.
+- Remaining P06 order: T11. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.

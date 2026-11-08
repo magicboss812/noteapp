@@ -3,9 +3,11 @@ package dev.folio.feature.editor.text
 import dev.folio.core.common.PerfMonitor
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FlowStyle
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.TextAlign
 import dev.folio.core.model.edit.EditCommand
+import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.text.edit.BlockEditing
 import dev.folio.core.text.edit.Caret
 import dev.folio.core.text.edit.EditResult
@@ -46,8 +48,8 @@ internal typealias BlockEditRunner = suspend (FlowId, String?, (MarkdownDocument
 internal class TextEditor(
     private val text: EditorText,
     private val runEdit: BlockEditRunner,
-    scope: CoroutineScope,
-    dispatcher: CoroutineDispatcher,
+    private val scope: CoroutineScope,
+    private val dispatcher: CoroutineDispatcher,
     /** Executes a command in the session (a new flow or frame of a Text tool tap); false if it failed. */
     private val execute: suspend (EditCommand) -> Boolean = { false },
     /** The style of a flow a tap or a keystroke creates. */
@@ -282,6 +284,15 @@ internal class TextEditor(
                 enqueue(Pending(plan.flowId, NO_BLOCK, NO_REVISION, null, plan))
             }
         }
+    }
+
+    override fun placeBox(
+        frameId: ObjectId,
+        fromPage: PageId,
+        toPage: PageId,
+        rect: RectPt,
+    ) {
+        scope.launch(dispatcher) { text.boxCommand(frameId, fromPage, toPage, rect)?.let { execute(it) } }
     }
 
     override fun typeIntoPage(

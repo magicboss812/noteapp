@@ -213,6 +213,9 @@ class CanvasHostView internal constructor(
     /** The selection boxes and handles above the live field (tests read what it shows). */
     internal val selectionView = SelectionOverlay(context, controller.viewport, controller) { document }
 
+    /** The grip and width handles of a focused free text box (tests read what it shows). */
+    internal val boxHandles = BoxHandles(context, controller.viewport, controller) { document }
+
     /** The live text field once a block was focused, null before (tests and debug automation read its state). */
     internal val liveTextField: LiveTextField? get() = textField.liveField
 
@@ -270,6 +273,7 @@ class CanvasHostView internal constructor(
         addView(content, LayoutParams(match))
         addView(overlay, LayoutParams(match))
         addView(selectionView, LayoutParams(match))
+        addView(boxHandles, LayoutParams(match))
         addView(hoverRing, LayoutParams(match))
         addView(wetLayer, LayoutParams(match))
         wet.onFinished = handoff::onFinished
@@ -318,6 +322,7 @@ class CanvasHostView internal constructor(
         contentTiles.retainPages(keep)
         refreshTiles()
         textField.refresh()
+        boxHandles.refresh()
     }
 
     /**
@@ -338,6 +343,7 @@ class CanvasHostView internal constructor(
         }
         textField.show(next.field)
         selectionView.show(next.selection)
+        boxHandles.show(next.field?.focus?.flowId)
     }
 
     private fun textOf(id: PageId): PageText = pageTexts[id] ?: PageText.EMPTY
@@ -505,8 +511,9 @@ class CanvasHostView internal constructor(
                 gestures.stopFling()
                 yieldTextToStylus(event)
             }
-            // A finger on a selection handle drags that end; the router never sees that gesture.
-            if (!selectionView.handleTouch(event)) router.onTouchEvent(event)
+            // A finger on a selection handle drags that end, a finger or the pen on a box's grip or width handle moves
+            // or resizes the box; the router never sees those gestures.
+            if (!boxHandles.handleTouch(event) && !selectionView.handleTouch(event)) router.onTouchEvent(event)
         }
         return true
     }
@@ -527,6 +534,7 @@ class CanvasHostView internal constructor(
         val tool = event.getToolType(0)
         if (tool != MotionEvent.TOOL_TYPE_STYLUS && tool != MotionEvent.TOOL_TYPE_ERASER) return
         if (controller.activeTool == CanvasTool.NAVIGATE) return
+        if (boxHandles.covers(event.x, event.y)) return // the pen takes the box's grip or a width handle
         textField.yieldToStylus(event.x, event.y)
     }
 
@@ -595,6 +603,7 @@ class CanvasHostView internal constructor(
         invalidateLayers()
         textField.place()
         if (selectionView.shown != null) selectionView.invalidate()
+        if (boxHandles.shown != null) boxHandles.invalidate()
         val now = SystemClock.uptimeMillis()
         lastViewportChangeMs = now
         removeCallbacks(idleRequest)

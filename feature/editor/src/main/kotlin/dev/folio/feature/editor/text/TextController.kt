@@ -1,7 +1,9 @@
 package dev.folio.feature.editor.text
 
 import dev.folio.core.model.FlowId
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.text.edit.BlockEditing
 import dev.folio.core.text.edit.Caret
 import dev.folio.core.text.edit.EditMarkers
@@ -391,6 +393,17 @@ interface TextController {
         pageId: PageId,
         xPt: Float,
         yPt: Float,
+    ) = Unit
+
+    /**
+     * The grip or a width handle of free text box [frameId] on page [fromPage] let go (P06-T17): the box goes to
+     * [rect] (already snapped to the grid) of page [toPage] and reflows, as one undo step; the focus stays. Main thread.
+     */
+    fun placeBox(
+        frameId: ObjectId,
+        fromPage: PageId,
+        toPage: PageId,
+        rect: RectPt,
     ) = Unit
 
     /**

@@ -8,13 +8,19 @@ import dev.folio.core.model.Document
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FlowStyle
+import dev.folio.core.model.FrameRole
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.PageRef
 import dev.folio.core.model.TextFlow
+import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.Batch
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.EditFlow
+import dev.folio.core.model.edit.RemoveObjects
 import dev.folio.core.model.edit.TextEdit
+import dev.folio.core.model.edit.UpdateObjects
+import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.storage.session.DocumentSession
 import dev.folio.core.text.edit.Caret
 import dev.folio.core.text.edit.EditResult
@@ -429,6 +435,44 @@ class EditorText internal constructor(
                 null
             } catch (e: IllegalStateException) {
                 FolioLog.w(TAG, "flow edit rejected: ${e.message}")
+                null
+            }
+        }
+    }
+
+    /**
+     * Free text box [frameId] of page [fromPage] placed at [rect] of page [toPage] (P06-T17) as one command: the frame
+     * moves or resizes in place, or leaves its page for [toPage] (on top there), and its flow reflows (an auto-grow
+     * box takes the height its text needs). Null if the frame is not a box there or nothing changes.
+     */
+    suspend fun boxCommand(
+        frameId: ObjectId,
+        fromPage: PageId,
+        toPage: PageId,
+        rect: RectPt,
+    ): EditCommand? {
+        val doc = documentSession.document.value
+        val frame = doc.page(fromPage)?.objects?.firstOrNull { it.id == frameId } as? FlowFrame ?: return null
+        if (frame.role != FrameRole.BOX || doc.page(toPage) == null) return null
+        if (fromPage == toPage && frame.rect == rect) return null
+        val moved = frame.copy(rect = rect)
+        val place =
+            if (fromPage == toPage) {
+                UpdateObjects(fromPage, listOf(moved))
+            } else {
+                Batch(listOf(RemoveObjects(fromPage, listOf(frameId)), AddObjects(toPage, listOf(moved))))
+            }
+        return withContext(dispatchers.text) {
+            try {
+                val after = place.execute(doc).doc
+                val flow = checkNotNull(after.flows[frame.flow])
+                val reflow = engine.reflow.plan(after, frame.flow, parses.of(flow))
+                reflow.command?.let { Batch(listOf(place, it)) } ?: place
+            } catch (e: IllegalArgumentException) {
+                FolioLog.w(TAG, "box move rejected: ${e.message}")
+                null
+            } catch (e: IllegalStateException) {
+                FolioLog.w(TAG, "box move rejected: ${e.message}")
                 null
             }
         }

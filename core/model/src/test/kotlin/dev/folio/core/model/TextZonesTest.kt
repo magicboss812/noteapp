@@ -102,6 +102,66 @@ class TextZonesTest {
     }
 
     @Test
+    fun movedBox_grid_topOnNearestRule_leftOnNearestColumn_sizeKept() {
+        val u = grid.spacingPt
+        val box = RectPt(0f, 0f, 30f * u / 5f, 2f * u)
+        val moved = TextZones.movedBox(a4, grid, box, 10.6f * u, 20.4f * u)
+        assertThat(moved.left).isWithin(1e-3f).of(11f * u)
+        assertThat(moved.top).isWithin(1e-3f).of(20f * u)
+        assertThat(moved.widthPt).isWithin(1e-3f).of(box.widthPt)
+        assertThat(moved.heightPt).isWithin(1e-3f).of(box.heightPt)
+    }
+
+    @Test
+    fun movedBox_lined_topOnRule_leftOnWholeMillimeter() {
+        val u = lined.spacingPt
+        val box = RectPt(0f, 0f, 100f, u)
+        val moved = TextZones.movedBox(a4, lined, box, 40.4f * PT_PER_MM, lined.marginTopPt + 3.3f * u)
+        assertThat(moved.left).isWithin(1e-3f).of(40f * PT_PER_MM)
+        assertThat(onGrid(moved.top, lined.marginTopPt, u)).isTrue()
+        assertThat(moved.top).isWithin(1e-3f).of(lined.marginTopPt + 3f * u)
+    }
+
+    @Test
+    fun movedBox_pastThePageEdges_staysInsideOnTheGrid() {
+        val u = grid.spacingPt
+        val box = RectPt(0f, 0f, 100f, u)
+        val moved = TextZones.movedBox(a4, grid, box, a4.widthPt, a4.heightPt + 50f)
+        assertThat(moved.right).isAtMost(a4.widthPt + 1e-3f)
+        assertThat(moved.bottom).isAtMost(a4.heightPt + 1e-3f)
+        assertThat(onGrid(moved.left, 0f, u)).isTrue()
+        assertThat(onGrid(moved.top, 0f, u)).isTrue()
+        val negative = TextZones.movedBox(a4, grid, box, -40f, -40f)
+        assertThat(negative.left).isAtLeast(0f)
+        assertThat(negative.top).isAtLeast(0f)
+        assertThat(onGrid(negative.left, 0f, u)).isTrue()
+    }
+
+    @Test
+    fun resizedBox_grid_movedEdgeOnColumn_otherEdgeKept_minWidth() {
+        val u = grid.spacingPt
+        val box = RectPt(10f * u, 4f * u, 30f * u, 5f * u)
+        val wider = TextZones.resizedBox(a4, grid, box, box.left, 33.4f * u)
+        assertThat(wider.left).isEqualTo(box.left)
+        assertThat(wider.right).isWithin(1e-3f).of(33f * u)
+        assertThat(wider.top).isEqualTo(box.top)
+        val narrowed = TextZones.resizedBox(a4, grid, box, 29f * u, box.right)
+        assertThat(narrowed.right).isWithin(1e-3f).of(box.right)
+        assertThat(narrowed.widthPt).isAtLeast(TextZones.BOX_MIN_WIDTH_PT - 1e-3f)
+        assertThat(onGrid(narrowed.left, 0f, u)).isTrue()
+        val clamped = TextZones.resizedBox(a4, grid, box, box.left, a4.widthPt + 80f)
+        assertThat(clamped.right).isAtMost(a4.widthPt + 1e-3f)
+        assertThat(onGrid(clamped.right, 0f, u)).isTrue()
+    }
+
+    @Test
+    fun resizedBox_lined_snapsToMillimeters() {
+        val box = RectPt(40f * PT_PER_MM, 100f, 120f * PT_PER_MM, 120f)
+        val resized = TextZones.resizedBox(a4, lined, box, 35.3f * PT_PER_MM, box.right)
+        assertThat(resized.left).isWithin(1e-3f).of(35f * PT_PER_MM)
+    }
+
+    @Test
     fun grownBox_wholeUnits_atLeastOne() {
         val rect = RectPt(10f, 100f, 200f, 120f)
         assertThat(TextZones.grownBox(rect, 3, 20f)).isEqualTo(RectPt(10f, 100f, 200f, 160f))

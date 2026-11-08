@@ -8,9 +8,11 @@ import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
 import dev.folio.core.model.InkStroke
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.EditCommand
+import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.text.edit.TableCell
@@ -113,6 +115,25 @@ internal class FakeTextController : TextController {
     override fun copySelection(): String? = copied
 
     override fun cutSelection(): String? = copied.also { cutCount++ }
+
+    /** Boxes placed by a grip or handle drag: frame, from page, to page, rect. */
+    val placedBoxes = ArrayList<PlacedBox>()
+
+    override fun placeBox(
+        frameId: ObjectId,
+        fromPage: PageId,
+        toPage: PageId,
+        rect: RectPt,
+    ) {
+        placedBoxes += PlacedBox(frameId, fromPage, toPage, rect)
+    }
+
+    data class PlacedBox(
+        val frameId: ObjectId,
+        val fromPage: PageId,
+        val toPage: PageId,
+        val rect: RectPt,
+    )
 }
 
 /** Controller over an in-memory document of [pages] lined A4 pages; commands apply synchronously. */

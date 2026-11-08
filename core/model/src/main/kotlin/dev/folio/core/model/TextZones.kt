@@ -6,12 +6,14 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * Text frame geometry (07-text-engine.md#flows-and-frames): the body text zone of a template, free text boxes and
  * the content area of sticky notes. Every frame top sits on a rule, so line boxes stacked from it keep their
  * baselines on rules. Cornell and planner numbers mirror core:render `StructuredTemplates`.
  */
+@Suppress("TooManyFunctions") // one place for every frame rect and its snapping to the rules and columns
 object TextZones {
     /** Side and bottom margin of body zones (12 mm). */
     const val SIDE_MARGIN_PT = 12f * PT_PER_MM
@@ -110,6 +112,69 @@ object TextZones {
         val top = max(ruleAtOrAbove(grid, yPt), ruleAtOrBelow(grid, 0f))
         return RectPt(left, top, left + width, top + grid.unitPt)
     }
+
+    /**
+     * Free text box [rect] dropped with its top-left near ([leftPt], [topPt]) (P06-T17): the top on the nearest rule,
+     * the left on the nearest grid column (1 mm steps on pages without columns), same size, kept inside the page as
+     * far as the box fits.
+     */
+    fun movedBox(
+        spec: PageSpec,
+        template: Template,
+        rect: RectPt,
+        leftPt: Float,
+        topPt: Float,
+    ): RectPt {
+        val grid = GridUnit.of(template)
+        val step = columnStep(grid)
+        var left = snap(min(leftPt, spec.widthPt - rect.widthPt), columnOrigin(grid), step)
+        if (left + rect.widthPt > spec.widthPt) left -= step * ceil((left + rect.widthPt - spec.widthPt) / step - EPS)
+        if (left < 0f) left += step * ceil(-left / step - EPS)
+        var top = snap(min(topPt, spec.heightPt - rect.heightPt), grid.originYPt, grid.unitPt)
+        if (top + rect.heightPt > spec.heightPt) top = ruleAtOrAbove(grid, spec.heightPt - rect.heightPt)
+        if (top < 0f) top = ruleAtOrBelow(grid, 0f)
+        return RectPt(left, top, left + rect.widthPt, top + rect.heightPt)
+    }
+
+    /**
+     * Free text box [rect] with its left and right edges dragged to [leftPt] and [rightPt] (P06-T17): each moved edge
+     * snaps to the nearest grid column (1 mm on pages without columns), inside the page, at least 20 mm wide. The
+     * caller reflows the box, whose height follows in whole U.
+     */
+    fun resizedBox(
+        spec: PageSpec,
+        template: Template,
+        rect: RectPt,
+        leftPt: Float,
+        rightPt: Float,
+    ): RectPt {
+        val grid = GridUnit.of(template)
+        val step = columnStep(grid)
+        val minWidth = step * ceil(BOX_MIN_WIDTH_PT / step - EPS)
+        var left = rect.left
+        var right = rect.right
+        if (leftPt != rect.left) {
+            left = snap(min(leftPt, right - minWidth), columnOrigin(grid), step)
+            if (left < 0f) left += step * ceil(-left / step - EPS)
+        }
+        if (rightPt != rect.right) {
+            right = snap(max(rightPt, left + minWidth), columnOrigin(grid), step)
+            if (right > spec.widthPt) right -= step * ceil((right - spec.widthPt) / step - EPS)
+        }
+        if (right - left < minWidth - EPS) right = left + minWidth
+        return rect.copy(left = left, right = right)
+    }
+
+    // Columns a box edge snaps to: the grid columns, or millimeters from the page edge.
+    private fun columnStep(grid: GridUnit): Float = if (grid.snapsColumns) grid.unitPt else PT_PER_MM
+
+    private fun columnOrigin(grid: GridUnit): Float = if (grid.snapsColumns) grid.originXPt else 0f
+
+    private fun snap(
+        valuePt: Float,
+        originPt: Float,
+        stepPt: Float,
+    ): Float = originPt + ((valuePt - originPt) / stepPt).roundToInt() * stepPt
 
     /** [rect] grown or shrunk to [units] whole line boxes (at least one). */
     fun grownBox(
