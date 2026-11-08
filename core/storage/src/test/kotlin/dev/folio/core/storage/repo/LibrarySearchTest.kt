@@ -62,12 +62,18 @@ class LibrarySearchTest : RepositoryTestBase() {
             scanner.fullScan()
             library.search("kinem velo").first() // warm up the statement cache
 
-            val start = System.nanoTime()
-            val hits = library.search("kinem velo").first()
-            val ms = (System.nanoTime() - start) / 1_000_000
-            println("search over 500 documents (500 hits): $ms ms")
+            // The median of 5 timed searches: one sample swung past the budget while `qa` ran every module in parallel.
+            val timesMs = LongArray(SEARCH_RUNS)
+            for (run in 0 until SEARCH_RUNS) {
+                val start = System.nanoTime()
+                val hits = library.search("kinem velo").first()
+                timesMs[run] = (System.nanoTime() - start) / 1_000_000
+                assertThat(hits).hasSize(500)
+            }
+            timesMs.sort()
+            val ms = timesMs[SEARCH_RUNS / 2]
+            println("search over 500 documents (500 hits): median $ms ms of ${timesMs.toList()}")
 
-            assertThat(hits).hasSize(500)
             assertThat(ms).isLessThan(100)
         }
 
@@ -96,5 +102,9 @@ class LibrarySearchTest : RepositoryTestBase() {
         if ('/' in path) fs.mkdirs(path.substringBeforeLast('/'))
         val result = fs.writeAtomic(path) { out -> FolioContainerWriter.write(out, DocumentEntries.all(doc, ManifestApp(), emptyMap())) }
         check(result is Outcome.Success) { result }
+    }
+
+    private companion object {
+        const val SEARCH_RUNS = 5
     }
 }

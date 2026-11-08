@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
-phase: P06
-next: P06 REVIEW
+phase: P07
+next: P07-T01
 updated: 2026-11-08
 
 ## Completed
@@ -11,9 +11,10 @@ updated: 2026-11-08
 - P03 done 2026-09-30 (tag p03-done): viewport + page stack, templates, tiles (bucketed, base tiles, pan-time requests), wet ink + dry handoff (handoff p95 31 ms), eraser, stylus caps + hover ring; debug 1500 strokes: onTouch p95 0.33 ms, settle p95 119 ms, janky 0.24%, commit 2.02 ms (D-015); REVIEW fixed 1 blocking finding (commits survive a detach); A-017..A-026; qa green.
 - P04 done 2026-10-02 (tag p04-done): editor shell with Notewise design system, toolbar (docks, grip, float), tools + options row, shortcuts, undo pill, page management, new-note sheet, autosave dot, recovery snackbar, stored thumbnails, stylus instrumented tests; device checks T05..T09 PASS 2026-10-23 (T09 after fix: CanvasHost collectors on the main dispatcher); REVIEW fixed 1 blocking finding (page loads dirtied the copy via thumbnails); A-027..A-031; qa green; USER-CHECKs answered 2026-10-23 (T10 chrome -> A-037).
 - P05 done 2026-10-23 (tag p05-done): library home grid/list, selection + batch ops, nested folders, tags/favorites, FTS search (500 docs < 100 ms), bin with retention purge job, transitions, screenshot suite; REVIEW fixed 2 blocking findings (same-folder move / same-name folder rename added " (2)"); importFolio -> P09-T06, leftovers -> P11-T11; A-032..A-036; qa green; USER-CHECKs answered 2026-10-23.
+- P06 done 2026-11-08 (tag p06-done): Markdown blocks, fonts + import, grid line boxes (20 fonts 0 violations on device), flows + reflow, live field, math, tables, links/tasks, selection + clipboard, baseline lift, free text boxes; `text:key` p95 17-21 ms debug (D-043); REVIEW fixed 2 blocking findings (stale flow edits after undo, read mode kept text focus); intake -> P11-T01/T09/T12, P07-T02; A-037..A-056; qa green.
 
 ## Current phase progress
-- P06: T12, T13, T01, T02, T03, T04, T05, T06 (a-g), T15, T07, T08 (a-b), T09 (a-b), T19, T10 (a-b), T18 (a-d), T14 (a-b), T16, T17, T11 (keystroke p95 gap -> D-043)
+- P07: (none yet)
 
 ## Blocked (needs user; stops dependent tasks)
 - D-040 (P06-T16, .claude edits denied headless): in `.claude/rules/text-engine.md` line 7 replace "each baseline lies on the rule at the bottom of its line box: baselineY = frame.topPt + sum of line-box heights up to and including that line." with "each baseline lies on the rule at the bottom of its line box, raised by the flow's lift (A-054): baselineY = frame.topPt + sum of line-box heights up to and including that line - baselineLiftUnits * U." (or let an interactive session do it).
@@ -37,8 +38,8 @@ updated: 2026-11-08
 - D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P06-T11 done with a known gap (A-056, D-043 -> P11-T05): block edits run on the text dispatcher (`EditorText.blockEdit`), the live field refuses IME cursor-anchor monitoring, and the canvas AndroidView has its own graphics layer. `text:key` p95 went from 37 to 17-21 ms in the debug build; scroll 0.05% janky; PSS 618 MB (perf.md).
-- NEXT P06 REVIEW (range p05-done..HEAD). Debug probes `FolioTouch`, `FolioMain` (frame lines print twice). Untracked orphan `core/text/src/test/screenshots/FontSpecimen_compact.png` (test removed in T03) left unstaged.
-- Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; formatting bar = row 2 (`TextFormatRow`).
-- Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]` seeds a body flow (`open lined:N`: N is the page count and reuses that file; the first stylus tap after a debug command is dropped). Test APK installs can still be refused (INSTALL_FAILED_USER_RESTRICTED): check the result XML, not Gradle's SUCCESS.
-- Remaining P06: REVIEW only. Models per A-045. Tool row y 1963 px, mode pill y 171 px in landscape.
+- P06 closed (tag p06-done). Block edits carry their base flow text (`EditFlow.base`) and are refused once an undo or another edit changed the flow; entering read mode blurs the text, grip/selection handles are inert in NAVIGATE.
+- NEXT P07-T01 (shape tool and shape objects). Read the P07 header once. Untracked orphan `core/text/src/test/screenshots/FontSpecimen_compact.png` (test removed in P06-T03) left unstaged: stage explicit paths, not `git add -A`.
+- Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay.
+- Device: HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]`, `open lined:N`; the first stylus tap after a debug command is dropped. Test APK installs can be refused (INSTALL_FAILED_USER_RESTRICTED): check the result XML. Tool row y 1963 px, mode pill y 171 px in landscape.
+- Two Blocked lines are .claude rule edits only (no task waits on them).
