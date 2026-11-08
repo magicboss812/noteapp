@@ -1,14 +1,15 @@
 package dev.folio.feature.editor.text
 
 import dev.folio.core.model.Borders
+import dev.folio.core.model.BoxAlign
 import dev.folio.core.model.BoxWidth
 import dev.folio.core.model.Document
-import dev.folio.core.model.FlowBox
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FrameRole
 import dev.folio.core.model.PageId
 import dev.folio.core.model.StickyNote
+import dev.folio.core.model.TextAlign
 import dev.folio.core.model.TextFlow
 import dev.folio.core.model.TextZones
 import dev.folio.core.model.edit.AddObjects
@@ -21,7 +22,7 @@ import dev.folio.core.model.edit.UpdateObjects
 import dev.folio.core.model.geometry.RectPt
 
 /**
- * The page changes of the box operations (10-editor-ui.md#text-boxes: Move, Width, Delete) on a document, before the
+ * The page changes of the box operations (10-editor-ui.md#text-boxes: Move, Width, Alignment, Delete) on a document, before the
  * reflow [EditorText] runs after them; pure, so they run on any thread. Null where nothing would change.
  */
 internal object BoxCommands {
@@ -80,7 +81,30 @@ internal object BoxCommands {
     ): EditCommand? {
         val flow = doc.flows[flowId] ?: return null
         val frames = framesOf(doc, flowId).takeIf { it.firstOrNull()?.second?.role == FrameRole.BOX } ?: return null
-        return bordersOf(flow, frames, borders, BoxWidth.knobbed(flow.box))
+        return bordersOf(flow, frames, borders, flow.copy(box = BoxWidth.knobbed(flow.box)))
+    }
+
+    /**
+     * Box [flowId] aligned [align] (P07-T16): the flow's alignment changes and, for fixed borders, Center saves and
+     * centers them on the anchor while leaving Center restores them ([BoxAlign]). The body text of older notes only
+     * changes its alignment. Null for an unknown flow, a flow without frames, or the same alignment.
+     */
+    fun align(
+        doc: Document,
+        flowId: FlowId,
+        align: TextAlign,
+    ): EditCommand? {
+        val flow = doc.flows[flowId] ?: return null
+        val frames = framesOf(doc, flowId)
+        val (pageId, first) = frames.firstOrNull() ?: return null
+        if (flow.style.align == align) return null
+        val aligned = flow.copy(style = flow.style.copy(align = align))
+        val ref = doc.pageRef(pageId)
+        if (first.role != FrameRole.BOX || ref == null) return UpdateFlows(listOf(aligned))
+        val zone = TextZones.boxZone(ref.spec, ref.background.template)
+        val active = Borders(first.rect.left, first.rect.right)
+        val change = BoxAlign.aligned(flow.box, flow.style.align, align, active, Borders(zone.left, zone.right))
+        return bordersOf(flow, frames, change.borders, aligned.copy(box = change.box))
     }
 
     /**
@@ -98,7 +122,7 @@ internal object BoxCommands {
         val ref = doc.pageRef(pageId) ?: return null
         val zone = TextZones.boxZone(ref.spec, ref.background.template)
         val change = BoxWidth.toggled(flow.box, Borders(first.rect.left, first.rect.right), Borders(zone.left, zone.right))
-        return bordersOf(flow, frames, change.borders, change.box)
+        return bordersOf(flow, frames, change.borders, flow.copy(box = change.box))
     }
 
     /**
@@ -126,12 +150,12 @@ internal object BoxCommands {
         return Batch(commands)
     }
 
-    // The free box frames of [flow] ([frames]) between [borders] and its box state [box]; null when neither changes.
+    // The free box frames of [flow] ([frames]) between [borders] and the flow becoming [next]; null when neither changes.
     private fun bordersOf(
         flow: TextFlow,
         frames: List<Pair<PageId, FlowFrame>>,
         borders: Borders,
-        box: FlowBox,
+        next: TextFlow,
     ): EditCommand? {
         val commands = ArrayList<EditCommand>()
         for ((pageId, pageFrames) in frames.groupBy({ it.first }, { it.second })) {
@@ -141,7 +165,7 @@ internal object BoxCommands {
                     .map { it.copy(rect = it.rect.copy(left = borders.leftPt, right = borders.rightPt)) }
             if (changed.isNotEmpty()) commands += UpdateObjects(pageId, changed)
         }
-        if (box != flow.box) commands += UpdateFlows(listOf(flow.copy(box = box)))
+        if (next != flow) commands += UpdateFlows(listOf(next))
         return if (commands.isEmpty()) null else Batch(commands)
     }
 

@@ -47,11 +47,11 @@ import kotlin.math.roundToInt
  * on its rule. Results are cached per (block source, width, flow style, grid), least recently used
  * first out. Thread-safe.
  *
- * Alignment: CENTER applies to paragraphs and headings, JUSTIFIED to paragraphs; other blocks
- * start-align; table columns take their own alignment. Formulas go through [math]
+ * Alignment (10-editor-ui.md#text-boxes): paragraphs, list items and quotes take the flow's alignment, headings
+ * too except JUSTIFIED (start); code and block math start-align; table columns take their own alignment. Formulas go through [math]
  * (07-text-engine.md#math); without a renderer inline math is italic source and math blocks are code.
  */
-@Suppress("TooManyFunctions") // one builder per block kind plus the shared grid text steps
+@Suppress("TooManyFunctions", "LargeClass") // one builder per block kind plus the shared grid text steps
 class BlockLayouter(
     private val resolver: FontFamily.Resolver,
     private val metrics: FontMetricsCache,
@@ -215,12 +215,13 @@ class BlockLayouter(
             is BlockContent.ListItem -> {
                 // The marker takes the gutter: the source starts where the bullet is drawn.
                 val left = min(content.level * step, g.widthPt / 2f)
-                sourceBlock(g, style, family, TextRole.BODY, source, content.text, TextAlign.Start, leftPt = left)
+                sourceBlock(g, style, family, TextRole.BODY, source, content.text, align(style.alignment, justify = true), leftPt = left)
             }
 
             is BlockContent.Quote -> {
                 val bar = BlockDecoration.QuoteBar(step * QUOTE_BAR_LEFT, g.unitPt * QUOTE_BAR_UNITS, content.callout)
-                sourceBlock(g, style, family, TextRole.BODY, source, content.text, TextAlign.Start, leftPt = step, decoration = bar)
+                val aligned = align(style.alignment, justify = true)
+                sourceBlock(g, style, family, TextRole.BODY, source, content.text, aligned, leftPt = step, decoration = bar)
             }
 
             is BlockContent.Code -> {
@@ -370,6 +371,7 @@ class BlockLayouter(
                 val free = marker.widthPt - markerText.lineRightPt(0)
                 max(0f, marker.leftPt + if (marker.centered) free / 2f else free)
             }
+        val labelShift = labelShiftPt(text, textAlign, marker != null, decoration)
         val face = BlockFace(family.fontFamily, role.bold)
         return BlockLayout(
             text,
@@ -380,10 +382,11 @@ class BlockLayouter(
             leftPt,
             markerLeft,
             size.fontSizePt,
-            decoration,
+            decoration.shiftedBy(labelShift),
             face,
             maths,
             errors,
+            labelShiftPt = labelShift,
         )
     }
 
@@ -447,6 +450,7 @@ class BlockLayouter(
         val gutterLeft = min(item.level * step, g.widthPt / 2f)
         val left = gutterLeft + step
         val cap = TextSizing.capFraction(TextRole.BODY, style.bodyCap)
+        val aligned = align(style.alignment, justify = true)
         return when (item.kind) {
             ListKind.TASK -> {
                 val sizePt = CHECKBOX_UNITS * g.unitPt
@@ -458,12 +462,12 @@ class BlockLayouter(
                         sizePt,
                         item.checked == true,
                     )
-                textBlock(g, style, family, TextRole.BODY, item.text, TextAlign.Start, leftPt = left, decoration = box)
+                textBlock(g, style, family, TextRole.BODY, item.text, aligned, leftPt = left, decoration = box)
             }
 
             ListKind.BULLET -> {
                 val marker = Marker(ListLabels.bullet(item.level), gutterLeft, step, centered = true)
-                textBlock(g, style, family, TextRole.BODY, item.text, TextAlign.Start, leftPt = left, marker = marker)
+                textBlock(g, style, family, TextRole.BODY, item.text, aligned, leftPt = left, marker = marker)
             }
 
             ListKind.ORDERED -> {
@@ -474,7 +478,7 @@ class BlockLayouter(
                         step - MARKER_GAP_UNITS * g.unitPt,
                         centered = false,
                     )
-                textBlock(g, style, family, TextRole.BODY, item.text, TextAlign.Start, leftPt = left, marker = marker)
+                textBlock(g, style, family, TextRole.BODY, item.text, aligned, leftPt = left, marker = marker)
             }
         }
     }
@@ -493,7 +497,7 @@ class BlockLayouter(
             family,
             TextRole.BODY,
             quote.text,
-            TextAlign.Start,
+            align(style.alignment, justify = true),
             leftPt = step,
             decoration = bar,
             prefix = quote.callout?.let(::calloutTitle),
@@ -844,24 +848,42 @@ class BlockLayouter(
                 else -> TextRole.H3
             }
 
-        private fun align(
-            alignment: FlowAlignment,
-            justify: Boolean,
-        ): TextAlign =
-            when (alignment) {
-                FlowAlignment.START -> TextAlign.Start
-                FlowAlignment.CENTER -> TextAlign.Center
-                FlowAlignment.END -> TextAlign.End
-                FlowAlignment.JUSTIFIED -> if (justify) TextAlign.Justify else TextAlign.Start
-            }
-
         private fun calloutTitle(type: CalloutType): String = type.name.lowercase().replaceFirstChar { it.uppercase() }
-
-        private fun cellAlign(align: TableAlign): TextAlign =
-            when (align) {
-                TableAlign.NONE, TableAlign.LEFT -> TextAlign.Start
-                TableAlign.CENTER -> TextAlign.Center
-                TableAlign.RIGHT -> TextAlign.End
-            }
     }
 }
+
+// The text alignment of a block in a flow aligned [alignment]; [justify] false for blocks that read JUSTIFIED as start.
+private fun align(
+    alignment: FlowAlignment,
+    justify: Boolean,
+): TextAlign =
+    when (alignment) {
+        FlowAlignment.START -> TextAlign.Start
+        FlowAlignment.CENTER -> TextAlign.Center
+        FlowAlignment.END -> TextAlign.End
+        FlowAlignment.JUSTIFIED -> if (justify) TextAlign.Justify else TextAlign.Start
+    }
+
+private fun cellAlign(align: TableAlign): TextAlign =
+    when (align) {
+        TableAlign.NONE, TableAlign.LEFT -> TextAlign.Start
+        TableAlign.CENTER -> TextAlign.Center
+        TableAlign.RIGHT -> TextAlign.End
+    }
+
+// How far a list item's label ([hasMarker]) or checkbox moves right to stay just before its first line of [text]:
+// that line's indent when [textAlign] centers or end-aligns it (P07-T16), else 0.
+private fun labelShiftPt(
+    text: GridText,
+    textAlign: TextAlign,
+    hasMarker: Boolean,
+    decoration: BlockDecoration,
+): Float {
+    val labelled = hasMarker || decoration is BlockDecoration.Checkbox
+    val indented = textAlign == TextAlign.Center || textAlign == TextAlign.End
+    return if (labelled && indented) text.xPt(0) else 0f
+}
+
+// A checkbox moved right by [dxPt]; other decorations stay.
+private fun BlockDecoration.shiftedBy(dxPt: Float): BlockDecoration =
+    if (this is BlockDecoration.Checkbox && dxPt != 0f) copy(leftPt = leftPt + dxPt) else this

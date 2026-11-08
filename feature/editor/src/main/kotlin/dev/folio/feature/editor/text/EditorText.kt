@@ -17,6 +17,7 @@ import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.PageRef
 import dev.folio.core.model.StickyNote
+import dev.folio.core.model.TextAlign
 import dev.folio.core.model.TextFlow
 import dev.folio.core.model.TextZones
 import dev.folio.core.model.edit.AddObjects
@@ -224,8 +225,10 @@ class EditorText internal constructor(
             if (pieces.isEmpty()) movable = frame.role == FrameRole.BOX
             pieces += BoxPiece(slot.pageId, slot.frameId, slot.rect, layout.outlineOf(i))
         }
-        val fill = doc.flows[flowId]?.box?.fill == true
-        return if (pieces.isEmpty()) null else SelectedBox(flowId, focus != null, pieces, movable, fill)
+        val flow = doc.flows[flowId]
+        val fill = flow?.box?.fill == true
+        val align = flow?.style?.align ?: TextAlign.START
+        return if (pieces.isEmpty()) null else SelectedBox(flowId, focus != null, pieces, movable, fill, align)
     }
 
     // The focused flow laid out with the edited block as its source and paginated with the rest (A-058): hits, caret and
@@ -605,6 +608,12 @@ class EditorText internal constructor(
     /** The fill width button on box [flowId] (P07-T15) as one command: [BoxCommands.fill] and the reflow; null if refused. */
     suspend fun fillCommand(flowId: FlowId): EditCommand? =
         BoxCommands.fill(documentSession.document.value, flowId)?.let { reflowed(it, flowId, "fill width") }
+
+    /** Box [flowId] aligned [align] (P07-T16) as one command: [BoxCommands.align] and the reflow; null if nothing changes. */
+    suspend fun alignCommand(
+        flowId: FlowId,
+        align: TextAlign,
+    ): EditCommand? = BoxCommands.align(documentSession.document.value, flowId, align)?.let { reflowed(it, flowId, "box align") }
 
     /**
      * Box [flowId] laid out between [borders] for a width knob that is still dragged (P07-T15): what each of its

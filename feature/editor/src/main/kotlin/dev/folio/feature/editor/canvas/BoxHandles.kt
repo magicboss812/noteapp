@@ -10,11 +10,13 @@ import android.view.View
 import android.view.ViewConfiguration
 import androidx.annotation.MainThread
 import dev.folio.core.model.Borders
+import dev.folio.core.model.BoxAlign
 import dev.folio.core.model.BoxWidth
 import dev.folio.core.model.Document
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.TextAlign
 import dev.folio.core.model.TextZones
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.render.OverlayTextPainter
@@ -52,7 +54,7 @@ internal class BoxHost(
  * release. The toolbar's buttons act on release. Everything else passes on.
  */
 @MainThread
-@Suppress("TooManyFunctions") // drawing, hit testing and the move and resize gestures of one box
+@Suppress("TooManyFunctions", "LargeClass") // drawing, hit testing and the move, resize and toolbar gestures of one box
 internal class BoxHandles(
     context: Context,
     private val viewport: Viewport,
@@ -116,6 +118,13 @@ internal class BoxHandles(
     private var grabYPx = 0f
     private var pressed: BoxButton? = null
 
+    // The Alignment popup (P07-T16): open after the Alignment button, and the alignment pressed in it.
+    private var alignOpen = false
+    private var pressedAlign: TextAlign? = null
+
+    /** True while the Alignment popup is open (tests). */
+    val alignsOpen: Boolean get() = alignOpen
+
     /** The selected box's first frame as shown (page, text column), null for none (tests). */
     val shown: Pair<PageId, RectPt>? get() = box?.pieces?.firstOrNull()?.let { it.pageId to it.rect }
 
@@ -147,6 +156,7 @@ internal class BoxHandles(
         if (next == null || next.flowId != before?.flowId) {
             dragging = NONE
             owned = false
+            alignOpen = false
             keyed = false
             keyPage = null
             endResize()
@@ -356,7 +366,8 @@ internal class BoxHandles(
         current: SelectedBox,
     ) {
         if (!placeToolbar(current)) return
-        toolbar.draw(canvas, current.editing, current.fill)
+        toolbar.draw(canvas, current.editing, current.fill, current.align)
+        if (alignOpen) toolbar.drawAligns(canvas, current.align)
     }
 
     // Puts the toolbar over the first frame's outline as shown now; false when that page is not laid out.
@@ -369,6 +380,7 @@ internal class BoxHandles(
         val y = viewport.pageOriginViewY(index).toFloat()
         val o = first.outline
         toolbar.place(x + (o.left + o.right) / 2 * scale, y + o.top * scale, y + o.bottom * scale, width.toFloat(), height.toFloat())
+        if (alignOpen) toolbar.placeAligns(width.toFloat(), height.toFloat())
         return true
     }
 
@@ -381,13 +393,14 @@ internal class BoxHandles(
         yPx: Float,
     ): Boolean = partAt(xPx, yPx, stylus = true) in GRIP..RIGHT
 
-    /** True if ([xPx], [yPx]) is on the toolbar (the pen taps its buttons). */
+    /** True if ([xPx], [yPx]) is on the toolbar or its open Alignment popup (the pen taps their buttons). */
     fun toolbarCovers(
         xPx: Float,
         yPx: Float,
     ): Boolean {
         val current = box ?: return false
-        return placeToolbar(current) && toolbar.pill.contains(xPx, yPx)
+        if (!placeToolbar(current)) return false
+        return toolbar.pill.contains(xPx, yPx) || (alignOpen && toolbar.alignPopup.contains(xPx, yPx))
     }
 
     /**
@@ -412,6 +425,7 @@ internal class BoxHandles(
             dragging = NONE
             owned = false
             pressed = null
+            pressedAlign = null
             invalidate()
         }
         return true
@@ -426,9 +440,9 @@ internal class BoxHandles(
         val inert = tool == MotionEvent.TOOL_TYPE_ERASER || controller.activeTool == CanvasTool.NAVIGATE
         val x = event.x
         val y = event.y
-        pressed = if (inert || !toolbarCovers(x, y)) null else toolbar.buttonAt(x, y)
-        dragging = if (inert || pressed != null) NONE else partAt(x, y, stylus)
-        owned = pressed != null || dragging != NONE
+        val covered = !inert && pressAt(x, y)
+        dragging = if (inert || covered) NONE else partAt(x, y, stylus)
+        owned = pressed != null || pressedAlign != null || dragging != NONE
         downXPx = x
         downYPx = y
         if (dragging == LEFT || dragging == RIGHT) {
@@ -436,6 +450,22 @@ internal class BoxHandles(
             resizing = true
         }
         if (dragging != NONE) grab(x, y)
+    }
+
+    // A down at ([xPx], [yPx]) on the toolbar or the open Alignment popup presses what is there; a touch anywhere but on
+    // the popup or the Alignment button closes the popup. True if the toolbar or popup covers the point.
+    private fun pressAt(
+        xPx: Float,
+        yPx: Float,
+    ): Boolean {
+        val covered = toolbarCovers(xPx, yPx)
+        pressedAlign = if (covered && alignOpen) toolbar.alignAt(xPx, yPx) else null
+        pressed = if (!covered || pressedAlign != null) null else toolbar.buttonAt(xPx, yPx)
+        if (alignOpen && pressedAlign == null && pressed != BoxButton.ALIGN) {
+            alignOpen = false
+            invalidate()
+        }
+        return covered
     }
 
     private fun move(
@@ -453,7 +483,15 @@ internal class BoxHandles(
 
     private fun up(event: MotionEvent) {
         val button = pressed
+        val align = pressedAlign
         when {
+            align != null -> {
+                if (toolbar.alignAt(event.x, event.y) == align) {
+                    alignOpen = false
+                    controller.textController?.alignBox(align)
+                }
+            }
+
             button != null -> {
                 if (toolbar.buttonAt(event.x, event.y) == button) press(button)
             }
@@ -474,7 +512,8 @@ internal class BoxHandles(
             BoxButton.EDIT -> texts.editBox()
             BoxButton.DELETE -> texts.deleteBox()
             BoxButton.FILL -> texts.fillWidth()
-            BoxButton.COLOR, BoxButton.SIZE, BoxButton.ALIGN -> Unit
+            BoxButton.ALIGN -> alignOpen = !alignOpen
+            BoxButton.COLOR, BoxButton.SIZE -> Unit
         }
     }
 
@@ -607,8 +646,16 @@ internal class BoxHandles(
         if (dragging == GRIP) {
             previewRect = TextZones.movedBox(ref.spec, template, r, pt.x, pt.y)
         } else {
-            val zone = TextZones.boxZone(ref.spec, template)
-            val borders = BoxWidth.knob(Borders(zone.left, zone.right), Borders(r.left, r.right), dragging == LEFT, pt.x)
+            val zoneRect = TextZones.boxZone(ref.spec, template)
+            val zone = Borders(zoneRect.left, zoneRect.right)
+            val shown = Borders(r.left, r.right)
+            // In Center both borders move alike around the middle (P07-T16).
+            val borders =
+                if (current.align == TextAlign.CENTER) {
+                    BoxAlign.symmetricKnob(zone, shown, pt.x)
+                } else {
+                    BoxWidth.knob(zone, shown, dragging == LEFT, pt.x)
+                }
             val before = previewRect
             previewRect = r.copy(left = borders.leftPt, right = borders.rightPt)
             if (before == null || before.left != borders.leftPt || before.right != borders.rightPt) askWidth(current.flowId, borders)

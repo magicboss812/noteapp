@@ -494,6 +494,11 @@ internal class TextEditor(
         scope.launch(dispatcher) { text.fillCommand(flowId)?.let { execute(it) } }
     }
 
+    override fun alignBox(align: TextAlign) {
+        val flowId = text.mode.flowId ?: return
+        scope.launch(dispatcher) { text.alignCommand(flowId, align)?.let { execute(it) } }
+    }
+
     override fun typeIntoPage(
         pageId: PageId,
         text: String,

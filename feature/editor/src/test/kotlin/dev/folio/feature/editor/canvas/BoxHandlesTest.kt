@@ -21,6 +21,7 @@ import dev.folio.core.model.FlowId
 import dev.folio.core.model.FrameRole
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.TextAlign
 import dev.folio.core.model.TextZones
 import dev.folio.core.model.geometry.PointPt
 import dev.folio.core.model.geometry.RectPt
@@ -89,6 +90,7 @@ class BoxHandlesTest {
         editing: Boolean = false,
         topPt: Float = 180f,
         fill: Boolean = false,
+        align: TextAlign = TextAlign.START,
     ): RectPt {
         val pages = controller.document.value.pages
         val page = pages[0].id
@@ -100,14 +102,20 @@ class BoxHandlesTest {
         val doc =
             ModelFixtures.document(
                 List(pages.size) { if (it == 0) ModelFixtures.page(page.value, listOf(frame)) else ModelFixtures.page(pages[it].id.value) },
-                flows = listOf(ModelFixtures.flow(boxFlow.value, "A free text box that holds two lines of text.")),
+                flows =
+                    listOf(
+                        ModelFixtures.flow(boxFlow.value, "A free text box that holds two lines of text.").let {
+                            it.copy(style = it.style.copy(align = align))
+                        },
+                    ),
             )
         val block = checkNotNull(PageTexts.flowLayout(doc, boxFlow, layouter)).markdown.blocks.first()
         val layout = checkNotNull(PageTexts.flowLayout(doc, boxFlow, layouter, editBlockId = if (editing) block.id else null))
         val layouts = mapOf(boxFlow to layout)
         val focus = if (editing) TextFocus(boxFlow, block.id, 0, block.source.length, 1) else null
         outline = layout.outlineOf(0)
-        val selected = SelectedBox(boxFlow, editing, listOf(BoxPiece(page, boxId, rect, outline)), movable = true, fill = fill)
+        val selected =
+            SelectedBox(boxFlow, editing, listOf(BoxPiece(page, boxId, rect, outline)), movable = true, fill = fill, align = align)
         compose.runOnUiThread {
             controller.document.value = doc
             controller.canvasText.value =
@@ -480,6 +488,80 @@ class BoxHandlesTest {
         assertThat(texts.fillWidthCount).isEqualTo(1)
         assertThat(texts.boxTaps).isEmpty()
         compose.onRoot().captureRoboImage("src/test/screenshots/CanvasHost_boxFillWidth.png")
+    }
+
+    // The middle of toolbar button [button] (view px).
+    private fun buttonCenter(button: BoxButton): Pair<Float, Float> {
+        val handles = hostView().boxHandles
+        handles.toolbarCovers(-1f, -1f)
+        val pill = handles.toolbar.pill
+        val xs =
+            (pill.left.roundToInt()..pill.right.roundToInt()).filter {
+                handles.toolbar.buttonAt(
+                    it.toFloat(),
+                    pill.centerY(),
+                ) == button
+            }
+        return (xs.first() + xs.last()) / 2f to pill.centerY()
+    }
+
+    @Test
+    fun alignmentButton_opensThePopup_pickingCenterAlignsTheBoxAndClosesIt() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        showBox()
+        val handles = hostView().boxHandles
+
+        tap(buttonCenter(BoxButton.ALIGN))
+
+        assertThat(handles.alignsOpen).isTrue()
+        compose.onRoot().captureRoboImage("src/test/screenshots/CanvasHost_boxAlignPopup.png")
+        // Places the toolbar and the popup as a touch does.
+        handles.toolbarCovers(-1f, -1f)
+        val popup = handles.toolbar.alignPopup
+        assertThat(popup.isEmpty).isFalse()
+        assertThat(popup.bottom).isAtMost(handles.toolbar.pill.top)
+        // Four icons: the second one is Center.
+        val center = popup.left + popup.width() * 3f / 8f
+        assertThat(handles.toolbar.alignAt(center, popup.centerY())).isEqualTo(TextAlign.CENTER)
+        assertThat(handles.toolbarCovers(center, popup.centerY())).isTrue()
+
+        tap(center to popup.centerY())
+
+        assertThat(texts.aligned).containsExactly(TextAlign.CENTER)
+        assertThat(handles.alignsOpen).isFalse()
+        assertThat(texts.boxTaps).isEmpty()
+        assertThat(texts.movedBoxes).isEmpty()
+    }
+
+    @Test
+    fun alignmentPopup_aTapElsewhereClosesIt_withoutAligning() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val rect = showBox()
+        val handles = hostView().boxHandles
+        tap(buttonCenter(BoxButton.ALIGN))
+        assertThat(handles.alignsOpen).isTrue()
+
+        tap(center(rect))
+
+        assertThat(handles.alignsOpen).isFalse()
+        assertThat(texts.aligned).isEmpty()
+    }
+
+    @Test
+    fun centeredBox_knobMovesBothBordersSymmetrically() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val rect = showBox(align = TextAlign.CENTER)
+        val knob = controller.viewport.toViewPx(firstPage(), PointPt(outline.right, (outline.top + outline.bottom) / 2))
+
+        drag(knob.x to knob.y, knob.x - 60f to knob.y)
+
+        val (_, borders) = texts.resizedBoxes.single()
+        val shrink = 60f / controller.viewport.scale
+        assertThat(borders.rightPt).isWithin(0.05f).of(rect.right - shrink)
+        assertThat(borders.leftPt).isWithin(0.05f).of(rect.left + shrink)
     }
 
     private companion object {

@@ -8,6 +8,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import dev.folio.core.model.TemplateKind
+import dev.folio.core.model.TextAlign
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.text.flow.PageText
@@ -45,6 +46,15 @@ class TextTilesScreenshotTest {
         for ((name, lift) in listOf("lift0" to 0f, "lift25" to LIFT_QUARTER)) {
             val content = pages.content(LIFT_PARAGRAPH, style = ModelFixtures.FLOW_STYLE.copy(baselineLiftUnits = lift))
             render(pages, content, RenderTarget.EXPORT_RASTER).captureRoboImage("src/test/screenshots/TextTiles_LINED_$name.png")
+        }
+    }
+
+    @Test
+    fun screenshot_alignments_headingParagraphListQuote_justifiedLastLineStart_lined() {
+        val pages = TextPages(TemplateKind.LINED)
+        for (align in TextAlign.entries) {
+            val content = pages.content(ALIGN_CORPUS, style = ModelFixtures.FLOW_STYLE.copy(align = align))
+            render(pages, content, RenderTarget.EXPORT_RASTER).captureRoboImage("src/test/screenshots/TextTiles_LINED_align_$align.png")
         }
     }
 
@@ -245,6 +255,16 @@ class TextTilesScreenshotTest {
             "Typed notes on lined paper. Every baseline sits the flow's lift above its rule, so descenders " +
                 "like g, j, p, q and y keep clear of the line below while the line boxes stay whole grid units."
         const val GAP_LINES = 6
+
+        /** Every block kind that takes a box's alignment (P07-T16), plus code, which keeps its own. */
+        const val ALIGN_CORPUS =
+            "## Aligned heading\n\n" +
+                "A paragraph long enough to wrap over a few lines of the page, so that justified text spreads every " +
+                "line but the last one between both borders while the last line stays at the start.\n\n" +
+                "- A list item\n" +
+                "1. An ordered item\n\n" +
+                "> A quote line\n\n" +
+                "```\ncode stays left\n```"
         const val QUOTE_BAR = 0xFF8E96A3.toInt()
         const val OPAQUE = 0xFF
         const val MISSING_DOC = "missing-id"

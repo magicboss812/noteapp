@@ -11,9 +11,11 @@ import dev.folio.core.model.FrameRole
 import dev.folio.core.model.GridUnit
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.TextAlign
 import dev.folio.core.model.TextZones
 import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.text.fonts.FontMetricsCache
+import dev.folio.core.text.layout.BlockDecoration
 import dev.folio.core.text.layout.BlockLayouter
 import dev.folio.core.text.layout.typeface
 import org.junit.Test
@@ -30,12 +32,12 @@ class FlowHitTest {
     private val body = FlowFrame(ObjectId("body-frame"), flowId, bodyRect, 0, FrameRole.BODY, autoGrow = false)
     private val page = PageId("p1")
 
-    private fun layoutOf(markdown: String): FlowLayout {
-        val doc: Document =
-            ModelFixtures.document(
-                listOf(ModelFixtures.page("p1", listOf(body))),
-                flows = listOf(ModelFixtures.flow(flowId.value, markdown)),
-            )
+    private fun layoutOf(
+        markdown: String,
+        align: TextAlign = TextAlign.START,
+    ): FlowLayout {
+        val flow = ModelFixtures.flow(flowId.value, markdown).let { it.copy(style = it.style.copy(align = align)) }
+        val doc: Document = ModelFixtures.document(listOf(ModelFixtures.page("p1", listOf(body))), flows = listOf(flow))
         return checkNotNull(PageTexts.layouts(doc, layouter)[flowId])
     }
 
@@ -138,6 +140,19 @@ class FlowHitTest {
 
         assertThat(targetAt(layout, bodyRect.left + (item.markerLeftPt + item.textLeftPt) / 2f, line = 1)).isEqualTo(TapTarget.Checkbox(1))
         assertThat(targetAt(layout, bodyRect.left + item.textLeftPt + 2f, line = 1)).isNull()
+    }
+
+    @Test
+    fun tapTargetAt_centeredTask_theCheckboxAndItsGutterMoveWithTheFirstLine() {
+        val layout = layoutOf("Intro\n\n- [ ] milk", TextAlign.CENTER)
+        val item = checkNotNull(layout.layoutOf(1))
+        val box = item.decoration as BlockDecoration.Checkbox
+        val start = checkNotNull(layoutOf("Intro\n\n- [ ] milk").layoutOf(1)).decoration as BlockDecoration.Checkbox
+
+        assertThat(item.labelShiftPt).isGreaterThan(0f)
+        assertThat(box.leftPt).isWithin(1e-3f).of(start.leftPt + item.labelShiftPt)
+        assertThat(targetAt(layout, bodyRect.left + box.leftPt + box.sizePt / 2f, line = 1)).isEqualTo(TapTarget.Checkbox(1))
+        assertThat(targetAt(layout, bodyRect.left + start.leftPt + start.sizePt / 2f, line = 1)).isNull()
     }
 
     @Test

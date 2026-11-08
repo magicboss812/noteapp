@@ -12,6 +12,7 @@ import dev.folio.core.model.FlowId
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.TextAlign
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.geometry.RectPt
@@ -162,6 +163,13 @@ internal class FakeTextController : TextController {
 
     override fun fillWidth() {
         fillWidthCount++
+    }
+
+    /** Alignments picked in the box toolbar's popup. */
+    val aligned = mutableListOf<TextAlign>()
+
+    override fun alignBox(align: TextAlign) {
+        aligned += align
     }
 
     /** Boxes moved by a drag: flow, to page, rect. */

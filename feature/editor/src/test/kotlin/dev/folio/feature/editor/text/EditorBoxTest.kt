@@ -11,6 +11,7 @@ import dev.folio.core.model.FlowId
 import dev.folio.core.model.FrameRole
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.TextAlign
 import dev.folio.core.model.TextZones
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.Batch
@@ -39,6 +40,7 @@ class EditorBoxTest : EditorTextFixture() {
     private suspend fun boxNote(
         markdown: String,
         autoWidth: Boolean = false,
+        anchorXPt: Float? = null,
     ): String {
         val path =
             (documents.create(NewDocumentSpec("", "Box", spec, ModelFixtures.LINED_BACKGROUND, 2)) as Outcome.Success)
@@ -56,6 +58,7 @@ class EditorBoxTest : EditorTextFixture() {
                     "box",
                     markdown,
                 ).let { if (autoWidth) it.copy(box = FlowBox.created(rect.left), autoContinue = true) else it }
+                .let { if (anchorXPt != null) it.copy(box = it.box.copy(anchorXPt = anchorXPt)) else it }
         session.execute(Batch(listOf(UpdateFlows(listOf(flow)), AddObjects(first, listOf(frame)))))
         sessions.close(session)
         return path
@@ -273,6 +276,63 @@ class EditorBoxTest : EditorTextFixture() {
             assertThat(session.undo()).isTrue()
             assertThat(fill()).isFalse()
             assertThat(borders()).isEqualTo(before.rect.left to before.rect.right)
+        }
+
+    @Test
+    fun alignCommand_autoWidthCenter_growsBothSidesAroundTheAnchor_leftGrowsRightAgain() =
+        runTest(main.testDispatcher) {
+            val anchor = 250f
+            val (session, documentSession) = open(boxNote("Short words", autoWidth = true, anchorXPt = anchor), this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+
+            fun column(): RectPt = checkNotNull(documentSession.document.value.box()).second.rect
+
+            assertThat(session.execute(checkNotNull(text.alignCommand(boxFlow, TextAlign.CENTER)))).isTrue()
+            val centered = column()
+            assertThat((centered.left + centered.right) / 2f).isWithin(1e-3f).of(anchor)
+            assertThat(checkNotNull(documentSession.document.value.flows[boxFlow]).style.align).isEqualTo(TextAlign.CENTER)
+
+            assertThat(session.execute(checkNotNull(text.alignCommand(boxFlow, TextAlign.END)))).isTrue()
+            assertThat(column().right).isWithin(1e-3f).of(anchor)
+            assertThat(column().widthPt).isWithin(1e-3f).of(centered.widthPt)
+
+            assertThat(session.execute(checkNotNull(text.alignCommand(boxFlow, TextAlign.START)))).isTrue()
+            assertThat(column().left).isWithin(1e-3f).of(anchor)
+            assertThat(column().widthPt).isWithin(1e-3f).of(centered.widthPt)
+        }
+
+    @Test
+    fun alignCommand_fixedCenter_symmetricAroundTheAnchor_leftRestores_oneUndoStepEach() =
+        runTest(main.testDispatcher) {
+            val anchor = 300f
+            val (session, documentSession) = open(boxNote("Fixed borders", anchorXPt = anchor), this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val (_, before) = checkNotNull(documentSession.document.value.box())
+            val zone = TextZones.boxZone(spec, template)
+            val half = minOf(maxOf(anchor - before.rect.left, before.rect.right - anchor), anchor - zone.left, zone.right - anchor)
+
+            fun box(): FlowFrame = checkNotNull(documentSession.document.value.box()).second
+
+            assertThat(text.alignCommand(boxFlow, TextAlign.START)).isNull()
+            assertThat(session.execute(checkNotNull(text.alignCommand(boxFlow, TextAlign.CENTER)))).isTrue()
+            val centered = box().rect
+            assertThat(centered.left).isWithin(1e-3f).of(anchor - half)
+            assertThat(centered.right).isWithin(1e-3f).of(anchor + half)
+            val flowBox = checkNotNull(documentSession.document.value.flows[boxFlow]).box
+            assertThat(flowBox.centerSaved).isEqualTo(Borders(before.rect.left, before.rect.right))
+
+            assertThat(session.execute(checkNotNull(text.alignCommand(boxFlow, TextAlign.JUSTIFIED)))).isTrue()
+            assertThat(box().rect.left).isEqualTo(before.rect.left)
+            assertThat(box().rect.right).isEqualTo(before.rect.right)
+
+            assertThat(session.undo()).isTrue()
+            assertThat(box().rect.left).isWithin(1e-3f).of(centered.left)
+            assertThat(session.undo()).isTrue()
+            assertThat(box()).isEqualTo(before)
+            assertThat(checkNotNull(documentSession.document.value.flows[boxFlow]).style.align).isEqualTo(TextAlign.START)
+            assertThat(documentSession.canUndo.value).isFalse()
         }
 
     @Test

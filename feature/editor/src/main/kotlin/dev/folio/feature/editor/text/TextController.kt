@@ -4,6 +4,7 @@ import dev.folio.core.model.Borders
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.TextAlign
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.text.edit.BlockEditing
 import dev.folio.core.text.edit.Caret
@@ -102,7 +103,8 @@ class CanvasText(
 /**
  * The selected text box (10-editor-ui.md#text-boxes, Modes): flow [flowId] in Edit when [editing], else in Preview,
  * with one [BoxPiece] per frame on a page, first frame first. [movable] when a drag may move it (its first frame is a
- * free box; the body frames of older notes stay where the page puts them); [fill] while fill width is on (P07-T15).
+ * free box; the body frames of older notes stay where the page puts them); [fill] while fill width is on (P07-T15);
+ * [align] its alignment (P07-T16).
  */
 data class SelectedBox(
     val flowId: FlowId,
@@ -110,6 +112,7 @@ data class SelectedBox(
     val pieces: List<BoxPiece>,
     val movable: Boolean,
     val fill: Boolean = false,
+    val align: TextAlign = TextAlign.START,
 )
 
 /**
@@ -549,6 +552,9 @@ interface TextController {
 
     /** The toolbar's Fill width: the selected box switches between its custom and fill borders, one undo step. Main thread. */
     fun fillWidth() = Unit
+
+    /** The toolbar's Alignment popup: the selected box takes [align] (P07-T16), one undo step. Main thread. */
+    fun alignBox(align: TextAlign) = Unit
 
     /**
      * Hardware keyboard [text] typed while no block has focus: it goes to the end of page [pageId]'s body text (the

@@ -376,6 +376,11 @@ class BlockLayout internal constructor(
     val liftPt: Float = 0f,
     /** True for the layout of an edited block ([BlockLayouter.editLayout]): [plainText] is the source, offsets are source offsets. */
     val editsSource: Boolean = false,
+    /**
+     * How far the list label and the checkbox sit right of their gutter: the first line's indent in a centered or
+     * end-aligned list item, so they stay just before its text (P07-T16); 0 otherwise. [decoration] already holds it.
+     */
+    val labelShiftPt: Float = 0f,
 ) {
     /** Height in U: always lineCount x boxUnits. */
     val heightUnits: Int get() = lineCount * boxUnits
@@ -473,7 +478,7 @@ class BlockLayout internal constructor(
         hiddenCell: Int = -1,
     ) {
         text?.draw(target, leftPt + textLeftPt, topPt, scale, color)
-        marker?.draw(target, leftPt + markerLeftPt, topPt, scale, color)
+        marker?.draw(target, leftPt + markerLeftPt + labelShiftPt, topPt, scale, color)
         table?.draw(target, leftPt, topPt, scale, color, boxUnits * unitPt, hiddenCell)
         if (!drawMath || maths.isEmpty()) return
         val canvas = target.native()

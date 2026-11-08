@@ -55,6 +55,63 @@ class BlockLayouterTest {
         }
     }
 
+    // Left edge (from the text column start) and width of the one line of [markdown] laid out [alignment].
+    private fun oneLine(
+        markdown: String,
+        alignment: FlowAlignment,
+    ): Pair<Float, Float> {
+        val text = checkNotNull(layout(markdown, flow = style.copy(alignment = alignment)).text)
+        assertThat(text.lineCount).isEqualTo(1)
+        return text.xPt(0) to text.maxLineWidthPt()
+    }
+
+    @Test
+    fun alignment_lineXOffsets_startCenterEndJustified() {
+        val (startLeft, width) = oneLine("Short line", FlowAlignment.START)
+        val (centerLeft, _) = oneLine("Short line", FlowAlignment.CENTER)
+        val (endLeft, _) = oneLine("Short line", FlowAlignment.END)
+        val (justifiedLeft, _) = oneLine("Short line", FlowAlignment.JUSTIFIED)
+
+        assertThat(startLeft).isWithin(TOLERANCE_PT).of(0f)
+        assertThat(centerLeft).isWithin(ALIGN_TOLERANCE_PT).of((WIDTH_PT - width) / 2f)
+        assertThat(endLeft).isWithin(ALIGN_TOLERANCE_PT).of(WIDTH_PT - width)
+        // A justified paragraph's last line (here its only one) stays at the start.
+        assertThat(justifiedLeft).isWithin(TOLERANCE_PT).of(0f)
+    }
+
+    @Test
+    fun justified_everyLineButTheLastSpansTheColumn_lastStaysStart() {
+        val result = layout("word ".repeat(40).trim(), flow = style.copy(alignment = FlowAlignment.JUSTIFIED))
+        val text = checkNotNull(result.text)
+        val last = text.lineCount - 1
+
+        assertThat(last).isAtLeast(2)
+        val start = checkNotNull(layout("word ".repeat(40).trim()).text)
+        for (line in 0 until last) {
+            assertWithMessage("line $line").that(text.xPt(text.lineStart(line))).isWithin(TOLERANCE_PT).of(0f)
+            assertWithMessage("line $line").that(text.lineRightPt(line)).isWithin(JUSTIFY_TOLERANCE_PT).of(WIDTH_PT)
+            assertWithMessage("line $line").that(start.lineRightPt(line)).isLessThan(WIDTH_PT - JUSTIFY_TOLERANCE_PT)
+        }
+        assertThat(text.xPt(text.lineStart(last))).isWithin(TOLERANCE_PT).of(0f)
+        assertThat(text.lineRightPt(last)).isLessThan(WIDTH_PT - JUSTIFY_TOLERANCE_PT)
+    }
+
+    @Test
+    fun alignment_listItemsAndQuotesTakeIt_headingsJustifyAsStart_codeStaysStart() {
+        val center = style.copy(alignment = FlowAlignment.CENTER)
+        val justified = style.copy(alignment = FlowAlignment.JUSTIFIED)
+        for (markdown in listOf("- Item", "1. Item", "- [ ] Task", "> Quote")) {
+            val result = layout(markdown, flow = center)
+            val text = checkNotNull(result.text)
+            val column = WIDTH_PT - result.textLeftPt
+            assertWithMessage(markdown).that(text.xPt(0)).isWithin(ALIGN_TOLERANCE_PT).of((column - text.maxLineWidthPt()) / 2f)
+        }
+        val heading = checkNotNull(layout("## Heading", flow = center).text)
+        assertThat(heading.xPt(0)).isWithin(ALIGN_TOLERANCE_PT).of((WIDTH_PT - heading.maxLineWidthPt()) / 2f)
+        assertThat(checkNotNull(layout("## Heading", flow = justified).text).xPt(0)).isWithin(TOLERANCE_PT).of(0f)
+        assertThat(checkNotNull(layout("```\ncode\n```", flow = center).text).xPt(0)).isWithin(TOLERANCE_PT).of(0f)
+    }
+
     @Test
     fun freeSize_largeBodyCap_growsTheBoxInWholeUnits() {
         val result = layout("Large text", flow = style.copy(bodyCap = 1.2f))
@@ -208,5 +265,11 @@ class BlockLayouterTest {
 
         /** 0.5 px at zoom 4 on the Pad 7 is about 0.024 pt. */
         const val TOLERANCE_PT = 1e-3f
+
+        /** Centered and end-aligned lines are placed in whole layout px (about 0.25 pt). */
+        const val ALIGN_TOLERANCE_PT = 0.5f
+
+        /** Justified lines end on the border within a glyph's side bearing. */
+        const val JUSTIFY_TOLERANCE_PT = 1.5f
     }
 }

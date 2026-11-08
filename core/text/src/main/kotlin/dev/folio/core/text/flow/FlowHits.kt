@@ -140,7 +140,9 @@ fun FlowLayout.tapTargetAt(
     val layout = layoutOf(hit.blockIndex)?.takeIf { it.table == null && !hit.pastEnd }
     if (block == null || layout == null) return null
     val x = xPt - slots[hit.slot].rect.left
-    val inGutter = hit.line == 0 && x >= layout.markerLeftPt && x < layout.textLeftPt
+    // The gutter moves with the checkbox of a centered or end-aligned item.
+    val gutterX = x - layout.labelShiftPt
+    val inGutter = hit.line == 0 && gutterX >= layout.markerLeftPt && gutterX < layout.textLeftPt
     if (inGutter && layout.decoration is BlockDecoration.Checkbox) return TapTarget.Checkbox(hit.blockIndex)
     val inline = block.content.inlineTexts().singleOrNull() ?: return null
     // A callout lays out its title and a line break before the text.

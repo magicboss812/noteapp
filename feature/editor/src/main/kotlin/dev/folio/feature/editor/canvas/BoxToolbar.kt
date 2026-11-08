@@ -5,6 +5,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import androidx.core.graphics.PathParser
+import dev.folio.core.model.TextAlign
 
 /** The buttons of the box toolbar, left to right (10-editor-ui.md#text-boxes, Box toolbar). */
 internal enum class BoxButton(
@@ -14,7 +15,7 @@ internal enum class BoxButton(
     EDIT(true),
     COLOR(false), // P07-T17
     SIZE(false), // P07-T17
-    ALIGN(false), // P07-T16
+    ALIGN(true),
     FILL(true),
     DELETE(true),
 }
@@ -77,6 +78,37 @@ internal class BoxToolbar(
         return pill.left + padPx + i * buttonPx + divider
     }
 
+    /** The Alignment popup in view px (four icons, P07-T16); empty until [placeAligns]. */
+    val alignPopup = RectF()
+
+    /**
+     * Places the Alignment popup after [place]: centered on the Alignment button, on the side of the pill away from the
+     * box (above it, below it when the pill sits below the box), kept inside a view [viewWidthPx] x [viewHeightPx].
+     */
+    fun placeAligns(
+        viewWidthPx: Float,
+        viewHeightPx: Float,
+    ) {
+        val index = buttons.indexOf(BoxButton.ALIGN)
+        if (index < 0) return alignPopup.setEmpty()
+        val width = 2 * padPx + ALIGNS.size * buttonPx
+        val cx = buttonLeft(index) + buttonPx / 2
+        val left = (cx - width / 2).coerceIn(marginPx, maxOf(marginPx, viewWidthPx - marginPx - width))
+        val wanted = if (below) pill.bottom + POPUP_GAP_DP * density else pill.top - POPUP_GAP_DP * density - heightPx
+        val top = wanted.coerceIn(marginPx, maxOf(marginPx, viewHeightPx - marginPx - heightPx))
+        alignPopup.set(left, top, left + width, top + heightPx)
+    }
+
+    /** The alignment at ([xPx], [yPx]) in the popup placed last, null outside it. */
+    fun alignAt(
+        xPx: Float,
+        yPx: Float,
+    ): TextAlign? {
+        if (alignPopup.isEmpty || !alignPopup.contains(xPx, yPx)) return null
+        val i = ((xPx - alignPopup.left - padPx) / buttonPx).toInt().coerceIn(0, ALIGNS.size - 1)
+        return ALIGNS[i]
+    }
+
     private val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = PILL_ARGB }
     private val borderPaint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -100,12 +132,17 @@ internal class BoxToolbar(
     private val pencil: Path = PathParser.createPathFromPathData(PENCIL)
     private val trash: Path = PathParser.createPathFromPathData(TRASH)
     private val fillWidth: Path = PathParser.createPathFromPathData(MOVE_HORIZONTAL)
+    private val alignIcons: Array<Path> = Array(ALIGNS.size) { PathParser.createPathFromPathData(ALIGN_PATHS[it]) }
 
-    /** Paints the pill at [pill]; the Edit button shows [editing] as active, the Fill width button [fill]. */
+    /**
+     * Paints the pill at [pill]; the Edit button shows [editing] as active, the Fill width button [fill], the Alignment
+     * button the icon of [align].
+     */
     fun draw(
         canvas: Canvas,
         editing: Boolean,
         fill: Boolean = false,
+        align: TextAlign = TextAlign.START,
     ) {
         // HOT PATH: per viewport change while a box is selected; no allocation.
         val radius = heightPx / 2
@@ -134,10 +171,32 @@ internal class BoxToolbar(
                     icon(canvas, fillWidth, cx, cy, ICON_ARGB)
                 }
 
-                BoxButton.COLOR, BoxButton.SIZE, BoxButton.ALIGN -> {
+                BoxButton.ALIGN -> {
+                    icon(canvas, alignIcons[ALIGNS.indexOf(align)], cx, cy, ICON_ARGB)
+                }
+
+                BoxButton.COLOR, BoxButton.SIZE -> {
                     Unit
                 }
             }
+        }
+    }
+
+    /** Paints the Alignment popup at [alignPopup], the current [align] highlighted. */
+    fun drawAligns(
+        canvas: Canvas,
+        align: TextAlign,
+    ) {
+        // HOT PATH: per viewport change while the popup is open; no allocation.
+        if (alignPopup.isEmpty) return
+        val radius = heightPx / 2
+        canvas.drawRoundRect(alignPopup, radius, radius, pillPaint)
+        canvas.drawRoundRect(alignPopup, radius, radius, borderPaint)
+        val cy = alignPopup.centerY()
+        for (i in ALIGNS.indices) {
+            val cx = alignPopup.left + padPx + i * buttonPx + buttonPx / 2
+            if (ALIGNS[i] == align) canvas.drawCircle(cx, cy, buttonPx / 2 - padPx / 2, activePaint)
+            icon(canvas, alignIcons[i], cx, cy, ICON_ARGB)
         }
     }
 
@@ -170,6 +229,21 @@ internal class BoxToolbar(
 
         /** The pill keeps this far from the view edges. */
         private const val MARGIN_DP = 8f
+
+        /** Between the toolbar and the Alignment popup. */
+        private const val POPUP_GAP_DP = 6f
+
+        /** The popup's alignments, left to right. */
+        private val ALIGNS = arrayOf(TextAlign.START, TextAlign.CENTER, TextAlign.END, TextAlign.JUSTIFIED)
+
+        // Lucide `text-align-start`, `-center`, `-end` and `-justify` (core:designsystem FolioIcons), one path each.
+        private val ALIGN_PATHS =
+            arrayOf(
+                "M21 5H3M15 12H3M17 19H3",
+                "M21 5H3M17 12H7M19 19H5",
+                "M21 5H3M21 12H9M21 19H7",
+                "M3 5h18M3 12h18M3 19h18",
+            )
         private const val ICON_VIEWPORT = 24f
         private const val ICON_STROKE = 2f
 
