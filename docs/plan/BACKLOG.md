@@ -11,3 +11,4 @@
 - B-10 Custom brush designer.
 - B-11 Automatic backup of the library folder to a second location.
 - B-12 User request 2026-09-28 (P01-S3 feedback): free font size per flow that keeps its relation to the template rules (line box grows in whole U steps with the size), and vertical placement of text inside the line box (top, middle, bottom of the rule gap). v1 already scales S/M/L with U (07-text-engine.md#font-normalization); decide scope in P06-T02 (STATUS Deferred D-006). Decided 2026-10-23 (A-039): free body size with whole-U line boxes accepted (engine in P06-T02, control with the text options P06-T10); vertical placement inside the box rejected (breaks the grid invariant).
+- B-13 User note 2026-11-08 (A-057): a tap on a selected text box in Preview could enter Edit, if the Edit button alone gets tiresome. Today only the Edit button enters Edit.
