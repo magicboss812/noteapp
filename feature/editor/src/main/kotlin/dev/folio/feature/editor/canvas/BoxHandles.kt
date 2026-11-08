@@ -149,10 +149,12 @@ internal class BoxHandles(
      * places it. True if the event belongs to such a drag.
      */
     fun handleTouch(event: MotionEvent): Boolean {
-        // HOT PATH: per MotionEvent; a bounds check unless a drag runs.
+        // HOT PATH: per MotionEvent; a bounds check unless a drag runs (a drag move builds its snapped preview rect).
         val action = event.actionMasked
         if (action == MotionEvent.ACTION_DOWN) {
-            dragging = if (event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER) NONE else grab(event.x, event.y)
+            // Read mode only navigates (10-editor-ui.md#read-mode): the grip and handles pan like the page around them.
+            val inert = event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER || controller.activeTool == CanvasTool.NAVIGATE
+            dragging = if (inert) NONE else grab(event.x, event.y)
             owned = dragging != NONE
         }
         if (!owned) return false

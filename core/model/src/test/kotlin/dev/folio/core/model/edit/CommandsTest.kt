@@ -65,6 +65,22 @@ class CommandsTest {
     }
 
     @Test
+    fun editFlow_baseNoLongerTheFlowText_isRejected() {
+        val d = ModelFixtures.document(listOf(p1), flows = listOf(ModelFixtures.flow("f", "hello world")))
+        val planned = EditFlow(FlowId("f"), listOf(TextEdit(6, 11, "there")), base = "hello world")
+        val undone = EditFlow(FlowId("f"), listOf(TextEdit(5, 11, ""))).execute(d).doc
+
+        assertThat(
+            planned
+                .execute(d)
+                .doc.flows
+                .getValue(FlowId("f"))
+                .markdown,
+        ).isEqualTo("hello there")
+        assertThrows(IllegalArgumentException::class.java) { planned.execute(undone) }
+    }
+
+    @Test
     fun transformObjects_translate_movesBoundsExactly() {
         val result = TransformObjects(p1.id, listOf(ObjectId("o0")), Affine.translate(10f, -5f)).execute(doc)
         val before = objs[0].bounds

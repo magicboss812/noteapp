@@ -52,16 +52,22 @@ data class TextEdit(
     val replacement: String,
 )
 
-/** Text edits applied in order to one flow; each range refers to the text after the previous edits. */
+/**
+ * Text edits applied in order to one flow; each range refers to the text after the previous edits. A non-null [base]
+ * is the flow text the edits were computed on: the command is rejected once the flow holds other text (an undo or
+ * another edit landed between planning and executing), so stale offsets never garble it. The inverse carries no base.
+ */
 data class EditFlow(
     val flowId: FlowId,
     val edits: List<TextEdit>,
     override val coalesceKey: String? = null,
+    val base: String? = null,
 ) : EditCommand {
     override val requiredPages: Set<PageId> get() = emptySet()
 
     override fun execute(doc: Document): Applied {
         val flow = checkNotNull(doc.flows[flowId]) { "unknown flow ${flowId.value}" }
+        require(base == null || base == flow.markdown) { "flow ${flowId.value} changed since the edit was planned" }
         var text = flow.markdown
         val inverse = ArrayList<TextEdit>(edits.size)
         for (e in edits) {
@@ -73,6 +79,9 @@ data class EditFlow(
         val newDoc = doc.copy(flows = doc.flows.put(flowId, flow.copy(markdown = text)))
         return Applied(newDoc, EditFlow(flowId, inverse, coalesceKey), coalesceKey)
     }
+
+    // The base can be a whole long note; logs name its length only.
+    override fun toString(): String = "EditFlow(flowId=$flowId, edits=$edits, coalesceKey=$coalesceKey, base=${base?.length} chars)"
 }
 
 /** Adds or replaces asset entries ([put]) and removes entries ([remove]); bytes live in the container. */

@@ -157,6 +157,30 @@ class BoxHandlesTest {
     }
 
     @Test
+    fun fingerOnTheGrip_readMode_pansInsteadOfMovingTheBox() {
+        val texts = FakeTextController().also { controller.textController = it }
+        show()
+        val rect = showFocusedBox()
+        controller.activeTool = CanvasTool.NAVIGATE
+        val page =
+            controller.document.value.pages[0]
+                .id
+        val vp = controller.viewport
+        val grip = vp.toViewPx(page, PointPt((rect.left + rect.right) / 2, rect.top))
+        val offsetBefore = vp.offsetYPx
+
+        compose.runOnUiThread {
+            val view = hostView()
+            view.dispatchTouchEvent(event(ACTION_DOWN, 0, grip.x to grip.y))
+            view.dispatchTouchEvent(event(ACTION_MOVE, 50, grip.x to grip.y - 200f))
+            view.dispatchTouchEvent(event(ACTION_UP, 100, grip.x to grip.y - 200f))
+        }
+
+        assertThat(texts.placedBoxes).isEmpty()
+        assertThat(vp.offsetYPx).isNotEqualTo(offsetBefore)
+    }
+
+    @Test
     fun penOnTheGrip_dragsTheBoxOntoTheNextPage() {
         val texts = FakeTextController().also { controller.textController = it }
         show()

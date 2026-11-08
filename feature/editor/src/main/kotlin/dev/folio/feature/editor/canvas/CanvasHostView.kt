@@ -533,8 +533,8 @@ class CanvasHostView internal constructor(
         // HOT PATH: per hover event; no allocation.
         val tool = event.getToolType(0)
         if (tool != MotionEvent.TOOL_TYPE_STYLUS && tool != MotionEvent.TOOL_TYPE_ERASER) return
-        if (controller.activeTool == CanvasTool.NAVIGATE) return
-        if (boxHandles.covers(event.x, event.y)) return // the pen takes the box's grip or a width handle
+        // The pen takes the box's grip or a width handle (not in read mode, where it only navigates).
+        if (controller.activeTool != CanvasTool.NAVIGATE && boxHandles.covers(event.x, event.y)) return
         textField.yieldToStylus(event.x, event.y)
     }
 

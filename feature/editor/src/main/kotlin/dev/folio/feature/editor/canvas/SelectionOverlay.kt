@@ -97,7 +97,9 @@ internal class SelectionOverlay(
         val action = event.actionMasked
         when (action) {
             MotionEvent.ACTION_DOWN -> {
-                dragging = if (event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) handleAt(event.x, event.y) else NONE
+                val finger = event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER
+                // Read mode only navigates (10-editor-ui.md#read-mode).
+                dragging = if (finger && controller.activeTool != CanvasTool.NAVIGATE) handleAt(event.x, event.y) else NONE
             }
 
             MotionEvent.ACTION_MOVE -> {

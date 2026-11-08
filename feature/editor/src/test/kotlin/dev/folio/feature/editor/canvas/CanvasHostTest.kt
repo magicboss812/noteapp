@@ -427,7 +427,8 @@ class CanvasHostTest {
     }
 
     @Test
-    fun stylusDown_onTheFocusedBlockInReadMode_keepsTheEditing() {
+    fun stylusDown_onTheFocusedBlockInReadMode_endsTheEditing() {
+        // Read mode has no text focus (10-editor-ui.md#read-mode); entering it blurs, and a stray field yields too.
         val texts = FakeTextController().also { controller.textController = it }
         controller.activeTool = CanvasTool.NAVIGATE
         show()
@@ -435,7 +436,7 @@ class CanvasHostTest {
 
         stylusDownUp(field.x + 10f, field.y + field.height / 2f)
 
-        assertThat(texts.blurCount).isEqualTo(0)
+        assertThat(texts.blurCount).isEqualTo(1)
     }
 
     @Test

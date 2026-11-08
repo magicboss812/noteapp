@@ -422,14 +422,17 @@ class EditorText internal constructor(
 
     /**
      * [edits] to flow [flowId] as one command: the text edit and the reflow of its pages (continuation pages, pages
-     * left empty, grown boxes) execute and undo together. Null if the edit does not fit the flow.
+     * left empty, grown boxes) execute and undo together. Null if the edit does not fit the flow. With a [base] (the
+     * flow text [edits] were computed on) the command is refused, now or when it executes, once the flow holds other
+     * text, e.g. after an undo that ran while the edit was planned off the main thread.
      */
     suspend fun editCommand(
         flowId: FlowId,
         edits: List<TextEdit>,
         coalesceKey: String? = null,
+        base: String? = null,
     ): EditCommand? {
-        val edit = EditFlow(flowId, edits, coalesceKey)
+        val edit = EditFlow(flowId, edits, coalesceKey, base)
         val doc = documentSession.document.value
         return withContext(dispatchers.text) {
             try {
@@ -511,8 +514,9 @@ class EditorText internal constructor(
             val markdown = result.document.toMarkdown()
             if (markdown == flow.markdown) return@withContext BlockEdit(result, null)
             val edit = FlowTextDiff.between(flow.markdown, markdown) ?: return@withContext null
+            val command = editCommand(flowId, listOf(edit), coalesceKey, base = flow.markdown) ?: return@withContext null
             parses.adopt(flowId, result.document, markdown)
-            editCommand(flowId, listOf(edit), coalesceKey)?.let { BlockEdit(result, it) }
+            BlockEdit(result, command)
         }
 
     /** Markdown of the flow text shown on a page of [doc] (page duplicates copy it), laid out fresh for [doc]. */

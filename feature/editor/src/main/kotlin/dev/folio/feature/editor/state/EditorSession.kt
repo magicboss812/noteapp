@@ -106,8 +106,12 @@ class EditorSession(
     /** Read mode (10-editor-ui.md#read-mode): chrome hidden, the stylus only navigates (chrome state). */
     val readMode: StateFlow<Boolean> = mutableReadMode.asStateFlow()
 
-    /** Enters or leaves read mode; the next stylus down reads it through [activeTool]. */
+    /**
+     * Enters or leaves read mode; the next stylus down reads it through [activeTool]. Entering ends the text editing
+     * (and its selection): read mode has no text focus (10-editor-ui.md#read-mode).
+     */
     fun setReadMode(on: Boolean) {
+        if (on) textController?.blur()
         mutableReadMode.value = on
     }
 

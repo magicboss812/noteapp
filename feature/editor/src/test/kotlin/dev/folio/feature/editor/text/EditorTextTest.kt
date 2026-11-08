@@ -35,6 +35,7 @@ import dev.folio.core.text.flow.FlowLayouter
 import dev.folio.core.text.flow.PageText
 import dev.folio.core.text.flow.toTextStyle
 import dev.folio.core.text.markdown.MarkdownDocument
+import dev.folio.feature.editor.canvas.CanvasTool
 import dev.folio.feature.editor.state.EditorSession
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
@@ -204,6 +205,25 @@ class EditorTextTest : EditorTextFixture() {
         }
 
     @Test
+    fun blockEdit_undoLandsBeforeThePlannedEditExecutes_editIsRefusedAndTextStaysUndone() =
+        runTest(main.testDispatcher) {
+            // Undo bypasses the keystroke queue: an edit planned on the text before it must not land on the text after.
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            val first = checkNotNull(text.parsed(body)).blocks[0]
+            session.editText(body, "type:$body:${first.id}") { BlockEditing.setSource(it, first.id, "alphax", 6) }
+            val planned = checkNotNull(text.blockEdit(body, null) { BlockEditing.setSource(it, first.id, "alphaxy", 7) })
+
+            assertThat(session.undo()).isTrue()
+            val executed = session.execute(checkNotNull(planned.command))
+
+            assertThat(executed).isFalse()
+            assertThat(markdown(documentSession)).isEqualTo("alpha\n\nbeta")
+        }
+
+    @Test
     fun editText_resultThatKeepsTheText_executesNothing() =
         runTest(main.testDispatcher) {
             val path = note(1, listOf(0), "alpha")
@@ -322,6 +342,28 @@ class EditorTextTest : EditorTextFixture() {
             text.focusAt(page, bodyRect.left, firstLineY())
 
             assertThat(text.focus.value?.caret).isEqualTo(0)
+        }
+
+    @Test
+    fun setReadMode_whileEditing_endsTheFocus() =
+        runTest(main.testDispatcher) {
+            // Read mode has no text focus (10-editor-ui.md#read-mode): the field and its keyboard go.
+            val path = note(1, listOf(0), "alpha\n\nbeta")
+            val (session, documentSession) = open(path, this)
+            val text = checkNotNull(session.text)
+            text.awaitReady()
+            text.focusAt(
+                documentSession.document.value.pages[0]
+                    .id,
+                bodyRect.left + 4f,
+                firstLineY(),
+            )
+            assertThat(text.focus.value).isNotNull()
+
+            session.setReadMode(true)
+
+            assertThat(text.focus.value).isNull()
+            assertThat(session.activeTool).isEqualTo(CanvasTool.NAVIGATE)
         }
 
     @Test
