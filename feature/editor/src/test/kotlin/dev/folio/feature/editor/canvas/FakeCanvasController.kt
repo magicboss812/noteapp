@@ -7,6 +7,7 @@ import dev.folio.core.ink.input.StylusPreferences
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowId
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
@@ -127,16 +128,61 @@ internal class FakeTextController : TextController {
 
     override fun cutSelection(): String? = copied.also { cutCount++ }
 
-    /** Boxes placed by a grip or handle drag: frame, from page, to page, rect. */
+    /** Boxes placed by a handle drag: frame, from page, to page, rect. */
     val placedBoxes = ArrayList<PlacedBox>()
+
+    /** What a box placement or move reports to its caller (false: refused). */
+    var placeResult = true
 
     override fun placeBox(
         frameId: ObjectId,
         fromPage: PageId,
         toPage: PageId,
         rect: RectPt,
+        done: (Boolean) -> Unit,
     ) {
         placedBoxes += PlacedBox(frameId, fromPage, toPage, rect)
+        done(placeResult)
+    }
+
+    /** Boxes moved by a drag: flow, to page, rect. */
+    val movedBoxes = ArrayList<Triple<FlowId, PageId, RectPt>>()
+
+    override fun moveBox(
+        flowId: FlowId,
+        toPage: PageId,
+        rect: RectPt,
+        done: (Boolean) -> Unit,
+    ) {
+        movedBoxes += Triple(flowId, toPage, rect)
+        done(placeResult)
+    }
+
+    /** Taps that reached the boxes: page, x, y and whether the Text tool made them. */
+    val boxTaps = ArrayList<Pair<Triple<PageId, Float, Float>, Boolean>>()
+
+    // A tap is also counted as a focus call: the canvas tests check that taps reach the text; which mode a tap gives is
+    // the session's (BoxSelectionTest).
+    override fun tapBox(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+        slopPt: Float,
+        textTool: Boolean,
+    ) {
+        boxTaps += Triple(pageId, xPt, yPt) to textTool
+        focusAt(pageId, xPt, yPt, slopPt)
+    }
+
+    var editBoxCount = 0
+    var deleteBoxCount = 0
+
+    override fun editBox() {
+        editBoxCount++
+    }
+
+    override fun deleteBox() {
+        deleteBoxCount++
     }
 
     data class PlacedBox(

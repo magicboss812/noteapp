@@ -86,6 +86,8 @@ class CanvasText(
     val selection: SelectionHighlight? = null,
     /** Dashed box outlines by page (page pt), shown while the Text tool is active; empty otherwise (A-059). */
     val outlines: Map<PageId, List<RectPt>> = emptyMap(),
+    /** The selected box the canvas draws its outline, grip and toolbar for, null for none (P07-T13). */
+    val box: SelectedBox? = null,
 ) {
     /** Constants. */
     companion object {
@@ -93,6 +95,26 @@ class CanvasText(
         val EMPTY = CanvasText(emptyMap(), null)
     }
 }
+
+/**
+ * The selected text box (10-editor-ui.md#text-boxes, Modes): flow [flowId] in Edit when [editing], else in Preview,
+ * with one [BoxPiece] per frame on a page, first frame first. [movable] when a drag may move it (its first frame is a
+ * free box; the body frames of older notes stay where the page puts them).
+ */
+data class SelectedBox(
+    val flowId: FlowId,
+    val editing: Boolean,
+    val pieces: List<BoxPiece>,
+    val movable: Boolean,
+)
+
+/** One frame of a selected box: frame [frameId] on page [pageId], its text column [rect] and its [outline] (page pt). */
+data class BoxPiece(
+    val pageId: PageId,
+    val frameId: ObjectId,
+    val rect: RectPt,
+    val outline: RectPt,
+)
 
 /**
  * A selection as the canvas draws it (07-text-engine.md#selection-as-built): the [boxes] of its lines outside the live
@@ -309,8 +331,52 @@ interface TextController {
         yPt: Float,
     ): Boolean
 
-    /** Ends editing: the field goes away and the block is drawn by the page again. */
+    /**
+     * Ends editing: the field goes away and the block is drawn by the page again; the box stays selected in Preview
+     * (10-editor-ui.md#text-boxes: the pen over a box in Edit, Escape in the field).
+     */
     fun blur()
+
+    /** The selected box and its mode (chrome state: Back and Escape step it back). */
+    val boxMode: Flow<BoxMode> get() = flowOf(BoxMode.None)
+
+    /**
+     * A tap at ([xPt], [yPt]) of page [pageId] that does not hit a checkbox or link (10-editor-ui.md#text-boxes): on
+     * the box being edited it places the caret; on any other box (its used lines and [slopPt] around them) it selects
+     * that box in Preview and keeps the spot for the Edit button; outside every box a [textTool] tap starts a new box
+     * there, any other tap ends the selection. Main thread.
+     */
+    fun tapBox(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+        slopPt: Float = 0f,
+        textTool: Boolean = false,
+    ) = Unit
+
+    /** The toolbar's Edit button: Preview -> Edit (the caret where the box was last tapped, else at its end), Edit -> Preview. */
+    fun editBox() = Unit
+
+    /** Back gesture or Escape: Edit -> Preview -> no selection; false when no box is selected (the screen takes it). */
+    fun back(): Boolean = false
+
+    /** Ends any box selection and editing (read mode, a tap outside every box). */
+    fun deselect() = blur()
+
+    /** The toolbar's Delete: the selected box and its text go as one undo step. Main thread. */
+    fun deleteBox() = Unit
+
+    /**
+     * Box [flowId] dragged (P07-T13): its first frame's text column goes to [rect] (from `TextZones.movedBox`) of page
+     * [toPage], the rest of the box follows and reflows, as one undo step. [done] gets false when the move was refused
+     * or changed nothing. Main thread.
+     */
+    fun moveBox(
+        flowId: FlowId,
+        toPage: PageId,
+        rect: RectPt,
+        done: (Boolean) -> Unit = {},
+    ) = done(false)
 
     /**
      * Applies [edit] to the focused block. Edits run one after the other in the order given, a keystroke that is
@@ -430,15 +496,17 @@ interface TextController {
     ) = Unit
 
     /**
-     * The grip or a width handle of free text box [frameId] on page [fromPage] let go (P06-T17): the box goes to
-     * [rect] (already snapped to the grid) of page [toPage] and reflows, as one undo step; the focus stays. Main thread.
+     * A width handle of free text box [frameId] on page [fromPage] let go (P06-T17): the box goes to [rect] (already
+     * snapped to the grid) of page [toPage] and reflows, as one undo step; the focus stays. [done] gets false when the
+     * change was refused or changed nothing. Main thread.
      */
     fun placeBox(
         frameId: ObjectId,
         fromPage: PageId,
         toPage: PageId,
         rect: RectPt,
-    ) = Unit
+        done: (Boolean) -> Unit = {},
+    ) = done(false)
 
     /**
      * Hardware keyboard [text] typed while no block has focus: it goes to the end of page [pageId]'s body text (the

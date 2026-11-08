@@ -5,6 +5,7 @@ import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.common.PerfMonitor
+import dev.folio.core.model.Borders
 import dev.folio.core.model.Document
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
@@ -20,6 +21,7 @@ import dev.folio.core.model.edit.Batch
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.EditFlow
 import dev.folio.core.model.edit.RemoveObjects
+import dev.folio.core.model.edit.RemovePages
 import dev.folio.core.model.edit.TextEdit
 import dev.folio.core.model.edit.UpdateFlows
 import dev.folio.core.model.edit.UpdateObjects
@@ -65,6 +67,8 @@ class TextSnapshot(
     val field: TextFieldSpec? = null,
     /** The selection of [field]'s focus as the canvas draws it, null while it is collapsed. */
     val selection: SelectionHighlight? = null,
+    /** The selected box in these layouts (Preview or Edit), null for none. */
+    val box: SelectedBox? = null,
 ) {
     /** Constants. */
     companion object {
@@ -99,6 +103,9 @@ class EditorText internal constructor(
     private val parses = FlowParses()
     private val mutableSnapshot = MutableStateFlow(TextSnapshot.EMPTY)
     private val mutableFocus = MutableStateFlow<TextFocus?>(null)
+
+    // The box selected in Preview (10-editor-ui.md#text-boxes); a focus is always in the selected box and wins over it.
+    private val mutableBox = MutableStateFlow<FlowId?>(null)
     private val ready = CompletableDeferred<Unit>()
     private var discovered = false
     private var inputs: LayoutInputs? = null
@@ -137,12 +144,28 @@ class EditorText internal constructor(
                 }
             }.distinctUntilChanged { a, b -> a === b }
 
+    /** The selected box and its mode: Edit while a block of it has focus, else Preview; [BoxMode.None] for none. */
+    val modes: Flow<BoxMode> = combine(mutableFocus, mutableBox, ::modeOf).distinctUntilChanged()
+
+    /** The current [modes] value. */
+    val mode: BoxMode get() = modeOf(mutableFocus.value, mutableBox.value)
+
     init {
         scope.launch(dispatchers.text) {
-            // Sequential: a focus change redraws the pages without the block, a document change lays out again.
-            combine(documentSession.document, mutableFocus, ::Pair).collect { (seen, _) -> refresh(seen) }
+            // Sequential: a focus or box change redraws the pages without the block or the chrome, a document change lays out again.
+            combine(documentSession.document, mutableFocus, mutableBox) { seen, _, _ -> seen }.collect { refresh(it) }
         }
     }
+
+    private fun modeOf(
+        focus: TextFocus?,
+        box: FlowId?,
+    ): BoxMode =
+        when {
+            focus != null -> BoxMode.Edit(focus.flowId)
+            box != null -> BoxMode.Preview(box)
+            else -> BoxMode.None
+        }
 
     /** Returns once every page with a frame is decoded and [snapshot] shows the first layout. */
     suspend fun awaitReady() = ready.await()
@@ -166,15 +189,39 @@ class EditorText internal constructor(
         // The canvas leaves out the block the overlay draws, so tiles and overlay come from one layout (P06-T18).
         val field = if (focus == null) null else layouts.fieldOf(focus) ?: current.field
         val focused = field?.focus?.shownIn(layouts)
+        val box = selectedBox(doc, layouts, focus)
         // A relayout always gives new layouts.
-        if (layouts !== current.layouts || focused != shown || field?.focus != current.field?.focus) {
+        val focusChanged = focused != shown || field?.focus != current.field?.focus
+        if (layouts !== current.layouts || focusChanged || box != current.box) {
             shown = focused
             val pages = if (relaid) keepUnchanged(current.pages, PageTexts.of(doc, base)) else current.pages
             val canvas = if (focused == null) pages else keepUnchanged(current.canvas, PageTexts.of(doc, layouts, focused))
-            mutableSnapshot.value = TextSnapshot(layouts, pages, canvas, field, layouts.highlightOf(field?.focus))
+            mutableSnapshot.value = TextSnapshot(layouts, pages, canvas, field, layouts.highlightOf(field?.focus), box)
         }
         PerfMonitor.record(TRACE_REFRESH, PerfMonitor.clock.monotonicNs() - startNs)
         ready.complete(Unit)
+    }
+
+    // The chrome of the selected box (the focused one, else the one in Preview): one piece per frame on a page, sticky
+    // notes left out; null for none. A box whose flow went away (deleted, taken back by an undo) is deselected.
+    private fun selectedBox(
+        doc: Document,
+        layouts: Map<FlowId, FlowLayout>,
+        focus: TextFocus?,
+    ): SelectedBox? {
+        mutableBox.value?.let { if (it !in doc.flows) mutableBox.compareAndSet(it, null) }
+        val flowId = focus?.flowId ?: mutableBox.value
+        val layout = flowId?.let { layouts[it] }
+        if (flowId == null || layout == null) return null
+        val pieces = ArrayList<BoxPiece>(layout.slots.size)
+        var movable = false
+        for (i in layout.slots.indices) {
+            val slot = layout.slots[i]
+            val frame = doc.pageBodies[slot.pageId]?.objects?.firstOrNull { it.id == slot.frameId } as? FlowFrame ?: continue
+            if (pieces.isEmpty()) movable = frame.role == FrameRole.BOX
+            pieces += BoxPiece(slot.pageId, slot.frameId, slot.rect, layout.outlineOf(i))
+        }
+        return if (pieces.isEmpty()) null else SelectedBox(flowId, focus != null, pieces, movable)
     }
 
     // The focused flow laid out with the edited block as its source and paginated with the rest (A-058): hits, caret and
@@ -256,6 +303,7 @@ class EditorText internal constructor(
     ): Boolean =
         PerfMonitor.trace(TRACE_FOCUS) {
             val focus = mutableSnapshot.value.focusAt(pageId, xPt, yPt, mutableFocus.value?.revision ?: 0, slopPt)
+            if (focus == null) mutableBox.value = null
             mutableFocus.value = focus
             focus != null
         }
@@ -271,8 +319,21 @@ class EditorText internal constructor(
         return true
     }
 
-    /** Ends editing. */
+    /** Ends editing; the edited box stays selected in Preview. */
     fun blur() {
+        mutableFocus.value?.let { mutableBox.value = it.flowId }
+        mutableFocus.value = null
+    }
+
+    /** Ends editing and the box selection. */
+    fun deselect() {
+        mutableBox.value = null
+        mutableFocus.value = null
+    }
+
+    /** Selects box [flowId] in Preview: no block has focus. */
+    fun selectBox(flowId: FlowId) {
+        mutableBox.value = flowId
         mutableFocus.value = null
     }
 
@@ -321,12 +382,16 @@ class EditorText internal constructor(
         return current == revision || resolved?.let { it.first == revision && it.second == current } == true
     }
 
-    /** The flow and caret under ([xPt], [yPt]) of page [pageId] (as a tap would focus it), null on no text frame. */
+    /**
+     * The flow and caret under ([xPt], [yPt]) of page [pageId] (as a tap would focus it, a box taking taps up to
+     * [slopPt] beside its lines), null on no box.
+     */
     internal fun caretAt(
         pageId: PageId,
         xPt: Float,
         yPt: Float,
-    ): TextFocus? = mutableSnapshot.value.focusAt(pageId, xPt, yPt, 0)
+        slopPt: Float = 0f,
+    ): TextFocus? = mutableSnapshot.value.focusAt(pageId, xPt, yPt, 0, slopPt)
 
     /** The parse of flow [flowId] its current layout shows, null while it has none. */
     internal fun laidOut(flowId: FlowId): MarkdownDocument? = mutableSnapshot.value.layouts[flowId]?.markdown
@@ -546,21 +611,142 @@ class EditorText internal constructor(
             } else {
                 Batch(listOf(RemoveObjects(fromPage, listOf(frameId)), AddObjects(toPage, listOf(moved))))
             }
+        return reflowed(place, frame.flow, "box resize")
+    }
+
+    /**
+     * Box [flowId] dragged so that its first frame's text column is [rect] on page [toPage] (P07-T13), as one command:
+     * the first frame goes there; the box's anchor and saved custom borders move along in x and its vertical offset
+     * clears; the frames on later pages of an auto-continuing box go (with their page when it held nothing else), so
+     * the reflow continues the box from its new place, while other frames only move in x. Null if the first frame is
+     * not a free box, [toPage] is unknown, or nothing changes.
+     */
+    suspend fun moveBoxCommand(
+        flowId: FlowId,
+        toPage: PageId,
+        rect: RectPt,
+    ): EditCommand? {
+        val doc = documentSession.document.value
+        val flow = doc.flows[flowId] ?: return null
+        val frames = framesOf(doc, flowId)
+        val (fromPage, first) = frames.firstOrNull() ?: return null
+        if (first.role != FrameRole.BOX || doc.page(toPage) == null) return null
+        val dx = rect.left - first.rect.left
+        val placed = RectPt(rect.left, rect.top, rect.left + first.rect.widthPt, rect.top + first.rect.heightPt)
+        if (fromPage == toPage && placed == first.rect && flow.box.offsetPt == 0f) return null
+        val moved = first.copy(rect = placed)
+        val commands = ArrayList<EditCommand>()
+        if (fromPage == toPage) {
+            commands += UpdateObjects(fromPage, listOf(moved))
+        } else {
+            commands += RemoveObjects(fromPage, listOf(first.id))
+            commands += AddObjects(toPage, listOf(moved))
+        }
+        commands += followers(doc, flow, frames, toPage, dx)
+        val box = flow.box
+        val shifted =
+            box.copy(
+                anchorXPt = box.anchorXPt?.plus(dx),
+                custom = box.custom?.shiftedX(dx),
+                centerSaved = box.centerSaved?.shiftedX(dx),
+                offsetPt = 0f,
+            )
+        if (shifted != box) commands += UpdateFlows(listOf(flow.copy(box = shifted)))
+        return reflowed(Batch(commands), flowId, "box move")
+    }
+
+    /**
+     * Box [flowId] removed with its text (P07-T13 Delete) as one command: its frames, its flow, and the pages after
+     * its first one that held nothing but its frame when the box continues there by itself. Null for an unknown flow
+     * or a flow without frames (sticky notes keep theirs).
+     */
+    fun deleteBoxCommand(flowId: FlowId): EditCommand? {
+        val doc = documentSession.document.value
+        val flow = doc.flows[flowId] ?: return null
+        val frames = framesOf(doc, flowId)
+        if (frames.isEmpty()) return null
+        if (doc.pageBodies.values.any { page -> page.objects.any { it is StickyNote && it.flow == flowId } }) return null
+        val commands = ArrayList<EditCommand>()
+        val emptied = ArrayList<PageId>()
+        for ((pageId, ids) in frames.groupBy({ it.first }, { it.second.id })) {
+            commands += RemoveObjects(pageId, ids)
+            val alone = doc.page(pageId)?.objects?.size == ids.size
+            if (flow.autoContinue && alone && pageId != frames.first().first) emptied += pageId
+        }
+        if (emptied.isNotEmpty()) commands += RemovePages(emptied)
+        commands += UpdateFlows(emptyList(), remove = listOf(flowId))
+        return Batch(commands)
+    }
+
+    // What a move by [dx] does to the frames after the first ([frames] of [flow], the first one going to [toPage]): an
+    // auto-continuing box drops them (and their pages that held nothing else), so its reflow continues from the new
+    // place; other boxes move them along in x.
+    private fun followers(
+        doc: Document,
+        flow: TextFlow,
+        frames: List<Pair<PageId, FlowFrame>>,
+        toPage: PageId,
+        dx: Float,
+    ): List<EditCommand> {
+        val commands = ArrayList<EditCommand>()
+        val emptied = ArrayList<PageId>()
+        val fromPage = frames.first().first
+        for ((pageId, frame) in frames.drop(1)) {
+            if (flow.autoContinue) {
+                commands += RemoveObjects(pageId, listOf(frame.id))
+                val alone = doc.page(pageId)?.objects?.size == 1
+                if (alone && pageId != toPage && pageId != fromPage) emptied += pageId
+            } else {
+                commands += UpdateObjects(pageId, listOf(frame.copy(rect = frame.rect.shiftedX(dx))))
+            }
+        }
+        if (emptied.isNotEmpty()) commands += RemovePages(emptied.distinct())
+        return commands
+    }
+
+    // The frames of [flowId] on the loaded pages, in page order and then frame order.
+    private fun framesOf(
+        doc: Document,
+        flowId: FlowId,
+    ): List<Pair<PageId, FlowFrame>> {
+        val out = ArrayList<Pair<PageId, FlowFrame>>()
+        for (ref in doc.pages) {
+            val page = doc.page(ref.id) ?: continue
+            page.objects
+                .filterIsInstance<FlowFrame>()
+                .filter { it.flow == flowId }
+                .sortedBy { it.order }
+                .forEach { out += ref.id to it }
+        }
+        return out
+    }
+
+    // [place] and the reflow of flow [flowId] after it as one command; null if either is refused ([what] for the log).
+    private suspend fun reflowed(
+        place: EditCommand,
+        flowId: FlowId,
+        what: String,
+    ): EditCommand? {
+        val doc = documentSession.document.value
         return withContext(dispatchers.text) {
             try {
                 val after = place.execute(doc).doc
-                val flow = checkNotNull(after.flows[frame.flow])
-                val reflow = engine.reflow.plan(after, frame.flow, parses.of(flow))
+                val flow = checkNotNull(after.flows[flowId])
+                val reflow = engine.reflow.plan(after, flowId, parses.of(flow))
                 reflow.command?.let { Batch(listOf(place, it)) } ?: place
             } catch (e: IllegalArgumentException) {
-                FolioLog.w(TAG, "box move rejected: ${e.message}")
+                FolioLog.w(TAG, "$what rejected: ${e.message}")
                 null
             } catch (e: IllegalStateException) {
-                FolioLog.w(TAG, "box move rejected: ${e.message}")
+                FolioLog.w(TAG, "$what rejected: ${e.message}")
                 null
             }
         }
     }
+
+    private fun RectPt.shiftedX(dx: Float): RectPt = copy(left = left + dx, right = right + dx)
+
+    private fun Borders.shiftedX(dx: Float): Borders = Borders(leftPt + dx, rightPt + dx)
 
     /**
      * The parse of flow [flowId] block editing starts from; its block ids stay the same until undo or redo changes the

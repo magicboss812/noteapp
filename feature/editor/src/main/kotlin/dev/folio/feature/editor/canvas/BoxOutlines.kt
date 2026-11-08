@@ -17,13 +17,13 @@ import dev.folio.feature.editor.text.TextSnapshot
 
 /**
  * The outline of every page slot of [snapshot]'s flows by page (FlowLayout.outlineOf), for [BoxOutlines]. Sticky note
- * slots (sticky-local coordinates) and the focused flow, which shows its own frame (BoxHandles), are left out.
+ * slots (sticky-local coordinates) and the selected box, which shows its own outline (BoxHandles), are left out.
  */
 internal fun boxOutlines(
     snapshot: TextSnapshot,
     doc: Document,
 ): Map<PageId, List<RectPt>> {
-    val focused = snapshot.field?.focus?.flowId
+    val focused = snapshot.box?.flowId ?: snapshot.field?.focus?.flowId
     val out = HashMap<PageId, MutableList<RectPt>>()
     for ((flowId, layout) in snapshot.layouts) {
         if (flowId == focused) continue

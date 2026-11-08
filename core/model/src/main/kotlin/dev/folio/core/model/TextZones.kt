@@ -219,9 +219,9 @@ object TextZones {
     }
 
     /**
-     * Free text box [rect] dropped with its top-left near ([leftPt], [topPt]) (P06-T17): the top on the nearest rule,
-     * the left on the nearest grid column (1 mm steps on pages without columns), same size, kept inside the page as
-     * far as the box fits.
+     * Box text column [rect] dragged with its top-left to ([leftPt], [topPt]) (P07-T13, 10-editor-ui.md#text-boxes):
+     * x follows unsnapped, the top moves in whole U onto the nearest rule (the lines keep the flow's lift), same size;
+     * the column stays inside [boxZone] (its left at the zone's left when it is wider) and its first line in the zone.
      */
     fun movedBox(
         spec: PageSpec,
@@ -230,14 +230,12 @@ object TextZones {
         leftPt: Float,
         topPt: Float,
     ): RectPt {
+        val zone = boxZone(spec, template)
         val grid = GridUnit.of(template)
-        val step = columnStep(grid)
-        var left = snap(min(leftPt, spec.widthPt - rect.widthPt), columnOrigin(grid), step)
-        if (left + rect.widthPt > spec.widthPt) left -= step * ceil((left + rect.widthPt - spec.widthPt) / step - EPS)
-        if (left < 0f) left += step * ceil(-left / step - EPS)
-        var top = snap(min(topPt, spec.heightPt - rect.heightPt), grid.originYPt, grid.unitPt)
-        if (top + rect.heightPt > spec.heightPt) top = ruleAtOrAbove(grid, spec.heightPt - rect.heightPt)
-        if (top < 0f) top = ruleAtOrBelow(grid, 0f)
+        val left = leftPt.coerceIn(zone.left, max(zone.left, zone.right - rect.widthPt))
+        val first = ruleAtOrBelow(grid, zone.top)
+        val last = max(first, ruleAtOrAbove(grid, zone.bottom - grid.unitPt))
+        val top = snap(topPt, grid.originYPt, grid.unitPt).coerceIn(first, last)
         return RectPt(left, top, left + rect.widthPt, top + rect.heightPt)
     }
 

@@ -102,39 +102,43 @@ class TextZonesTest {
     }
 
     @Test
-    fun movedBox_grid_topOnNearestRule_leftOnNearestColumn_sizeKept() {
+    fun movedBox_grid_topOnNearestRule_xUnsnapped_sizeKept() {
         val u = grid.spacingPt
         val box = RectPt(0f, 0f, 30f * u / 5f, 2f * u)
         val moved = TextZones.movedBox(a4, grid, box, 10.6f * u, 20.4f * u)
-        assertThat(moved.left).isWithin(1e-3f).of(11f * u)
+        assertThat(moved.left).isWithin(1e-3f).of(10.6f * u)
         assertThat(moved.top).isWithin(1e-3f).of(20f * u)
         assertThat(moved.widthPt).isWithin(1e-3f).of(box.widthPt)
         assertThat(moved.heightPt).isWithin(1e-3f).of(box.heightPt)
     }
 
     @Test
-    fun movedBox_lined_topOnRule_leftOnWholeMillimeter() {
+    fun movedBox_lined_topInWholeUnitsOnARule_leftWhereDragged() {
         val u = lined.spacingPt
         val box = RectPt(0f, 0f, 100f, u)
         val moved = TextZones.movedBox(a4, lined, box, 40.4f * PT_PER_MM, lined.marginTopPt + 3.3f * u)
-        assertThat(moved.left).isWithin(1e-3f).of(40f * PT_PER_MM)
+        assertThat(moved.left).isWithin(1e-3f).of(40.4f * PT_PER_MM)
         assertThat(onGrid(moved.top, lined.marginTopPt, u)).isTrue()
         assertThat(moved.top).isWithin(1e-3f).of(lined.marginTopPt + 3f * u)
+        val down = TextZones.movedBox(a4, lined, box, 40.4f * PT_PER_MM, lined.marginTopPt + 3.6f * u)
+        assertThat(down.top).isWithin(1e-3f).of(lined.marginTopPt + 4f * u)
     }
 
     @Test
-    fun movedBox_pastThePageEdges_staysInsideOnTheGrid() {
+    fun movedBox_pastTheZoneEdges_staysInsideTheTextZone_firstLineOnARule() {
         val u = grid.spacingPt
-        val box = RectPt(0f, 0f, 100f, u)
+        val zone = TextZones.boxZone(a4, grid)
+        val box = RectPt(0f, 0f, 100f, 3f * u)
         val moved = TextZones.movedBox(a4, grid, box, a4.widthPt, a4.heightPt + 50f)
-        assertThat(moved.right).isAtMost(a4.widthPt + 1e-3f)
-        assertThat(moved.bottom).isAtMost(a4.heightPt + 1e-3f)
-        assertThat(onGrid(moved.left, 0f, u)).isTrue()
+        assertThat(moved.right).isWithin(1e-3f).of(zone.right)
+        assertThat(moved.top + u).isAtMost(zone.bottom + 1e-3f)
         assertThat(onGrid(moved.top, 0f, u)).isTrue()
         val negative = TextZones.movedBox(a4, grid, box, -40f, -40f)
-        assertThat(negative.left).isAtLeast(0f)
-        assertThat(negative.top).isAtLeast(0f)
-        assertThat(onGrid(negative.left, 0f, u)).isTrue()
+        assertThat(negative.left).isWithin(1e-3f).of(zone.left)
+        assertThat(negative.top).isAtLeast(zone.top - 1e-3f)
+        assertThat(onGrid(negative.top, 0f, u)).isTrue()
+        val wide = TextZones.movedBox(a4, grid, RectPt(0f, 0f, a4.widthPt, u), 30f, 10f * u)
+        assertThat(wide.left).isWithin(1e-3f).of(zone.left)
     }
 
     @Test

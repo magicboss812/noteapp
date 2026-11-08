@@ -168,6 +168,7 @@ fun EditorRoute(
         onOpenBacklink = viewModel::openBacklink,
         onImportFont = { fontPicker.launch(FONT_MIME_TYPES) },
         onCanvasCover = { coveredPx = it },
+        onBoxBack = { viewModel.boxBack() },
         snackbars = snackbars,
     ) { canvasModifier ->
         session?.let { EditorCanvas(it, canvasListener, canvasModifier, viewModel::onKey, coveredPx) }
@@ -249,6 +250,7 @@ fun EditorScreen(
     onOpenBacklink: (NoteChoice) -> Unit = {},
     onImportFont: () -> Unit = {},
     onCanvasCover: (Int) -> Unit = {},
+    onBoxBack: () -> Unit = {},
     snackbars: SnackbarHostState = remember { SnackbarHostState() },
     canvas: @Composable (Modifier) -> Unit,
 ) {
@@ -290,6 +292,8 @@ fun EditorScreen(
         )
     val actions = remember(latest) { ChromeActions.forwardingTo(latest) }
     BackHandler(enabled = state.readMode) { onReadMode(false) }
+    // A selected text box steps back first: Edit -> Preview -> none (10-editor-ui.md#text-boxes).
+    BackHandler(enabled = state.boxSelected && !state.readMode) { onBoxBack() }
     SystemBarsHidden(state.readMode)
     // Hardware keys reach the registry from the screen root; it holds focus while no popover or field does. The live
     // field takes the focus into the canvas view and does not hand it back when it ends, so the root takes it again.

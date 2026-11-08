@@ -106,7 +106,7 @@ class CaretPlacementTest : EditorTextFixture() {
         }
 
     @Test
-    fun blur_emptyNewBox_removesItWithoutAnUndoStep() =
+    fun deselect_emptyNewBox_removesItWithoutAnUndoStep() =
         runTest(main.testDispatcher) {
             val path = blankNote(1)
             val (session, text, pages) = ready(path, this)
@@ -114,7 +114,7 @@ class CaretPlacementTest : EditorTextFixture() {
 
             controller.placeCaret(pages[0], boxZone.left + 20f, lineY(2))
             text.focus.first { it != null }
-            controller.blur()
+            controller.deselect()
             session.documentSession.document.first { it.flows.isEmpty() }
 
             assertThat(session.frames(pages[0])).isEmpty()

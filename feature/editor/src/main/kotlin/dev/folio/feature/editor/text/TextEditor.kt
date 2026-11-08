@@ -75,8 +75,8 @@ internal class TextEditor(
     private val newFlowStyle: () -> FlowStyle = { DEFAULT_FLOW_STYLE },
 ) : TextController {
     // [edit] null: a tapped checkbox, toggled without moving the focus, or with a [plan] a caret placement and the
-    // keyboard text [typed] while it runs, or with [drop] the removal of flow [flowId] if it is an empty box. With a
-    // [selection] the edit applies to it (it may span blocks).
+    // keyboard text [typed] while it runs, or with [drop] the removal of flow [flowId] if it is an empty box, or with
+    // [delete] the removal of box [flowId] with its text. With a [selection] the edit applies to it (it may span blocks).
     private class Pending(
         val flowId: FlowId,
         val blockId: Long,
@@ -86,6 +86,7 @@ internal class TextEditor(
         val typed: StringBuilder? = null,
         val selection: TextSelection? = null,
         val drop: Boolean = false,
+        val delete: Boolean = false,
     ) {
         // A keystroke carries the whole block source (or cell text), so it replaces the one before it in the same place.
         fun isTypedIn(other: Pending): Boolean {
@@ -127,17 +128,95 @@ internal class TextEditor(
     // The box the last tap created while its creation step may still be taken back (A-059).
     private var fresh: FreshBox? = null
 
+    // Where the last tap that selected a box hit its text as shown then: the Edit button puts the caret there (D-045).
+    private var lastTap: Pair<FlowId, Caret>? = null
+
     init {
         scope.launch(dispatcher) { wake.consumeEach { drain() } }
-        // A box the focus leaves is removed if it is empty; queued, so the keystrokes typed into it land first.
+        // A box that loses the selection is removed if it is empty; queued, so the keystrokes typed into it land first.
         scope.launch(dispatcher) {
-            var focused: FlowId? = null
-            text.focus.collect { focus ->
-                val left = focused
-                focused = focus?.flowId
-                if (left != null && left != focused) dropIfEmpty(left)
+            var selected: FlowId? = null
+            text.modes.collect { mode ->
+                val left = selected
+                selected = mode.flowId
+                if (left != null && left != selected) dropIfEmpty(left)
             }
         }
+    }
+
+    override val boxMode: Flow<BoxMode> get() = text.modes
+
+    override fun tapBox(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+        slopPt: Float,
+        textTool: Boolean,
+    ) {
+        val hit = text.caretAt(pageId, xPt, yPt, slopPt)
+        if (hit == null && textTool) {
+            // A new box at the tap, in Edit once it exists.
+            placeCaret(pageId, xPt, yPt, slopPt)
+            return
+        }
+        val next = BoxModes.next(text.mode, if (hit == null) BoxEvent.TapOutside else BoxEvent.Tap(hit.flowId))
+        if (next is BoxMode.Edit) {
+            // A tap in the box being edited moves the caret.
+            focusAt(pageId, xPt, yPt, slopPt)
+            return
+        }
+        // The spot on the text as shown now, so the Edit button puts the caret there (D-045).
+        if (hit != null) lastTap = hit.flowId to Caret(hit.blockId, hit.caret)
+        enter(next)
+    }
+
+    override fun editBox() = enter(BoxModes.next(text.mode, BoxEvent.EditButton))
+
+    override fun back(): Boolean {
+        val mode = text.mode
+        if (!BoxModes.takesBack(mode)) return false
+        enter(BoxModes.next(mode, BoxEvent.Back))
+        return true
+    }
+
+    // Puts the boxes into mode [next]; a box entering Edit gets the caret where it was last tapped, else at its end.
+    private fun enter(next: BoxMode) {
+        clearQuery()
+        val current = text.mode
+        when (next) {
+            BoxMode.None -> {
+                text.deselect()
+            }
+
+            is BoxMode.Preview -> {
+                text.selectBox(next.flowId)
+            }
+
+            is BoxMode.Edit -> {
+                if (current == next) return
+                val tap = lastTap?.takeIf { it.first == next.flowId }?.second
+                lastTap = null
+                val placed = tap != null && text.select(next.flowId, TextSelection.at(tap))
+                if (!placed) text.focusEnd(next.flowId)
+            }
+        }
+    }
+
+    override fun deselect() = enter(BoxModes.next(text.mode, BoxEvent.TapOutside))
+
+    override fun deleteBox() {
+        val flowId = text.mode.flowId ?: return
+        enter(BoxModes.next(text.mode, BoxEvent.Gone))
+        enqueue(Pending(flowId, NO_BLOCK, NO_REVISION, null, delete = true))
+    }
+
+    override fun moveBox(
+        flowId: FlowId,
+        toPage: PageId,
+        rect: RectPt,
+        done: (Boolean) -> Unit,
+    ) {
+        scope.launch(dispatcher) { done(text.moveBoxCommand(flowId, toPage, rect)?.let { execute(it) } ?: false) }
     }
 
     override fun focusAt(
@@ -159,10 +238,7 @@ internal class TextEditor(
         return text.moveFocusAt(pageId, xPt, yPt)
     }
 
-    override fun blur() {
-        clearQuery()
-        text.blur()
-    }
+    override fun blur() = enter(BoxModes.next(text.mode, BoxEvent.PenOver))
 
     override fun select(
         start: Int,
@@ -375,8 +451,8 @@ internal class TextEditor(
 
             is CaretPlan.NewBox -> {
                 // The box left behind goes first, so its creation can still be taken back before the new one's.
-                text.focus.value?.let { dropIfEmpty(it.flowId) }
-                text.blur()
+                text.mode.flowId?.let { dropIfEmpty(it) }
+                text.deselect()
                 enqueue(Pending(plan.flowId, NO_BLOCK, NO_REVISION, null, plan))
             }
         }
@@ -388,7 +464,7 @@ internal class TextEditor(
     // Removes box [flowId] if it is empty and not focused again: its creation step is taken back while that is the
     // newest step, else the removal is a step of its own (text typed and deleted again).
     private suspend fun drop(flowId: FlowId) {
-        if (text.focus.value?.flowId == flowId) return
+        if (text.mode.flowId == flowId) return
         val removal = text.emptyBoxRemoval(flowId) ?: return
         val created = fresh?.takeIf { it.flowId == flowId }
         if (created != null) fresh = null
@@ -400,8 +476,9 @@ internal class TextEditor(
         fromPage: PageId,
         toPage: PageId,
         rect: RectPt,
+        done: (Boolean) -> Unit,
     ) {
-        scope.launch(dispatcher) { text.boxCommand(frameId, fromPage, toPage, rect)?.let { execute(it) } }
+        scope.launch(dispatcher) { done(text.boxCommand(frameId, fromPage, toPage, rect)?.let { execute(it) } ?: false) }
     }
 
     override fun typeIntoPage(
@@ -414,12 +491,15 @@ internal class TextEditor(
         return joining != null || startTyping(pageId, text)
     }
 
-    // Plans where typing on [pageId] goes and queues the placement with [text]; false if the page takes no text.
+    // Plans where typing on [pageId] goes (the end of a box in Preview) and queues the placement with [text]; false if
+    // the page takes no text.
     private fun startTyping(
         pageId: PageId,
         text: String,
     ): Boolean {
-        val plan = this.text.planTyping(pageId, newFlowStyle())
+        val preview = (this.text.mode as? BoxMode.Preview)?.flowId
+        val last = preview?.let { this.text.parsed(it) }?.blocks?.lastIndex
+        val plan = if (preview != null && last != null) CaretPlan.End(preview, last) else this.text.planTyping(pageId, newFlowStyle())
         val flowId =
             when (plan) {
                 is CaretPlan.End -> plan.flowId
@@ -470,23 +550,35 @@ internal class TextEditor(
     // stays where that put it, so a late keystroke is kept without pulling the caret back.
     private suspend fun run(item: Pending) {
         val edit = item.edit
-        val plan = item.plan
-        if (item.drop) {
-            drop(item.flowId)
-            return
+        when {
+            item.drop || item.delete -> removeBox(item)
+            item.plan != null -> runPlan(item, item.plan)
+            edit == null -> runEdit(item.flowId, null) { doc -> LinkEdits.toggleTask(doc, item.blockId) }
+            else -> runFieldEdit(item, edit)
         }
-        if (plan != null) {
-            try {
-                place(plan, item.typed)
-            } finally {
-                if (placing === item) placing = null
-            }
-            return
+    }
+
+    // An empty box goes without an undo step (A-059); a deleted one with text as one step.
+    private suspend fun removeBox(item: Pending) {
+        drop(item.flowId)
+        if (item.delete) text.deleteBoxCommand(item.flowId)?.let { execute(it) }
+    }
+
+    private suspend fun runPlan(
+        item: Pending,
+        plan: CaretPlan,
+    ) {
+        try {
+            place(plan, item.typed)
+        } finally {
+            if (placing === item) placing = null
         }
-        if (edit == null) {
-            runEdit(item.flowId, null) { doc -> LinkEdits.toggleTask(doc, item.blockId) }
-            return
-        }
+    }
+
+    private suspend fun runFieldEdit(
+        item: Pending,
+        edit: FieldEdit,
+    ) {
         val keystroke = edit is FieldEdit.Typed || edit is FieldEdit.Cell
         val coalesceKey = if (keystroke) "type:${item.flowId.value}:${item.blockId}" else null
         val across = item.selection

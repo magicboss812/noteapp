@@ -85,8 +85,14 @@ class EditorSession(
         text
             ?.snapshot
             ?.combine(outlined) { snap, outlined ->
-                CanvasText(snap.canvas, snap.field, snap.selection, if (outlined) boxOutlines(snap, document.value) else emptyMap())
-            }?.distinctUntilChanged { a, b -> a.pages == b.pages && a.field === b.field && a.outlines == b.outlines }
+                CanvasText(
+                    snap.canvas,
+                    snap.field,
+                    snap.selection,
+                    if (outlined) boxOutlines(snap, document.value) else emptyMap(),
+                    snap.box,
+                )
+            }?.distinctUntilChanged { a, b -> a.pages == b.pages && a.field === b.field && a.outlines == b.outlines && a.box == b.box }
             ?: emptyFlow()
 
     /** The selected toolbar tool (chrome state; the canvas reads [activeTool] at stylus down). */
@@ -129,7 +135,7 @@ class EditorSession(
      * (and its selection): read mode has no text focus (10-editor-ui.md#read-mode).
      */
     fun setReadMode(on: Boolean) {
-        if (on) textController?.blur()
+        if (on) textController?.deselect()
         mutableReadMode.value = on
     }
 

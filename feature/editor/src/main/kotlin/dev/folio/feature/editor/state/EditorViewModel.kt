@@ -19,6 +19,7 @@ import dev.folio.core.text.edit.BlockStyle
 import dev.folio.core.text.edit.BlockStyles
 import dev.folio.core.text.fonts.FontRegistry
 import dev.folio.core.text.fonts.TextFontFamily
+import dev.folio.feature.editor.text.BoxMode
 import dev.folio.feature.editor.text.EditorFonts
 import dev.folio.feature.editor.text.FontSource
 import dev.folio.feature.editor.text.FormatAction
@@ -86,6 +87,8 @@ data class EditorUiState(
     val linkedFrom: ImmutableList<NoteChoice>? = null,
     /** Families the Text tool's font picker lists: bundled, then imported. */
     val fonts: ImmutableList<TextFontFamily> = BUNDLED_FONTS,
+    /** True while a text box is selected (Preview or Edit): Back steps it back (10-editor-ui.md#text-boxes). */
+    val boxSelected: Boolean = false,
 )
 
 /** The bundled families in picker order (no imported fonts known yet). */
@@ -185,6 +188,13 @@ class EditorViewModel
                 .distinctUntilChanged()
                 .mapLatest { query -> query?.let { links.value?.suggestions(it) } }
 
+        // Whether a text box is selected in the open pane (Back steps it back).
+        private val boxSelected =
+            mutableSession
+                .flatMapLatest { it?.textController?.boxMode ?: flowOf(BoxMode.None) }
+                .map { it != BoxMode.None }
+                .distinctUntilChanged()
+
         // Stored one at a time in order; conflated, so only the latest of quick changes is written.
         private val dockSaves = Channel<ToolbarDocks>(Channel.CONFLATED)
 
@@ -251,7 +261,8 @@ class EditorViewModel
                 .combine(fonts.registry) { state, registry -> state.copy(fonts = registry.families.toImmutableList()) }
                 .combine(combine(noteSuggestions, mutableLinkedFrom, ::Pair)) { state, (suggestions, linkedFrom) ->
                     state.copy(noteSuggestions = suggestions, linkedFrom = linkedFrom)
-                }.stateIn(viewModelScope, SharingStarted.Eagerly, EditorUiState())
+                }.combine(boxSelected) { state, selected -> state.copy(boxSelected = selected) }
+                .stateIn(viewModelScope, SharingStarted.Eagerly, EditorUiState())
 
         init {
             viewModelScope.launch {
@@ -572,14 +583,18 @@ class EditorViewModel
                             true
                         }
 
+                        // Then the text box: Edit -> Preview -> none (10-editor-ui.md#text-boxes).
                         else -> {
-                            false
+                            boxBack()
                         }
                     }
                 }
             }
             return true
         }
+
+        /** Back gesture or Escape on a selected text box: Edit -> Preview -> none; false when no box is selected. */
+        fun boxBack(): Boolean = mutableSession.value?.textController?.back() == true
 
         /** Removes the ink (or only the highlighter ink) of the current page as one undo step. */
         fun clearCurrentPage() {

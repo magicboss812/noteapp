@@ -152,8 +152,8 @@ class BoxHandlesTest {
         assertThat(onRule(placed.rect.top)).isTrue()
         assertThat(placed.rect.top).isWithin(1e-2f).of(rect.top + 3f * template.spacingPt)
         assertThat(placed.rect.widthPt).isWithin(1e-3f).of(rect.widthPt)
-        val mm = (placed.rect.left / (72f / 25.4f))
-        assertThat(abs(mm - mm.roundToInt())).isLessThan(1e-3f)
+        // x follows the finger unsnapped (P07-T13).
+        assertThat(placed.rect.left).isWithin(0.05f).of(rect.left + 60f / vp.scale)
     }
 
     @Test

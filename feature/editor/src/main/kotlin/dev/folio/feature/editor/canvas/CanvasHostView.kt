@@ -357,7 +357,7 @@ class CanvasHostView internal constructor(
         }
         textField.show(next.field)
         selectionView.show(next.selection)
-        boxHandles.show(next.field?.focus?.flowId)
+        boxHandles.show(next.box?.flowId ?: next.field?.focus?.flowId)
         boxOutlines.show(next.outlines)
     }
 
@@ -588,7 +588,8 @@ class CanvasHostView internal constructor(
         textField.refresh()
     }
 
-    // A finger tap on a page focuses the text block under it; a tap beside the text frames ends the focus. Read mode only reads.
+    // A finger tap on a box selects it in Preview (in the box being edited it places the caret); a tap beside every box
+    // ends the selection, with the Text tool it starts a new box (10-editor-ui.md#text-boxes). Read mode only reads.
     private fun onFingerTap(
         xPx: Float,
         yPx: Float,
@@ -596,16 +597,17 @@ class CanvasHostView internal constructor(
         val texts = controller.textController ?: return
         val pageId = document?.pages?.getOrNull(viewport.pageIndexAt(yPx))?.id ?: return
         val pt = viewport.toPagePt(pageId, PointPx(xPx, yPx))
-        // Checkboxes and links act in every tool; placing a caret needs a tool other than navigate.
+        // Checkboxes and links act in every tool; selecting a box needs a tool other than navigate.
         if (texts.tapAt(pageId, pt.x, pt.y) || controller.activeTool == CanvasTool.NAVIGATE) return
         textField.tapped(System.nanoTime())
-        texts.focusAt(pageId, pt.x, pt.y, boxSlopPt())
+        texts.tapBox(pageId, pt.x, pt.y, boxSlopPt(), textTool = controller.activeTool == CanvasTool.TEXT)
     }
 
     // The slop around a box's lines that still takes a tap (A-059), in page pt at the current zoom.
     private fun boxSlopPt(): Float = BOX_SLOP_DP * resources.displayMetrics.density / viewport.scale
 
-    // A pen tap with the Text tool: the caret goes to the box there or into a new box at the tap (10-editor-ui.md#text-boxes).
+    // A pen tap with the Text tool: the box there is selected (the caret moves in the box being edited), else a new box
+    // starts at the tap (10-editor-ui.md#text-boxes).
     private fun onTextToolTap(
         xPx: Float,
         yPx: Float,
@@ -615,7 +617,7 @@ class CanvasHostView internal constructor(
         val pt = viewport.toPagePt(pageId, PointPx(xPx, yPx))
         if (texts.tapAt(pageId, pt.x, pt.y)) return
         textField.tapped(System.nanoTime())
-        texts.placeCaret(pageId, pt.x, pt.y, boxSlopPt())
+        texts.tapBox(pageId, pt.x, pt.y, boxSlopPt(), textTool = true)
     }
 
     private fun onViewportChanged() {
