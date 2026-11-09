@@ -60,7 +60,7 @@ idle_stuck="${FOLIO_IDLE_STUCK:-1200}"
 phases="${FOLIO_PHASES:-1}"
 probe_idle=300
 # Read by every claude process this script starts (documented Claude Code variables).
-export CLAUDE_CODE_AUTO_COMPACT_WINDOW="${FOLIO_COMPACT_WINDOW:-200000}"
+export CLAUDE_CODE_AUTO_COMPACT_WINDOW="${FOLIO_COMPACT_WINDOW:-350000}"
 export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="${FOLIO_BG_WAIT_MS:-3600000}"
 status_file="docs/plan/STATUS.md"
 log_dir="$PWD/.device/loop-logs"

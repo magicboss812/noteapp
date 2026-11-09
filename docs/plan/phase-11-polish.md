@@ -6,10 +6,10 @@ Exit: all budgets met in the release build; USER-CHECK list empty; FEEDBACK `Ope
 Model: opus medium
 Implements: R-UI-02, R-PAGE-03
 Read: 10-editor-ui.md#settings
-Do: settings screens for every item in 10-editor-ui.md#settings; DataStore; restore defaults; Toolbar section handedness toggle over the stored `ToolbarDocks.withHandedness` (D-025, A-029). Tilt shading switch (D-014, A-025): store the choice per stroke (or drop tilt at commit) so wet and dry ink agree, and show the pen panel's tilt row (10-editor-ui.md). Math block alignment setting, centered or left (07-text-engine.md#math, D-034, A-047).
+Do: settings screens for every item in 10-editor-ui.md#settings; DataStore; restore defaults; Toolbar section handedness toggle over the stored `ToolbarDocks.withHandedness` (D-025, A-029). Tilt shading switch (D-014, A-025): store the choice per stroke (or drop tilt at commit) so wet and dry ink agree, and show the pen panel's tilt row (10-editor-ui.md). Math block alignment setting, centered or left (07-text-engine.md#math, D-034, A-047). "Type into page body" switch (today always on, A-050, D-035).
 Accept:
 - [ ] screenshot: settings screens
-- [ ] unit: settings round trip and defaults
+- [ ] unit: settings round trip and defaults; with "Type into page body" off a body tap creates no body text (D-035)
 - [ ] unit: with tilt shading off, a stroke with tilt inputs renders dry exactly like its wet ink (no tilt); a left-aligned math block lays out at the frame's left edge (D-014, D-034)
 Verify: tests + screenshots
 
@@ -52,7 +52,7 @@ Accept:
 - [ ] device: read mode enter/exit (5 cycles, 1500 strokes) and tool switches <= 1% janky in the benchmark build; if not, cut the first-frame cost of the toggle (D-031, A-038)
 - [ ] device: `ink:commit` p95 <= 2 ms in the benchmark build (D-015)
 - [ ] device: in the benchmark build, the first Text tool creation and the first focus tap after opening a note take <= 50 ms tap to caret (`text:caret`), measured in a fresh process and in a long-lived one; if not, cut the first-run cost (first draw of the formatting bar, input-method bind) (D-037, A-052)
-- [ ] device: in the benchmark build, `text:key` p95 < 16 ms typing on a 20k-word flow (`seed-text 20000`, paced and burst); if not, cut the per-frame cost of light frames (caret blink, keystroke; GPU about 18 ms in the debug build) (D-043, A-056)
+- [ ] device: in the benchmark build, `text:key` p95 < 16 ms typing on a 20k-word flow (`seed-text 20000`, paced and burst); if not, cut the per-frame cost of light frames (caret blink, keystroke; GPU about 18 ms in the debug build) (D-043, A-056); an idle focused block's caret blink frames do not re-record the block text (a caret-only view; today 40-46 ms each, D-038); `EditorSession.canvasText` no longer walks every flow (`boxOutlines`) on main per keystroke while the Text tool is active
 - [ ] release APK builds; size recorded in perf.md
 Verify: `instrumented.sh :benchmark connectedBenchmarkAndroidTest`
 
@@ -60,9 +60,10 @@ Verify: `instrumented.sh :benchmark connectedBenchmarkAndroidTest`
 Model: opus high
 Implements: R-FILE-01, R-FILE-02
 Read: 04-file-format.md#conflicts, #versioning
-Do: corrupted file handling (open read-only with message, never crash the library), low storage (pack fails gracefully, working copy kept, banner), external modifications while open, very large docs (500 pages), permission revoked while running, process death during every lifecycle state. Unpack: one fsync pass and a size-ratio zip-bomb bound instead of fsync per entry and a flat 8 GB cap (D-009). Forward compatibility (04#versioning): session packs keep unknown manifest keys (raw JSON), unknown proto fields and unknown object kinds (opaque) (D-010). `LibraryWatcher` event test (D-010). False external-change conflicts (D-030): on the tablet the packer reported "changed externally (2080 B, base 2080 B)" right after `seed-strokes` and packed a "(conflict ...)" copy; the size matched, so the mtime check (A-022 quirk) misfires: compare content (hash) before declaring a conflict.
+Do: corrupted file handling (open read-only with message, never crash the library), low storage (pack fails gracefully, working copy kept, banner), external modifications while open, very large docs (500 pages), permission revoked while running, process death during every lifecycle state. Unpack: one fsync pass and a size-ratio zip-bomb bound instead of fsync per entry and a flat 8 GB cap (D-009). Forward compatibility (04#versioning): session packs keep unknown manifest keys (raw JSON), unknown proto fields and unknown object kinds (opaque) (D-010). `LibraryWatcher` event test (D-010). False external-change conflicts (D-030): on the tablet the packer reported "changed externally (2080 B, base 2080 B)" right after `seed-strokes` and packed a "(conflict ...)" copy; the size matched, so the mtime check (A-022 quirk) misfires: compare content (hash) before declaring a conflict. Big PDFs: the editor finds a flow's frame pages by loading every page once per open (A-043, D-033); keep a frame-page index in the manifest or Room index instead. Pack drops asset entries no undo step or object references any more (deleted or undone images, 04-file-format.md#assets, D-053).
 Accept:
 - [ ] unit/instrumented: fault-injection suite green
+- [ ] unit: opening a 500-page note with one flow loads only the flow's frame pages (D-033); after deleting an image and closing the note the packed file has no entry for its asset (D-053)
 - [ ] unit: unknown manifest keys, proto fields and object kinds survive open + pack byte-equal; zip bomb rejected; watcher emits create/modify/delete (D-009, D-010); a working copy whose file only got a new mtime (same bytes) packs in place, no conflict copy (D-030)
 Verify: `./gradlew qa` + `instrumented.sh :core:storage`
 
@@ -81,7 +82,7 @@ Verify: screenshots + device-tester
 Model: opus high
 Implements: R-PERF-03, R-PERF-04
 Read: 12-performance.md#budgets, .claude/rules/rendering.md
-Do: pan-time `requestTiles` allocates lists, `RectPt`, `VisiblePage` and boxed `Pair` per tile and may log evictions; `DryHandoff.check` allocates and `isDrawn` scans all page objects per pending stroke (D-020). Reuse scratch objects, id-set lookup, no logging on the hot path. User report 2026-11-07: a long pen line hid for a split second at pen-up on an almost empty page at 100 % (not reproduced; `ink-probe` saw no app frame lose a stroke): after the handoff changes, draw 20 long strokes on an empty page and watch for it; if it shows, check androidx.ink's front-buffer layer release against the dry tile commit.
+Do: pan-time `requestTiles` allocates lists, `RectPt`, `VisiblePage` and boxed `Pair` per tile and may log evictions; `DryHandoff.check` allocates and `isDrawn` scans all page objects per pending stroke (D-020). Reuse scratch objects, id-set lookup, no logging on the hot path. The straight-highlighter preview (`PenSnap`) builds a new `InkStroke` every frame, so `OverlayInkPainter` rebuilds its mesh per frame (P07 REVIEW). User report 2026-11-07: a long pen line hid for a split second at pen-up on an almost empty page at 100 % (not reproduced; `ink-probe` saw no app frame lose a stroke): after the handoff changes, draw 20 long strokes on an empty page and watch for it; if it shows, check androidx.ink's front-buffer layer release against the dry tile commit.
 Accept:
 - [ ] unit: allocation-free `requestTiles` and `DryHandoff.check` in steady state (allocation counter test)
 - [ ] device: pan gfxinfo janky <= 1% with 1500 strokes
@@ -114,19 +115,43 @@ Verify: `./gradlew :core:storage:testDebugUnitTest :feature:library:testDebugUni
 Model: opus high
 Implements: R-TXT-02, R-TXT-07
 Read: 07-text-engine.md#live-field-as-built, #math-as-built, 10-editor-ui.md#text-tool
-Do: P06 device findings. The math error popup anchors at the bad formula, not at the far right of the page (x 2400-3000 px instead of 460-1000 px). Opening another note never leaves the soft keyboard up with nothing focused; Esc closes it like Back. The task checkbox glyph keeps a gap before its text (today "☐task"). The box grip (D-041, D-042) and the rejected box drop preview moved to P07-T13 (A-057). P06 REVIEW leftovers: a font that arrives after open (FontLibrary sync, Import font) clears the layouter cache but `EditorText.refresh` keeps the fallback layouts until the next edit (add the registry generation to `LayoutInputs`); `CustomFontStore.installed()` reads and parses every font file per `registry()` call (cache by name and size, drop on import or delete).
+Do: P06 device findings. The math error popup anchors at the bad formula, not at the far right of the page (x 2400-3000 px instead of 460-1000 px). Opening another note never leaves the soft keyboard up with nothing focused; Esc closes it like Back. The task checkbox glyph keeps a gap before its text (today "☐task"). The box grip (D-041, D-042) and the rejected box drop preview moved to P07-T13 (A-057). P06 REVIEW leftovers: a font that arrives after open (FontLibrary sync, Import font) clears the layouter cache but `EditorText.refresh` keeps the fallback layouts until the next edit (add the registry generation to `LayoutInputs`); `CustomFontStore.installed()` reads and parses every font file per `registry()` call (cache by name and size, drop on import or delete). P07 leftovers: after a model-driven text change (Ctrl+Z of a replace) Gboard's suggestion strip keeps the old word, call `restartInput` (D-039); Home/End follow the overlay's line breaks through `FieldNavigation` like Up/Down, not the hidden field's (D-046); with the keyboard up a one-finger pan must not drag the first page top far down the screen (pan clamp, D-047); the box toolbar clamps to the area between the chrome (format bar, tool row), and the first frame after H1 shows no overlapped old and new text (D-048); a finger Text tool tap mid-page on a note with body text (`perf/lined-1.folio`, y 960 px) made the box on the top rule: the box must start at the tap (T12c, D-049). `EditorText.emptyBoxRemoval` skips unloaded pages, so a multi-page empty box can leave frames of a removed flow: load the flow's frame pages first (P07 REVIEW).
 Accept:
+- [ ] unit: Ctrl+Z of a replace restarts input; Home/End on a wrapped overlay line go to that line's ends; pan clamp keeps the first page top in view with the keyboard up; box toolbar position clamps to the chrome insets; a Text tool tap below body text creates the box at the tapped line (D-039, D-046..D-049)
 - [ ] unit: math error popup position equals the formula's on-screen bounds; checkbox prefix width includes the gap
 - [ ] unit: a font registered after open re-lays out the flows using it; `installed()` parses each font file once
 - [ ] screenshot: task line with a checked and an unchecked box (gap visible)
 - [ ] device: math error popup next to the formula; open note A, focus text, open note B: no keyboard
 Verify: `./gradlew :core:text:testDebugUnitTest :feature:editor:testDebugUnitTest :feature:editor:verifyRoborazziDebug` + device-tester
 
+### P11-T13 Lasso follow-ups
+Model: opus high
+Implements: R-INK-04
+Read: 06-ink-input.md#lasso
+Do: P07 leftovers. Lasso Cut/Copy/Duplicate/Paste leave out text boxes and sticky notes (A-066, D-051): wire `PageOps`' flow cloning (plus reflow) into the lasso clipboard so they copy with their text and land on the lines. A selection box reaching the screen bottom has its bottom handles under the options pill, and a top-centre stylus drag (y < 250 px) is taken by HyperOS's window handle (D-052): move handles and the rotate knob out of both areas (inside the box or to the other side). `EditorText.lassoBoxesCommand` builds its batch from a snapshot taken before it switches to the text dispatcher, so a command landing in between (a pending stroke commit) can be overwritten: build it from the document on that dispatcher (P07 REVIEW).
+Accept:
+- [ ] unit: lasso Copy + Paste and Duplicate of a selection with ink, a text box and a sticky give independent copies with the same text, baselines on grid lines, one undo each (D-051)
+- [ ] unit: handle and rotate knob positions avoid the chrome insets and the top-centre strip (D-052)
+- [ ] unit: a stroke committed while a lasso box move is on its way survives the move
+- [ ] device: copy a text box and a sticky with the lasso, paste them: text kept, on the lines
+Verify: `./gradlew :feature:editor:testDebugUnitTest :core:model:test` + device-tester
+
+### P11-T14 Image and attachment memory and IO
+Model: opus high
+Implements: R-MED-02, R-PERF-04
+Read: 12-performance.md#memory, 05-canvas-rendering.md#page-renderer
+Do: P07 REVIEW leftovers. `ImageBitmaps`: one 4000x3000 decode is 48 MB of the 48 MiB budget, so two zoomed photos evict each other and every tile decodes again; size the budget from `largeMemoryClass` and cap decodes to the tile's need; `clear()` on `onTrimMemory` and session close; `measure()` and `decode()` each read the whole asset (read once per miss). Lasso snapshots allocate a new bitmap of up to 4096x4096 on main at every drag start: take it from `BitmapPool` or cap it to the screen size. `ImageImport.convert` decodes HEIC/WebP at full size (a 50 MP HEIC is about 200 MB): bounds first, then `inSampleSize` to `MAX_SIDE_PX`. `SelectionImage` writes its PNG on the render dispatcher and `CameraCapture` runs `mkdirs` on main: move both to io. `cache/attachments/<id>/` is never cleaned: drop it on editor close or at app start. `ImageDebug` uses `Dispatchers.Default`: inject `FolioDispatchers`.
+Accept:
+- [ ] unit: two 12 MP photos at zoom 4 stay cached together; `clear()` runs on trim; a miss reads the asset once; a 50 MP HEIC import decodes at most `MAX_SIDE_PX` per side
+- [ ] unit: the attachment cache is empty after the editor closes
+- [ ] device: drag a page-wide lasso selection with two photos 5 times: no GC pause over 16 ms, janky <= 1 %
+Verify: `./gradlew :core:render:testDebugUnitTest :feature:editor:testDebugUnitTest` + device-tester
+
 ### P11-T07 Final audit and handover
 Model: opus high
 Implements: R-PERF-*
 Read: 12-performance.md#budgets
-Do: full perf table in perf.md (release/benchmark build); accessibility pass (TalkBack labels, 44 dp targets); update README "Using Folio" section with a short feature list and how the user installs the release build themselves (never via Claude).
+Do: full perf table in perf.md (release/benchmark build); accessibility pass (TalkBack labels, 44 dp targets; the canvas-drawn box and lasso toolbars get virtual-view semantics with content descriptions); update README "Using Folio" section with a short feature list and how the user installs the release build themselves (never via Claude).
 Accept:
 - [ ] all budgets met or accepted by the user (USER-CHECK)
 - [ ] USER-CHECK list empty

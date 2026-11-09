@@ -15,9 +15,9 @@ Verify: screenshots
 Model: opus medium
 Implements: R-FILE-03
 Read: 08-pdf.md#export
-Do: `PdfExporter` strategy for non-PDF pages via android PdfDocument; page ranges; progress + cancel; output to `Documents/Folio(-Debug)/Exports/` or a user-chosen location (SAF create document).
+Do: `PdfExporter` strategy for non-PDF pages via android PdfDocument; page ranges; progress + cancel; output to `Documents/Folio(-Debug)/Exports/` or a user-chosen location (SAF create document). Sticky note shadows use `BlurMaskFilter`, which PDF canvases ignore: draw them another way for PDF targets (P07 REVIEW).
 Accept:
-- [ ] unit/instrumented: reopen output with PdfRenderer; page count/sizes; pixel check at a known stroke
+- [ ] unit/instrumented: reopen output with PdfRenderer; page count/sizes; pixel check at a known stroke; a sticky note's shadow shows in the PDF
 Verify: `instrumented.sh :core:pdf`
 
 ### P09-T03 PDF export for PDF-backed pages

@@ -47,4 +47,5 @@ P01-S7 probe (route `spike-stylus`, removed in P03-T09; debug `state` now report
 - There is no `canvas` route since P04-T02: `debugcmd.sh open blank:1` (or a tap in the library list) navigates to the editor; `debugcmd.sh route library` pops back, which releases (packs) the document.
 - `pm uninstall` of a package that is not installed returns `DELETE_FAILED_INTERNAL_ERROR` (harmless).
 - Our process logs HyperOS framework noise at start (E/ `MI-PreRender`, `FramePredict`, `FrameInsert`); ignore when scanning logcat.
+- An Android chooser ("Open with", `com.android.intentresolver/.ChooserActivity`, its own task) left on top blocks every later device check: `launch.sh` reports ok but does not bring Folio back, `input.sh`/`screenshot.sh` refuse (exit 12), and no wrapper dismisses it. A check that opens a chooser must not leave it up; if it does, only the user can close it (P07-T07, T09).
 - System locale de_DE and system dark mode on (the P00 placeholder renders light; dark UI arrives in P11).

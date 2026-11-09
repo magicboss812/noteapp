@@ -100,3 +100,4 @@ Native Android hybrid note app (pen ink + grid-snapped Markdown text) for one de
 - 2026-09-28 Headless runs deny `sed -i`, `>` redirects, `{a,b}` brace paths, `xargs`/multi-file `cat` and `jar`; edit with Edit/Write, read with Read, keep Bash to one plain command (optionally `| grep`/`| tail`) (P02)
 - 2026-09-30 androidx.ink meshes and renders under Robolectric when `ink-nativeloader-jvm` is a test dependency (host libink.so), minus per-vertex opacity; see docs/notes/gotchas.md (P03-T05)
 - 2026-10-23 HyperOS cancels stylus strokes over a FOCUSED editor (its own handwriting hook) whatever the editor declares; editor fields end editing on stylus hover/down instead (docs/notes/device.md, A-045) (P06-T06g)
+- 2026-11-09 Device checks must never leave a system chooser ("Open with") up: no wrapper dismisses it and every later check is refused until the user closes it (docs/notes/device.md#quirks) (P07-T09)
