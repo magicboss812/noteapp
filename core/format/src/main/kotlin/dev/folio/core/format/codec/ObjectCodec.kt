@@ -54,7 +54,10 @@ internal object ObjectCodec {
             }
 
             is Attachment -> {
-                PbPageObject(id = id, attachment = PbAttachment(o.asset.value, o.displayName, o.mime, pointToProto(o.position)))
+                PbPageObject(
+                    id = id,
+                    attachment = PbAttachment(o.asset.value, o.displayName, o.mime, pointToProto(o.position), o.sizeBytes),
+                )
             }
         }
     }
@@ -104,6 +107,8 @@ internal object ObjectCodec {
                     attachment.display_name,
                     attachment.mime,
                     pointFromProto(attachment.position.orCorrupt("attachment position")),
+                    // Only the chip label uses it: a negative size (bad writer) reads as unknown.
+                    attachment.size_bytes.coerceAtLeast(0L),
                 )
             }
 

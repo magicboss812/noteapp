@@ -169,7 +169,16 @@ object ModelFixtures {
             }
 
             else -> {
-                Attachment(id, AssetId(hex64(random)), "file ${random.nextInt(100)}.pdf", "application/pdf", PointPt(rect.left, rect.top))
+                // The size comes from the rect, so the random sequence (and every fixture after it) stays as it was.
+                val sizeBytes = rect.widthPt.toLong() * KIB
+                Attachment(
+                    id,
+                    AssetId(hex64(random)),
+                    "file ${random.nextInt(100)}.pdf",
+                    "application/pdf",
+                    PointPt(rect.left, rect.top),
+                    sizeBytes,
+                )
             }
         }
     }
@@ -191,6 +200,7 @@ object ModelFixtures {
     fun hex64(random: Random): String = buildString { repeat(64) { append(HEX[random.nextInt(16)]) } }
 
     private const val OPAQUE = 0xFF000000.toInt()
+    private const val KIB = 1024L
     private const val VARIANTS = 6
     private const val HEX = "0123456789abcdef"
 }

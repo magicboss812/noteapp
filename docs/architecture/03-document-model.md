@@ -78,7 +78,7 @@ data class ImageObject(override val id: ObjectId, val asset: AssetId, val rect: 
 data class StickyNote(override val id: ObjectId, val flow: FlowId, val rect: RectPt,
                       val rotationDeg: Float, val argb: Int) : PageObject
 data class Attachment(override val id: ObjectId, val asset: AssetId, val displayName: String,
-                      val mime: String, val position: PointPt) : PageObject
+                      val mime: String, val position: PointPt, val sizeBytes: Long = 0) : PageObject  // chip, A-070
 data class TextFlow(val id: FlowId, val markdown: String, val style: FlowStyle, val autoContinue: Boolean,
                     val box: FlowBox = FlowBox.FIXED)
 data class FlowStyle(val fontFamily: String, val sizeRatio: Float, val paragraphGapLines: Int,

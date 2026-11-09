@@ -226,20 +226,27 @@ data class StickyNote(
     }
 }
 
-/** A file attachment shown as an icon at [position] (top-left). */
+/**
+ * A file attachment shown as a chip (file type icon, name, size) with its top-left at [position] (A-070). [sizeBytes]
+ * is the file's size for the chip label (0 when unknown).
+ */
 data class Attachment(
     override val id: ObjectId,
     val asset: AssetId,
     val displayName: String,
     val mime: String,
     val position: PointPt,
+    val sizeBytes: Long = 0L,
 ) : PageObject {
-    override val bounds: RectPt get() = RectPt.ofSize(position.x, position.y, ICON_SIZE_PT, ICON_SIZE_PT)
+    override val bounds: RectPt get() = RectPt.ofSize(position.x, position.y, CHIP_WIDTH_PT, CHIP_HEIGHT_PT)
 
-    /** Constants. */
+    /** Chip size; the name is cut to fit. */
     companion object {
-        /** Edge length of the attachment icon in pt. */
-        const val ICON_SIZE_PT = 36f
+        /** Width of the chip in pt (70 mm). */
+        const val CHIP_WIDTH_PT = 198f
+
+        /** Height of the chip in pt (15 mm). */
+        const val CHIP_HEIGHT_PT = 42f
     }
 }
 

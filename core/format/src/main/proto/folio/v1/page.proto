@@ -60,6 +60,6 @@ message FlowFrame { string flow_id = 1; Rect rect = 2; uint32 order = 3; FrameRo
 enum FrameRole { FRAME_ROLE_UNSPECIFIED = 0; BODY = 1; BOX = 2; }
 message Image { string asset = 1; Rect rect = 2; float rotation_deg = 3; Rect crop = 4; }
 message StickyNote { string flow_id = 1; Rect rect = 2; float rotation_deg = 3; fixed32 argb = 4; }
-message Attachment { string asset = 1; string display_name = 2; string mime = 3; Point position = 4; }
+message Attachment { string asset = 1; string display_name = 2; string mime = 3; Point position = 4; int64 size_bytes = 5; }
 message Rect { float left = 1; float top = 2; float right = 3; float bottom = 4; }
 message Point { float x = 1; float y = 2; }
