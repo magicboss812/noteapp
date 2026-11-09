@@ -35,7 +35,7 @@ Row 2 holds only mode/kind | widths | colors | details (sliders icon); the rest 
 | Shape | kind (line, arrow, rectangle, ellipse, triangle, polygon), 3 widths, colors, add color, details (A-064) | kinds, width slider, dashed toggle, fill (none / tint / solid), constrain toggle, colors |
 | Text | nothing focused (A-051): font family button (opens the panel), size S/M/L, details; a focused block: the formatting bar (bold, italic, highlight, heading 1-3, bullets, numbers, checklist, math, code, link, alignment) | size S/M/L, free size slider with the body line box in grid lines (A-039), font families by group, each named in its own face, "Import font" (.ttf/.otf) |
 | Table | rows x columns picker (up to 8 x 8) |
-| Image | Gallery, Camera |
+| Image | Gallery, Camera (A-067: the Image tool is a lasso that selects images only; one selected image leads the action bar with Crop, which opens the full-screen crop and turn screen) |
 | Sticky | 5 colors |
 | Ruler | reset angle, hide |
 | Attachment | pick file |

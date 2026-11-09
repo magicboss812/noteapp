@@ -148,6 +148,9 @@ internal class CanvasDebug(
     private var opening: String? = null
     private var lastError: String? = null
 
+    /** Image tool commands on the editor on screen (P07-T04). */
+    val images = ImageDebug({ session }, scope)
+
     /** Library path of the document on screen. */
     val openDoc: String? get() = session?.documentSession?.path
 
@@ -389,6 +392,7 @@ internal class CanvasDebug(
         }
         put("textOverlay", host?.textOverlayState)
         put("lasso", host?.lassoState)
+        put("images", images.json(current))
         host?.touchCounts?.let { t ->
             put(
                 "touches",

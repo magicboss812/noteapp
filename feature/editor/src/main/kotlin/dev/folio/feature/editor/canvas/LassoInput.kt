@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.view.MotionEvent
 import androidx.annotation.MainThread
 import dev.folio.core.ink.input.StylusTarget
+import dev.folio.core.model.ImageObject
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.Page
 import dev.folio.core.model.PageId
@@ -77,6 +78,12 @@ internal interface LassoHost {
         objects: List<PageObject>,
     ) = Unit
 
+    /** Opens the crop and turn screen for image [id] of page [pageId]. */
+    fun editImage(
+        pageId: PageId,
+        id: ObjectId,
+    ) = Unit
+
     /** True when the tiles under [rect] of page [pageId] are drawn and fresh. */
     fun isDrawn(
         pageId: PageId,
@@ -137,6 +144,10 @@ internal class LassoInput(
     // Cached box of the selection, by the page objects it was computed from.
     private var boxObjects: List<PageObject>? = null
     private var boxCache: RectPt? = null
+    private var image: ImageObject? = null
+
+    /** True when the selection is exactly one image (the action bar offers Crop); valid after [box]. */
+    val imageSelected: Boolean get() = selection != null && image != null
 
     // A drag on the selection: [dragHandle] null moves; positions in page pt.
     private var dragHandle: SelectionHandle? = null
@@ -199,6 +210,7 @@ internal class LassoInput(
             val ids = sel.ids.toHashSet()
             val selected = objects.filter { it.id in ids }
             boxCache = if (selected.isEmpty()) null else ObjectCopies.bounds(selected)
+            image = selected.singleOrNull() as? ImageObject
         }
         if (boxCache == null) clear()
         return boxCache
@@ -564,6 +576,11 @@ internal class LassoInput(
 
     private fun press(button: LassoButton) {
         when (button) {
+            LassoButton.CROP -> {
+                val sel = selection ?: return
+                image?.let { host.editImage(sel.pageId, it.id) }
+            }
+
             LassoButton.CUT -> {
                 copy()
                 editSelection(SelectionEdit.Delete, deselect = true)

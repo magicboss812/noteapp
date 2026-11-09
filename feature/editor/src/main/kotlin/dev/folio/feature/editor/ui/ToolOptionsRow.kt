@@ -60,9 +60,9 @@ internal val SIZE_LABELS = persistentListOf("S", "M", "L")
 /** Edits the tool options: receives the change to apply to the current options. */
 internal typealias OptionsChange = ((ToolOptions) -> ToolOptions) -> Unit
 
-/** Whether [this] tool has a row 2 (10-editor-ui.md#tool-options); today exactly the tools with a settings panel. */
+/** Whether [this] tool has a row 2 (10-editor-ui.md#tool-options): the tools with a settings panel and the Image tool. */
 internal val EditorTool.hasOptions: Boolean
-    get() = hasSettings
+    get() = hasSettings || this == EditorTool.IMAGE
 
 /** Row 2 left pill: undo and redo, disabled while there is no step (10-editor-ui.md#toolbar). */
 @Composable
@@ -98,6 +98,7 @@ internal fun ToolOptionsRow(
     pillModifier: Modifier = Modifier,
     vertical: Boolean = false,
     onSettings: (EditorTool) -> Unit = {},
+    onImage: (ImageSourceKind) -> Unit = {},
 ) {
     val motion = FolioTheme.motion
     val slidePx = with(LocalDensity.current) { OPTIONS_SLIDE.roundToPx() }
@@ -120,16 +121,11 @@ internal fun ToolOptionsRow(
             PillGroup(pillModifier, orientation = orientation) {
                 val scroll = rememberScrollState()
                 val content: @Composable () -> Unit = {
-                    when (shown) {
-                        EditorTool.PEN -> PenOptionsContent(options, onChange, onPopover, vertical)
-                        EditorTool.HIGHLIGHTER -> HighlighterOptionsContent(options, onChange, onPopover, vertical)
-                        EditorTool.LASSO -> LassoOptionsContent(options.lasso, onChange)
-                        EditorTool.TEXT -> TextOptionsContent(options.text, onChange, { onSettings(shown) }, vertical)
-                        EditorTool.SHAPE -> ShapeOptionsContent(options, onChange, onPopover, vertical)
-                        else -> EraserOptionsContent(options.eraser, onChange, vertical)
+                    ToolContent(shown, options, onChange, onPopover, vertical, { onSettings(shown) }, onImage)
+                    if (shown.hasSettings) {
+                        Divider(vertical)
+                        FolioIconButton(FolioIcons.SlidersHorizontal, "${shown.label} settings", onClick = { onSettings(shown) })
                     }
-                    Divider(vertical)
-                    FolioIconButton(FolioIcons.SlidersHorizontal, "${shown.label} settings", onClick = { onSettings(shown) })
                 }
                 if (vertical) {
                     Column(
@@ -146,30 +142,41 @@ internal fun ToolOptionsRow(
     }
 }
 
+// The pill items of [tool] before its details button.
 @Suppress("MultipleEmitters") // Pill items for the caller's Row or Column, which differ by dock mode.
 @Composable
-private fun PenOptionsContent(
+private fun ToolContent(
+    tool: EditorTool,
     options: ToolOptions,
     onChange: OptionsChange,
     onPopover: (OptionsPopover?) -> Unit,
     vertical: Boolean,
+    onFonts: () -> Unit,
+    onImage: (ImageSourceKind) -> Unit,
 ) {
-    WidthPresetChips(EditorTool.PEN, options, onChange, onPopover)
-    Divider(vertical)
-    ColorDots(EditorTool.PEN, options, onChange, onPopover)
+    when (tool) {
+        EditorTool.PEN, EditorTool.HIGHLIGHTER -> StrokeOptionsContent(tool, options, onChange, onPopover, vertical)
+        EditorTool.LASSO -> LassoOptionsContent(options.lasso, onChange)
+        EditorTool.TEXT -> TextOptionsContent(options.text, onChange, onFonts, vertical)
+        EditorTool.SHAPE -> ShapeOptionsContent(options, onChange, onPopover, vertical)
+        EditorTool.IMAGE -> ImageOptionsContent(onImage, vertical)
+        else -> EraserOptionsContent(options.eraser, onChange, vertical)
+    }
 }
 
+// Pen and highlighter: widths | colors.
 @Suppress("MultipleEmitters") // Pill items for the caller's Row or Column, which differ by dock mode.
 @Composable
-private fun HighlighterOptionsContent(
+private fun StrokeOptionsContent(
+    tool: EditorTool,
     options: ToolOptions,
     onChange: OptionsChange,
     onPopover: (OptionsPopover?) -> Unit,
     vertical: Boolean,
 ) {
-    WidthPresetChips(EditorTool.HIGHLIGHTER, options, onChange, onPopover)
+    WidthPresetChips(tool, options, onChange, onPopover)
     Divider(vertical)
-    ColorDots(EditorTool.HIGHLIGHTER, options, onChange, onPopover)
+    ColorDots(tool, options, onChange, onPopover)
 }
 
 @Suppress("MultipleEmitters") // Pill items for the caller's Row or Column, which differ by dock mode.

@@ -14,22 +14,30 @@ import dev.folio.core.model.Document
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FrameRole
+import dev.folio.core.model.ImageObject
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.RectF01
 import dev.folio.core.model.TemplateKind
 import dev.folio.core.model.edit.AddObjects
+import dev.folio.core.model.edit.Batch
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.MovePages
 import dev.folio.core.model.edit.PageOps
 import dev.folio.core.model.edit.RemoveObjects
 import dev.folio.core.model.edit.SelectionEdit
 import dev.folio.core.model.edit.TextEdit
+import dev.folio.core.model.edit.UpdateAssets
+import dev.folio.core.model.edit.UpdateObjects
 import dev.folio.core.model.edit.command
+import dev.folio.core.model.image.ImageCrops
 import dev.folio.core.model.lasso.LassoKind
+import dev.folio.core.render.ImageBitmaps
 import dev.folio.core.render.template.TemplatePresets
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.pageIndexAt
+import dev.folio.core.render.viewport.visibleRectPt
 import dev.folio.core.storage.session.DocumentSession
 import dev.folio.core.text.edit.EditResult
 import dev.folio.core.text.markdown.MarkdownDocument
@@ -39,6 +47,7 @@ import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
 import dev.folio.feature.editor.canvas.LassoSpec
 import dev.folio.feature.editor.canvas.ObjectClipboard
+import dev.folio.feature.editor.canvas.ObjectSelection
 import dev.folio.feature.editor.canvas.ShapeSpec
 import dev.folio.feature.editor.canvas.boxOutlines
 import dev.folio.feature.editor.text.CanvasText
@@ -161,10 +170,15 @@ class EditorSession(
 
     override val alwaysStraight: Boolean get() = mutableOptions.value.highlighter.alwaysStraight
 
+    // The Image tool's pen selects images only, to move, size, turn and crop them (P07-T04).
     override val lassoSpec: LassoSpec
         get() =
-            mutableOptions.value.lasso.let { lasso ->
-                LassoSpec(lasso.mode == LassoMode.RECTANGLE, lasso.filters.mapTo(HashSet()) { LassoKind.valueOf(it.name) })
+            if (mutableTool.value == EditorTool.IMAGE) {
+                IMAGE_LASSO
+            } else {
+                mutableOptions.value.lasso.let { lasso ->
+                    LassoSpec(lasso.mode == LassoMode.RECTANGLE, lasso.filters.mapTo(HashSet()) { LassoKind.valueOf(it.name) })
+                }
             }
 
     // Free text boxes in a selection move onto the grid and reflow, or go with their text (A-066); the rest by `command`.
@@ -269,6 +283,79 @@ class EditorSession(
                 .filter { it is InkStroke && (!highlighterOnly || it.brush.kind == BrushKind.HIGHLIGHTER) }
                 .map { it.id }
         return ids.isNotEmpty() && execute(RemoveObjects(pageId, ids))
+    }
+
+    override val images = ImageBitmaps({ id -> documentSession.readAsset(id).getOrNull() })
+
+    private val selectionRequests = MutableSharedFlow<ObjectSelection>(extraBufferCapacity = COMMAND_BUFFER)
+
+    override val selections: Flow<ObjectSelection> get() = selectionRequests
+
+    private val mutableImageEdit = MutableStateFlow<ImageTarget?>(null)
+
+    /** The image the crop and turn screen edits, null while it is closed (chrome state). */
+    val imageEdit: StateFlow<ImageTarget?> = mutableImageEdit.asStateFlow()
+
+    @MainThread
+    override fun editImage(
+        pageId: PageId,
+        id: ObjectId,
+    ) {
+        mutableImageEdit.value = ImageTarget(pageId, id)
+    }
+
+    /** What the crop screen shows for the image [imageEdit] names, null while it is closed or the image is gone. */
+    val imageEditUi: Flow<ImageEditUi?> =
+        combine(mutableImageEdit, document) { target, doc ->
+            target?.let { t ->
+                (
+                    doc
+                        .page(
+                            t.pageId,
+                        )?.objects
+                        ?.firstOrNull { it.id == t.id } as? ImageObject
+                )?.let { ImageEditUi(t, it.asset, it.crop, it.rotationDeg) }
+            }
+        }.distinctUntilChanged()
+
+    /** Closes the crop and turn screen. */
+    fun closeImageEdit() {
+        mutableImageEdit.value = null
+    }
+
+    /**
+     * Stores [image] as an asset and places it centered in the visible part of the current page as one undo step, then
+     * selects it with the lasso; false if there is no page on screen or storing failed.
+     */
+    suspend fun insertImage(image: ImportedImage): Boolean {
+        val pageId = currentPageId() ?: return false
+        if (!loaded(listOf(pageId))) return false
+        val visible = viewport.visibleRectPt(pageId)
+        if (visible.isEmpty) return false
+        val stored = withContext(dispatchers.io) { documentSession.storeAsset(image.bytes, image.mime, image.originalName) }
+        val info =
+            stored.getOrNull() ?: run {
+                FolioLog.w(TAG, "storeAsset: ${(stored as Outcome.Failure).message}", stored.cause)
+                return false
+            }
+        val placed = ImageObject(ObjectId.random(), info.id, placeImage(image, visible), image.rotationDeg, RectF01.FULL)
+        if (!execute(Batch(listOf(UpdateAssets(listOf(info)), AddObjects(pageId, listOf(placed)))))) return false
+        selectionRequests.tryEmit(ObjectSelection(pageId, listOf(placed.id)))
+        return true
+    }
+
+    /** Applies the crop screen's [result] to image [target] as one undo step; true when nothing changed. */
+    suspend fun applyImageEdit(
+        target: ImageTarget,
+        result: ImageCropResult,
+    ): Boolean {
+        val image =
+            document.value
+                .page(target.pageId)
+                ?.objects
+                ?.firstOrNull { it.id == target.id } as? ImageObject ?: return false
+        val next = ImageCrops.turned(ImageCrops.withCrop(image, result.crop), result.turns)
+        return next == image || execute(UpdateObjects(target.pageId, listOf(next)))
     }
 
     private val pageJumpRequests = MutableSharedFlow<PageId>(extraBufferCapacity = COMMAND_BUFFER)
@@ -442,6 +529,7 @@ class EditorSession(
         const val COMMAND_BUFFER = 16
         const val PERCENT = 100f
         val BRUSH_VERSION = BrushCatalog.DEFAULT.latestVersion
+        val IMAGE_LASSO = LassoSpec(rectangle = false, kinds = setOf(LassoKind.IMAGES))
 
         // Where a page added next to a PDF page starts: blank white A4 with the default lined template.
         val NEW_PAGE_BACKGROUND = Background(PaperColor.WHITE.argb, TemplatePresets.default(TemplateKind.LINED), null)

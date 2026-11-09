@@ -4,10 +4,12 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.FileUriExposedException
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -25,8 +27,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +69,7 @@ import dev.folio.feature.editor.state.EditorStatus
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.EditorUiState
 import dev.folio.feature.editor.state.EditorViewModel
+import dev.folio.feature.editor.state.ImageEditUi
 import dev.folio.feature.editor.state.NoteChoice
 import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.PageSettings
@@ -99,6 +106,7 @@ fun EditorRoute(
     // How far the chrome covers the canvas bottom (keyboard, toolbox): read by the canvas only, not the screen.
     var coveredPx by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val openNote by rememberUpdatedState(onOpenNote)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -126,6 +134,7 @@ fun EditorRoute(
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) viewModel.importFont { context.contentResolver.openInputStream(uri) }
         }
+    val onImage = rememberImageSources(viewModel) { scope.launch { snackbars.showSnackbar(it) } }
     EditorScreen(
         state = state,
         onBack = onBack,
@@ -170,11 +179,19 @@ fun EditorRoute(
         onImportFont = { fontPicker.launch(FONT_MIME_TYPES) },
         onCanvasCover = { coveredPx = it },
         onBoxBack = { viewModel.boxBack() },
+        onImage = onImage,
+        imageCrop = { edit ->
+            val bitmap by produceState<Bitmap?>(null, edit.asset) { value = viewModel.imageBitmap(edit.asset, CROP_IMAGE_PX) }
+            ImageCropScreen(edit, bitmap, viewModel::applyImageEdit, viewModel::closeImageEdit)
+        },
         snackbars = snackbars,
     ) { canvasModifier ->
         session?.let { EditorCanvas(it, canvasListener, canvasModifier, viewModel::onKey, coveredPx) }
     }
 }
+
+// The crop screen decodes the image with at least this many px per side (the frame is at most the window).
+private const val CROP_IMAGE_PX = 1200
 
 // Font files as providers label them; many label .ttf/.otf as plain binary, so that is offered too (the import validates).
 private val FONT_MIME_TYPES =
@@ -275,6 +292,8 @@ fun EditorScreen(
     onImportFont: () -> Unit = {},
     onCanvasCover: (Int) -> Unit = {},
     onBoxBack: () -> Unit = {},
+    onImage: (ImageSourceKind) -> Unit = {},
+    imageCrop: @Composable (ImageEditUi) -> Unit = {},
     snackbars: SnackbarHostState = remember { SnackbarHostState() },
     canvas: @Composable (Modifier) -> Unit,
 ) {
@@ -312,6 +331,7 @@ fun EditorScreen(
                 onPickNote = onPickNote,
                 onLinkedFrom = onLinkedFrom,
                 onOpenBacklink = onOpenBacklink,
+                onImage = onImage,
             ),
         )
     val actions = remember(latest) { ChromeActions.forwardingTo(latest) }
@@ -372,6 +392,7 @@ fun EditorScreen(
                 onImportFont = onImportFont,
             )
             if (state.showHelp) ShortcutHelp(shortcutGroups, onClose = { onHelp(false) })
+            state.imageEdit?.let { imageCrop(it) }
         }
         FolioSnackbarHost(
             snackbars,

@@ -93,6 +93,7 @@ internal class ChromeActions(
     val onPickNote: (NoteChoice) -> Unit = {},
     val onLinkedFrom: (Boolean) -> Unit = {},
     val onOpenBacklink: (NoteChoice) -> Unit = {},
+    val onImage: (ImageSourceKind) -> Unit = {},
 ) {
     internal companion object {
         /** Actions that call whatever [latest] holds when invoked; the instance itself never changes. */
@@ -117,6 +118,7 @@ internal class ChromeActions(
                 onPickNote = { latest.value.onPickNote(it) },
                 onLinkedFrom = { latest.value.onLinkedFrom(it) },
                 onOpenBacklink = { latest.value.onOpenBacklink(it) },
+                onImage = { latest.value.onImage(it) },
             )
     }
 }
@@ -400,6 +402,7 @@ private fun Row2(
                     Modifier.inUse(!formatting),
                     vertical = vertical,
                     onSettings = actions.onSelectTool,
+                    onImage = actions.onImage,
                 )
             },
             modifier = modifier,

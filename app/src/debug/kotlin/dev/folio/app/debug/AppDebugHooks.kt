@@ -73,6 +73,9 @@ internal class AppDebugHooks
                         "undo" to canvas::undo,
                         "ink-probe" to canvas::inkProbe,
                         "redo" to canvas::redo,
+                        "image-insert" to canvas.images::insert,
+                        "image-crop" to canvas.images::crop,
+                        "image-edit" to canvas.images::edit,
                     ),
             ) { visible -> setOverlayVisible(visible) }
 

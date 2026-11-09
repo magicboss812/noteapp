@@ -1,5 +1,6 @@
 package dev.folio.feature.editor.state
 
+import android.graphics.Bitmap
 import android.view.KeyEvent
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
@@ -10,13 +11,20 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.common.Outcome
+import dev.folio.core.common.getOrNull
 import dev.folio.core.format.manifest.ManifestApp
 import dev.folio.core.ink.brush.BrushPresets
 import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
+import dev.folio.core.model.Document
+import dev.folio.core.model.ImageObject
+import dev.folio.core.model.PageId
+import dev.folio.core.model.RectF01
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.UpdateFlows
+import dev.folio.core.model.lasso.LassoKind
+import dev.folio.core.render.viewport.visibleRectPt
 import dev.folio.core.storage.index.IndexDb
 import dev.folio.core.storage.index.LibraryScanner
 import dev.folio.core.storage.repo.DocumentRepository
@@ -33,6 +41,7 @@ import dev.folio.core.text.flow.TapTarget
 import dev.folio.core.text.fonts.FontLibrary
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasTool
+import dev.folio.feature.editor.canvas.ObjectSelection
 import dev.folio.feature.editor.text.EditorFonts
 import dev.folio.feature.editor.text.TextTestEngine
 import kotlinx.coroutines.CoroutineScope
@@ -53,6 +62,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.ByteArrayOutputStream
 import kotlin.random.Random
 
 /** EditorViewModel over the real storage stack: temp-dir library, in-memory index, unconfined dispatchers. */
@@ -462,6 +472,81 @@ class EditorViewModelTest {
 
             assertThat(vm.awaitState { it.view.zoomPercent != 100 }.view).isEqualTo(ViewInfo(pageIndex = 0, zoomPercent = 200))
         }
+
+    @Test
+    fun images_insertSelectCropTurnUndo_reopenKeepsImageAndAsset() =
+        editorTest {
+            val path = createDoc("Images")
+            val vm = viewModel(path)
+            val session = vm.opened()
+            session.viewport.setPages(session.document.value.pages, VIEW_W, VIEW_H)
+            val page =
+                session.document.value.pages[0]
+                    .id
+            vm.selectTool(EditorTool.IMAGE)
+            vm.awaitState { it.tool == EditorTool.IMAGE }
+            assertThat(session.activeTool).isEqualTo(CanvasTool.LASSO)
+            assertThat(session.lassoSpec.kinds).containsExactly(LassoKind.IMAGES)
+            val selected = async(start = CoroutineStart.UNDISPATCHED) { session.selections.first() }
+            val png = ImageImport.fromBytes(pngBytes(400, 200), "photo.png").getOrNull()!!
+
+            assertThat(vm.insertImage(png)).isTrue()
+            val image =
+                session.document.value
+                    .images(page)
+                    .single()
+            assertThat(selected.await()).isEqualTo(ObjectSelection(page, listOf(image.id)))
+            assertThat(session.document.value.assets.keys).containsExactly(image.asset)
+            // Centered in the visible part of the page, aspect kept.
+            val visible = session.viewport.visibleRectPt(page)
+            assertThat(image.rect.center.x).isWithin(0.5f).of(visible.center.x)
+            assertThat(image.rect.widthPt / image.rect.heightPt).isWithin(1e-3f).of(2f)
+
+            session.editImage(page, image.id)
+            assertThat(vm.awaitState { it.imageEdit != null }.imageEdit!!.crop).isEqualTo(RectF01.FULL)
+            vm.applyImageEdit(ImageCropResult(RectF01(0.5f, 0f, 1f, 1f), 1))
+            vm.awaitState { it.imageEdit == null }
+            val cropped =
+                session.document.value
+                    .images(page)
+                    .single()
+            assertThat(cropped.crop).isEqualTo(RectF01(0.5f, 0f, 1f, 1f))
+            assertThat(cropped.rotationDeg).isEqualTo(90f)
+            assertThat(cropped.rect.widthPt).isWithin(1e-3f).of(image.rect.widthPt / 2)
+
+            assertThat(session.undo()).isTrue()
+            assertThat(
+                session.document.value
+                    .images(page)
+                    .single(),
+            ).isEqualTo(image)
+            assertThat(session.undo()).isTrue()
+            assertThat(session.document.value.images(page)).isEmpty()
+            assertThat(session.document.value.assets).isEmpty()
+            assertThat(session.redo()).isTrue()
+            assertThat(session.redo()).isTrue()
+
+            store.clear()
+            awaitReleases()
+            val reopened = viewModel(path).opened()
+            reopened.documentSession.loadPages(listOf(page))
+            assertThat(
+                reopened.document.value
+                    .images(page)
+                    .single(),
+            ).isEqualTo(cropped)
+            assertThat(reopened.documentSession.readAsset(image.asset).getOrNull()).isEqualTo(png.bytes)
+        }
+
+    private fun Document.images(page: PageId) = pageBodies.getValue(page).objects.filterIsInstance<ImageObject>()
+
+    private fun pngBytes(
+        w: Int,
+        h: Int,
+    ): ByteArray {
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).apply { eraseColor(0xFF2563EB.toInt()) }
+        return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+    }
 
     @Test
     fun cleared_releasesSession_reopenSeesPackedEdit() =

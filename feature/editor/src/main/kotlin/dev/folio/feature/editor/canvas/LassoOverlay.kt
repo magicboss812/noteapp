@@ -237,7 +237,14 @@ internal class LassoOverlay(
                 val y0 = viewport.pageOriginViewY(page).toFloat()
                 val s = viewport.scale
                 val top = y0 + (box.top - source.rotateOffsetPt()) * s - knobRadiusPx
-                toolbar.place(x0 + box.center.x * s, top, y0 + box.bottom * s + knobRadiusPx, width.toFloat(), clearHeight)
+                toolbar.place(
+                    x0 + box.center.x * s,
+                    top,
+                    y0 + box.bottom * s + knobRadiusPx,
+                    width.toFloat(),
+                    clearHeight,
+                    image = source.imageSelected,
+                )
             }
 
             paste != null && box == null -> {

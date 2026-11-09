@@ -81,5 +81,9 @@ internal fun CanvasHost(
             if (view == null) return@LaunchedEffect
             withContext(controller.mainDispatcher) { controller.pageJumps.collect { view.goToPage(it) } }
         }
+        LaunchedEffect(view) {
+            if (view == null) return@LaunchedEffect
+            withContext(controller.mainDispatcher) { controller.selections.collect { view.selectObjects(it) } }
+        }
     }
 }

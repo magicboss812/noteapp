@@ -8,15 +8,19 @@ import android.view.MotionEvent.TOOL_TYPE_FINGER
 import android.view.MotionEvent.TOOL_TYPE_STYLUS
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import dev.folio.core.model.AssetId
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
+import dev.folio.core.model.ImageObject
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.InputTool
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.PageObject
+import dev.folio.core.model.RectF01
 import dev.folio.core.model.StrokeInputs
+import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.Applied
 import dev.folio.core.model.edit.ReorderOp
 import dev.folio.core.model.edit.SelectionEdit
@@ -47,6 +51,7 @@ class LassoInputTest {
     private var drawn = true
     private var snapshots = 0
     private var images = 0
+    private val cropped = ArrayList<ObjectId>()
     private var spec = LassoSpec.DEFAULT
     private val clipboard = ObjectClipboard()
 
@@ -82,6 +87,13 @@ class LassoInputTest {
                 objects: List<PageObject>,
             ) {
                 images++
+            }
+
+            override fun editImage(
+                pageId: PageId,
+                id: ObjectId,
+            ) {
+                cropped += id
             }
 
             override fun isDrawn(
@@ -235,6 +247,24 @@ class LassoInputTest {
     }
 
     @Test
+    fun actionBar_oneImageSelected_leadsWithCropWhichOpensTheCropScreen() {
+        val image = ImageObject(ObjectId("img"), AssetId("a".repeat(64)), RectPt(100f, 400f, 300f, 500f), 0f, RectF01.FULL)
+        doc = AddObjects(page, listOf(image)).execute(doc).doc
+
+        input.select(LassoSelection(page, listOf(image.id)))
+        input.box()
+        assertThat(input.imageSelected).isTrue()
+        press(LassoButton.CROP)
+        assertThat(cropped).containsExactly(image.id)
+        assertThat(edits).isEmpty()
+
+        // With strokes alongside, the bar has no Crop.
+        input.select(LassoSelection(page, listOf(image.id, grid[0].id)))
+        input.box()
+        assertThat(input.imageSelected).isFalse()
+    }
+
+    @Test
     fun actionBar_duplicateDeleteColorArrange_eachOneEdit() {
         selectGrid()
         press(LassoButton.DUPLICATE)
@@ -315,7 +345,7 @@ class LassoInputTest {
             val box = checkNotNull(input.box())
             val top = viewport.toViewPx(page, PointPt(box.center.x, box.top))
             val bottom = viewport.toViewPx(page, PointPt(box.center.x, box.bottom))
-            toolbar.place(top.x, top.y - ROTATE_OFFSET_PX, bottom.y, VIEW_W, VIEW_H)
+            toolbar.place(top.x, top.y - ROTATE_OFFSET_PX, bottom.y, VIEW_W, VIEW_H, image = input.imageSelected)
         }
         val y = toolbar.pill.centerY()
         var x = toolbar.pill.left

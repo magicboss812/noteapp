@@ -14,6 +14,7 @@ import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.SelectionEdit
 import dev.folio.core.model.edit.command
 import dev.folio.core.model.lasso.LassoKind
+import dev.folio.core.render.ImageSource
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.TextController
@@ -74,6 +75,12 @@ class ObjectClipboard
             objects = copied
         }
     }
+
+/** Objects [ids] of page [pageId] for the lasso to select. */
+data class ObjectSelection(
+    val pageId: PageId,
+    val ids: List<ObjectId>,
+)
 
 /** What the Shape tool draws next: [kind] with [stroke], filled with [fillArgb] (null: none); [constrain] snaps angles and sides. */
 data class ShapeSpec(
@@ -175,6 +182,18 @@ interface CanvasController {
 
     /** Pages the host scrolls to (page panel, add page); jumps sent while no host collects are dropped. */
     val pageJumps: Flow<PageId> get() = emptyFlow()
+
+    /** Objects the host selects with the lasso (an inserted image); requests while no host collects are dropped. */
+    val selections: Flow<ObjectSelection> get() = emptyFlow()
+
+    /** Decoded image assets of the document for tiles, snapshots and copies (render threads). */
+    val images: ImageSource get() = ImageSource.None
+
+    /** The lasso's Crop button on image [id] of page [pageId]: the editor opens the crop and turn screen (main thread). */
+    fun editImage(
+        pageId: PageId,
+        id: ObjectId,
+    ) = Unit
 
     /**
      * What each page paints as text (A-042) and the live field drawing the focused block, which the pages leave out.

@@ -10,6 +10,8 @@ import dev.folio.core.model.edit.ReorderOp
 
 /** The buttons of the lasso action bar (06-ink-input.md#lasso), left to right; [PASTE] alone in the paste pill. */
 internal enum class LassoButton {
+    /** Crop and turn; only while the selection is one image (P07-T04). */
+    CROP,
     CUT,
     COPY,
     DUPLICATE,
@@ -39,7 +41,8 @@ internal enum class LassoPopup(
 internal class LassoToolbar(
     private val density: Float,
 ) {
-    private val selectionButtons = LassoButton.entries.filter { it != LassoButton.PASTE }
+    private val selectionButtons = LassoButton.entries.filter { it != LassoButton.PASTE && it != LassoButton.CROP }
+    private val imageButtons = LassoButton.entries.filter { it != LassoButton.PASTE }
     private val pasteButtons = listOf(LassoButton.PASTE)
     private var buttons = selectionButtons
     private val buttonPx = BUTTON_DP * density
@@ -66,7 +69,8 @@ internal class LassoToolbar(
 
     /**
      * Places the pill for a selection box from [topPx] to [bottomPx] centered on [centerXPx] ([paste]: the Paste pill
-     * above that point) in a view [viewWidthPx] x [viewHeightPx]; an open popup moves along.
+     * above that point) in a view [viewWidthPx] x [viewHeightPx]; an open popup moves along. [image]: the selection is
+     * one image, the bar leads with Crop.
      */
     fun place(
         centerXPx: Float,
@@ -75,9 +79,15 @@ internal class LassoToolbar(
         viewWidthPx: Float,
         viewHeightPx: Float,
         paste: Boolean = false,
+        image: Boolean = false,
     ) {
         // HOT PATH: per frame while a selection shows; no allocation.
-        buttons = if (paste) pasteButtons else selectionButtons
+        buttons =
+            when {
+                paste -> pasteButtons
+                image -> imageButtons
+                else -> selectionButtons
+            }
         val width = widthPx
         val left = (centerXPx - width / 2).coerceIn(marginPx, maxOf(marginPx, viewWidthPx - marginPx - width))
         val above = topPx - gapPx - heightPx
@@ -271,9 +281,10 @@ internal class LassoToolbar(
             "M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" +
                 "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
 
-        // Lucide `scissors`, `copy`, `copy-plus`, `droplet`, `layers`, `trash` and `clipboard`, one path each (circles as arcs).
+        // Lucide `crop`, `scissors`, `copy`, `copy-plus`, `droplet`, `layers`, `trash` and `clipboard`, one path each (circles as arcs).
         private val BUTTON_PATHS =
             mapOf(
+                LassoButton.CROP to "M6 2v14a2 2 0 0 0 2 2h14M18 22V8a2 2 0 0 0-2-2H2",
                 LassoButton.CUT to
                     "M3 6a3 3 0 1 0 6 0a3 3 0 1 0-6 0M3 18a3 3 0 1 0 6 0a3 3 0 1 0-6 0M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12",
                 LassoButton.COPY to COPY_PATH,

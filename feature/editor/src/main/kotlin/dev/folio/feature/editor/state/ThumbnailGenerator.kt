@@ -12,6 +12,7 @@ import dev.folio.core.model.Page
 import dev.folio.core.model.PageId
 import dev.folio.core.model.PageRef
 import dev.folio.core.model.geometry.RectPt
+import dev.folio.core.render.ImageSource
 import dev.folio.core.render.PageContent
 import dev.folio.core.render.PageRenderer
 import dev.folio.core.render.RenderTarget
@@ -50,7 +51,8 @@ internal class ThumbnailGenerator(
     private val scope: CoroutineScope,
     private val idleMs: Long = IDLE_MS,
     private val text: EditorText? = null,
-    private val encode: ThumbnailEncoder = ::encodeWebp,
+    images: ImageSource = ImageSource.None,
+    private val encode: ThumbnailEncoder = { page, body, text, px -> encodeWebp(page, body, text, px, images) },
 ) {
     private val pending = HashSet<PageId>()
     private val refs = HashMap<PageId, PageRef>()
@@ -173,6 +175,7 @@ internal class ThumbnailGenerator(
             body: Page,
             text: PageText,
             longSidePx: Int,
+            images: ImageSource,
         ): ByteArray? {
             val widthPt = page.spec.widthPt
             val heightPt = page.spec.heightPt
@@ -183,7 +186,7 @@ internal class ThumbnailGenerator(
                     (heightPt * scale).toInt().coerceAtLeast(1),
                 )
             return try {
-                PageRenderer().draw(
+                PageRenderer(images = images).draw(
                     Canvas(bitmap),
                     page,
                     PageContent.of(body, text),

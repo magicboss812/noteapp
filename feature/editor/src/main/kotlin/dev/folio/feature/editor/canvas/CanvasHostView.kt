@@ -228,7 +228,7 @@ class CanvasHostView internal constructor(
 
     // The lasso selection a drag moves: the tiles leave it out while the page body is [LassoHidden.before] (P07-T03).
     private var lassoHidden: LassoHidden? = null
-    private val snapshotRenderer by lazy(LazyThreadSafetyMode.NONE) { PageRenderer() }
+    private val snapshotRenderer by lazy(LazyThreadSafetyMode.NONE) { PageRenderer(images = controller.images) }
 
     /** The lasso (tests drive it). */
     internal val lasso =
@@ -473,10 +473,27 @@ class CanvasHostView internal constructor(
         textField.refresh()
         if (boxOutlines.shown.isNotEmpty()) boxOutlines.invalidate()
         if (shapeInput.selectionPage >= 0) shapePreview.invalidate() // undo may move or remove the selected shape
+        pendingSelection?.let { selectObjects(it) }
         if (lasso.showing) {
             lasso.check()
             lassoOverlay.invalidate() // undo may move or remove the selection
         }
+    }
+
+    // A selection asked for before the document with its objects arrived.
+    private var pendingSelection: ObjectSelection? = null
+
+    /** Selects [selection] with the lasso (an inserted image) once the document shows its objects. */
+    @MainThread
+    fun selectObjects(selection: ObjectSelection) {
+        val objects = document?.pageBodies?.get(selection.pageId)?.objects
+        val ids = selection.ids.toHashSet()
+        if (objects == null || objects.count { it.id in ids } < ids.size) {
+            pendingSelection = selection
+            return
+        }
+        pendingSelection = null
+        lasso.select(LassoSelection(selection.pageId, selection.ids))
     }
 
     /**
@@ -661,10 +678,17 @@ class CanvasHostView internal constructor(
             val page = body.copy(objects = objects.toPersistentList())
             val text = textOf(pageId)
             scope.launch {
-                val file = withContext(controller.renderDispatcher) { SelectionImage.render(context, ref, page, text) } ?: return@launch
+                val file =
+                    withContext(controller.renderDispatcher) { SelectionImage.render(context, ref, page, text, controller.images) }
+                        ?: return@launch
                 SelectionImage.publish(context, file)
             }
         }
+
+        override fun editImage(
+            pageId: PageId,
+            id: ObjectId,
+        ) = controller.editImage(pageId, id)
 
         override fun isDrawn(
             pageId: PageId,
@@ -1161,7 +1185,15 @@ class CanvasHostView internal constructor(
     }
 
     private fun tileLayer(target: RenderTarget) =
-        TileLayer(target, budgetPerLayer, pool, scope, controller.renderDispatcher, ::PageRenderer, ::onTileReady)
+        TileLayer(
+            target,
+            budgetPerLayer,
+            pool,
+            scope,
+            controller.renderDispatcher,
+            { PageRenderer(images = controller.images) },
+            ::onTileReady,
+        )
 
     private inner class MemoryCallbacks : ComponentCallbacks2 {
         override fun onTrimMemory(level: Int) {

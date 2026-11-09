@@ -3,4 +3,8 @@
     <cache-path
         name="clipboard"
         path="clipboard/" />
+    <!-- Camera captures for the Image tool (P07-T04): the camera app writes here, the note stores a copy. -->
+    <cache-path
+        name="camera"
+        path="camera/" />
 </paths>

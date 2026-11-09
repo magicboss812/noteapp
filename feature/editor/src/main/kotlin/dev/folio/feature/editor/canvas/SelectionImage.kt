@@ -12,6 +12,7 @@ import dev.folio.core.common.FolioLog
 import dev.folio.core.model.Page
 import dev.folio.core.model.PageRef
 import dev.folio.core.model.edit.ObjectCopies
+import dev.folio.core.render.ImageSource
 import dev.folio.core.render.PageContent
 import dev.folio.core.render.PageRenderer
 import dev.folio.core.render.RenderTarget
@@ -47,6 +48,7 @@ internal object SelectionImage {
         ref: PageRef,
         page: Page,
         text: PageText,
+        images: ImageSource,
     ): File? {
         val region = ObjectCopies.bounds(page.objects).inset(-MARGIN_PT)
         if (region.isEmpty) return null
@@ -59,7 +61,7 @@ internal object SelectionImage {
             )
         val canvas = Canvas(bitmap)
         canvas.drawColor(ref.background.paperArgb)
-        PageRenderer().draw(canvas, ref, PageContent.of(page, text), region, scale, RenderTarget.SCREEN_CONTENT)
+        PageRenderer(images = images).draw(canvas, ref, PageContent.of(page, text), region, scale, RenderTarget.SCREEN_CONTENT)
         val dir = File(context.cacheDir, DIR).apply { mkdirs() }
         val file = File(dir, FILE)
         return try {

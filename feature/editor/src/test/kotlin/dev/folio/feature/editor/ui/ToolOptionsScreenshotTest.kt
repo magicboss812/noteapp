@@ -122,6 +122,14 @@ class ToolOptionsScreenshotTest {
     }
 
     @Test
+    fun row_image_galleryAndCameraWithoutDetails() {
+        row(EditorTool.IMAGE)
+        compose.onNodeWithText("Gallery").assertExists()
+        compose.onNodeWithText("Camera").assertExists()
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_image.png")
+    }
+
+    @Test
     fun panel_shapeDashedTintConstrained_kindsWidthSwitchesFillColors() {
         val shape = ShapeOptions(kind = ShapeKind.ARROW, dashed = true, fill = ShapeFill.TINT, constrain = true)
         panel(EditorTool.SHAPE, ToolOptions(shape = shape))

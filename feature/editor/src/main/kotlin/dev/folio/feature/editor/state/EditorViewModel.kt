@@ -1,5 +1,8 @@
 package dev.folio.feature.editor.state
 
+import android.content.ContentResolver
+import android.graphics.Bitmap
+import android.net.Uri
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,6 +13,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
+import dev.folio.core.common.getOrNull
+import dev.folio.core.model.AssetId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.PageOps
 import dev.folio.core.storage.repo.NoteLinks
@@ -91,6 +96,8 @@ data class EditorUiState(
     val fonts: ImmutableList<TextFontFamily> = BUNDLED_FONTS,
     /** True while a text box is selected (Preview or Edit): Back steps it back (10-editor-ui.md#text-boxes). */
     val boxSelected: Boolean = false,
+    /** The image the crop and turn screen edits, null while it is closed (P07-T04). */
+    val imageEdit: ImageEditUi? = null,
 )
 
 /** The bundled families in picker order (no imported fonts known yet). */
@@ -265,6 +272,7 @@ class EditorViewModel
                 .combine(combine(noteSuggestions, mutableLinkedFrom, ::Pair)) { state, (suggestions, linkedFrom) ->
                     state.copy(noteSuggestions = suggestions, linkedFrom = linkedFrom)
                 }.combine(boxSelected) { state, selected -> state.copy(boxSelected = selected) }
+                .combine(mutableSession.flatMapLatest { it?.imageEditUi ?: flowOf(null) }) { state, image -> state.copy(imageEdit = image) }
                 .stateIn(viewModelScope, SharingStarted.Eagerly, EditorUiState())
 
         init {
@@ -306,7 +314,7 @@ class EditorViewModel
                                 texts.linkTaps.collect { tap -> noteLinksOfDoc.eventFor(tap)?.let { mutableEvents.send(it) } }
                             }
                         }
-                        ThumbnailGenerator(result.value, dispatchers, viewModelScope, text = session.text).start()
+                        ThumbnailGenerator(result.value, dispatchers, viewModelScope, text = session.text, images = session.images).start()
                         searchQuery?.takeIf { it.isNotBlank() }?.let { query ->
                             viewModelScope.launch { session.showSearchMatch(query) }
                         }
@@ -345,6 +353,46 @@ class EditorViewModel
         /** Applies [change] to the tool options (stored as they change). */
         fun updateOptions(change: (ToolOptions) -> ToolOptions) {
             mutableSession.value?.updateOptions(change)
+        }
+
+        /**
+         * Inserts the picked or captured image at [uri] into the page on screen and selects it (P07-T04); a notice when it
+         * cannot be read.
+         */
+        fun insertImage(
+            resolver: ContentResolver,
+            uri: Uri,
+        ) {
+            val session = mutableSession.value ?: return
+            viewModelScope.launch {
+                val image = withContext(dispatchers.io) { ImageImport.read(resolver, uri) }.getOrNull()
+                if (image == null || !session.insertImage(image)) mutableEvents.send(EditorEvent.Notice("Could not insert the image"))
+            }
+        }
+
+        /** Inserts [image] (debug automation feeds fixtures this way). */
+        suspend fun insertImage(image: ImportedImage): Boolean = mutableSession.value?.insertImage(image) == true
+
+        /** Applies the crop screen's [result] to the image it edits and closes it. */
+        fun applyImageEdit(result: ImageCropResult) {
+            val session = mutableSession.value ?: return
+            val target = session.imageEdit.value ?: return
+            session.closeImageEdit()
+            viewModelScope.launch { session.applyImageEdit(target, result) }
+        }
+
+        /** Closes the crop screen without a change. */
+        fun closeImageEdit() {
+            mutableSession.value?.closeImageEdit()
+        }
+
+        /** The whole image [asset] decoded for the crop screen, both sides at least [minSidePx] where the source has them. */
+        suspend fun imageBitmap(
+            asset: AssetId,
+            minSidePx: Int,
+        ): Bitmap? {
+            val session = mutableSession.value ?: return null
+            return withContext(dispatchers.io) { session.images.bitmap(asset, minSidePx, minSidePx) }
         }
 
         /** Imports the font file [source] (the panel's "Import font") and picks its family for new text. */
