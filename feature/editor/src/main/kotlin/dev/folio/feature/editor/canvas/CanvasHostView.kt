@@ -203,15 +203,18 @@ class CanvasHostView internal constructor(
             acceptsFinger = { event, index -> router.acceptsFinger(event, index) },
             forward = { event -> router.onTouchEvent(event) },
         )
+    private val hoverRing = HoverRingView(context)
     private val eraser =
         EraserInput(
             controller.viewport,
-            body = { id -> document?.let { shownBody(it, id) } },
+            body = { id -> document?.let { shownBody(it, id) }?.let(handoff::withPending) },
             options = { controller.eraserOptions },
             scope = scope,
             worker = controller.renderDispatcher,
             onPreview = ::showErasePreview,
             onFinished = ::commitErase,
+            ring = hoverRing, // the hover ring stays on the tip while the pen erases (P07-T09)
+            minRingPx = MIN_HOVER_RING_DP * resources.displayMetrics.density,
         )
 
     /** The Shape tool's live shape (tests read what it shows). */
@@ -277,7 +280,6 @@ class CanvasHostView internal constructor(
             shape = shapeInput,
             lasso = lasso,
         ) { controller.activeTool }
-    private val hoverRing = HoverRingView(context)
     private val hoverCursor =
         HoverCursor(
             hoverRing,
@@ -470,7 +472,7 @@ class CanvasHostView internal constructor(
         if (previous === next) return
         document = next
         val committedOn = eraseCommittedOn
-        if (committedOn != null && next.pageBodies[committedOn.id] !== committedOn) {
+        if (committedOn != null && erased(next, committedOn)) {
             // The committed erase (or a later change) arrived: the document shows it now.
             erasePreview = null
             eraseCommittedOn = null
@@ -736,12 +738,25 @@ class CanvasHostView internal constructor(
         val old = erasePreview
         erasePreview = result
         eraseCommittedOn = null
+        handoff.erasing(result)
         val doc = document ?: return
         for (id in setOfNotNull(old?.pageId, result?.pageId)) {
             val ref = doc.pageRef(id) ?: continue
             contentTiles.setPage(ref, shownBody(doc, id), textOf(id))
         }
         refreshTiles()
+    }
+
+    /** True when [next] shows the erase committed on [base]: its page changed and none of the erased strokes is left. */
+    private fun erased(
+        next: Document,
+        base: Page,
+    ): Boolean {
+        val body = next.pageBodies[base.id]
+        if (body === base) return false
+        val preview = erasePreview ?: return true
+        // A stroke commit still running at the lift lands first (the session runs commands in order): keep the preview.
+        return body == null || body.objects.none { it.id in preview.replacements }
     }
 
     /**
@@ -1214,7 +1229,8 @@ class CanvasHostView internal constructor(
         val stack = viewport.layout ?: return false
         val body = doc.pageBodies[page] ?: return doc.pageRef(page) == null
         // An edited shape keeps its id: the shown body must hold this version.
-        if (body.objects.none { it.id == stroke.id && (stroke !is Shape || it == stroke) }) return false
+        val inBody = body.objects.any { it.id == stroke.id && (stroke !is Shape || it == stroke) }
+        if (!inBody && !inErasePreview(body, stroke)) return false
         val index = stack.indexOf(page)
         val b = stroke.bounds
         var drawn = true
@@ -1225,6 +1241,15 @@ class CanvasHostView internal constructor(
             }
         }
         return drawn
+    }
+
+    /** True when the erase preview shows [piece] on [body]: a fragment replacing a stroke that is on it (the tiles draw it). */
+    private fun inErasePreview(
+        body: Page,
+        piece: PageObject,
+    ): Boolean {
+        val preview = erasePreview?.takeIf { it.pageId == body.id } ?: return false
+        return body.objects.any { o -> preview.replacements[o.id]?.any { it.id == piece.id } == true }
     }
 
     private fun tileLayer(target: RenderTarget) =

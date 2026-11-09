@@ -1,6 +1,7 @@
 package dev.folio.feature.editor.canvas
 
 import com.google.common.truth.Truth.assertThat
+import dev.folio.core.ink.erase.EraseResult
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.InkStroke
@@ -8,6 +9,7 @@ import dev.folio.core.model.InputTool
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.StrokeInputs
+import dev.folio.core.testing.ModelFixtures
 import org.junit.Test
 
 class DryHandoffTest {
@@ -103,6 +105,62 @@ class DryHandoffTest {
         assertThat(removed).containsExactly("w0")
         assertThat(handoff.pendingCount).isEqualTo(1)
     }
+
+    @Test
+    fun withPending_appendsPendingStrokesOfThatPageNotInTheBody() {
+        handoff.onFinished(listOf(wet("w0", "p1", 10f), wet("w1", "p2", 20f), wet("w2", "p1", 30f)))
+        val committed = commits[0].second // o0, o1 on p1 (o2 on p2)
+        val body = ModelFixtures.page("p1", listOf(committed[0])) // the session applied o0 already
+
+        val shown = handoff.withPending(body)
+
+        assertThat(shown.objects.map { it.id.value }).containsExactly("o0", "o1").inOrder()
+        assertThat(handoff.withPending(ModelFixtures.page("p3"))).isEqualTo(ModelFixtures.page("p3"))
+    }
+
+    @Test
+    fun erasing_strokeRemoved_wetCopyLeavesAtOnce() {
+        handoff.onFinished(listOf(wet("w0", "p1", 10f), wet("w1", "p1", 20f)))
+
+        handoff.erasing(EraseResult(PageId("p1"), mapOf(ObjectId("o1") to emptyList())))
+        handoff.check()
+
+        assertThat(calls).containsExactly("invalidate", "remove w1").inOrder()
+        assertThat(handoff.pendingCount).isEqualTo(1)
+    }
+
+    @Test
+    fun erasing_strokeSplit_wetCopyWaitsForTheFragments_cancelWaitsForTheStrokeAgain() {
+        handoff.onFinished(listOf(wet("w0", "p1", 10f)))
+        val pieces = listOf(piece("f0"), piece("f1"))
+        handoff.erasing(EraseResult(PageId("p1"), mapOf(ObjectId("o0") to pieces)))
+        drawn += ObjectId("o0")
+        drawn += ObjectId("f0")
+
+        handoff.check()
+        assertThat(removed).isEmpty() // f1 not drawn yet; the stroke itself no longer counts
+
+        handoff.erasing(null)
+        handoff.check()
+        assertThat(removed).containsExactly("w0")
+    }
+
+    @Test
+    fun erasing_previewOnAnotherPage_keepsWaitingForTheStroke() {
+        handoff.onFinished(listOf(wet("w0", "p1", 10f)))
+
+        handoff.erasing(EraseResult(PageId("p2"), mapOf(ObjectId("o0") to emptyList())))
+        handoff.check()
+
+        assertThat(removed).isEmpty()
+    }
+
+    private fun piece(id: String) =
+        InkStroke.of(
+            ObjectId(id),
+            SPEC,
+            StrokeInputs(floatArrayOf(0f, 5f), floatArrayOf(0f, 0f), floatArrayOf(0f, 8f), null, null, null, InputTool.STYLUS),
+        )
 
     private fun wet(
         key: String,

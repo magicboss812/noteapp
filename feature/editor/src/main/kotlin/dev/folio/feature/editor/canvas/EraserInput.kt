@@ -19,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.max
 
 /** Eraser counters for debug `state`, since the canvas view was created. */
 data class EraseStats(
@@ -36,7 +37,8 @@ data class EraseStats(
  * The eraser on the stylus route (06-ink-input.md#erasers). A stylus down starts an [EraseSession] on a
  * snapshot of the page under the pen; the samples (page pt) queue up for a [worker] coroutine that erases
  * and hands every changed [EraseResult] to [onPreview] on the main thread. Lifting the pen hands the final
- * result to [onFinished] (the host commits it as one command); a cancel previews null again.
+ * result to [onFinished] (the host commits it as one command); a cancel previews null again. While the pen
+ * erases, [ring] shows the eraser's size at the tip (at least [minRingPx]); it hides when the pen lifts.
  */
 @MainThread
 internal class EraserInput(
@@ -47,7 +49,10 @@ internal class EraserInput(
     private val worker: CoroutineDispatcher,
     private val onPreview: (EraseResult?) -> Unit,
     private val onFinished: (EraseResult) -> Unit,
+    private val ring: HoverRing = NoRing,
+    private val minRingPx: Float = 0f,
 ) : StylusTarget {
+    private var ringPx = 0f
     private var queue: PointQueue? = null
     private var wakeups: Channel<Unit>? = null
     private var job: Job? = null
@@ -84,8 +89,9 @@ internal class EraserInput(
         queue = points
         wakeups = signal
         started++
-        add(event, index)
         val settings = options()
+        ringPx = max(settings.radiusPt * scale, minRingPx)
+        add(event, index)
         job = scope.launch { erase(snapshot, settings, points, signal) }
     }
 
@@ -108,6 +114,7 @@ internal class EraserInput(
         queue = null
         wakeups = null
         job = null
+        ring.hide()
     }
 
     override fun onStylusCancel(
@@ -120,6 +127,7 @@ internal class EraserInput(
         wakeups = null
         job = null
         canceled++
+        ring.hide()
         onPreview(null)
     }
 
@@ -135,6 +143,7 @@ internal class EraserInput(
         }
         points.add((event.getX(index) - originX) / scale, (event.getY(index) - originY) / scale)
         wakeups?.trySend(Unit)
+        ring.show(event.getX(index), event.getY(index), ringPx)
     }
 
     /** One gesture: erases on [worker] until the pen lifts (the channel closes), then finishes on main. */
@@ -165,6 +174,16 @@ internal class EraserInput(
         /** Worker time per drained sample batch: erasing plus building the preview result. */
         const val SECTION_ERASE = "ink:erase"
     }
+}
+
+private object NoRing : HoverRing {
+    override fun show(
+        xPx: Float,
+        yPx: Float,
+        radiusPx: Float,
+    ) = Unit
+
+    override fun hide() = Unit
 }
 
 /**

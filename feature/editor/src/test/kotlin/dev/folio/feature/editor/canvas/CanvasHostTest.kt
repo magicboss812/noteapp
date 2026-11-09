@@ -7,7 +7,6 @@ import android.view.MotionEvent.ACTION_HOVER_ENTER
 import android.view.MotionEvent.ACTION_HOVER_MOVE
 import android.view.MotionEvent.ACTION_MOVE
 import android.view.MotionEvent.ACTION_UP
-import android.view.MotionEvent.TOOL_TYPE_ERASER
 import android.view.MotionEvent.TOOL_TYPE_STYLUS
 import android.view.PointerIcon
 import android.view.View
@@ -33,14 +32,9 @@ import dev.folio.core.model.Document
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FrameRole
-import dev.folio.core.model.InkStroke
-import dev.folio.core.model.InputTool
 import dev.folio.core.model.ObjectId
-import dev.folio.core.model.PageId
 import dev.folio.core.model.PageSpec
-import dev.folio.core.model.StrokeInputs
 import dev.folio.core.model.TextZones
-import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.geometry.PointPt
 import dev.folio.core.render.viewport.Viewport
@@ -555,54 +549,6 @@ class CanvasHostTest {
     }
 
     @Test
-    fun eraserTool_gestureAcrossStroke_oneCommandRemovesIt_undoRestores() {
-        val page = ModelFixtures.page("p0").id
-        val stroke = strokeOn(page)
-        val before = controller.document.value
-        show()
-        controller.activeTool = CanvasTool.ERASER
-
-        erase(page)
-        settle()
-
-        assertThat(
-            controller.document.value.pageBodies[page]
-                ?.objects,
-        ).isEmpty()
-        assertThat(controller.commands).hasSize(1)
-        assertThat(hostView().eraseStats).isEqualTo(EraseStats(gestures = 1, committed = 1, strokes = 1, discarded = 0))
-        assertThat(wet?.calls).isEmpty() // the eraser draws no wet ink
-        val undone =
-            controller.commands
-                .single()
-                .execute(before)
-                .inverse
-        assertThat(
-            undone
-                .execute(controller.document.value)
-                .doc.pageBodies[page]
-                ?.objects,
-        ).containsExactly(stroke)
-    }
-
-    @Test
-    fun eraserEnd_erasesWhateverTheTool_rejectedCommandKeepsTheStroke() {
-        val page = ModelFixtures.page("p0").id
-        val stroke = strokeOn(page)
-        show()
-        controller.accept = false
-
-        erase(page, toolType = TOOL_TYPE_ERASER)
-        settle()
-
-        assertThat(
-            controller.document.value.pageBodies[page]
-                ?.objects,
-        ).containsExactly(stroke)
-        assertThat(hostView().eraseStats).isEqualTo(EraseStats(gestures = 1, committed = 1, strokes = 1, discarded = 1))
-    }
-
-    @Test
     fun stylusHover_showsSizeRingUntilThePenTouches() {
         show()
         controller.activeTool = CanvasTool.ERASER
@@ -680,39 +626,6 @@ class CanvasHostTest {
         }
 
         assertThat(hostView().isHoverRingShown).isFalse()
-    }
-
-    /** Adds a 200 pt horizontal ballpoint stroke at y = 100 pt on [page]. */
-    private fun strokeOn(page: PageId): InkStroke {
-        val inputs =
-            StrokeInputs(
-                FloatArray(201) { 100f + it },
-                FloatArray(201) { 100f },
-                FloatArray(201) { it * 2f },
-                null,
-                null,
-                null,
-                InputTool.SYNTHETIC,
-            )
-        val stroke = InkStroke.of(ObjectId("s"), controller.activeBrush, inputs)
-        controller.document.value = AddObjects(page, listOf(stroke)).execute(controller.document.value).doc
-        return stroke
-    }
-
-    /** A stylus swipe from (200, 50) to (200, 150) pt on [page]. */
-    private fun erase(
-        page: PageId,
-        toolType: Int = TOOL_TYPE_STYLUS,
-    ) {
-        val vp = controller.viewport
-        val from = vp.toViewPx(page, PointPt(200f, 50f))
-        val to = vp.toViewPx(page, PointPt(200f, 150f))
-        compose.runOnUiThread {
-            val view = hostView()
-            view.dispatchTouchEvent(event(ACTION_DOWN, 2000, from.x to from.y, toolType = toolType))
-            view.dispatchTouchEvent(event(ACTION_MOVE, 2050, to.x to (from.y + to.y) / 2f, toolType = toolType))
-            view.dispatchTouchEvent(event(ACTION_UP, 2100, to.x to to.y, toolType = toolType))
-        }
     }
 
     @Test

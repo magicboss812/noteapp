@@ -51,6 +51,22 @@ class EraserInputTest {
     private var options = EraserOptions(EraserMode.STROKE, 4f)
     private val previews = ArrayList<EraseResult?>()
     private val finished = ArrayList<EraseResult>()
+    private val ring =
+        object : HoverRing {
+            val calls = ArrayList<String>()
+
+            override fun show(
+                xPx: Float,
+                yPx: Float,
+                radiusPx: Float,
+            ) {
+                calls += "show $xPx $yPx $radiusPx"
+            }
+
+            override fun hide() {
+                calls += "hide"
+            }
+        }
 
     // Unconfined: the worker erases inline, so every preview arrives before the event call returns.
     private val eraser =
@@ -62,6 +78,8 @@ class EraserInputTest {
             worker = Dispatchers.Unconfined,
             onPreview = { previews += it },
             onFinished = { finished += it },
+            ring = ring,
+            minRingPx = MIN_RING_PX,
         )
 
     private fun at(
@@ -123,6 +141,33 @@ class EraserInputTest {
     }
 
     @Test
+    fun gesture_ringFollowsTheTipWithTheEraserSize_hidesOnLift() {
+        options = EraserOptions(EraserMode.STROKE, 10f)
+        eraser.onStylusDown(at(ACTION_DOWN, 0, 150f, 50f), 0, eraser = false)
+        eraser.onStylusMove(at(ACTION_MOVE, 10, 150f, 150f), 0)
+        val tip = viewport.toViewPx(PageId("p1"), PointPt(150f, 150f))
+        val shownMidErase = ring.calls.last()
+
+        eraser.onStylusUp(at(ACTION_UP, 20, 150f, 160f), 0)
+
+        assertThat(ring.calls.first()).startsWith("show")
+        assertThat(shownMidErase).isEqualTo("show ${tip.x} ${tip.y} ${10f * viewport.scale}")
+        assertThat(ring.calls.last()).isEqualTo("hide")
+    }
+
+    @Test
+    fun cancel_hidesTheRing_smallEraserGetsTheMinimumRing() {
+        options = EraserOptions(EraserMode.STROKE, 0.1f)
+        eraser.onStylusDown(at(ACTION_DOWN, 0, 150f, 50f), 0, eraser = false)
+        val shown = ring.calls.last()
+
+        eraser.onStylusCancel(at(ACTION_CANCEL, 20, 150f, 150f), 0)
+
+        assertThat(shown).endsWith(" $MIN_RING_PX")
+        assertThat(ring.calls.last()).isEqualTo("hide")
+    }
+
+    @Test
     fun stylusTools_eraserEndOrEraserTool_goToTheEraser() {
         val calls = ArrayList<String>()
 
@@ -178,6 +223,7 @@ class EraserInputTest {
 
     private companion object {
         const val DENSITY = 2.5f
+        const val MIN_RING_PX = 7.5f
         const val VIEW_W = 2136f
         const val VIEW_H = 3200f
     }
