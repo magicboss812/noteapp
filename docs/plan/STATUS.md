@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P07
-next: P07-T08
+next: P07-T09
 updated: 2026-11-09
 
 ## Completed
@@ -14,7 +14,7 @@ updated: 2026-11-09
 - P06 done 2026-11-08 (tag p06-done): Markdown blocks, fonts + import, grid line boxes (20 fonts 0 violations on device), flows + reflow, live field, math, tables, links/tasks, selection + clipboard, baseline lift, free text boxes; `text:key` p95 17-21 ms debug (D-043); REVIEW fixed 2 blocking findings (stale flow edits after undo, read mode kept text focus); intake -> P11-T01/T09/T12, P07-T02; A-037..A-056; qa green.
 
 ## Current phase progress
-- P07: T10, T11, T12, T13, T14 (hold gfxinfo pending), T15, T16, T17, T01, T02, T03, T04, T05, T06, T07
+- P07: T10, T11, T12, T13, T14 (hold gfxinfo pending), T15, T16, T17, T01, T02, T03, T04, T05, T06, T07, T08
 
 ## Blocked (needs user; stops dependent tasks)
 - P07-T14 device hold check (2 s Right hold: acceleration, jank via gfxinfo; one undo per hold; Down hold) needs timed key holds; `scripts/device/input.sh` is protected. Proposed diff, after line 31 (`combo` branch): `  hold) k="${1:-}"; ms="${2:-}"; case "$k" in KEYCODE_DPAD_UP|KEYCODE_DPAD_DOWN|KEYCODE_DPAD_LEFT|KEYCODE_DPAD_RIGHT) ;; *) die "hold: arrow keys only" 2 ;; esac; case "$ms" in [0-9]|[0-9][0-9]|[0-9][0-9][0-9]|[0-9][0-9][0-9][0-9]) ;; *) die "hold: ms 0-9999" 2 ;; esac; dshell input keyevent --duration "$ms" "$k" ;;` and in `combo` an optional third arg `ms` passed as `input keycombination -t "$ms" ...`. Single presses passed on the device (see USER-CHECK); nothing else waits on this.
@@ -55,6 +55,6 @@ updated: 2026-11-09
 - D-035 P06-T10a: "Type into page body" is always on; the switch comes with the settings screen (A-050). D-037 P06-T18d: the first Text tool creation after an open takes 68-83 ms tap to caret (fresh process 207-264 ms; first focus 57.5 ms), first-run cost of the debug build; later ones meet 50 ms (A-052). D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P07-T07 done (A-070): chip model/painter (T07a); Attachment tool = images+attachments lasso, row 2 "Attach file" (`ImageSourceKind.FILE` -> OpenDocument), pen tap on a chip selects it, `LassoButton.OPEN` -> `EditorEvent.OpenAttachment` -> `AttachmentFiles.write` (cache/attachments) + FileProvider chooser; EditorViewModel tests split (`EditorViewModelTestBase`, `EditorMediaViewModelTest`). Debug `attach-insert`, `attach-open`, `state.canvas.attachments`; a system chooser on top blocks screenshot/input/debugcmd replies. NEXT P07-T08 (undo and persistence coverage); tablet: press Back first (Blocked).
+- P07-T08 done: `core/storage/.../session/UndoPersistenceMatrixTest` (ParameterizedRobolectricTestRunner, 74 rows: 6 object kinds x add/delete/move/scale-rotate/recolor/reorder/edit/replace/duplicate/cut-paste, page and document ops) runs execute, undo, redo, pack, reopen, compare through `DocumentSessions`. Add a row there for every new object kind or command. NEXT P07-T09 (eraser ring + erase during handoff); tablet: press Back first (Blocked). Attachment debug: `attach-insert`, `attach-open`, `state.canvas.attachments`.
 - Device: debug `tool lasso[,rect]`, `state.canvas.lasso`, `image-insert [w,h]`, `image-crop l,t,r,b[,turns]`, `state.canvas.images`; keep stylus gestures out of the top-centre strip (HyperOS floating window; recover: stop.sh, install.sh, launch.sh, open). First tap after a debug command is dropped. `debugcmd open lined:N` reuses `perf/lined-N.folio`; wipe the debug library first for a clean note. Modified `scripts/auto/run-loop.sh` is the user's: stage explicit paths, not `git add -A`.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; `CaretPlans`/`FlowHits` for taps. HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]`. Tool row y 1963 px, mode pill y 171 px in landscape.
