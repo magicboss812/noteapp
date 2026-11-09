@@ -393,6 +393,7 @@ internal class CanvasDebug(
         }
         put("textOverlay", host?.textOverlayState)
         put("lasso", host?.lassoState)
+        put("ruler", host?.rulerState)
         put("images", images.json(current))
         host?.touchCounts?.let { t ->
             put(

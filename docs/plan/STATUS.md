@@ -1,7 +1,7 @@
 # STATUS
 <!-- Maintained by Claude. <= 60 lines (hook-enforced). Format: docs/plan/PLAN.md "STATUS format". -->
 phase: P07
-next: P07-T06
+next: P07-T07
 updated: 2026-11-09
 
 ## Completed
@@ -14,15 +14,14 @@ updated: 2026-11-09
 - P06 done 2026-11-08 (tag p06-done): Markdown blocks, fonts + import, grid line boxes (20 fonts 0 violations on device), flows + reflow, live field, math, tables, links/tasks, selection + clipboard, baseline lift, free text boxes; `text:key` p95 17-21 ms debug (D-043); REVIEW fixed 2 blocking findings (stale flow edits after undo, read mode kept text focus); intake -> P11-T01/T09/T12, P07-T02; A-037..A-056; qa green.
 
 ## Current phase progress
-- P07: T10, T11, T12, T13, T14 (hold gfxinfo pending), T15, T16, T17, T01, T02, T03, T04, T05
+- P07: T10, T11, T12, T13, T14 (hold gfxinfo pending), T15, T16, T17, T01, T02, T03, T04, T05, T06
 
 ## Blocked (needs user; stops dependent tasks)
 - P07-T14 device hold check (2 s Right hold: acceleration, jank via gfxinfo; one undo per hold; Down hold) needs timed key holds; `scripts/device/input.sh` is protected. Proposed diff, after line 31 (`combo` branch): `  hold) k="${1:-}"; ms="${2:-}"; case "$k" in KEYCODE_DPAD_UP|KEYCODE_DPAD_DOWN|KEYCODE_DPAD_LEFT|KEYCODE_DPAD_RIGHT) ;; *) die "hold: arrow keys only" 2 ;; esac; case "$ms" in [0-9]|[0-9][0-9]|[0-9][0-9][0-9]|[0-9][0-9][0-9][0-9]) ;; *) die "hold: ms 0-9999" 2 ;; esac; dshell input keyevent --duration "$ms" "$k" ;;` and in `combo` an optional third arg `ms` passed as `input keycombination -t "$ms" ...`. Single presses passed on the device (see USER-CHECK); nothing else waits on this.
 
 ## USER-CHECK (human verification; non-blocking)
 - 2026-11-07 P06-T07, T15, T08, T09 run on the tablet by device-tester: T07 PASS, T15 PASS (1-frame blink not provable without screen recording), T08 FAIL (header not bold, remove column off by one, trailing cell space dropped), T09 FAIL (stylus tap in read mode inert); defects -> FEEDBACK Open, fixed in T19. T07 instrumented run on the tablet after T19 (abd5e92): GridInvariantInstrumentedTest 20 fonts, 0 violations, formulas as expected; SizeDerivationInstrumentedTest PASS.
-- P06-T10: Type a page of notes with the keyboard mixing headings, lists, math -> text never jumps off the lines or lags; also pick a font and a free size in the Text panel (new text takes them) and try Import font with a .ttf.
-- P06-T18: Tap into text and out again a few times, also low on the page -> nothing flashes or hides behind the keyboard. P06-T16: Set the distance above lines in the Text panel, then type new text -> it sits where you want above the rules, also while typing (it applies to text you create next; existing text keeps its distance).
+- P06-T10: Type a page of notes with the keyboard mixing headings, lists, math -> text never jumps off the lines or lags; also pick a font and a free size in the Text panel (new text takes them) and try Import font with a .ttf. P06-T18: Tap into text and out again a few times, also low on the page -> nothing flashes or hides behind the keyboard. P06-T16: Set the distance above lines in the Text panel, then type new text -> it sits where you want above the rules, also while typing (it applies to text you create next; existing text keeps its distance).
 - 2026-11-08 user: P06-T14 and P06-T17 FAIL (no box outline or move, edited text over the page gap, no caret in empty blocks, no touch selection, highlight offset) -> A-057, P07-T10 to T17.
 - P07-T10: Type a long paragraph over a page break (also in an empty line), select across `==marked==`, then tap out -> text continues on the next page with the caret, nothing jumps, flickers or lags; highlight under the handles.
 - P07-T11: In a text block you are editing, long-press a word, drag to grow it, double tap another word, drag a handle letter by letter, use Copy/Paste from the menu -> words and single letters select easily with your finger, a quick drag still pans.
@@ -36,6 +35,7 @@ updated: 2026-11-09
 - P07-T03: Lasso (key 4): circle and rectangle-select ink, a shape and a text box; drag inside (pen and finger), corners, edges, rotate knob; try Cut/Copy then tap and Paste, Duplicate, Color, Arrange, Delete; paste the copied image into another app; undo each -> smooth drag, no flicker at lift, text box lands on the lines, one undo each. (Device 2026-11-09: 60 strokes rect-selected, move and 90 deg turn PASS, one undo each, janky 0.43 %.)
 - P07-T04: Image tool (key 7): Gallery a real photo, Camera a shot, then drag/resize/turn it, Crop: drag corners, edges and inside, Turn left/right, Done; reopen the note -> photo upright, crop keeps the picture in place, one undo each. (Device 2026-11-09 PASS via debug fixture: insert, crop screen, crop + turn, reopen.)
 - P07-T05: Sticky tool (key 8): pick colors and Tilt in row 2, tap with pen and finger, type a few lines, tap out, tap the sticky again, lasso-move/resize/turn it, duplicate the page, undo -> sticky appears at the tap with the caret, text sits on its own lines, a tilted one goes straight while you type and tilts back, shadow looks right, the copy has its own text.
+- P07-T06: Tap the Ruler button (or Alt+9), drag the ruler with one finger, turn it with two (feel the 15 deg clicks), tap its angle readout, then draw lines along both edges at several angles, also while a finger holds the ruler -> lines straight and exactly on the edge, ruler stays put while you pan/zoom, readout levels it.
 
 ## Deferred (id: reason)
 - D-001, D-015, D-031 -> P11-T05; D-009, D-010, D-030 -> P11-T06; D-011, D-019 -> P08-T02; D-018 -> P11-T08; D-020 -> P11-T09; D-022 -> P07-T09; D-025 -> P11-T01; D-026 -> P11-T04; D-027 -> P10-T01, P11-T10; D-028 -> P11-T10; D-033 -> P11-T05; D-035 -> P11-T01; D-037 -> P11-T05; D-038 -> P11-T05; D-039 -> P11-T06; D-043 -> P11-T05; D-014, D-034 -> P11-T01.
@@ -55,6 +55,6 @@ updated: 2026-11-09
 - D-033 P06-T06a: the editor finds a flow's frame pages by loading every page once per open (A-043); a frame-page index in the manifest/index would drop that pass for big PDFs (P11-T05).
 
 ## Handoff (<= 5 lines, overwritten each session)
-- P07-T05 done (A-068): sticky slots in page pt (`TextZones.stickyContentRect`, `FrameSlot.sticky`), `StickyPainter` (turned; straight while edited via `PageText.straight`), Sticky tool `CanvasTool.STICKY` -> `TextController.placeSticky` -> `CaretPlans.forSticky`; options `StickyOptions` (color, tilt); debug `tool sticky`. Not device-run (Verify: screenshots). NEXT P07-T06 (ruler).
+- P07-T05 committed f217f74 (A-068, stickies). P07-T06 done (A-069): `core:ink` `ruler/Ruler` (pose, edge snap, projection), `RulerAngles`; editor `RulerOverlay` (view px, physical size), `RulerGestures` (finger move/turn, readout tap), `PenInput` feeds projected `StrokeInput` batches (`WetSurface.startInput/addInput/flushInputs/finishInput`); toggle in `EditorSession.ruler`, Alt+9; debug `state` key `ruler`. Not device-run (Verify: tests). NEXT P07-T07 (attachments, note links).
 - Device: debug `tool lasso[,rect]`, `state.canvas.lasso`, `image-insert [w,h]`, `image-crop l,t,r,b[,turns]`, `state.canvas.images`; keep stylus gestures out of the top-centre strip (HyperOS floating window; recover: stop.sh, install.sh, launch.sh, open). First tap after a debug command is dropped. `debugcmd open lined:N` reuses `perf/lined-N.folio`; wipe the debug library first for a clean note. Modified `scripts/auto/run-loop.sh` is the user's: stage explicit paths, not `git add -A`.
 - Text editing map: 07-text-engine.md#live-field-as-built; `TextEditor` -> `EditorSession.editText` -> `EditFlow` + reflow; `LiveTextField` + `TextFieldHost` in the canvas overlay; `CaretPlans`/`FlowHits` for taps. HyperOS steals stylus over a focused editor (A-045). Debug `seed-text n[,page]`. Tool row y 1963 px, mode pill y 171 px in landscape.

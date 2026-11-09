@@ -9,7 +9,10 @@ import androidx.ink.authoring.InProgressStrokeId
 import androidx.ink.authoring.InProgressStrokesFinishedListener
 import androidx.ink.authoring.InProgressStrokesView
 import androidx.ink.brush.Brush
+import androidx.ink.brush.InputToolType
+import androidx.ink.strokes.MutableStrokeInputBatch
 import androidx.ink.strokes.Stroke
+import androidx.ink.strokes.StrokeInput
 import dev.folio.core.common.PerfMonitor
 import dev.folio.core.ink.StrokeBuilder
 import dev.folio.core.ink.brush.BrushCatalog
@@ -63,6 +66,40 @@ internal interface WetSurface {
         pointerId: Int,
     )
 
+    /**
+     * Starts a stroke from inputs the caller computes (the ruler projects the pen onto its edge, 06-ink-input.md#ruler):
+     * the first input at ([xPt], [yPt]) on [page] with [pressure] (0..1). Continue with [addInput] + [flushInputs], end
+     * with [finishInput] or [cancel].
+     */
+    @Suppress("LongParameterList") // the androidx.ink startStroke arguments plus the page
+    fun startInput(
+        xPt: Float,
+        yPt: Float,
+        pressure: Float,
+        spec: BrushSpec,
+        strokeToView: Matrix,
+        page: PageId,
+    )
+
+    /** Queues an input [elapsedMs] after the first one; inputs earlier than the last are dropped. */
+    fun addInput(
+        xPt: Float,
+        yPt: Float,
+        elapsedMs: Long,
+        pressure: Float,
+    )
+
+    /** Hands the queued inputs to the stroke (once per MotionEvent). */
+    fun flushInputs()
+
+    /** Ends a [startInput] stroke with its last input; it stays visible and arrives at [onFinished]. */
+    fun finishInput(
+        xPt: Float,
+        yPt: Float,
+        elapsedMs: Long,
+        pressure: Float,
+    )
+
     /** Discards the stroke; [event] is the cancel event, null when a hold snapped it (no event at hand). */
     fun cancel(event: MotionEvent?)
 
@@ -104,6 +141,11 @@ internal class InkWetSurface(
     private var brushTilt = false
     private var brush: Brush? = null
 
+    // Ruler strokes: the projected inputs of one MotionEvent, and the first or last input.
+    private val batch = MutableStrokeInputBatch()
+    private val input = StrokeInput()
+    private var lastInputMs = 0L
+
     override val view: View get() = ink
 
     override var onFinished: (List<WetStroke>) -> Unit = {}
@@ -141,7 +183,59 @@ internal class InkWetSurface(
         strokeId = null
     }
 
+    override fun startInput(
+        xPt: Float,
+        yPt: Float,
+        pressure: Float,
+        spec: BrushSpec,
+        strokeToView: Matrix,
+        page: PageId,
+    ) {
+        // HOT PATH: per stroke; the input and batch are reused.
+        strokeId?.let { cancelStroke(it, null) }
+        batch.clear()
+        lastInputMs = 0L
+        input.update(xPt, yPt, 0L, InputToolType.STYLUS, pressure = pressure)
+        val id = ink.startStroke(input, brushFor(spec, tilt = false), strokeToView)
+        started[id] = Started(page, spec)
+        strokeId = id
+    }
+
+    override fun addInput(
+        xPt: Float,
+        yPt: Float,
+        elapsedMs: Long,
+        pressure: Float,
+    ) {
+        // HOT PATH: per pen sample; no allocation.
+        if (strokeId == null || elapsedMs < lastInputMs) return
+        lastInputMs = elapsedMs
+        batch.add(InputToolType.STYLUS, xPt, yPt, elapsedMs, pressure = pressure)
+    }
+
+    override fun flushInputs() {
+        // HOT PATH: per MotionEvent; androidx.ink copies the batch.
+        val id = strokeId ?: return
+        if (batch.size == 0) return
+        ink.addToStroke(batch, id)
+        batch.clear()
+    }
+
+    override fun finishInput(
+        xPt: Float,
+        yPt: Float,
+        elapsedMs: Long,
+        pressure: Float,
+    ) {
+        val id = strokeId ?: return
+        flushInputs()
+        input.update(xPt, yPt, maxOf(elapsedMs, lastInputMs), InputToolType.STYLUS, pressure = pressure)
+        ink.finishStroke(input, id)
+        strokeId = null
+    }
+
     override fun cancel(event: MotionEvent?) {
+        batch.clear()
         val id = strokeId ?: return
         cancelStroke(id, event)
         strokeId = null

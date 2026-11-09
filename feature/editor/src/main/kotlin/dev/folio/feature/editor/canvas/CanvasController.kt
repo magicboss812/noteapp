@@ -186,6 +186,9 @@ interface CanvasController {
     /** Pages the host scrolls to (page panel, add page); jumps sent while no host collects are dropped. */
     val pageJumps: Flow<PageId> get() = emptyFlow()
 
+    /** Whether this pane shows the ruler (06-ink-input.md#ruler; the toolbar toggle, off in read mode). */
+    val rulerShown: Flow<Boolean> get() = emptyFlow()
+
     /** Objects the host selects with the lasso (an inserted image); requests while no host collects are dropped. */
     val selections: Flow<ObjectSelection> get() = emptyFlow()
 

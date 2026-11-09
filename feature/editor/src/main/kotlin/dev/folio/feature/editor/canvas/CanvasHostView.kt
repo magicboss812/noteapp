@@ -186,6 +186,22 @@ class CanvasHostView internal constructor(
             onStrokeStart = ::requestUnbufferedDispatch,
             snap = snap,
             straightOnly = { controller.alwaysStraight },
+            ruler = { rulerOverlay.active },
+            rulerSnapPx = RULER_SNAP_DP * resources.displayMetrics.density,
+        )
+
+    /** The ruler while its toggle is on (tests read and place it; 06-ink-input.md#ruler). */
+    internal val rulerOverlay = RulerOverlay(context)
+
+    /** Fingers on the ruler move and turn it instead of panning. */
+    internal val rulerGestures =
+        RulerGestures(
+            rulerOverlay,
+            slopPx = ViewConfiguration.get(context).scaledTouchSlop.toFloat(),
+            tapTimeoutMs = TEXT_TAP_TIMEOUT_MS,
+            readoutMinPx = RULER_READOUT_TARGET_DP * resources.displayMetrics.density,
+            acceptsFinger = { event, index -> router.acceptsFinger(event, index) },
+            forward = { event -> router.onTouchEvent(event) },
         )
     private val eraser =
         EraserInput(
@@ -421,6 +437,7 @@ class CanvasHostView internal constructor(
         addView(overlay, LayoutParams(match))
         addView(selectionView, LayoutParams(match))
         addView(boxHandles, LayoutParams(match))
+        addView(rulerOverlay, LayoutParams(match))
         addView(hoverRing, LayoutParams(match))
         addView(wetLayer, LayoutParams(match))
         wet.onFinished = handoff::onFinished
@@ -774,6 +791,16 @@ class CanvasHostView internal constructor(
         animator.scrollToPage(index, durationMs)
     }
 
+    /** Shows or hides the ruler (the toolbar toggle; hidden in read mode). */
+    fun showRuler(on: Boolean) = rulerOverlay.show(on)
+
+    /** The ruler for debug `state`: hidden, or its center (px) and angle (deg). */
+    val rulerState: String
+        get() {
+            val r = rulerOverlay.active ?: return "hidden"
+            return "center=${r.centerXPx.roundToInt()},${r.centerYPx.roundToInt()} angle=${r.angleDeg.roundToInt()}"
+        }
+
     // A jump to a page the stack does not hold yet (just inserted) waits for the document that has it.
     private var pendingJump: PageId? = null
 
@@ -858,6 +885,8 @@ class CanvasHostView internal constructor(
                 if (controller.activeTool != CanvasTool.SHAPE) shapeInput.cancelDraft()
                 if (controller.activeTool != CanvasTool.LASSO && lasso.showing) lasso.clear()
             }
+            // A gesture starting with a finger on the ruler moves or turns it (a pen joining it still draws).
+            if (rulerGestures.onTouch(event)) return@trace
             // A finger on the lasso selection or its action bar moves it or presses there instead of panning.
             val finger = event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER
             if (finger && controller.activeTool == CanvasTool.LASSO && lasso.onFingerTouch(event)) return@trace
@@ -1282,6 +1311,10 @@ private const val SECTION_LASSO_SNAPSHOT = "lasso:snapshot"
 
 // The text color of a moved box on a page without a known paper (near-black, like the live field's default).
 private const val BOX_TEXT_ARGB = 0xFF1B1D22.toInt()
+
+// Pen strokes starting this near a ruler edge follow it; the ruler's angle readout takes taps at least this big.
+private const val RULER_SNAP_DP = 12f
+private const val RULER_READOUT_TARGET_DP = 48f
 
 private fun tileBudgetBytes(context: Context): Long {
     val reported = context.getSystemService(ActivityManager::class.java)?.largeMemoryClass ?: 0

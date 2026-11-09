@@ -25,6 +25,9 @@ sealed interface EditorAction {
         val tool: EditorTool,
     ) : EditorAction
 
+    /** Shows or hides the ruler. */
+    data object ToggleRuler : EditorAction
+
     /** Canvas pan and zoom actions. */
     data class Canvas(
         val command: CanvasCommand,
@@ -81,7 +84,7 @@ class ShortcutRegistry(
     ): EditorAction? = table[KeyChord(keyCode, ctrl, shift, alt)]
 
     companion object {
-        // Alt+1..9, Alt+0 follow the toolbar order; Alt+9 is the Ruler toggle (P07).
+        // Alt+1..9, Alt+0 follow the toolbar order; Alt+9 is the Ruler toggle.
         private val TOOL_KEYS =
             listOf(
                 KeyEvent.KEYCODE_1 to EditorTool.PEN,
@@ -136,6 +139,11 @@ class ShortcutRegistry(
                     "Alt+1..8, Alt+0",
                     "Pen, Highlighter, Eraser, Lasso, Text, Shape, Image, Sticky note, Table",
                     TOOL_KEYS.associate { (key, tool) -> KeyChord(key, alt = true) to EditorAction.SelectTool(tool) },
+                ),
+                ShortcutGroup(
+                    "Alt+9",
+                    "Show or hide the ruler",
+                    mapOf(KeyChord(KeyEvent.KEYCODE_9, alt = true) to EditorAction.ToggleRuler),
                 ),
                 ShortcutGroup(
                     "Ctrl+Plus",

@@ -153,6 +153,7 @@ fun EditorRoute(
         onKeyUp = viewModel::onKeyUp,
         onType = viewModel::typeIntoPage,
         onFormat = viewModel::format,
+        onToggleRuler = viewModel::toggleRuler,
         pageChrome =
             PageChrome(
                 onPanel = { viewModel.showPages(PageSurface.PANEL) },
@@ -293,6 +294,7 @@ fun EditorScreen(
     onCanvasCover: (Int) -> Unit = {},
     onBoxBack: () -> Unit = {},
     onImage: (ImageSourceKind) -> Unit = {},
+    onToggleRuler: () -> Unit = {},
     imageCrop: @Composable (ImageEditUi) -> Unit = {},
     snackbars: SnackbarHostState = remember { SnackbarHostState() },
     canvas: @Composable (Modifier) -> Unit,
@@ -332,6 +334,7 @@ fun EditorScreen(
                 onLinkedFrom = onLinkedFrom,
                 onOpenBacklink = onOpenBacklink,
                 onImage = onImage,
+                onToggleRuler = onToggleRuler,
             ),
         )
     val actions = remember(latest) { ChromeActions.forwardingTo(latest) }

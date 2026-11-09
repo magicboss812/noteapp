@@ -68,6 +68,54 @@ internal class FakeWetSurface(
         calls += "finish $pointerId"
     }
 
+    /** Inputs of the last [startInput] stroke in page pt, flushed or finished ones only: x, y pairs. */
+    val inputs = ArrayList<Pair<Float, Float>>()
+    private val queued = ArrayList<Pair<Float, Float>>()
+
+    override fun startInput(
+        xPt: Float,
+        yPt: Float,
+        pressure: Float,
+        spec: BrushSpec,
+        strokeToView: Matrix,
+        page: PageId,
+    ) {
+        calls += "startInput"
+        lastSpec = spec
+        lastPage = page
+        lastStrokeToView.set(strokeToView)
+        inputs.clear()
+        queued.clear()
+        inputs += xPt to yPt
+    }
+
+    override fun addInput(
+        xPt: Float,
+        yPt: Float,
+        elapsedMs: Long,
+        pressure: Float,
+    ) {
+        queued += xPt to yPt
+    }
+
+    override fun flushInputs() {
+        if (queued.isEmpty()) return
+        calls += "flushInputs ${queued.size}"
+        inputs += queued
+        queued.clear()
+    }
+
+    override fun finishInput(
+        xPt: Float,
+        yPt: Float,
+        elapsedMs: Long,
+        pressure: Float,
+    ) {
+        flushInputs()
+        inputs += xPt to yPt
+        calls += "finishInput"
+    }
+
     override fun cancel(event: MotionEvent?) {
         calls += "cancel"
     }

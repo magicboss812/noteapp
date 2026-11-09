@@ -273,6 +273,25 @@ class EditorViewModelTest {
         }
 
     @Test
+    fun ruler_altNineAndToggle_showAndHideIt_neverInReadMode() =
+        editorTest {
+            val vm = viewModel(createDoc("Ruler"))
+            val session = vm.opened()
+
+            assertThat(vm.onKey(KeyEvent.KEYCODE_9, ctrl = false, shift = false, alt = true)).isTrue()
+            vm.awaitState { it.rulerShown }
+            assertThat(session.rulerShown.first()).isTrue()
+            assertThat(session.tool.value).isEqualTo(EditorTool.PEN) // a toggle, not a tool
+
+            vm.setReadMode(true)
+            assertThat(session.rulerShown.first()).isFalse()
+            vm.setReadMode(false)
+            vm.toggleRuler()
+            vm.awaitState { !it.rulerShown }
+            assertThat(session.rulerShown.first()).isFalse()
+        }
+
+    @Test
     fun keys_escapeClosesHelpThenPopover_thenIsNotConsumed() =
         editorTest {
             val vm = viewModel(createDoc("Esc"))

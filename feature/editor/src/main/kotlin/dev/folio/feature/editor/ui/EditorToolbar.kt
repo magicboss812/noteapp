@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -64,6 +65,7 @@ private val FRACTION_RULE_HEIGHT = 1.dp
 internal fun ToolsRow(
     tool: EditorTool,
     onSelectTool: (EditorTool) -> Unit,
+    ruler: RulerToggle,
     mode: DockMode,
     optionsHidden: Boolean,
     onToggleOptions: () -> Unit,
@@ -80,12 +82,12 @@ internal fun ToolsRow(
                 Column(
                     tools.heightIn(max = (maxHeight - ROW1_TAIL).coerceAtLeast(0.dp)).verticalScroll(scroll),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                ) { ToolsPill(tool, onSelectTool, vertical = true) }
+                ) { ToolsPill(tool, onSelectTool, ruler, vertical = true) }
             } else {
                 Row(
                     tools.widthIn(max = (maxWidth - ROW1_TAIL).coerceAtLeast(0.dp)).horizontalScroll(scroll),
                     verticalAlignment = Alignment.CenterVertically,
-                ) { ToolsPill(tool, onSelectTool) }
+                ) { ToolsPill(tool, onSelectTool, ruler) }
             }
             PillDivider(vertical = vertical)
             FolioIconButton(
@@ -108,17 +110,35 @@ internal fun DockMode.chevron(hidden: Boolean): ImageVector =
         DockMode.RIGHT -> if (hidden) FolioIcons.ChevronLeft else FolioIcons.ChevronRight
     }
 
+/** The Ruler toggle of row 1: [shown] while the ruler is on the canvas; [onToggle] shows or hides it. */
+@Immutable
+internal class RulerToggle(
+    val shown: Boolean,
+    val onToggle: () -> Unit,
+) {
+    internal companion object {
+        /** A toggle that is off and does nothing (previews, the drag preview pill). */
+        val Off = RulerToggle(false) {}
+    }
+}
+
 /** Tools of row 1; the lasso sits apart behind a divider like the fixed Notewise lasso (DESIGN.md section 7). */
 @Composable
 internal fun ToolsPill(
     selected: EditorTool,
     onSelectTool: (EditorTool) -> Unit,
+    ruler: RulerToggle = RulerToggle.Off,
     vertical: Boolean = false,
 ) {
     EditorTool.entries.forEach { tool ->
         if (tool == EditorTool.ATTACHMENT) {
-            // The Ruler is a toggle between Sticky note and Attachment (P07).
-            FolioIconButton(FolioIcons.Ruler, "Ruler", onClick = {}, enabled = false)
+            // The Ruler is a toggle between Sticky note and Attachment, drawn like a selected tool while it shows.
+            ToolButton(
+                icon = FolioIcons.Ruler,
+                contentDescription = if (ruler.shown) "Hide ruler" else "Show ruler",
+                selected = ruler.shown,
+                onClick = ruler.onToggle,
+            )
         }
         ToolButton(
             icon = tool.icon,

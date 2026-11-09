@@ -38,8 +38,7 @@ class ShortcutRegistryTest {
                 KeyEvent.KEYCODE_0 to EditorTool.TABLE,
             )
         expected.forEach { (key, tool) -> assertThat(action(key, alt = true)).isEqualTo(EditorAction.SelectTool(tool)) }
-        // Alt+9 is the Ruler toggle, built in P07.
-        assertThat(action(KeyEvent.KEYCODE_9, alt = true)).isNull()
+        assertThat(action(KeyEvent.KEYCODE_9, alt = true)).isEqualTo(EditorAction.ToggleRuler)
     }
 
     @Test

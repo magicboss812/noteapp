@@ -94,6 +94,7 @@ internal class ChromeActions(
     val onLinkedFrom: (Boolean) -> Unit = {},
     val onOpenBacklink: (NoteChoice) -> Unit = {},
     val onImage: (ImageSourceKind) -> Unit = {},
+    val onToggleRuler: () -> Unit = {},
 ) {
     internal companion object {
         /** Actions that call whatever [latest] holds when invoked; the instance itself never changes. */
@@ -119,6 +120,7 @@ internal class ChromeActions(
                 onLinkedFrom = { latest.value.onLinkedFrom(it) },
                 onOpenBacklink = { latest.value.onOpenBacklink(it) },
                 onImage = { latest.value.onImage(it) },
+                onToggleRuler = { latest.value.onToggleRuler() },
             )
     }
 }
@@ -280,6 +282,7 @@ private fun Toolbox(
         ToolsRow(
             tool = state.tool,
             onSelectTool = actions.onSelectTool,
+            ruler = RulerToggle(state.rulerShown, actions.onToggleRuler),
             mode = dock,
             optionsHidden = hidden,
             onToggleOptions = actions.onToggleOptions,
@@ -354,6 +357,7 @@ private fun Toolbox(
                     tool = state.tool,
                     collapsed = placement.collapsed,
                     onSelectTool = actions.onSelectTool,
+                    ruler = RulerToggle(state.rulerShown, actions.onToggleRuler),
                     onExpand = gestures.toggleCollapsed,
                     grip = {
                         ToolbarGrip(gestures.startFloating, gestures.move, gestures.release, onDoubleTap = gestures.toggleCollapsed)

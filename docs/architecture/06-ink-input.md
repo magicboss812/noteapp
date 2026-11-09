@@ -76,6 +76,7 @@ Geometry as built (A-064, `core:model` `shape/ShapeGeometry`, `ShapeHandles`; pa
 - One finger on the ruler moves it; two fingers on the ruler rotate it (15 deg detents with light haptic). This is an exception to the gesture rule only while fingers touch the ruler.
 - Pen strokes that start within 12 dp of the ruler edge are projected onto the edge line (inputs fed as StrokeInput batches); they end where the pen lifts.
 - State is per pane and not persisted.
+- As built (A-069, `core:ink` `ruler/Ruler`, `RulerAngles`; editor `RulerOverlay`, `RulerGestures`, `PenInput`): the ruler lies on the glass (view px, physical size, unmoved by pan and zoom). A gesture whose first finger lands on it (palm rules apply) moves it, a second finger turns it around the midpoint (detents within 2.5 deg, `CLOCK_TICK`); a pen joining a holding finger draws as usual. A tap on the angle readout turns it level; the toolbar toggle and Alt+9 show and hide it, off in read mode. Pen and highlighter strokes starting within 12 dp of an edge line follow it: samples are projected and fed as `StrokeInput` batches with pressure only, no hold snapping.
 
 ## Stylus capabilities
 `StylusCapabilities` is detected at runtime (InputDevice motion ranges + observed events) and refined by the P01-S7 probe results in docs/notes/device.md#stylus:

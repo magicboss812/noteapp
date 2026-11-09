@@ -69,6 +69,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -151,6 +152,16 @@ class EditorSession(
 
     /** Read mode (10-editor-ui.md#read-mode): chrome hidden, the stylus only navigates (chrome state). */
     val readMode: StateFlow<Boolean> = mutableReadMode.asStateFlow()
+
+    private val mutableRuler = MutableStateFlow(false)
+
+    /** The toolbar's Ruler toggle (chrome state; per pane, not stored: 06-ink-input.md#ruler). */
+    val ruler: StateFlow<Boolean> = mutableRuler.asStateFlow()
+
+    override val rulerShown: Flow<Boolean> = combine(mutableRuler, mutableReadMode) { on, read -> on && !read }.distinctUntilChanged()
+
+    /** Shows the ruler, or hides it. */
+    fun toggleRuler() = mutableRuler.update { !it }
 
     /**
      * Enters or leaves read mode; the next stylus down reads it through [activeTool]. Entering ends the text editing

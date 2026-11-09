@@ -208,6 +208,7 @@ internal fun FloatingToolbar(
     optionsHidden: Boolean = false,
     onToggleOptions: (() -> Unit)? = null,
     options: @Composable () -> Unit = {},
+    ruler: RulerToggle = RulerToggle.Off,
 ) {
     val motion = FolioTheme.motion
     Column(modifier) {
@@ -216,7 +217,7 @@ internal fun FloatingToolbar(
             if (collapsed) {
                 ToolButton(icon = tool.icon, contentDescription = "${tool.label}, expand toolbar", selected = true, onClick = onExpand)
             } else {
-                ToolsPill(tool, onSelectTool)
+                ToolsPill(tool, onSelectTool, ruler)
                 if (onToggleOptions != null) {
                     PillDivider()
                     FolioIconButton(

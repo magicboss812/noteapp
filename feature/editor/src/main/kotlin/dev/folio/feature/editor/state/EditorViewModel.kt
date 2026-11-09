@@ -98,6 +98,8 @@ data class EditorUiState(
     val boxSelected: Boolean = false,
     /** The image the crop and turn screen edits, null while it is closed (P07-T04). */
     val imageEdit: ImageEditUi? = null,
+    /** The toolbar's Ruler toggle is on (06-ink-input.md#ruler). */
+    val rulerShown: Boolean = false,
 )
 
 /** The bundled families in picker order (no imported fonts known yet). */
@@ -273,6 +275,7 @@ class EditorViewModel
                     state.copy(noteSuggestions = suggestions, linkedFrom = linkedFrom)
                 }.combine(boxSelected) { state, selected -> state.copy(boxSelected = selected) }
                 .combine(mutableSession.flatMapLatest { it?.imageEditUi ?: flowOf(null) }) { state, image -> state.copy(imageEdit = image) }
+                .combine(mutableSession.flatMapLatest { it?.ruler ?: flowOf(false) }) { state, ruler -> state.copy(rulerShown = ruler) }
                 .stateIn(viewModelScope, SharingStarted.Eagerly, EditorUiState())
 
         init {
@@ -332,6 +335,11 @@ class EditorViewModel
                     }
                 }
             }
+        }
+
+        /** The toolbar's Ruler toggle (Alt+9): shows or hides the ruler in this pane. */
+        fun toggleRuler() {
+            mutableSession.value?.toggleRuler()
         }
 
         /** Selects [tool] if it is built; tapping the selected tool again opens or closes its settings panel. */
@@ -629,6 +637,10 @@ class EditorViewModel
 
                 is EditorAction.Canvas -> {
                     session.sendCanvasCommand(action.command)
+                }
+
+                EditorAction.ToggleRuler -> {
+                    session.toggleRuler()
                 }
 
                 EditorAction.ToggleHelp -> {

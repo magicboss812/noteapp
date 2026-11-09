@@ -212,7 +212,11 @@ class InputRouter(
         }
     }
 
-    private fun acceptsFinger(
+    /**
+     * True when the finger at [index] of [event] passes palm rejection: no stylus down or seen within [PALM_QUIET_MS],
+     * not a large contact, not FLAG_CANCELED. Overlay gestures (the ruler) take fingers by the same rules.
+     */
+    fun acceptsFinger(
         event: MotionEvent,
         index: Int,
     ): Boolean =
