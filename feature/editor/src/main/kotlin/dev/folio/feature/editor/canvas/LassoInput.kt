@@ -80,6 +80,9 @@ internal interface LassoHost {
         objects: List<PageObject>,
     ) = Unit
 
+    /** The assets [objects] reference, for the clipboard (CanvasController.clipboardAssets). */
+    fun clipboardAssets(objects: List<PageObject>): List<ClipboardAsset> = emptyList()
+
     /** Opens the crop and turn screen for image [id] of page [pageId]. */
     fun editImage(
         pageId: PageId,
@@ -688,7 +691,7 @@ internal class LassoInput(
     private fun copy() {
         val sel = selection ?: return
         val objects = selectedObjects()
-        clipboard().put(ObjectCopies.of(objects))
+        clipboard().put(ObjectCopies.of(objects), host.clipboardAssets(objects))
         host.copyImage(sel.pageId, objects)
     }
 

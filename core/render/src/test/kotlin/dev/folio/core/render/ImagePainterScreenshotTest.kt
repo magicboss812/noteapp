@@ -67,6 +67,22 @@ class ImagePainterScreenshotTest {
     }
 
     @Test
+    fun cachedOnly_neverLoads_servesFinerOrCoarserDecodes() {
+        val peek = images.cachedOnly
+
+        assertThat(peek.bitmap(QUADRANTS, 50, 25)).isNull()
+        assertThat(loads).isEmpty()
+        val coarse = images.bitmap(QUADRANTS, 50, 25)
+        loads.clear()
+
+        // Finer wanted than decoded: the coarser decode stands in; coarser wanted: the finer one.
+        assertThat(peek.bitmap(QUADRANTS, 200, 100)).isSameInstanceAs(coarse)
+        assertThat(peek.bitmap(QUADRANTS, 20, 10)).isSameInstanceAs(coarse)
+        assertThat(peek.bitmap(AssetId("0".repeat(64)), 50, 25)).isNull()
+        assertThat(loads).isEmpty()
+    }
+
+    @Test
     fun sampleSize_wantedPixelsAndSideLimit() {
         val small = ImageBitmaps({ null }, maxSidePx = 1000)
 

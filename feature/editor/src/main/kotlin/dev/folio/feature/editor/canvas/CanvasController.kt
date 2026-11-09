@@ -2,8 +2,12 @@ package dev.folio.feature.editor.canvas
 
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.ink.input.StylusPreferences
+import dev.folio.core.model.AssetId
+import dev.folio.core.model.AssetInfo
+import dev.folio.core.model.Attachment
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
+import dev.folio.core.model.ImageObject
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
@@ -19,6 +23,7 @@ import dev.folio.core.render.viewport.Viewport
 import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.TextController
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -61,9 +66,16 @@ data class LassoSpec(
     }
 }
 
+/** An asset that clipboard objects reference: its [info] and its [bytes], read off the main thread at the copy (null: unreadable). */
+class ClipboardAsset(
+    val info: AssetInfo,
+    val bytes: Deferred<ByteArray?>,
+)
+
 /**
  * The in-app clipboard of lasso copies (06-ink-input.md#lasso): one per process, so a paste works in another note.
- * [objects] keep the page positions they were copied at. Main thread.
+ * [objects] keep the page positions they were copied at; [assets] hold the bytes of the images and attachments among
+ * them, so a paste can store them in a note that lacks them. Main thread.
  */
 @Singleton
 class ObjectClipboard
@@ -73,10 +85,26 @@ class ObjectClipboard
         var objects: List<PageObject> = emptyList()
             private set
 
-        /** Copies [copied] (already with ids of their own) to the clipboard. */
-        fun put(copied: List<PageObject>) {
+        /** The assets [objects] reference, by id. */
+        var assets: Map<AssetId, ClipboardAsset> = emptyMap()
+            private set
+
+        /** Copies [copied] (already with ids of their own) to the clipboard, with the [referenced] assets. */
+        fun put(
+            copied: List<PageObject>,
+            referenced: List<ClipboardAsset> = emptyList(),
+        ) {
             objects = copied
+            assets = referenced.associateBy { it.info.id }
         }
+    }
+
+/** The asset [o] references, or null. */
+fun assetOf(o: PageObject): AssetId? =
+    when (o) {
+        is ImageObject -> o.asset
+        is Attachment -> o.asset
+        else -> null
     }
 
 /** Objects [ids] of page [pageId] for the lasso to select. */
@@ -151,6 +179,9 @@ interface CanvasController {
 
     /** The clipboard of lasso Cut and Copy. */
     val clipboard: ObjectClipboard
+
+    /** The assets [objects] reference, their bytes read off the main thread, for [clipboard] (main thread); none by default. */
+    fun clipboardAssets(objects: List<PageObject>): List<ClipboardAsset> = emptyList()
 
     /**
      * Runs lasso [edit] on objects [ids] of page [pageId] as one undo step; [document] shows the result afterwards.

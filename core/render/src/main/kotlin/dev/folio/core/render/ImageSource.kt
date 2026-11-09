@@ -19,6 +19,12 @@ fun interface ImageSource {
         minHeightPx: Int,
     ): Bitmap?
 
+    /**
+     * This source without loading or decoding: only bitmaps decoded already, for drawing on the main thread (lasso
+     * snapshots); [None] unless the source caches.
+     */
+    val cachedOnly: ImageSource get() = None
+
     /** No images: the renderer draws placeholders. */
     object None : ImageSource {
         override fun bitmap(
@@ -40,12 +46,14 @@ class ImageBitmaps(
     budgetBytes: Int = DEFAULT_BUDGET_BYTES,
     private val maxSidePx: Int = MAX_SIDE_PX,
 ) : ImageSource {
+    // Stored keys are never changed; [probe] is reused for lookups under [lock] so a cache scan allocates nothing.
     private data class Key(
-        val id: AssetId,
-        val sample: Int,
+        var id: AssetId,
+        var sample: Int,
     )
 
     private val lock = Any()
+    private val probe = Key(AssetId(""), 0)
     private val sizes = HashMap<AssetId, Long>()
     private val cache =
         object : LruCache<Key, Bitmap>(budgetBytes) {
@@ -65,20 +73,41 @@ class ImageBitmaps(
         return cached(id, sample) ?: decode(id, sample)
     }
 
+    override val cachedOnly: ImageSource = ImageSource { id, minWidthPx, minHeightPx -> peek(id, minWidthPx, minHeightPx) }
+
+    // What is decoded already: the decode at the wanted sample, a finer one, else the finest coarser one; never loads.
+    private fun peek(
+        id: AssetId,
+        minWidthPx: Int,
+        minHeightPx: Int,
+    ): Bitmap? {
+        val size = synchronized(lock) { sizes[id] } ?: return null
+        val sample = sampleSize((size shr SHIFT).toInt(), size.toInt(), minWidthPx, minHeightPx)
+        return cached(id, sample) ?: synchronized(lock) { lookup(id, sample * 2, MAX_SAMPLE, up = true) }
+    }
+
     // The decode at [sample] or a finer one.
     private fun cached(
         id: AssetId,
         sample: Int,
-    ): Bitmap? =
-        synchronized(lock) {
-            var s = sample
-            var hit: Bitmap? = null
-            while (hit == null && s >= 1) {
-                hit = cache.get(Key(id, s))
-                s /= 2
-            }
-            hit
+    ): Bitmap? = synchronized(lock) { lookup(id, sample, 1, up = false) }
+
+    // First cached decode of [id] from sample [from] towards [to], doubling ([up]) or halving; call under [lock].
+    private fun lookup(
+        id: AssetId,
+        from: Int,
+        to: Int,
+        up: Boolean,
+    ): Bitmap? {
+        var s = from
+        while (if (up) s <= to else s >= to) {
+            probe.id = id
+            probe.sample = s
+            cache.get(probe)?.let { return it }
+            s = if (up) s * 2 else s / 2
         }
+        return null
+    }
 
     private fun decode(
         id: AssetId,
@@ -123,6 +152,7 @@ class ImageBitmaps(
 
         /** Longest decoded side (GPU texture limit with headroom). */
         const val MAX_SIDE_PX = 4096
+        private const val MAX_SAMPLE = 1024
         private const val SHIFT = 32
     }
 }

@@ -36,6 +36,7 @@ Rules: no blocking IO or layout of more than one block on main; hot paths alloca
 ## Memory
 - `android:largeHeap="true"`. Tile caches <= 25% of `largeMemoryClass` (content + background), BitmapPool reuse, LRU by bytes.
 - Decoded pages LRU 30 per session; decoded image bitmaps sized to the zoom bucket; PDF previews cached at low resolution only.
+- Decoded image assets (`ImageBitmaps`): their own LRU of 48 MiB per editor session, outside the tile budget; main-thread drawing (lasso snapshots) uses only decodes already cached (`ImageSource.cachedOnly`). Trimming on memory pressure and session close comes with P11-T14.
 - `onTrimMemory(TRIM_MEMORY_UI_HIDDEN)` drops non-visible tiles and previews; `RUNNING_LOW` drops everything not visible.
 
 ## Startup

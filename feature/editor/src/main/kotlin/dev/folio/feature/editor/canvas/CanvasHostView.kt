@@ -247,7 +247,9 @@ class CanvasHostView internal constructor(
 
     // The lasso selection a drag moves: the tiles leave it out while the page body is [LassoHidden.before] (P07-T03).
     private var lassoHidden: LassoHidden? = null
-    private val snapshotRenderer by lazy(LazyThreadSafetyMode.NONE) { PageRenderer(images = controller.images) }
+
+    // Main thread: decoded images only, a miss draws the placeholder (no asset read or decode at the drag start).
+    private val snapshotRenderer by lazy(LazyThreadSafetyMode.NONE) { PageRenderer(images = controller.images.cachedOnly) }
 
     /** The lasso (tests drive it). */
     internal val lasso =
@@ -704,6 +706,8 @@ class CanvasHostView internal constructor(
                 SelectionImage.publish(context, file)
             }
         }
+
+        override fun clipboardAssets(objects: List<PageObject>) = controller.clipboardAssets(objects)
 
         override fun editImage(
             pageId: PageId,

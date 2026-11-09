@@ -4,11 +4,16 @@ import android.graphics.Bitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.common.getOrNull
+import dev.folio.core.model.AssetId
 import dev.folio.core.model.Attachment
 import dev.folio.core.model.Document
 import dev.folio.core.model.ImageObject
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.RectF01
+import dev.folio.core.model.edit.ObjectCopies
+import dev.folio.core.model.edit.SelectionEdit
+import dev.folio.core.model.geometry.PointPt
 import dev.folio.core.model.lasso.LassoKind
 import dev.folio.core.render.viewport.visibleRectPt
 import dev.folio.feature.editor.canvas.CanvasTool
@@ -145,6 +150,76 @@ class EditorMediaViewModelTest : EditorViewModelTestBase() {
                     .single(),
             ).isEqualTo(chip)
             assertThat(reopened.documentSession.readAsset(chip.asset).getOrNull()).isEqualTo(bytes)
+        }
+
+    @Test
+    fun clipboard_copyImageAndChipPasteInAnotherNote_assetsStoredAndKeptAfterReopen() =
+        editorTest {
+            val pathA = createDoc("Source")
+            val a = viewModel(pathA).opened()
+            a.viewport.setPages(a.document.value.pages, VIEW_W, VIEW_H)
+            val png = ImageImport.fromBytes(pngBytes(40, 20), "photo.png").getOrNull()!!
+            val pdf = "%PDF-1.4\n% clip\n".toByteArray()
+            assertThat(a.insertImage(png)).isTrue()
+            assertThat(a.insertAttachment(ImportedFile(pdf, "application/pdf", "Clip.pdf"))).isTrue()
+            val pageA =
+                a.document.value.pages[0]
+                    .id
+            val copied =
+                a.document.value.pageBodies
+                    .getValue(pageA)
+                    .objects
+                    .toList()
+            clipboard.put(ObjectCopies.of(copied), a.clipboardAssets(copied))
+            assertThat(clipboard.assets).hasSize(2)
+
+            val pathB = createDoc("Target")
+            val b = viewModel(pathB).opened()
+            val pageB =
+                b.document.value.pages[0]
+                    .id
+            b.documentSession.loadPages(listOf(pageB))
+            assertThat(b.editSelection(pageB, emptyList(), SelectionEdit.Add(clipboard.objects))).isTrue()
+            val image =
+                b.document.value
+                    .images(pageB)
+                    .single()
+            val chip =
+                b.document.value
+                    .attachments(pageB)
+                    .single()
+            assertThat(b.document.value.assets.keys).containsExactly(image.asset, chip.asset)
+            // One undo step takes both the objects and the asset entries.
+            assertThat(b.undo()).isTrue()
+            assertThat(b.document.value.assets).isEmpty()
+            assertThat(b.redo()).isTrue()
+
+            store.clear()
+            awaitReleases()
+            val reopened = viewModel(pathB).opened()
+            reopened.documentSession.loadPages(listOf(pageB))
+            assertThat(
+                reopened.document.value
+                    .images(pageB)
+                    .single(),
+            ).isEqualTo(image)
+            assertThat(reopened.documentSession.readAsset(image.asset).getOrNull()).isEqualTo(png.bytes)
+            assertThat(reopened.documentSession.readAsset(chip.asset).getOrNull()).isEqualTo(pdf)
+        }
+
+    @Test
+    fun clipboard_pasteWithUnreadableAsset_refused() =
+        editorTest {
+            val b = viewModel(createDoc("Target")).opened()
+            val page =
+                b.document.value.pages[0]
+                    .id
+            b.documentSession.loadPages(listOf(page))
+            val lost = Attachment(ObjectId.random(), AssetId("0".repeat(64)), "Lost.pdf", "application/pdf", PointPt(40f, 40f), 9)
+            clipboard.put(listOf(lost))
+
+            assertThat(b.editSelection(page, emptyList(), SelectionEdit.Add(clipboard.objects))).isFalse()
+            assertThat(b.document.value.attachments(page)).isEmpty()
         }
 
     private fun Document.attachments(page: PageId) = pageBodies.getValue(page).objects.filterIsInstance<Attachment>()

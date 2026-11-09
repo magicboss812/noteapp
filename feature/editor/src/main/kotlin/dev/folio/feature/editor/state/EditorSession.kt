@@ -19,6 +19,7 @@ import dev.folio.core.model.ImageObject
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.PageObject
 import dev.folio.core.model.PageSpec
 import dev.folio.core.model.RectF01
 import dev.folio.core.model.TemplateKind
@@ -47,10 +48,12 @@ import dev.folio.feature.editor.canvas.BoxKeyEvent
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
+import dev.folio.feature.editor.canvas.ClipboardAsset
 import dev.folio.feature.editor.canvas.LassoSpec
 import dev.folio.feature.editor.canvas.ObjectClipboard
 import dev.folio.feature.editor.canvas.ObjectSelection
 import dev.folio.feature.editor.canvas.ShapeSpec
+import dev.folio.feature.editor.canvas.assetOf
 import dev.folio.feature.editor.canvas.boxOutlines
 import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.EditorText
@@ -58,6 +61,7 @@ import dev.folio.feature.editor.text.RevocableSteps
 import dev.folio.feature.editor.text.TextController
 import dev.folio.feature.editor.text.TextEditor
 import dev.folio.feature.editor.text.TextEngine
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainCoroutineDispatcher
@@ -201,6 +205,7 @@ class EditorSession(
         ids: List<ObjectId>,
         edit: SelectionEdit,
     ): Boolean {
+        if (edit is SelectionEdit.Add) return add(pageId, edit)
         val idSet = ids.toHashSet()
         val frames =
             document.value
@@ -217,6 +222,49 @@ class EditorSession(
         val others = if (plain.isEmpty()) null else edit.command(pageId, plain)
         val command = texts.lassoBoxesCommand(pageId, others, flows, (edit as? SelectionEdit.Transform)?.affine) ?: return false
         return execute(command)
+    }
+
+    // A paste from another note (or after the insert's undo) stores the clipboard's bytes of the assets this note lacks
+    // and lists them in the same undo step; false if one is unreadable (06-ink-input.md#lasso).
+    private suspend fun add(
+        pageId: PageId,
+        edit: SelectionEdit.Add,
+    ): Boolean {
+        val have = document.value.assets
+        val missing = edit.objects.mapNotNullTo(LinkedHashSet()) { o -> assetOf(o)?.takeIf { it !in have } }
+        val adds = edit.command(pageId, emptyList())
+        if (missing.isEmpty()) return execute(adds)
+        val infos =
+            missing.map { id ->
+                val asset = clipboard.assets[id]
+                val bytes = asset?.bytes?.await()
+                if (asset == null || bytes == null) {
+                    FolioLog.w(TAG, "paste: asset ${id.value} unavailable")
+                    return false
+                }
+                val stored = withContext(dispatchers.io) { documentSession.storeAsset(bytes, asset.info.mime, asset.info.originalName) }
+                stored.getOrNull() ?: run {
+                    FolioLog.w(TAG, "paste storeAsset: ${(stored as Outcome.Failure).message}", stored.cause)
+                    return false
+                }
+            }
+        return execute(Batch(listOf(UpdateAssets(infos), adds)))
+    }
+
+    @MainThread
+    override fun clipboardAssets(objects: List<PageObject>): List<ClipboardAsset> {
+        val assets = document.value.assets
+        return objects.mapNotNullTo(LinkedHashSet(), ::assetOf).mapNotNull { id ->
+            val info = assets[id] ?: return@mapNotNull null
+            val bytes = CompletableDeferred<ByteArray?>()
+            scope
+                .launch(dispatchers.io) {
+                    val read = documentSession.readAsset(id)
+                    if (read is Outcome.Failure) FolioLog.w(TAG, "copy readAsset: ${read.message}", read.cause)
+                    bytes.complete(read.getOrNull())
+                }.invokeOnCompletion { bytes.complete(null) } // cancelled with the editor: the paste reports it unreadable
+            ClipboardAsset(info, bytes)
+        }
     }
 
     private val canvasCommands = MutableSharedFlow<CanvasCommand>(extraBufferCapacity = COMMAND_BUFFER)

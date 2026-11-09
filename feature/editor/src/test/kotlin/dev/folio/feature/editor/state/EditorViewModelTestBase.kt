@@ -21,6 +21,7 @@ import dev.folio.core.testing.ModelFixtures
 import dev.folio.core.testing.TempDirFolioFs
 import dev.folio.core.testing.TestDispatchersRule
 import dev.folio.core.text.fonts.FontLibrary
+import dev.folio.feature.editor.canvas.ObjectClipboard
 import dev.folio.feature.editor.text.EditorFonts
 import dev.folio.feature.editor.text.TextTestEngine
 import kotlinx.coroutines.CoroutineScope
@@ -56,6 +57,9 @@ abstract class EditorViewModelTestBase {
     private val app = ManifestApp("Folio", "test")
     protected val store = ViewModelStore()
     protected val settings = FakeSettingsStore()
+
+    /** The lasso clipboard every ViewModel of a test shares, like the injected singleton. */
+    protected val clipboard = ObjectClipboard()
     private val sessionScope by lazy { CoroutineScope(SupervisorJob() + main.testDispatcher) }
     protected lateinit var db: IndexDb
     protected lateinit var documents: DocumentRepository
@@ -114,6 +118,7 @@ abstract class EditorViewModelTestBase {
                         TextTestEngine.create(ApplicationProvider.getApplicationContext()),
                         NoteLinks(db.dao(), main.dispatchers),
                         EditorFonts(FontLibrary(null), main.dispatchers),
+                        clipboard,
                     )
                 }
             },
