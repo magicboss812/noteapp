@@ -11,8 +11,8 @@ import dev.folio.core.model.attachment.AttachmentKind
 import dev.folio.core.model.attachment.AttachmentLabels
 
 /**
- * Paints attachment chips (A-070) in page space, so thumbnails and export show them too: a white rounded card with a
- * thin border, a colored tile with the file type ("PDF", "IMG", ...), the name cut to fit and the size below it. Not
+ * Paints attachment chips (A-070) in page space, so thumbnails and export show them too: a light gray rounded card with
+ * a border, a colored tile with the file type ("PDF", "IMG", ...), the name cut to fit and the size below it. Not
  * thread-safe: one per [PageRenderer].
  */
 internal class AttachmentPainter {
@@ -95,7 +95,7 @@ internal class AttachmentPainter {
 
     private companion object {
         const val RADIUS_PT = 8f
-        const val BORDER_PT = 0.75f
+        const val BORDER_PT = 1f
         const val PAD_PT = 6f
         const val TILE_PT = 30f
         const val TILE_RADIUS_PT = 6f
@@ -110,8 +110,10 @@ internal class AttachmentPainter {
         const val MEDIUM_WEIGHT = 500
         const val CACHE_LIMIT = 256
         const val UNNAMED = "Attachment"
-        const val CARD_ARGB = 0xFFFFFFFF.toInt()
-        const val BORDER_ARGB = 0xFFD5D8DE.toInt()
+
+        // Tinted and outlined so the card stands out on white paper too (device check P07-T07).
+        const val CARD_ARGB = 0xFFF3F4F7.toInt()
+        const val BORDER_ARGB = 0xFFB8BDC7.toInt()
         const val TAG_ARGB = 0xFFFFFFFF.toInt()
         const val NAME_ARGB = 0xFF1F2937.toInt()
         const val SIZE_ARGB = 0xFF6B7280.toInt()

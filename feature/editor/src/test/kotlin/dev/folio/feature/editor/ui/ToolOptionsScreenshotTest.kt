@@ -132,6 +132,13 @@ class ToolOptionsScreenshotTest {
     }
 
     @Test
+    fun row_attachment_attachFileWithoutDetails() {
+        row(EditorTool.ATTACHMENT)
+        compose.onNodeWithText("Attach file").assertExists()
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_attachment.png")
+    }
+
+    @Test
     fun row_stickyBlueTilted_fiveColorsAndTiltWithoutDetails() {
         row(EditorTool.STICKY, ToolOptions(sticky = StickyOptions(color = 2, tilt = true)))
         compose.onNodeWithContentDescription("Blue sticky note").assertExists()

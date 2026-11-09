@@ -9,6 +9,7 @@ import android.view.MotionEvent.TOOL_TYPE_STYLUS
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dev.folio.core.model.AssetId
+import dev.folio.core.model.Attachment
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
@@ -52,6 +53,7 @@ class LassoInputTest {
     private var snapshots = 0
     private var images = 0
     private val cropped = ArrayList<ObjectId>()
+    private val opened = ArrayList<ObjectId>()
     private var spec = LassoSpec.DEFAULT
     private val clipboard = ObjectClipboard()
 
@@ -94,6 +96,13 @@ class LassoInputTest {
                 id: ObjectId,
             ) {
                 cropped += id
+            }
+
+            override fun openAttachment(
+                pageId: PageId,
+                id: ObjectId,
+            ) {
+                opened += id
             }
 
             override fun isDrawn(
@@ -265,6 +274,35 @@ class LassoInputTest {
     }
 
     @Test
+    fun tapOnAttachment_withImageKinds_selectsIt_barLeadsWithOpen() {
+        val chip = Attachment(ObjectId("att"), AssetId("b".repeat(64)), "Syllabus.pdf", "application/pdf", PointPt(100f, 450f), 2048)
+        doc = AddObjects(page, listOf(chip)).execute(doc).doc
+        spec = LassoSpec(rectangle = false, kinds = setOf(LassoKind.IMAGES))
+
+        tap(PointPt(150f, 470f))
+        assertThat(input.selection).isEqualTo(LassoSelection(page, listOf(chip.id)))
+        input.box()
+        assertThat(input.leadButton).isEqualTo(LassoButton.OPEN)
+        press(LassoButton.OPEN)
+        assertThat(opened).containsExactly(chip.id)
+        assertThat(edits).isEmpty()
+
+        // A tap beside it drops the selection again.
+        tap(PointPt(500f, 900f))
+        assertThat(input.selection).isNull()
+    }
+
+    @Test
+    fun tapOnAttachment_withoutImageKinds_selectsNothing() {
+        val chip = Attachment(ObjectId("att"), AssetId("b".repeat(64)), "a.zip", "application/zip", PointPt(100f, 450f))
+        doc = AddObjects(page, listOf(chip)).execute(doc).doc
+        spec = LassoSpec(rectangle = false, kinds = setOf(LassoKind.INK))
+
+        tap(PointPt(150f, 470f))
+        assertThat(input.selection).isNull()
+    }
+
+    @Test
     fun actionBar_duplicateDeleteColorArrange_eachOneEdit() {
         selectGrid()
         press(LassoButton.DUPLICATE)
@@ -345,7 +383,7 @@ class LassoInputTest {
             val box = checkNotNull(input.box())
             val top = viewport.toViewPx(page, PointPt(box.center.x, box.top))
             val bottom = viewport.toViewPx(page, PointPt(box.center.x, box.bottom))
-            toolbar.place(top.x, top.y - ROTATE_OFFSET_PX, bottom.y, VIEW_W, VIEW_H, image = input.imageSelected)
+            toolbar.place(top.x, top.y - ROTATE_OFFSET_PX, bottom.y, VIEW_W, VIEW_H, lead = input.leadButton)
         }
         val y = toolbar.pill.centerY()
         var x = toolbar.pill.left

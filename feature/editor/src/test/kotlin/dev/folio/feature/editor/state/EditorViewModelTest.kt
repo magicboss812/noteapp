@@ -16,6 +16,7 @@ import dev.folio.core.format.manifest.ManifestApp
 import dev.folio.core.ink.brush.BrushPresets
 import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
+import dev.folio.core.model.Attachment
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.Document
 import dev.folio.core.model.ImageObject
@@ -63,93 +64,13 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
+import kotlin.io.path.createTempDirectory
 import kotlin.random.Random
 
 /** EditorViewModel over the real storage stack: temp-dir library, in-memory index, unconfined dispatchers. */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
-class EditorViewModelTest {
-    @get:Rule val fs = TempDirFolioFs()
-
-    @get:Rule val main = TestDispatchersRule(UnconfinedTestDispatcher())
-
-    private val clock = FakeClock()
-    private val app = ManifestApp("Folio", "test")
-    private val store = ViewModelStore()
-    private val settings = FakeSettingsStore()
-    private val sessionScope by lazy { CoroutineScope(SupervisorJob() + main.testDispatcher) }
-    private lateinit var db: IndexDb
-    private lateinit var documents: DocumentRepository
-    private lateinit var sessions: DocumentSessions
-
-    @Before
-    fun setUp() {
-        val appFs = fs.sub(".app")
-        db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), IndexDb::class.java).build()
-        val scanner = LibraryScanner(fs, db, clock, main.dispatchers)
-        documents = DocumentRepository(fs, scanner, db.dao(), clock, main.dispatchers, app)
-        sessions =
-            DocumentSessions(
-                WorkingCopyStore(appFs, fs),
-                Packer(fs, appFs, clock),
-                scanner,
-                clock,
-                main.dispatchers,
-                sessionScope,
-                app,
-            )
-    }
-
-    @After
-    fun tearDown() {
-        db.close()
-    }
-
-    /** Runs [body], then clears the ViewModels and waits for their releases to pack before the database closes. */
-    private fun editorTest(body: suspend TestScope.() -> Unit) =
-        runTest(main.testDispatcher) {
-            body()
-            store.clear()
-            awaitReleases()
-        }
-
-    /** Releases are queued behind the unconfined test body; joining lets them pack (indexing runs on Room's thread). */
-    private suspend fun awaitReleases() {
-        sessionScope.coroutineContext.job.children
-            .forEach { it.join() }
-    }
-
-    private fun viewModel(path: String): EditorViewModel =
-        ViewModelProvider.create(
-            store,
-            viewModelFactory {
-                initializer {
-                    EditorViewModel(
-                        path,
-                        DENSITY,
-                        null,
-                        sessions,
-                        main.dispatchers,
-                        ToolOptionsStore(settings),
-                        ToolbarDockStore(settings),
-                        TextTestEngine.create(ApplicationProvider.getApplicationContext()),
-                        NoteLinks(db.dao(), main.dispatchers),
-                        EditorFonts(FontLibrary(null), main.dispatchers),
-                    )
-                }
-            },
-        )[path, EditorViewModel::class]
-
-    /** Waits for the open, which finishes on Room's thread. */
-    private suspend fun EditorViewModel.opened(): EditorSession = session.filterNotNull().first()
-
-    private suspend fun EditorViewModel.awaitState(predicate: (EditorUiState) -> Boolean): EditorUiState = state.first(predicate)
-
-    private suspend fun createDoc(title: String): String {
-        val spec = NewDocumentSpec("", title, ModelFixtures.A4, ModelFixtures.LINED_BACKGROUND, 2)
-        return (documents.create(spec) as Outcome.Success).value.path
-    }
-
+class EditorViewModelTest : EditorViewModelTestBase() {
     @Test
     fun open_existingDocument_readyWithPenAndSession() =
         editorTest {
@@ -199,7 +120,7 @@ class EditorViewModelTest {
 
             vm.selectTool(EditorTool.TEXT)
             vm.awaitState { it.tool == EditorTool.TEXT }
-            vm.selectTool(EditorTool.ATTACHMENT)
+            vm.selectTool(EditorTool.TABLE)
             assertThat(session.tool.value).isEqualTo(EditorTool.TEXT)
             assertThat(session.activeTool).isEqualTo(CanvasTool.TEXT)
         }
@@ -499,81 +420,6 @@ class EditorViewModelTest {
         }
 
     @Test
-    fun images_insertSelectCropTurnUndo_reopenKeepsImageAndAsset() =
-        editorTest {
-            val path = createDoc("Images")
-            val vm = viewModel(path)
-            val session = vm.opened()
-            session.viewport.setPages(session.document.value.pages, VIEW_W, VIEW_H)
-            val page =
-                session.document.value.pages[0]
-                    .id
-            vm.selectTool(EditorTool.IMAGE)
-            vm.awaitState { it.tool == EditorTool.IMAGE }
-            assertThat(session.activeTool).isEqualTo(CanvasTool.LASSO)
-            assertThat(session.lassoSpec.kinds).containsExactly(LassoKind.IMAGES)
-            val selected = async(start = CoroutineStart.UNDISPATCHED) { session.selections.first() }
-            val png = ImageImport.fromBytes(pngBytes(400, 200), "photo.png").getOrNull()!!
-
-            assertThat(vm.insertImage(png)).isTrue()
-            val image =
-                session.document.value
-                    .images(page)
-                    .single()
-            assertThat(selected.await()).isEqualTo(ObjectSelection(page, listOf(image.id)))
-            assertThat(session.document.value.assets.keys).containsExactly(image.asset)
-            // Centered in the visible part of the page, aspect kept.
-            val visible = session.viewport.visibleRectPt(page)
-            assertThat(image.rect.center.x).isWithin(0.5f).of(visible.center.x)
-            assertThat(image.rect.widthPt / image.rect.heightPt).isWithin(1e-3f).of(2f)
-
-            session.editImage(page, image.id)
-            assertThat(vm.awaitState { it.imageEdit != null }.imageEdit!!.crop).isEqualTo(RectF01.FULL)
-            vm.applyImageEdit(ImageCropResult(RectF01(0.5f, 0f, 1f, 1f), 1))
-            vm.awaitState { it.imageEdit == null }
-            val cropped =
-                session.document.value
-                    .images(page)
-                    .single()
-            assertThat(cropped.crop).isEqualTo(RectF01(0.5f, 0f, 1f, 1f))
-            assertThat(cropped.rotationDeg).isEqualTo(90f)
-            assertThat(cropped.rect.widthPt).isWithin(1e-3f).of(image.rect.widthPt / 2)
-
-            assertThat(session.undo()).isTrue()
-            assertThat(
-                session.document.value
-                    .images(page)
-                    .single(),
-            ).isEqualTo(image)
-            assertThat(session.undo()).isTrue()
-            assertThat(session.document.value.images(page)).isEmpty()
-            assertThat(session.document.value.assets).isEmpty()
-            assertThat(session.redo()).isTrue()
-            assertThat(session.redo()).isTrue()
-
-            store.clear()
-            awaitReleases()
-            val reopened = viewModel(path).opened()
-            reopened.documentSession.loadPages(listOf(page))
-            assertThat(
-                reopened.document.value
-                    .images(page)
-                    .single(),
-            ).isEqualTo(cropped)
-            assertThat(reopened.documentSession.readAsset(image.asset).getOrNull()).isEqualTo(png.bytes)
-        }
-
-    private fun Document.images(page: PageId) = pageBodies.getValue(page).objects.filterIsInstance<ImageObject>()
-
-    private fun pngBytes(
-        w: Int,
-        h: Int,
-    ): ByteArray {
-        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).apply { eraseColor(0xFF2563EB.toInt()) }
-        return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
-    }
-
-    @Test
     fun cleared_releasesSession_reopenSeesPackedEdit() =
         editorTest {
             val path = createDoc("Leave")
@@ -738,13 +584,5 @@ class EditorViewModelTest {
         val documentSession = (sessions.open(path) as Outcome.Success).value
         documentSession.execute(UpdateFlows(listOf(ModelFixtures.flow("body", markdown))))
         sessions.close(documentSession)
-    }
-
-    private companion object {
-        const val DENSITY = 2.75f
-
-        // Pad 7 landscape window, px.
-        const val VIEW_W = 3200f
-        const val VIEW_H = 2136f
     }
 }

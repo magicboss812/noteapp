@@ -201,6 +201,12 @@ interface CanvasController {
         id: ObjectId,
     ) = Unit
 
+    /** The lasso's Open button on attachment [id] of page [pageId]: the editor opens the file in another app (A-070). */
+    fun openAttachment(
+        pageId: PageId,
+        id: ObjectId,
+    ) = Unit
+
     /**
      * What each page paints as text (A-042) and the live field drawing the focused block, which the pages leave out.
      * Computed off the main thread; empty without a text engine.

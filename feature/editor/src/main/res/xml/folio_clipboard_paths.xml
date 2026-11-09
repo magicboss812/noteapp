@@ -7,4 +7,8 @@
     <cache-path
         name="camera"
         path="camera/" />
+    <!-- Attachments written for another app to open (A-070): cache/attachments/<asset id prefix>/<name>. -->
+    <cache-path
+        name="attachments"
+        path="attachments/" />
 </paths>

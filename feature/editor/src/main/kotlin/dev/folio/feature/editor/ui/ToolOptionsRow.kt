@@ -63,11 +63,11 @@ internal val SIZE_LABELS = persistentListOf("S", "M", "L")
 internal typealias OptionsChange = ((ToolOptions) -> ToolOptions) -> Unit
 
 /**
- * Whether [this] tool has a row 2 (10-editor-ui.md#tool-options): the tools with a settings panel, the Image tool and
- * the Sticky tool.
+ * Whether [this] tool has a row 2 (10-editor-ui.md#tool-options): the tools with a settings panel, the Image, Sticky and
+ * Attachment tools.
  */
 internal val EditorTool.hasOptions: Boolean
-    get() = hasSettings || this == EditorTool.IMAGE || this == EditorTool.STICKY
+    get() = hasSettings || this == EditorTool.IMAGE || this == EditorTool.STICKY || this == EditorTool.ATTACHMENT
 
 // Names of the sticky colors (StickyNote.COLORS order) for content descriptions.
 private val STICKY_COLOR_NAMES = persistentListOf("Yellow", "Pink", "Blue", "Green", "Lavender")
@@ -168,6 +168,7 @@ private fun ToolContent(
         EditorTool.TEXT -> TextOptionsContent(options.text, onChange, onFonts, vertical)
         EditorTool.SHAPE -> ShapeOptionsContent(options, onChange, onPopover, vertical)
         EditorTool.IMAGE -> ImageOptionsContent(onImage, vertical)
+        EditorTool.ATTACHMENT -> AttachmentOptionsContent(onImage, vertical)
         EditorTool.STICKY -> StickyOptionsContent(options.sticky, onChange, vertical)
         else -> EraserOptionsContent(options.eraser, onChange, vertical)
     }

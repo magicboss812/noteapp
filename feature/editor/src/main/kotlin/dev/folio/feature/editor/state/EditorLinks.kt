@@ -30,6 +30,11 @@ sealed interface EditorEvent {
     /** A note link whose note no longer exists (or a `[[Title]]` no note is named). */
     data object NoteNotFound : EditorEvent
 
+    /** Opens attachment [target] in the app the user picks (A-070). */
+    data class OpenAttachment(
+        val target: AttachmentTarget,
+    ) : EditorEvent
+
     /** A short message for the snackbar (font import result). */
     data class Notice(
         val text: String,

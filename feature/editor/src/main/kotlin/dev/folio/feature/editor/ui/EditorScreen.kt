@@ -126,6 +126,19 @@ fun EditorRoute(
                 is EditorEvent.Notice -> {
                     launch { snackbars.showSnackbar(event.text) }
                 }
+
+                is EditorEvent.OpenAttachment -> {
+                    launch {
+                        val file = viewModel.attachmentFile(event.target, context.cacheDir)
+                        val notice =
+                            when {
+                                file == null -> "Could not open the attachment"
+                                !openAttachmentFile(context, file, event.target.mime) -> "No app can open this file"
+                                else -> null
+                            }
+                        notice?.let { snackbars.showSnackbar(it) }
+                    }
+                }
             }
         }
     }

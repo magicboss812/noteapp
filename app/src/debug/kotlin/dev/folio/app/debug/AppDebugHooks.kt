@@ -76,6 +76,8 @@ internal class AppDebugHooks
                         "image-insert" to canvas.images::insert,
                         "image-crop" to canvas.images::crop,
                         "image-edit" to canvas.images::edit,
+                        "attach-insert" to canvas.attachments::insert,
+                        "attach-open" to canvas.attachments::open,
                     ),
             ) { visible -> setOverlayVisible(visible) }
 

@@ -34,9 +34,9 @@ class AttachmentPainterScreenshotTest {
 
         renderer.draw(Canvas(bitmap), page.toRef(), PageContent.of(page), region, SCALE, RenderTarget.EXPORT_RASTER)
 
-        // The PDF chip's type tile is red; the card around it white.
+        // The PDF chip's type tile is red; the card around it light gray.
         assertThat(pixel(bitmap, 16f + 10f, 16f + 21f)).isEqualTo(0xFFDC2626.toInt())
-        assertThat(pixel(bitmap, 16f + 190f, 16f + 3f)).isEqualTo(0xFFFFFFFF.toInt())
+        assertThat(pixel(bitmap, 16f + 190f, 16f + 4f)).isEqualTo(0xFFF3F4F7.toInt())
         bitmap.captureRoboImage("src/test/screenshots/AttachmentPainter_kindsLongNameUnknownSize.png")
     }
 

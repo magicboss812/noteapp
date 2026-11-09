@@ -243,7 +243,7 @@ internal class LassoOverlay(
                     y0 + box.bottom * s + knobRadiusPx,
                     width.toFloat(),
                     clearHeight,
-                    image = source.imageSelected,
+                    lead = source.leadButton,
                 )
             }
 

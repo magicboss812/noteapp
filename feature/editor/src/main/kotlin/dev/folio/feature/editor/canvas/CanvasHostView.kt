@@ -708,6 +708,11 @@ class CanvasHostView internal constructor(
             id: ObjectId,
         ) = controller.editImage(pageId, id)
 
+        override fun openAttachment(
+            pageId: PageId,
+            id: ObjectId,
+        ) = controller.openAttachment(pageId, id)
+
         override fun isDrawn(
             pageId: PageId,
             rect: RectPt,

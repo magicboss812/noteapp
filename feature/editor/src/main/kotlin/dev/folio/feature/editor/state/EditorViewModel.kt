@@ -15,6 +15,7 @@ import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
 import dev.folio.core.common.getOrNull
 import dev.folio.core.model.AssetId
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.edit.PageOps
 import dev.folio.core.storage.repo.NoteLinks
@@ -57,6 +58,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.IOException
 
 /** Lifecycle of the editor's document. */
 enum class EditorStatus { OPENING, READY, FAILED }
@@ -317,6 +320,7 @@ class EditorViewModel
                                 texts.linkTaps.collect { tap -> noteLinksOfDoc.eventFor(tap)?.let { mutableEvents.send(it) } }
                             }
                         }
+                        viewModelScope.launch { session.attachmentOpens.collect { mutableEvents.send(EditorEvent.OpenAttachment(it)) } }
                         ThumbnailGenerator(result.value, dispatchers, viewModelScope, text = session.text, images = session.images).start()
                         searchQuery?.takeIf { it.isNotBlank() }?.let { query ->
                             viewModelScope.launch { session.showSearchMatch(query) }
@@ -380,6 +384,65 @@ class EditorViewModel
 
         /** Inserts [image] (debug automation feeds fixtures this way). */
         suspend fun insertImage(image: ImportedImage): Boolean = mutableSession.value?.insertImage(image) == true
+
+        /**
+         * Attaches the picked file at [uri] to the page on screen and selects its chip (A-070); a notice when it cannot be
+         * read or stored.
+         */
+        fun insertAttachment(
+            resolver: ContentResolver,
+            uri: Uri,
+        ) {
+            val session = mutableSession.value ?: return
+            viewModelScope.launch {
+                val read = withContext(dispatchers.io) { AttachmentFiles.read(resolver, uri) }
+                val file = read.getOrNull()
+                val notice =
+                    when {
+                        file == null -> "Could not read the file (at most 64 MB)"
+                        !session.insertAttachment(file) -> "Could not attach the file"
+                        else -> null
+                    }
+                notice?.let { mutableEvents.send(EditorEvent.Notice(it)) }
+            }
+        }
+
+        /** Attaches [file] (debug automation feeds fixtures this way). */
+        suspend fun insertAttachment(file: ImportedFile): Boolean = mutableSession.value?.insertAttachment(file) == true
+
+        /** Opens attachment [id] of page [pageId] as the lasso's Open button does (debug automation). */
+        fun openAttachment(
+            pageId: PageId,
+            id: ObjectId,
+        ) {
+            mutableSession.value?.openAttachment(pageId, id)
+        }
+
+        /** Writes attachment [target] under [cacheRoot] for another app to open; null when its bytes cannot be read or written. */
+        suspend fun attachmentFile(
+            target: AttachmentTarget,
+            cacheRoot: File,
+        ): File? {
+            val session = mutableSession.value ?: return null
+            return withContext(dispatchers.io) {
+                val bytes = session.documentSession.readAsset(target.asset)
+                when (bytes) {
+                    is Outcome.Failure -> {
+                        FolioLog.w(TAG, "attachment ${target.asset.value}: ${bytes.message}", bytes.cause)
+                        null
+                    }
+
+                    is Outcome.Success -> {
+                        try {
+                            AttachmentFiles.write(cacheRoot, target, bytes.value)
+                        } catch (e: IOException) {
+                            FolioLog.w(TAG, "attachment write: ${e.message}", e)
+                            null
+                        }
+                    }
+                }
+            }
+        }
 
         /** Applies the crop screen's [result] to the image it edits and closes it. */
         fun applyImageEdit(result: ImageCropResult) {

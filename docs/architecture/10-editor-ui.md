@@ -38,7 +38,7 @@ Row 2 holds only mode/kind | widths | colors | details (sliders icon); the rest 
 | Image | Gallery, Camera (A-067: the Image tool is a lasso that selects images only; one selected image leads the action bar with Crop, which opens the full-screen crop and turn screen) |
 | Sticky | 5 colors |
 | Ruler | reset angle, hide (A-069: no options row; tap the ruler's angle readout to level it, the toolbar toggle or Alt+9 hides it) |
-| Attachment | pick file |
+| Attachment | Attach file (A-070: system file picker; the chip lands centered in the visible part of the page, selected; the tool is a lasso that selects images and attachments; a pen tap on a chip selects it and one selected attachment leads the action bar with Open, which starts the "Open with" chooser) |
 Color dot: 22 dp with a 1 dp border; the selected color and width preset get a 4 dp accent dot below them, eraser sizes get a 2 dp accent ring instead (A-030). Groups are split by 2 x 26 dp dividers. Long-press a color or width preset to edit it. Custom colors: HSV square + hue bar + hex field + recent colors.
 
 ## Toolbar docking

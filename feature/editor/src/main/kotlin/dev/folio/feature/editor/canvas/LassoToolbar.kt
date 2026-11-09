@@ -12,6 +12,9 @@ import dev.folio.core.model.edit.ReorderOp
 internal enum class LassoButton {
     /** Crop and turn; only while the selection is one image (P07-T04). */
     CROP,
+
+    /** Open in another app; only while the selection is one attachment (A-070). */
+    OPEN,
     CUT,
     COPY,
     DUPLICATE,
@@ -41,8 +44,9 @@ internal enum class LassoPopup(
 internal class LassoToolbar(
     private val density: Float,
 ) {
-    private val selectionButtons = LassoButton.entries.filter { it != LassoButton.PASTE && it != LassoButton.CROP }
-    private val imageButtons = LassoButton.entries.filter { it != LassoButton.PASTE }
+    private val selectionButtons = LassoButton.entries.filter { it !in LEADS && it != LassoButton.PASTE }
+    private val imageButtons = listOf(LassoButton.CROP) + selectionButtons
+    private val attachmentButtons = listOf(LassoButton.OPEN) + selectionButtons
     private val pasteButtons = listOf(LassoButton.PASTE)
     private var buttons = selectionButtons
     private val buttonPx = BUTTON_DP * density
@@ -69,8 +73,8 @@ internal class LassoToolbar(
 
     /**
      * Places the pill for a selection box from [topPx] to [bottomPx] centered on [centerXPx] ([paste]: the Paste pill
-     * above that point) in a view [viewWidthPx] x [viewHeightPx]; an open popup moves along. [image]: the selection is
-     * one image, the bar leads with Crop.
+     * above that point) in a view [viewWidthPx] x [viewHeightPx]; an open popup moves along. [lead]: the bar leads with
+     * Crop (one image) or Open (one attachment).
      */
     fun place(
         centerXPx: Float,
@@ -79,13 +83,14 @@ internal class LassoToolbar(
         viewWidthPx: Float,
         viewHeightPx: Float,
         paste: Boolean = false,
-        image: Boolean = false,
+        lead: LassoButton? = null,
     ) {
         // HOT PATH: per frame while a selection shows; no allocation.
         buttons =
             when {
                 paste -> pasteButtons
-                image -> imageButtons
+                lead == LassoButton.CROP -> imageButtons
+                lead == LassoButton.OPEN -> attachmentButtons
                 else -> selectionButtons
             }
         val width = widthPx
@@ -256,6 +261,9 @@ internal class LassoToolbar(
         /** Z-order change of Arrange popup item [item], null outside the popup. */
         fun reorderOf(item: Int): ReorderOp? = ARRANGE_OPS.getOrNull(item)
 
+        // Buttons shown only first, for a selection of one object of their kind.
+        private val LEADS = setOf(LassoButton.CROP, LassoButton.OPEN)
+
         private val ARRANGE_OPS = arrayOf(ReorderOp.BRING_TO_FRONT, ReorderOp.FORWARD, ReorderOp.BACKWARD, ReorderOp.SEND_TO_BACK)
 
         // The box toolbar's sizes and colors (BoxToolbar), so both bars look alike.
@@ -281,10 +289,12 @@ internal class LassoToolbar(
             "M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" +
                 "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
 
-        // Lucide `crop`, `scissors`, `copy`, `copy-plus`, `droplet`, `layers`, `trash` and `clipboard`, one path each (circles as arcs).
+        // Lucide `crop`, `external-link`, `scissors`, `copy`, `copy-plus`, `droplet`, `layers`, `trash` and `clipboard`,
+        // one path each (circles as arcs).
         private val BUTTON_PATHS =
             mapOf(
                 LassoButton.CROP to "M6 2v14a2 2 0 0 0 2 2h14M18 22V8a2 2 0 0 0-2-2H2",
+                LassoButton.OPEN to "M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6",
                 LassoButton.CUT to
                     "M3 6a3 3 0 1 0 6 0a3 3 0 1 0-6 0M3 18a3 3 0 1 0 6 0a3 3 0 1 0-6 0M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12",
                 LassoButton.COPY to COPY_PATH,

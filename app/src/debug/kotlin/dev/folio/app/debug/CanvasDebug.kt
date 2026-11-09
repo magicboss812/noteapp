@@ -151,6 +151,9 @@ internal class CanvasDebug(
     /** Image tool commands on the editor on screen (P07-T04). */
     val images = ImageDebug({ session }, scope)
 
+    /** Attachment tool commands on the editor on screen (P07-T07). */
+    val attachments = AttachmentDebug({ session }, scope)
+
     /** Library path of the document on screen. */
     val openDoc: String? get() = session?.documentSession?.path
 
@@ -395,6 +398,7 @@ internal class CanvasDebug(
         put("lasso", host?.lassoState)
         put("ruler", host?.rulerState)
         put("images", images.json(current))
+        put("attachments", attachments.json(current))
         host?.touchCounts?.let { t ->
             put(
                 "touches",

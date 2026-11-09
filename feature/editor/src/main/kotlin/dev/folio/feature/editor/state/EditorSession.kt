@@ -7,6 +7,7 @@ import dev.folio.core.common.Outcome
 import dev.folio.core.common.getOrNull
 import dev.folio.core.ink.brush.BrushCatalog
 import dev.folio.core.ink.erase.EraserOptions
+import dev.folio.core.model.Attachment
 import dev.folio.core.model.Background
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
@@ -18,6 +19,7 @@ import dev.folio.core.model.ImageObject
 import dev.folio.core.model.InkStroke
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.PageSpec
 import dev.folio.core.model.RectF01
 import dev.folio.core.model.TemplateKind
 import dev.folio.core.model.edit.AddObjects
@@ -182,10 +184,10 @@ class EditorSession(
 
     override val alwaysStraight: Boolean get() = mutableOptions.value.highlighter.alwaysStraight
 
-    // The Image tool's pen selects images only, to move, size, turn and crop them (P07-T04).
+    // The Image and Attachment tools' pen selects images and attachments only, to move, size, turn, crop or open them.
     override val lassoSpec: LassoSpec
         get() =
-            if (mutableTool.value == EditorTool.IMAGE) {
+            if (mutableTool.value == EditorTool.IMAGE || mutableTool.value == EditorTool.ATTACHMENT) {
                 IMAGE_LASSO
             } else {
                 mutableOptions.value.lasso.let { lasso ->
@@ -354,6 +356,53 @@ class EditorSession(
         if (!execute(Batch(listOf(UpdateAssets(listOf(info)), AddObjects(pageId, listOf(placed)))))) return false
         selectionRequests.tryEmit(ObjectSelection(pageId, listOf(placed.id)))
         return true
+    }
+
+    /**
+     * Stores [file] as an asset and puts its chip near the top-left of the visible part of the current page as one undo
+     * step, then selects it with the lasso (A-070); false if there is no page on screen or storing failed.
+     */
+    suspend fun insertAttachment(file: ImportedFile): Boolean {
+        val pageId = currentPageId() ?: return false
+        if (!loaded(listOf(pageId))) return false
+        val visible = viewport.visibleRectPt(pageId)
+        val spec = document.value.pageRef(pageId)?.spec ?: return false
+        if (visible.isEmpty) return false
+        val stored = withContext(dispatchers.io) { documentSession.storeAsset(file.bytes, file.mime, file.name) }
+        val info =
+            stored.getOrNull() ?: run {
+                FolioLog.w(TAG, "storeAsset: ${(stored as Outcome.Failure).message}", stored.cause)
+                return false
+            }
+        val unbounded = spec is PageSpec.Infinite
+        val at =
+            AttachmentFiles.place(
+                visible,
+                if (unbounded) Float.MAX_VALUE else spec.widthPt,
+                if (unbounded) Float.MAX_VALUE else spec.heightPt,
+            )
+        val chip = Attachment(ObjectId.random(), info.id, file.name, file.mime, at, file.bytes.size.toLong())
+        if (!execute(Batch(listOf(UpdateAssets(listOf(info)), AddObjects(pageId, listOf(chip)))))) return false
+        selectionRequests.tryEmit(ObjectSelection(pageId, listOf(chip.id)))
+        return true
+    }
+
+    private val attachmentOpenRequests = MutableSharedFlow<AttachmentTarget>(extraBufferCapacity = COMMAND_BUFFER)
+
+    /** Attachments the lasso's Open button asks to open in another app (A-070). */
+    val attachmentOpens: Flow<AttachmentTarget> get() = attachmentOpenRequests
+
+    @MainThread
+    override fun openAttachment(
+        pageId: PageId,
+        id: ObjectId,
+    ) {
+        val chip =
+            document.value
+                .page(pageId)
+                ?.objects
+                ?.firstOrNull { it.id == id } as? Attachment ?: return
+        attachmentOpenRequests.tryEmit(AttachmentTarget(chip.asset, chip.displayName, chip.mime))
     }
 
     /** Applies the crop screen's [result] to image [target] as one undo step; true when nothing changed. */
