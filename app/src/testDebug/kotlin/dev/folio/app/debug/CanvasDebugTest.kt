@@ -94,6 +94,9 @@ class CanvasDebugTest {
         assertThat(ToolSetting.parse("eraser,0")).isNull()
         assertThat(ToolSetting.parse("eraser,wide")).isNull()
         assertThat(ToolSetting.parse("pen,4")).isNull()
+        assertThat(ToolSetting.parse("lasso")).isEqualTo(ToolSetting(CanvasTool.LASSO))
+        assertThat(ToolSetting.parse("lasso,rect")).isEqualTo(ToolSetting(CanvasTool.LASSO, lassoRectangle = true))
+        assertThat(ToolSetting.parse("lasso,circle")).isNull()
         assertThat(ToolSetting.parse(null)).isNull()
     }
 

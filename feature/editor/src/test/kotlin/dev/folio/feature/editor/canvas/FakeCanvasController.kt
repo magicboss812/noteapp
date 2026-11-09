@@ -247,6 +247,8 @@ internal class FakeCanvasController(
     override var stylusPreferences = StylusPreferences.DEFAULT
     override var textController: TextController? = null
     override val canvasText = MutableStateFlow(CanvasText.EMPTY)
+    override var lassoSpec = LassoSpec.DEFAULT
+    override val clipboard = ObjectClipboard()
     val loadRequests = ArrayList<PageId>()
 
     /** The thread of every [loadPages] call (the view asks while applying a document, so it must be main). */

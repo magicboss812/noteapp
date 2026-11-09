@@ -7,6 +7,8 @@ import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Looper
 import android.os.SystemClock
 import android.view.InputDevice
@@ -32,9 +34,11 @@ import dev.folio.core.model.PageId
 import dev.folio.core.model.PageObject
 import dev.folio.core.model.Shape
 import dev.folio.core.model.edit.AddObjects
+import dev.folio.core.model.edit.SelectionEdit
 import dev.folio.core.model.edit.UpdateObjects
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.render.DisplayModeHelper
+import dev.folio.core.render.PageContent
 import dev.folio.core.render.PageRenderer
 import dev.folio.core.render.RenderTarget
 import dev.folio.core.render.tiles.BitmapPool
@@ -50,14 +54,17 @@ import dev.folio.core.render.viewport.toPagePt
 import dev.folio.core.text.flow.PageText
 import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.TextFieldSpec
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /** Tile cache numbers for debug `state` (05-canvas-rendering.md#tiles). */
 data class TileStats(
@@ -215,6 +222,35 @@ class CanvasHostView internal constructor(
 
     // The shape a Shape tool drag edits: the tiles leave it out while the preview draws it (P07-T01).
     private var hiddenShape: HiddenShape? = null
+
+    /** The lasso's path, selection box and action bar (tests read what it shows). */
+    internal val lassoOverlay = LassoOverlay(context, controller.viewport)
+
+    // The lasso selection a drag moves: the tiles leave it out while the page body is [LassoHidden.before] (P07-T03).
+    private var lassoHidden: LassoHidden? = null
+    private val snapshotRenderer by lazy(LazyThreadSafetyMode.NONE) { PageRenderer() }
+
+    /** The lasso (tests drive it). */
+    internal val lasso =
+        LassoInput(
+            controller.viewport,
+            pageIdAt = { index -> document?.pages?.getOrNull(index)?.id },
+            indexOf = { id -> viewport.layout?.indexOf(id) ?: -1 },
+            objectsOn = { id -> document?.pageBodies?.get(id)?.objects },
+            spec = { controller.lassoSpec },
+            clipboard = { controller.clipboard },
+            sizes =
+                resources.displayMetrics.density.let { d ->
+                    LassoSizes(
+                        SHAPE_HANDLE_DP * d,
+                        SHAPE_ROTATE_OFFSET_DP * d,
+                        LASSO_MIN_SIDE_DP * d,
+                        ViewConfiguration.get(context).scaledTouchSlop.toFloat(),
+                    )
+                },
+            host = LassoBridge(),
+            toolbar = LassoToolbar(resources.displayMetrics.density),
+        ).also { lassoOverlay.input = it }
     private val tools =
         StylusTools(
             pen,
@@ -223,6 +259,7 @@ class CanvasHostView internal constructor(
             navigate = StylusNavigation(gestures),
             text = StylusTap(ViewConfiguration.get(context).scaledTouchSlop.toFloat(), TEXT_TAP_TIMEOUT_MS, ::onTextToolTap),
             shape = shapeInput,
+            lasso = lasso,
         ) { controller.activeTool }
     private val hoverRing = HoverRingView(context)
     private val hoverCursor =
@@ -232,6 +269,7 @@ class CanvasHostView internal constructor(
             enabled = {
                 controller.activeTool != CanvasTool.NAVIGATE &&
                     controller.activeTool != CanvasTool.TEXT &&
+                    controller.activeTool != CanvasTool.LASSO &&
                     StylusFeatures.hoverCursor(router.capabilities, controller.stylusPreferences)
             },
             radiusPt = ::hoverRadiusPt,
@@ -341,6 +379,14 @@ class CanvasHostView internal constructor(
     /** The live field and the edited-text overlay in one line (debug automation). */
     val textOverlayState: String get() = textField.describe()
 
+    /** Lasso selection for debug `state`: selected count, box (pt, rounded) and whether a commit is pending. */
+    val lassoState: String
+        get() {
+            val box = lasso.box() ?: return "none"
+            return "selected=${lasso.selection?.ids?.size} box=${box.left.roundToInt()},${box.top.roundToInt()}," +
+                "${box.right.roundToInt()},${box.bottom.roundToInt()} pending=${lasso.pending != null}"
+        }
+
     /** Dry handoff counters. */
     val handoffStats: HandoffStats get() = HandoffStats(handoff.committedCount, handoff.pendingCount, handoff.removedCount)
 
@@ -370,6 +416,7 @@ class CanvasHostView internal constructor(
         addView(content, LayoutParams(match))
         addView(boxOutlines, LayoutParams(match))
         addView(shapePreview, LayoutParams(match))
+        addView(lassoOverlay, LayoutParams(match))
         addView(overlay, LayoutParams(match))
         addView(selectionView, LayoutParams(match))
         addView(boxHandles, LayoutParams(match))
@@ -426,6 +473,10 @@ class CanvasHostView internal constructor(
         textField.refresh()
         if (boxOutlines.shown.isNotEmpty()) boxOutlines.invalidate()
         if (shapeInput.selectionPage >= 0) shapePreview.invalidate() // undo may move or remove the selected shape
+        if (lasso.showing) {
+            lasso.check()
+            lassoOverlay.invalidate() // undo may move or remove the selection
+        }
     }
 
     /**
@@ -517,8 +568,108 @@ class CanvasHostView internal constructor(
             } else {
                 stored
             }
-        val preview = erasePreview ?: return body
-        return if (preview.pageId == id) preview.applyTo(body) else body
+        val lassoed =
+            lassoHidden?.takeIf { it.pageId == id && it.before === stored }?.let { h ->
+                body.copy(
+                    objects =
+                        body.objects.removeAll {
+                            it.id in
+                                h.ids
+                        },
+                )
+            }
+                ?: body
+        val preview = erasePreview ?: return lassoed
+        return if (preview.pageId == id) preview.applyTo(lassoed) else lassoed
+    }
+
+    // The tiles leave [selection] out while its page body stays the one shown now (the drag's commit replaces it).
+    private fun hideLassoed(selection: LassoSelection?) {
+        val old = lassoHidden
+        val doc = document ?: return
+        val next = selection?.let { sel -> doc.pageBodies[sel.pageId]?.let { LassoHidden(sel.pageId, sel.ids.toHashSet(), it) } }
+        if (old?.pageId == next?.pageId && old?.ids == next?.ids && old?.before === next?.before) return
+        lassoHidden = next
+        for (id in setOfNotNull(old?.pageId, next?.pageId)) {
+            val ref = doc.pageRef(id) ?: continue
+            contentTiles.setPage(ref, shownBody(doc, id), textOf(id))
+        }
+        refreshTiles()
+    }
+
+    /** The canvas side of the lasso: tiles, snapshots, commits (P07-T03). */
+    private inner class LassoBridge : LassoHost {
+        override fun invalidate() = lassoOverlay.invalidate()
+
+        override fun hide(selection: LassoSelection?) = hideLassoed(selection)
+
+        override fun snapshot(
+            selection: LassoSelection,
+            box: RectPt,
+        ): LassoSnapshot? {
+            val doc = document ?: return null
+            val ref = doc.pageRef(selection.pageId) ?: return null
+            val body = doc.pageBodies[selection.pageId] ?: return null
+            val ids = selection.ids.toHashSet()
+            val region = box.inset(-SNAPSHOT_MARGIN_PT)
+            if (region.isEmpty) return null
+            val scale = min(viewport.scale, MAX_SNAPSHOT_PX / max(region.widthPt, region.heightPt))
+            val bitmap =
+                Bitmap.createBitmap(
+                    ceil(region.widthPt * scale).toInt().coerceAtLeast(1),
+                    ceil(region.heightPt * scale).toInt().coerceAtLeast(1),
+                    Bitmap.Config.ARGB_8888,
+                )
+            val page = body.copy(objects = body.objects.removeAll { it.id !in ids })
+            PerfMonitor.trace(SECTION_LASSO_SNAPSHOT) {
+                snapshotRenderer.draw(
+                    Canvas(bitmap),
+                    ref,
+                    PageContent.of(page, textOf(selection.pageId)),
+                    region,
+                    scale,
+                    RenderTarget.SCREEN_CONTENT,
+                )
+            }
+            return LassoSnapshot(bitmap, region, scale)
+        }
+
+        override fun edit(
+            selection: LassoSelection,
+            edit: SelectionEdit,
+            done: (Boolean) -> Unit,
+        ) {
+            scope.launch {
+                val accepted =
+                    try {
+                        withContext(NonCancellable) { controller.editSelection(selection.pageId, selection.ids, edit) }
+                    } catch (e: IllegalStateException) {
+                        FolioLog.w(TAG, "lasso edit failed: ${e.message}", e) // session closed under the view
+                        false
+                    }
+                done(accepted)
+            }
+        }
+
+        override fun copyImage(
+            pageId: PageId,
+            objects: List<PageObject>,
+        ) {
+            val doc = document ?: return
+            val ref = doc.pageRef(pageId) ?: return
+            val body = doc.pageBodies[pageId] ?: return
+            val page = body.copy(objects = objects.toPersistentList())
+            val text = textOf(pageId)
+            scope.launch {
+                val file = withContext(controller.renderDispatcher) { SelectionImage.render(context, ref, page, text) } ?: return@launch
+                SelectionImage.publish(context, file)
+            }
+        }
+
+        override fun isDrawn(
+            pageId: PageId,
+            rect: RectPt,
+        ): Boolean = isTextDrawn(pageId, rect)
     }
 
     private fun hideShape(next: HiddenShape?) {
@@ -680,7 +831,11 @@ class CanvasHostView internal constructor(
                 gestures.stopFling()
                 yieldTextToStylus(event)
                 if (controller.activeTool != CanvasTool.SHAPE) shapeInput.cancelDraft()
+                if (controller.activeTool != CanvasTool.LASSO && lasso.showing) lasso.clear()
             }
+            // A finger on the lasso selection or its action bar moves it or presses there instead of panning.
+            val finger = event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER
+            if (finger && controller.activeTool == CanvasTool.LASSO && lasso.onFingerTouch(event)) return@trace
             // A finger or the pen on a box's grip or width handle moves or resizes the box, a press on the selection menu
             // runs it, a finger on a selection handle drags that end, a long-press or double tap selects words; the
             // router never sees those gestures.
@@ -790,6 +945,7 @@ class CanvasHostView internal constructor(
         if (boxHandles.shown != null) boxHandles.invalidate()
         if (boxOutlines.shown.isNotEmpty()) boxOutlines.invalidate()
         if (shapeInput.selectionPage >= 0 || shapeInput.draftPage >= 0 || snap.showing) shapePreview.invalidate()
+        if (lasso.showing) lassoOverlay.invalidate()
         val now = SystemClock.uptimeMillis()
         lastViewportChangeMs = now
         removeCallbacks(idleRequest)
@@ -911,6 +1067,7 @@ class CanvasHostView internal constructor(
         boxHandles.check()
         checkPendingShape()
         checkPendingSnap()
+        lasso.check()
     }
 
     // Like a committed shape, a snapped pen stroke leaves the preview once the tiles draw it.
@@ -1073,6 +1230,14 @@ private const val MIN_SNAP_DP = 12f
 // Grab radius of a selected shape's handles (48 dp targets) and the rotate handle's distance above the box.
 private const val SHAPE_HANDLE_DP = 24f
 private const val SHAPE_ROTATE_OFFSET_DP = 28f
+
+// A lasso scale keeps every side it changes at least this long on screen (A-066).
+private const val LASSO_MIN_SIDE_DP = 8f
+
+// The moving lasso selection: drawn with this margin around its box, at most this many px on its longer side.
+private const val SNAPSHOT_MARGIN_PT = 2f
+private const val MAX_SNAPSHOT_PX = 4096f
+private const val SECTION_LASSO_SNAPSHOT = "lasso:snapshot"
 
 // The text color of a moved box on a page without a known paper (near-black, like the live field's default).
 private const val BOX_TEXT_ARGB = 0xFF1B1D22.toInt()

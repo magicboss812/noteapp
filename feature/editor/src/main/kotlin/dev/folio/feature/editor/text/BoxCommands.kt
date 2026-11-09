@@ -20,6 +20,7 @@ import dev.folio.core.model.edit.RemoveObjects
 import dev.folio.core.model.edit.RemovePages
 import dev.folio.core.model.edit.UpdateFlows
 import dev.folio.core.model.edit.UpdateObjects
+import dev.folio.core.model.geometry.Affine
 import dev.folio.core.model.geometry.RectPt
 
 /**
@@ -70,6 +71,26 @@ internal object BoxCommands {
             )
         if (shifted != box) commands += UpdateFlows(listOf(flow.copy(box = shifted)))
         return Batch(commands)
+    }
+
+    /**
+     * Box [flowId] in a lasso selection on page [pageId] transformed by [affine] (P07-T03, A-066): its first frame keeps
+     * its size and goes where [affine] takes its center, onto the grid like a drag ([TextZones.movedBox], [move]). Null
+     * if the box's first frame is not on [pageId] or nothing changes.
+     */
+    fun moveBy(
+        doc: Document,
+        flowId: FlowId,
+        pageId: PageId,
+        affine: Affine,
+    ): EditCommand? {
+        val (fromPage, first) = framesOf(doc, flowId).firstOrNull() ?: return null
+        val ref = doc.pageRef(pageId)
+        if (fromPage != pageId || ref == null) return null
+        val c = affine.mapPoint(first.rect.center)
+        val left = c.x - first.rect.widthPt / 2f
+        val top = c.y - first.rect.heightPt / 2f
+        return move(doc, flowId, pageId, TextZones.movedBox(ref.spec, ref.background.template, first.rect, left, top))
     }
 
     /**
@@ -228,8 +249,8 @@ internal object BoxCommands {
         }
         return out
     }
-
-    private fun RectPt.shiftedX(dx: Float): RectPt = copy(left = left + dx, right = right + dx)
-
-    private fun Borders.shiftedX(dx: Float): Borders = Borders(leftPt + dx, rightPt + dx)
 }
+
+private fun RectPt.shiftedX(dx: Float): RectPt = copy(left = left + dx, right = right + dx)
+
+private fun Borders.shiftedX(dx: Float): Borders = Borders(leftPt + dx, rightPt + dx)

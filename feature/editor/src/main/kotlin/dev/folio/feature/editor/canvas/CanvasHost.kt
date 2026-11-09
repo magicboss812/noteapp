@@ -59,6 +59,7 @@ internal fun CanvasHost(
         SideEffect {
             view?.onShortcut = onKey
             view?.caret?.coveredBottomPx = coveredBottomPx
+            view?.lassoOverlay?.coveredBottomPx = coveredBottomPx
         }
         LaunchedEffect(view) {
             if (view == null) return@LaunchedEffect

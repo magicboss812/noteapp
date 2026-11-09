@@ -15,7 +15,9 @@ import dev.folio.core.model.TextAlign
 import dev.folio.core.model.TextZones
 import dev.folio.core.model.edit.AddObjects
 import dev.folio.core.model.edit.Batch
+import dev.folio.core.model.edit.SelectionEdit
 import dev.folio.core.model.edit.UpdateFlows
+import dev.folio.core.model.geometry.Affine
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.storage.repo.NewDocumentSpec
 import dev.folio.core.testing.ModelFixtures
@@ -116,6 +118,35 @@ class EditorBoxTest : EditorTextFixture() {
             val units = (moved.rect.top - before.rect.top) / u
             assertThat(abs(units - units.roundToInt())).isLessThan(1e-3f)
             assertThat(moved.rect.widthPt).isWithin(1e-3f).of(before.rect.widthPt)
+            assertThat(session.undo()).isTrue()
+            assertThat(
+                documentSession.document.value
+                    .box()
+                    ?.second,
+            ).isEqualTo(before)
+            assertThat(documentSession.canUndo.value).isFalse()
+        }
+
+    @Test
+    fun lassoTransform_movesTheBoxOntoTheGrid_rotateKeepsItsSize_oneUndoStepEach() =
+        runTest(main.testDispatcher) {
+            val (session, documentSession) = open(boxNote("Box text"), this)
+            checkNotNull(session.text).awaitReady()
+            val (page, before) = checkNotNull(documentSession.document.value.box())
+
+            val move = SelectionEdit.Transform(Affine.translate(37.3f, 51.7f))
+            assertThat(session.editSelection(page, listOf(boxId), move)).isTrue()
+
+            val (_, moved) = checkNotNull(documentSession.document.value.box())
+            assertThat(moved.rect.left).isWithin(1e-3f).of(before.rect.left + 37.3f)
+            assertThat(onRule(moved.rect.top)).isTrue()
+            assertThat(moved.rect.widthPt).isWithin(1e-3f).of(before.rect.widthPt)
+            val c = moved.rect.center
+            assertThat(session.editSelection(page, listOf(boxId), SelectionEdit.Transform(Affine.rotate(90f, c.x, c.y)))).isTrue()
+            val (_, turned) = checkNotNull(documentSession.document.value.box())
+            assertThat(turned.rect.widthPt).isWithin(1e-3f).of(before.rect.widthPt)
+            assertThat(onRule(turned.rect.top)).isTrue()
+            assertThat(session.undo()).isTrue()
             assertThat(session.undo()).isTrue()
             assertThat(
                 documentSession.document.value

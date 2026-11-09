@@ -33,6 +33,7 @@ import dev.folio.feature.editor.canvas.CanvasHostView
 import dev.folio.feature.editor.canvas.CanvasTool
 import dev.folio.feature.editor.state.EditorSession
 import dev.folio.feature.editor.state.EditorTool
+import dev.folio.feature.editor.state.LassoMode
 import dev.folio.feature.editor.ui.EditorCanvasListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -287,17 +288,23 @@ internal class CanvasDebug(
 
     fun tool(arg: String?): DebugReply {
         val setting =
-            ToolSetting.parse(arg) ?: return DebugReply.error("tool needs pen, text or eraser[,stroke|partial][,radiusPt][,hl]")
+            ToolSetting.parse(arg)
+                ?: return DebugReply.error("tool needs pen, text, lasso[,rect] or eraser[,stroke|partial][,radiusPt][,hl]")
         val current = session ?: return DebugReply.error(NO_CANVAS)
         current.selectTool(
             when (setting.tool) {
                 CanvasTool.ERASER -> EditorTool.ERASER
                 CanvasTool.TEXT -> EditorTool.TEXT
+                CanvasTool.LASSO -> EditorTool.LASSO
                 else -> EditorTool.PEN
             },
         )
         // `tool pen` keeps them; like the options row, the change is stored.
         if (setting.tool == CanvasTool.ERASER) current.updateOptions { it.copy(eraser = setting.eraser) }
+        if (setting.tool == CanvasTool.LASSO) {
+            val mode = if (setting.lassoRectangle) LassoMode.RECTANGLE else LassoMode.FREEFORM
+            current.updateOptions { it.copy(lasso = it.lasso.copy(mode = mode)) }
+        }
         return DebugReply.ok(json() ?: JsonObject(emptyMap()))
     }
 
@@ -381,6 +388,7 @@ internal class CanvasDebug(
             )
         }
         put("textOverlay", host?.textOverlayState)
+        put("lasso", host?.lassoState)
         host?.touchCounts?.let { t ->
             put(
                 "touches",

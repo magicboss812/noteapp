@@ -5,12 +5,13 @@ import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.feature.editor.canvas.CanvasTool
 
 /**
- * Parsed `tool pen`, `tool text` or `tool eraser[,stroke|partial][,radiusPt][,hl]` (radius in 0.5..100 pt, `hl` =
- * highlighter only); unset eraser parts keep [EraserOptions.DEFAULT].
+ * Parsed `tool pen`, `tool text`, `tool lasso[,rect]` or `tool eraser[,stroke|partial][,radiusPt][,hl]` (radius in
+ * 0.5..100 pt, `hl` = highlighter only); unset eraser parts keep [EraserOptions.DEFAULT].
  */
 internal data class ToolSetting(
     val tool: CanvasTool,
     val eraser: EraserOptions = EraserOptions.DEFAULT,
+    val lassoRectangle: Boolean = false,
 ) {
     companion object {
         private const val MIN_RADIUS_PT = 0.5f
@@ -22,9 +23,17 @@ internal data class ToolSetting(
                 "pen" -> if (parts.size == 1) ToolSetting(CanvasTool.PEN) else null
                 "text" -> if (parts.size == 1) ToolSetting(CanvasTool.TEXT) else null
                 "eraser" -> eraser(parts.drop(1))?.let { ToolSetting(CanvasTool.ERASER, it) }
+                "lasso" -> lasso(parts.drop(1))
                 else -> null
             }
         }
+
+        private fun lasso(parts: List<String>): ToolSetting? =
+            when (parts) {
+                emptyList<String>() -> ToolSetting(CanvasTool.LASSO)
+                listOf("rect") -> ToolSetting(CanvasTool.LASSO, lassoRectangle = true)
+                else -> null
+            }
 
         private fun eraser(parts: List<String>): EraserOptions? {
             var options = EraserOptions.DEFAULT

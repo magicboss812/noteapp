@@ -11,8 +11,11 @@ import dev.folio.core.model.Background
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
+import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
+import dev.folio.core.model.FrameRole
 import dev.folio.core.model.InkStroke
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
 import dev.folio.core.model.TemplateKind
 import dev.folio.core.model.edit.AddObjects
@@ -20,7 +23,10 @@ import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.edit.MovePages
 import dev.folio.core.model.edit.PageOps
 import dev.folio.core.model.edit.RemoveObjects
+import dev.folio.core.model.edit.SelectionEdit
 import dev.folio.core.model.edit.TextEdit
+import dev.folio.core.model.edit.command
+import dev.folio.core.model.lasso.LassoKind
 import dev.folio.core.render.template.TemplatePresets
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.core.render.viewport.pageIndexAt
@@ -31,6 +37,8 @@ import dev.folio.feature.editor.canvas.BoxKeyEvent
 import dev.folio.feature.editor.canvas.CanvasCommand
 import dev.folio.feature.editor.canvas.CanvasController
 import dev.folio.feature.editor.canvas.CanvasTool
+import dev.folio.feature.editor.canvas.LassoSpec
+import dev.folio.feature.editor.canvas.ObjectClipboard
 import dev.folio.feature.editor.canvas.ShapeSpec
 import dev.folio.feature.editor.canvas.boxOutlines
 import dev.folio.feature.editor.text.CanvasText
@@ -70,6 +78,8 @@ class EditorSession(
     private val scope: CoroutineScope,
     initialOptions: ToolOptions = ToolOptions(),
     textEngine: TextEngine? = null,
+    /** The lasso's clipboard, shared by every note (the ViewModel's injected one). */
+    override val clipboard: ObjectClipboard = ObjectClipboard(),
     /** The ids among those given that no note in the library has; their note links are drawn broken. */
     missingLinks: suspend (Set<String>) -> Set<String> = { emptySet() },
 ) : CanvasController {
@@ -150,6 +160,36 @@ class EditorSession(
     override val activeShape: ShapeSpec get() = mutableOptions.value.shapeSpec
 
     override val alwaysStraight: Boolean get() = mutableOptions.value.highlighter.alwaysStraight
+
+    override val lassoSpec: LassoSpec
+        get() =
+            mutableOptions.value.lasso.let { lasso ->
+                LassoSpec(lasso.mode == LassoMode.RECTANGLE, lasso.filters.mapTo(HashSet()) { LassoKind.valueOf(it.name) })
+            }
+
+    // Free text boxes in a selection move onto the grid and reflow, or go with their text (A-066); the rest by `command`.
+    override suspend fun editSelection(
+        pageId: PageId,
+        ids: List<ObjectId>,
+        edit: SelectionEdit,
+    ): Boolean {
+        val idSet = ids.toHashSet()
+        val frames =
+            document.value
+                .page(pageId)
+                ?.objects
+                ?.filter { it.id in idSet && it is FlowFrame && it.role == FrameRole.BOX }
+                .orEmpty()
+        val texts = text
+        val boxEdit = edit is SelectionEdit.Transform || edit == SelectionEdit.Delete
+        if (frames.isEmpty() || texts == null || !boxEdit) return super.editSelection(pageId, ids, edit)
+        val frameIds = frames.mapTo(HashSet()) { it.id }
+        val plain = ids.filter { it !in frameIds }
+        val flows = frames.map { (it as FlowFrame).flow }.distinct()
+        val others = if (plain.isEmpty()) null else edit.command(pageId, plain)
+        val command = texts.lassoBoxesCommand(pageId, others, flows, (edit as? SelectionEdit.Transform)?.affine) ?: return false
+        return execute(command)
+    }
 
     private val canvasCommands = MutableSharedFlow<CanvasCommand>(extraBufferCapacity = COMMAND_BUFFER)
 

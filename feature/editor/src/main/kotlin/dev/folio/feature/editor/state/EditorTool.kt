@@ -9,7 +9,7 @@ import dev.folio.feature.editor.canvas.CanvasTool
 enum class EditorTool(
     val canvasTool: CanvasTool?,
 ) {
-    LASSO(null),
+    LASSO(CanvasTool.LASSO),
     PEN(CanvasTool.PEN),
     HIGHLIGHTER(CanvasTool.PEN),
     ERASER(CanvasTool.ERASER),

@@ -29,6 +29,7 @@ import dev.folio.core.model.edit.RemovePages
 import dev.folio.core.model.edit.TextEdit
 import dev.folio.core.model.edit.UpdateFlows
 import dev.folio.core.model.edit.UpdateObjects
+import dev.folio.core.model.geometry.Affine
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.storage.session.DocumentSession
 import dev.folio.core.text.edit.BlockEditing
@@ -670,6 +671,59 @@ class EditorText internal constructor(
 
     /** Box [flowId] removed with its text (P07-T13 Delete) as one command ([BoxCommands.delete]); null if refused. */
     fun deleteBoxCommand(flowId: FlowId): EditCommand? = BoxCommands.delete(documentSession.document.value, flowId)
+
+    /**
+     * A lasso edit with free text boxes (P07-T03, A-066) as one command: [others] (the rest of the selection) first, then
+     * each box of [flows] on page [pageId] moved by [affine] onto the grid and reflowed ([BoxCommands.moveBy]), or deleted
+     * with its text when [affine] is null. Each step is built on the document the steps before it made. Null if refused
+     * or nothing changes.
+     */
+    suspend fun lassoBoxesCommand(
+        pageId: PageId,
+        others: EditCommand?,
+        flows: List<FlowId>,
+        affine: Affine?,
+    ): EditCommand? {
+        val start = documentSession.document.value
+        return withContext(dispatchers.text) {
+            try {
+                val commands = ArrayList<EditCommand>()
+                var doc = start
+                if (others != null) {
+                    doc = others.execute(doc).doc
+                    commands += others
+                }
+                for (flowId in flows) {
+                    val step = if (affine == null) BoxCommands.delete(doc, flowId) else movedBox(doc, flowId, pageId, affine)
+                    if (step != null) {
+                        doc = step.execute(doc).doc
+                        commands += step
+                    }
+                }
+                if (commands.isEmpty()) null else Batch(commands)
+            } catch (e: IllegalArgumentException) {
+                FolioLog.w(TAG, "lasso box edit rejected: ${e.message}")
+                null
+            } catch (e: IllegalStateException) {
+                FolioLog.w(TAG, "lasso box edit rejected: ${e.message}")
+                null
+            }
+        }
+    }
+
+    // Box [flowId] moved by [affine] on [doc] and the reflow from its new place; null if nothing changes.
+    private fun movedBox(
+        doc: Document,
+        flowId: FlowId,
+        pageId: PageId,
+        affine: Affine,
+    ): EditCommand? {
+        val place = BoxCommands.moveBy(doc, flowId, pageId, affine) ?: return null
+        val after = place.execute(doc).doc
+        val flow = checkNotNull(after.flows[flowId])
+        val reflow = engine.reflow.plan(after, flowId, parses.of(flow)).command
+        return if (reflow == null) place else Batch(listOf(place, reflow))
+    }
 
     // [place] and the reflow of flow [flowId] after it as one command; null if either is refused ([what] for the log).
     private suspend fun reflowed(

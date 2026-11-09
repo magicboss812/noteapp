@@ -20,6 +20,7 @@ import dev.folio.core.text.edit.BlockStyles
 import dev.folio.core.text.fonts.FontRegistry
 import dev.folio.core.text.fonts.TextFontFamily
 import dev.folio.feature.editor.canvas.BoxKeyEvent
+import dev.folio.feature.editor.canvas.ObjectClipboard
 import dev.folio.feature.editor.text.BoxMode
 import dev.folio.feature.editor.text.EditorFonts
 import dev.folio.feature.editor.text.FontSource
@@ -153,6 +154,7 @@ class EditorViewModel
         private val textEngine: TextEngine,
         private val noteLinks: NoteLinks,
         private val fonts: EditorFonts,
+        private val clipboard: ObjectClipboard = ObjectClipboard(),
     ) : ViewModel() {
         private val shortcuts = ShortcutRegistry()
 
@@ -286,9 +288,16 @@ class EditorViewModel
                                 throw e
                             }
                         val session =
-                            EditorSession(result.value, density, dispatchers, viewModelScope, initial, textEngine) {
-                                noteLinks.missing(it)
-                            }
+                            EditorSession(
+                                result.value,
+                                density,
+                                dispatchers,
+                                viewModelScope,
+                                initial,
+                                textEngine,
+                                missingLinks = { noteLinks.missing(it) },
+                                clipboard = clipboard,
+                            )
                         val noteLinksOfDoc = EditorLinks(noteLinks, { session.document.value.meta.id.value }, result.value.path)
                         links.value = noteLinksOfDoc
                         mutableSession.value = session

@@ -5,10 +5,15 @@ import dev.folio.core.ink.input.StylusPreferences
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.Document
 import dev.folio.core.model.InkStroke
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.PageObject
 import dev.folio.core.model.ShapeKind
 import dev.folio.core.model.StrokeStyle
 import dev.folio.core.model.edit.EditCommand
+import dev.folio.core.model.edit.SelectionEdit
+import dev.folio.core.model.edit.command
+import dev.folio.core.model.lasso.LassoKind
 import dev.folio.core.render.viewport.Viewport
 import dev.folio.feature.editor.text.CanvasText
 import dev.folio.feature.editor.text.TextController
@@ -16,6 +21,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /** What the stylus tip does on the canvas (the toolbar picks it, P04). */
 enum class CanvasTool {
@@ -33,7 +40,40 @@ enum class CanvasTool {
 
     /** A drag draws [CanvasController.activeShape], polygons by taps (06-ink-input.md#shapes); no ink. */
     SHAPE,
+
+    /** A drag draws a lasso that selects objects by [CanvasController.lassoSpec] (06-ink-input.md#lasso); no ink. */
+    LASSO,
 }
+
+/** What the lasso draws ([rectangle] or freeform) and the object [kinds] it selects. */
+data class LassoSpec(
+    val rectangle: Boolean,
+    val kinds: Set<LassoKind>,
+) {
+    /** Defaults. */
+    companion object {
+        /** Freeform, every kind. */
+        val DEFAULT = LassoSpec(rectangle = false, kinds = LassoKind.entries.toSet())
+    }
+}
+
+/**
+ * The in-app clipboard of lasso copies (06-ink-input.md#lasso): one per process, so a paste works in another note.
+ * [objects] keep the page positions they were copied at. Main thread.
+ */
+@Singleton
+class ObjectClipboard
+    @Inject
+    constructor() {
+        /** The copied objects; empty before the first copy. */
+        var objects: List<PageObject> = emptyList()
+            private set
+
+        /** Copies [copied] (already with ids of their own) to the clipboard. */
+        fun put(copied: List<PageObject>) {
+            objects = copied
+        }
+    }
 
 /** What the Shape tool draws next: [kind] with [stroke], filled with [fillArgb] (null: none); [constrain] snaps angles and sides. */
 data class ShapeSpec(
@@ -95,6 +135,22 @@ interface CanvasController {
 
     /** True while the highlighter's "always straight" option is on (D-024): its strokes are straight lines; read at every stylus down. */
     val alwaysStraight: Boolean get() = false
+
+    /** What the lasso draws and selects, read at every stylus down with [CanvasTool.LASSO]. */
+    val lassoSpec: LassoSpec get() = LassoSpec.DEFAULT
+
+    /** The clipboard of lasso Cut and Copy. */
+    val clipboard: ObjectClipboard
+
+    /**
+     * Runs lasso [edit] on objects [ids] of page [pageId] as one undo step; [document] shows the result afterwards.
+     * False if the session rejected it. Called on the main thread: implementations run the command off it.
+     */
+    suspend fun editSelection(
+        pageId: PageId,
+        ids: List<ObjectId>,
+        edit: SelectionEdit,
+    ): Boolean = execute(edit.command(pageId, ids))
 
     /** Stylus choices (hover ring, pen button), read at every stylus down and hover event; settings arrive in P11-T01. */
     val stylusPreferences: StylusPreferences get() = StylusPreferences.DEFAULT

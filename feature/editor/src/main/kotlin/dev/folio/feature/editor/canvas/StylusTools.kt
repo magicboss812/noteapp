@@ -10,7 +10,7 @@ import kotlin.math.hypot
  * [CanvasTool.NAVIGATE] (read mode, the eraser end too); the [eraser] for the pen's eraser end
  * (TOOL_TYPE_ERASER), when [tool] is [CanvasTool.ERASER], or when [buttonErases] the down event (a held
  * stylus button, only if the stylus reports buttons; 06-ink-input.md#stylus-capabilities); [text] (taps) for
- * [CanvasTool.TEXT]; [shape] for [CanvasTool.SHAPE]; else the [pen].
+ * [CanvasTool.TEXT]; [shape] for [CanvasTool.SHAPE]; [lasso] for [CanvasTool.LASSO]; else the [pen].
  * The whole gesture stays with the target picked at down.
  */
 @MainThread
@@ -21,6 +21,7 @@ internal class StylusTools(
     private val navigate: StylusTarget? = null,
     private val text: StylusTarget? = null,
     private val shape: StylusTarget? = null,
+    private val lasso: StylusTarget? = null,
     private val tool: () -> CanvasTool,
 ) : StylusTarget {
     private var active: StylusTarget? = null
@@ -45,6 +46,7 @@ internal class StylusTools(
                 erases(event, eraser) -> this.eraser
                 tool() == CanvasTool.TEXT -> text ?: return
                 tool() == CanvasTool.SHAPE -> shape ?: return
+                tool() == CanvasTool.LASSO -> lasso ?: return
                 else -> pen
             }
         active = target
