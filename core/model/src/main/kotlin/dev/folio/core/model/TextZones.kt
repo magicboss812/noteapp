@@ -31,6 +31,8 @@ object TextZones {
     /** Inner padding of a sticky note in U. */
     const val STICKY_PADDING_UNITS = 0.5f
 
+    private const val MIN_STICKY_UNITS = 3
+
     /** Space between a box's text column (its frame rect) and its outline, left and right, in U (A-059). */
     const val BOX_PADDING_UNITS = 0.5f
 
@@ -301,13 +303,35 @@ object TextZones {
         unitPt: Float,
     ): RectPt = rect.copy(bottom = rect.top + max(1, units) * unitPt)
 
-    /** Content rect of [sticky] in its own unrotated coordinates (top-left = 0, 0): inset by 0.5 U on every side. */
+    /**
+     * Content rect of [sticky] in page pt before its rotation (the painter turns it with the sticky): its rect inset by
+     * 0.5 U on every side, so the lines sit at U from the sticky's own top (A-068).
+     */
     fun stickyContentRect(
         sticky: StickyNote,
         unitPt: Float,
     ): RectPt {
         val pad = STICKY_PADDING_UNITS * unitPt
-        return RectPt(pad, pad, max(pad, sticky.rect.widthPt - pad), max(pad, sticky.rect.heightPt - pad))
+        val r = sticky.rect
+        return RectPt(r.left + pad, r.top + pad, max(r.left + pad, r.right - pad), max(r.top + pad, r.bottom - pad))
+    }
+
+    /**
+     * Rect of a new sticky note for a tap at ([xPt], [yPt]) (A-068): a square of whole U as close to
+     * [StickyNote.DEFAULT_SIZE_PT] as the grid allows (at least 3 U), its top-left at the tap, moved inside a fixed page.
+     */
+    fun newStickyAt(
+        spec: PageSpec,
+        template: Template,
+        xPt: Float,
+        yPt: Float,
+    ): RectPt {
+        val unitPt = GridUnit.of(template).unitPt
+        val size = max(MIN_STICKY_UNITS, (StickyNote.DEFAULT_SIZE_PT / unitPt).roundToInt()) * unitPt
+        if (spec is PageSpec.Infinite) return RectPt.ofSize(xPt, yPt, size, size)
+        val left = xPt.coerceIn(0f, max(0f, spec.widthPt - size))
+        val top = yPt.coerceIn(0f, max(0f, spec.heightPt - size))
+        return RectPt.ofSize(left, top, size, size)
     }
 
     private fun weeklyNotes(

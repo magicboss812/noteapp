@@ -543,6 +543,17 @@ interface TextController {
     ) = Unit
 
     /**
+     * A Sticky tool tap at ([xPt], [yPt]) of page [pageId] (A-068): on a box (its lines and [slopPt] around them) or a
+     * sticky note it acts like a finger tap, else a new sticky note starts there with the caret in it. Main thread.
+     */
+    fun placeSticky(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+        slopPt: Float = 0f,
+    ) = Unit
+
+    /**
      * A width knob of box [flowId] let go (P07-T15): its frames go between [borders] (from `BoxWidth.knob`) and it
      * reflows, as one undo step; the focus stays. [done] gets false when the change was refused or changed nothing.
      * Main thread.

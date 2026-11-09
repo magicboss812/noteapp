@@ -35,11 +35,13 @@ import dev.folio.core.designsystem.theme.FolioTheme
 import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
+import dev.folio.core.model.StickyNote
 import dev.folio.core.text.fonts.BodySize
 import dev.folio.feature.editor.state.EditorTool
 import dev.folio.feature.editor.state.LassoMode
 import dev.folio.feature.editor.state.LassoOptions
 import dev.folio.feature.editor.state.OptionsPopover
+import dev.folio.feature.editor.state.StickyOptions
 import dev.folio.feature.editor.state.TextOptions
 import dev.folio.feature.editor.state.ToolOptions
 import dev.folio.feature.editor.state.hasSettings
@@ -60,9 +62,15 @@ internal val SIZE_LABELS = persistentListOf("S", "M", "L")
 /** Edits the tool options: receives the change to apply to the current options. */
 internal typealias OptionsChange = ((ToolOptions) -> ToolOptions) -> Unit
 
-/** Whether [this] tool has a row 2 (10-editor-ui.md#tool-options): the tools with a settings panel and the Image tool. */
+/**
+ * Whether [this] tool has a row 2 (10-editor-ui.md#tool-options): the tools with a settings panel, the Image tool and
+ * the Sticky tool.
+ */
 internal val EditorTool.hasOptions: Boolean
-    get() = hasSettings || this == EditorTool.IMAGE
+    get() = hasSettings || this == EditorTool.IMAGE || this == EditorTool.STICKY
+
+// Names of the sticky colors (StickyNote.COLORS order) for content descriptions.
+private val STICKY_COLOR_NAMES = persistentListOf("Yellow", "Pink", "Blue", "Green", "Lavender")
 
 /** Row 2 left pill: undo and redo, disabled while there is no step (10-editor-ui.md#toolbar). */
 @Composable
@@ -123,7 +131,7 @@ internal fun ToolOptionsRow(
                 val content: @Composable () -> Unit = {
                     ToolContent(shown, options, onChange, onPopover, vertical, { onSettings(shown) }, onImage)
                     if (shown.hasSettings) {
-                        Divider(vertical)
+                        PillDivider(vertical = vertical)
                         FolioIconButton(FolioIcons.SlidersHorizontal, "${shown.label} settings", onClick = { onSettings(shown) })
                     }
                 }
@@ -160,6 +168,7 @@ private fun ToolContent(
         EditorTool.TEXT -> TextOptionsContent(options.text, onChange, onFonts, vertical)
         EditorTool.SHAPE -> ShapeOptionsContent(options, onChange, onPopover, vertical)
         EditorTool.IMAGE -> ImageOptionsContent(onImage, vertical)
+        EditorTool.STICKY -> StickyOptionsContent(options.sticky, onChange, vertical)
         else -> EraserOptionsContent(options.eraser, onChange, vertical)
     }
 }
@@ -175,7 +184,7 @@ private fun StrokeOptionsContent(
     vertical: Boolean,
 ) {
     WidthPresetChips(tool, options, onChange, onPopover)
-    Divider(vertical)
+    PillDivider(vertical = vertical)
     ColorDots(tool, options, onChange, onPopover)
 }
 
@@ -192,7 +201,7 @@ private fun EraserOptionsContent(
         onSelect = { index -> onChange { it.copy(eraser = it.eraser.copy(mode = EraserMode.entries[index])) } },
         vertical = vertical,
     )
-    Divider(vertical)
+    PillDivider(vertical = vertical)
     EraserOptions.SIZES_PT.forEachIndexed { index, radiusPt ->
         WidthChip(
             strokeWidth = WidthScale.glyph(radiusPt, EraserOptions.SIZES_PT[1]),
@@ -218,7 +227,7 @@ private fun TextOptionsContent(
     } else {
         FolioButton(label = text.fontFamily, onClick = onFonts, style = FolioButtonStyle.Text)
     }
-    Divider(vertical)
+    PillDivider(vertical = vertical)
     SegmentedTabs(
         tabs = SIZE_LABELS,
         selectedIndex = text.preset?.ordinal ?: -1,
@@ -237,10 +246,35 @@ private fun ShapeOptionsContent(
     vertical: Boolean,
 ) {
     ShapeKindButtons(options.shape.kind) { kind -> onChange { it.copy(shape = it.shape.copy(kind = kind)) } }
-    Divider(vertical)
+    PillDivider(vertical = vertical)
     WidthPresetChips(EditorTool.SHAPE, options, onChange, onPopover)
-    Divider(vertical)
+    PillDivider(vertical = vertical)
     ColorDots(EditorTool.SHAPE, options, onChange, onPopover)
+}
+
+// Sticky: the five paper colors | tilt (11-design-system.md#sticky-notes).
+@Suppress("MultipleEmitters") // Pill items for the caller's Row or Column, which differ by dock mode.
+@Composable
+private fun StickyOptionsContent(
+    sticky: StickyOptions,
+    onChange: OptionsChange,
+    vertical: Boolean,
+) {
+    StickyNote.COLORS.forEachIndexed { index, argb ->
+        ColorDot(
+            color = Color(argb),
+            contentDescription = "${STICKY_COLOR_NAMES[index]} sticky note",
+            selected = index == sticky.color,
+            onClick = { onChange { it.copy(sticky = it.sticky.copy(color = index)) } },
+        )
+    }
+    PillDivider(vertical = vertical)
+    ToolButton(
+        icon = FolioIcons.RotateCcw,
+        contentDescription = "Tilt new sticky notes",
+        selected = sticky.tilt,
+        onClick = { onChange { it.copy(sticky = it.sticky.copy(tilt = !it.sticky.tilt)) } },
+    )
 }
 
 @Composable
@@ -304,9 +338,6 @@ internal fun ColorDots(
     }
     FolioIconButton(FolioIcons.CirclePlus, "Add color", onClick = { onPopover(OptionsPopover.ColorPicker(tool, null)) })
 }
-
-@Composable
-private fun Divider(vertical: Boolean) = PillDivider(vertical = vertical)
 
 internal val BrushKind.icon
     get() =

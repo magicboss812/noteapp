@@ -138,6 +138,7 @@ class EditorSession(
                 ::execute,
                 RevocableSteps(::executeRevocable, ::revoke),
                 newFlowStyle = { mutableOptions.value.text.flowStyle() },
+                newSticky = { mutableOptions.value.sticky.look() },
             )
         }
 

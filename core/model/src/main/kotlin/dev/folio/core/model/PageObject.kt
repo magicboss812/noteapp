@@ -178,6 +178,52 @@ data class StickyNote(
     val argb: Int,
 ) : PageObject {
     override val bounds: RectPt = rotatedBounds(rect, rotationDeg)
+
+    /**
+     * Where painting the sticky can put pixels (11-design-system.md#sticky-notes): its turned and its straight rect
+     * (it is drawn straight while its text is edited, A-068), grown by the shadow.
+     */
+    val paintBounds: RectPt
+        get() =
+            bounds.union(rect).let {
+                RectPt(
+                    it.left - SHADOW_BLUR_PT,
+                    it.top - SHADOW_BLUR_PT,
+                    it.right + SHADOW_BLUR_PT,
+                    it.bottom + SHADOW_DY_PT + SHADOW_BLUR_PT,
+                )
+            }
+
+    /** Sticky note look (11-design-system.md#sticky-notes). */
+    companion object {
+        /** Yellow, pink, blue, green, lavender. */
+        val COLORS: List<Int> =
+            listOf(0xFFFDE68A.toInt(), 0xFFFBCFE8.toInt(), 0xFFBFDBFE.toInt(), 0xFFBBF7D0.toInt(), 0xFFDDD6FE.toInt())
+
+        /** Text color on every sticky color. */
+        const val INK_ARGB: Int = 0xFF1F2937.toInt()
+
+        /** Corner radius, pt. */
+        const val RADIUS_PT = 4f
+
+        /** Shadow offset down, pt. */
+        const val SHADOW_DY_PT = 2f
+
+        /** Shadow blur, pt. */
+        const val SHADOW_BLUR_PT = 6f
+
+        /** Shadow color: black at 12 %. */
+        const val SHADOW_ARGB: Int = 0x1F000000
+
+        /** Rotation of a new sticky with the tilt option on, degrees (at most [MAX_TILT_DEG] either way). */
+        const val TILT_DEG = -2f
+
+        /** Largest tilt either way, degrees. */
+        const val MAX_TILT_DEG = 4f
+
+        /** Edge of a new sticky, pt (76 mm, snapped to whole U by `TextZones.newStickyAt`). */
+        const val DEFAULT_SIZE_PT = 216f
+    }
 }
 
 /** A file attachment shown as an icon at [position] (top-left). */

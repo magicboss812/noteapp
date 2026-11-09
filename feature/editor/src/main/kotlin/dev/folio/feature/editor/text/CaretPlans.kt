@@ -8,6 +8,7 @@ import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.FrameRole
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.StickyNote
 import dev.folio.core.model.TextFlow
 import dev.folio.core.model.TextZones
 import dev.folio.core.model.edit.AddObjects
@@ -37,6 +38,12 @@ internal sealed interface CaretPlan {
         val setup: List<EditCommand>,
     ) : CaretPlan
 }
+
+/** What a new sticky note looks like: paper color [argb] and tilt [rotationDeg]. */
+data class StickyLook(
+    val argb: Int,
+    val rotationDeg: Float,
+)
 
 /** Plans for [CaretPlan]: pure functions of a document and the layouts of its flows. */
 internal object CaretPlans {
@@ -110,6 +117,31 @@ internal object CaretPlans {
             }
         }
         return best
+    }
+
+    /**
+     * The plan for a Sticky tool tap at ([xPt], [yPt]) on page [pageId] (A-068): a new sticky note in [look] there
+     * (`TextZones.newStickyAt`) with its own empty flow in [style] and the sticky ink color; the caret goes into it.
+     * Null for an unknown page.
+     */
+    @Suppress("LongParameterList") // the tap, the sticky's looks and the ids it gets
+    fun forSticky(
+        doc: Document,
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+        look: StickyLook,
+        style: FlowStyle,
+        newFlowId: () -> FlowId = FlowId::random,
+        newObjectId: () -> ObjectId = ObjectId::random,
+    ): CaretPlan.NewBox? {
+        val ref = doc.pageRef(pageId) ?: return null
+        if (doc.page(pageId) == null) return null
+        val rect = TextZones.newStickyAt(ref.spec, ref.background.template, xPt, yPt)
+        val flowId = newFlowId()
+        val flow = TextFlow(flowId, "", style.copy(textArgb = StickyNote.INK_ARGB), autoContinue = false)
+        val sticky = StickyNote(newObjectId(), flowId, rect, look.rotationDeg, look.argb)
+        return CaretPlan.NewBox(flowId, listOf(UpdateFlows(listOf(flow)), AddObjects(pageId, listOf(sticky))))
     }
 
     private fun newBox(

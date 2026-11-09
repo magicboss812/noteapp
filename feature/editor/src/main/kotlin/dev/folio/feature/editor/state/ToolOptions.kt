@@ -8,6 +8,7 @@ import dev.folio.core.model.BrushKind
 import dev.folio.core.model.BrushSpec
 import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.ShapeKind
+import dev.folio.core.model.StickyNote
 import dev.folio.core.model.StrokeStyle
 import dev.folio.core.model.TextAlign
 import dev.folio.core.text.fonts.BodySize
@@ -15,6 +16,7 @@ import dev.folio.core.text.fonts.FontRegistry
 import dev.folio.core.text.fonts.TextRole
 import dev.folio.core.text.fonts.TextSizing
 import dev.folio.feature.editor.canvas.ShapeSpec
+import dev.folio.feature.editor.text.StickyLook
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
@@ -278,6 +280,23 @@ data class ShapeOptions(
     fun spec(argb: Int): ShapeSpec = ShapeSpec(kind, StrokeStyle(argb, widths.widthPt, dashed), fill.argb(argb), constrain)
 }
 
+/**
+ * Sticky tool options (11-design-system.md#sticky-notes): the paper color ([color] indexes `StickyNote.COLORS`) and
+ * whether a new sticky is slightly tilted.
+ */
+@Immutable
+data class StickyOptions(
+    val color: Int = 0,
+    val tilt: Boolean = false,
+) {
+    init {
+        require(color in StickyNote.COLORS.indices) { "sticky color index" }
+    }
+
+    /** What a new sticky looks like. */
+    fun look(): StickyLook = StickyLook(StickyNote.COLORS[color], if (tilt) StickyNote.TILT_DEG else 0f)
+}
+
 /** Last options of every tool (persisted by [ToolOptionsStore]) plus the color picker's recent colors. */
 @Immutable
 data class ToolOptions(
@@ -289,6 +308,7 @@ data class ToolOptions(
     val lasso: LassoOptions = LassoOptions(),
     val text: TextOptions = TextOptions(),
     val shape: ShapeOptions = ShapeOptions(),
+    val sticky: StickyOptions = StickyOptions(),
 ) {
     /** What the Shape tool draws: its options with the pen's selected color. */
     val shapeSpec: ShapeSpec get() = shape.spec(pen.swatches.argb)

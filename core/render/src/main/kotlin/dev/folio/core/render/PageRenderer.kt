@@ -47,6 +47,7 @@ class PageRenderer(
     private val imagePainter = ImagePainter(images)
     private val text = TextRunPainter()
     private val shapes = ShapePainter()
+    private val stickies = StickyPainter(text)
     private val toDevice = Matrix()
     private val regionF = RectF()
     private val paper = Paint()
@@ -119,8 +120,10 @@ class PageRenderer(
 
                 is ImageObject -> imagePainter.draw(canvas, o, scale)
 
-                // Painters for these arrive with their features (P07); a sticky note paints its own flow there.
-                is StickyNote, is Attachment -> Unit
+                is StickyNote -> stickies.draw(canvas, o, content.text, scale, borderArgb)
+
+                // The attachment painter arrives with its feature (P07-T07).
+                is Attachment -> Unit
             }
         }
     }

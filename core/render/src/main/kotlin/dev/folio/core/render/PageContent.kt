@@ -3,6 +3,7 @@ package dev.folio.core.render
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.Page
 import dev.folio.core.model.PageObject
+import dev.folio.core.model.StickyNote
 import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.model.geometry.UniformGridIndex
 import dev.folio.core.text.flow.PageText
@@ -29,7 +30,11 @@ class PageContent private constructor(
         page.objects.forEachIndexed { i, o -> index.insert(i, indexedBounds(o)) }
     }
 
-    private fun indexedBounds(o: PageObject): RectPt = if (o is FlowFrame) o.bounds.union(text.boundsOf(o.id)) else o.bounds
+    private fun indexedBounds(o: PageObject): RectPt =
+        when (o) {
+            is FlowFrame -> o.bounds.union(text.boundsOf(o.id))
+            else -> paintBounds(o)
+        }
 
     /** Number of objects. */
     val size: Int get() = page.objects.size
@@ -94,18 +99,21 @@ class PageContent private constructor(
             val oldById = old.objects.associateBy { it.id.value }
             val newById = new.objects.associateBy { it.id.value }
             val out = ArrayList<RectPt>()
-            for (o in old.objects) if (newById[o.id.value] !== o) out += o.bounds
-            for (o in new.objects) if (oldById[o.id.value] !== o) out += o.bounds
+            for (o in old.objects) if (newById[o.id.value] !== o) out += paintBounds(o)
+            for (o in new.objects) if (oldById[o.id.value] !== o) out += paintBounds(o)
             // Same instances in both lists: a z-order change repaints where the order differs.
             val keptOld = old.objects.filter { newById[it.id.value] === it }
             val keptNew = new.objects.filter { oldById[it.id.value] === it }
             for (i in keptOld.indices) {
                 if (keptOld[i] !== keptNew[i]) {
-                    out += keptOld[i].bounds
-                    out += keptNew[i].bounds
+                    out += paintBounds(keptOld[i])
+                    out += paintBounds(keptNew[i])
                 }
             }
             return out
         }
+
+        // Where painting [o] puts pixels: a sticky note's shadow and straight rect reach past its bounds (A-068).
+        private fun paintBounds(o: PageObject): RectPt = if (o is StickyNote) o.paintBounds else o.bounds
     }
 }

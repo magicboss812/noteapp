@@ -32,7 +32,7 @@ class ToolOptionsStoreTest {
         val shape =
             ShapeOptions(ShapeKind.POLYGON, ShapeOptions().widths.set(2, 6f).select(2), dashed = true, ShapeFill.SOLID, constrain = true)
         val eraser = EraserOptions(EraserMode.PARTIAL, 17f, highlighterOnly = true)
-        return ToolOptions(pen, highlighter, eraser, lasso = lasso, text = text, shape = shape)
+        return ToolOptions(pen, highlighter, eraser, lasso = lasso, text = text, shape = shape, sticky = StickyOptions(3, tilt = true))
             .withRecentColor(0xFF0A0B0C.toInt())
     }
 
@@ -58,6 +58,13 @@ class ToolOptionsStoreTest {
         val decoded = ToolOptionsStore.decode("""{"pen":{"kind":"MARKER"},"futureTool":{"x":1}}""")
 
         assertThat(decoded).isEqualTo(ToolOptions(pen = PenOptions(kind = BrushKind.MARKER)))
+    }
+
+    @Test
+    fun decode_unknownStickyColor_firstColorKeepsTilt() {
+        val decoded = ToolOptionsStore.decode("""{"sticky":{"color":9,"tilt":true}}""")
+
+        assertThat(decoded.sticky).isEqualTo(StickyOptions(0, tilt = true))
     }
 
     @Test

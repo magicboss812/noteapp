@@ -20,8 +20,8 @@ import dev.folio.core.text.markdown.BlockParser
 import dev.folio.core.text.markdown.MarkdownDocument
 
 /**
- * A frame a flow is laid out into: [rect] in the coordinates its text is drawn in (page pt; sticky-local for sticky
- * notes), [rect] top on a rule of [grid]. [capacityUnits] is the number of whole line boxes it holds
+ * A frame a flow is laid out into: [rect] in page pt (for a [sticky] note before its rotation, A-068), [rect] top on
+ * a rule of [grid]. [capacityUnits] is the number of whole line boxes it holds
  * ([FlowDistributor.UNBOUNDED] on infinite pages and for auto-growing boxes). [frameId] is the `FlowFrame` or
  * `StickyNote` the slot belongs to. [growRect] is the widest column an auto width box may take (A-059), [rect]
  * otherwise; a keystroke is laid out there before the reflow sets the borders ([FlowLayouter.retype]).
@@ -33,6 +33,7 @@ data class FrameSlot(
     val grid: LayoutGrid,
     val capacityUnits: Int,
     val growRect: RectPt = rect,
+    val sticky: Boolean = false,
 )
 
 /**
@@ -109,9 +110,17 @@ class FlowLayout internal constructor(
     /** True when text is left over after the last slot. */
     val overflows: Boolean get() = distribution.overflows
 
-    /** Outline and hit area of slot [frame] (A-059): its text column padded by 0.5 U left and right, its used lines tall (at least one). */
+    /**
+     * Outline and hit area of slot [frame] (A-059): its text column padded by 0.5 U left and right, its used lines tall
+     * (at least one); a sticky note's whole unrotated rect.
+     */
     fun outlineOf(frame: Int): RectPt {
         val slot = slots[frame]
+        // A sticky note takes taps on all of it (A-068): its content rect grown by the padding.
+        if (slot.sticky) {
+            val pad = TextZones.STICKY_PADDING_UNITS * slot.grid.unitPt
+            return slot.rect.let { RectPt(it.left - pad, it.top - pad, it.right + pad, it.bottom + pad) }
+        }
         return TextZones.boxOutline(slot.rect, distribution.usedUnits(frame), slot.grid.unitPt)
     }
 

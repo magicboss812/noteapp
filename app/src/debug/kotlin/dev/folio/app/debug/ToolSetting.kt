@@ -22,6 +22,7 @@ internal data class ToolSetting(
             return when (parts[0]) {
                 "pen" -> if (parts.size == 1) ToolSetting(CanvasTool.PEN) else null
                 "text" -> if (parts.size == 1) ToolSetting(CanvasTool.TEXT) else null
+                "sticky" -> if (parts.size == 1) ToolSetting(CanvasTool.STICKY) else null
                 "eraser" -> eraser(parts.drop(1))?.let { ToolSetting(CanvasTool.ERASER, it) }
                 "lasso" -> lasso(parts.drop(1))
                 else -> null

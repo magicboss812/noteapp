@@ -124,7 +124,7 @@ DESIGN section 8 (Library), built in P05. Landscape:
 - List mode: 100 dp rows, 100 dp thumbnail (radius 10, 1 dp border), count over sans title, overflow at the end.
 
 ## Sticky notes
-Folio's own (DESIGN lists sticky notes as Notewise-only, but 10-editor-ui.md keeps the tool). Colors: yellow #FDE68A, pink #FBCFE8, blue #BFDBFE, green #BBF7D0, lavender #DDD6FE. Radius 4 pt, shadow y 2, blur 6, 12% (drawn in page space so it exports), optional rotation up to ±4 deg. Text uses the flow's font at body size, ink #1F2937.
+Folio's own (DESIGN lists sticky notes as Notewise-only, but 10-editor-ui.md keeps the tool). Colors: yellow #FDE68A, pink #FBCFE8, blue #BFDBFE, green #BBF7D0, lavender #DDD6FE. Radius 4 pt, shadow y 2, blur 6, 12% (drawn in page space so it exports), optional rotation up to ±4 deg. Text uses the flow's font at body size, ink #1F2937. As built (A-068): the Sticky options row holds the five color dots and a Tilt toggle (new stickies at -2 deg); a sticky whose text is edited is drawn straight.
 
 ## Components
 DESIGN section 7 is the spec; Folio components and their mapping:

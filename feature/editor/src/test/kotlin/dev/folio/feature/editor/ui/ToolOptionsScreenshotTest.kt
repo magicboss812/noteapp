@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performScrollTo
@@ -29,6 +30,7 @@ import dev.folio.feature.editor.state.OptionsPopover
 import dev.folio.feature.editor.state.PenOptions
 import dev.folio.feature.editor.state.ShapeFill
 import dev.folio.feature.editor.state.ShapeOptions
+import dev.folio.feature.editor.state.StickyOptions
 import dev.folio.feature.editor.state.TextOptions
 import dev.folio.feature.editor.state.ToolOptions
 import kotlinx.collections.immutable.ImmutableList
@@ -127,6 +129,14 @@ class ToolOptionsScreenshotTest {
         compose.onNodeWithText("Gallery").assertExists()
         compose.onNodeWithText("Camera").assertExists()
         compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_image.png")
+    }
+
+    @Test
+    fun row_stickyBlueTilted_fiveColorsAndTiltWithoutDetails() {
+        row(EditorTool.STICKY, ToolOptions(sticky = StickyOptions(color = 2, tilt = true)))
+        compose.onNodeWithContentDescription("Blue sticky note").assertExists()
+        compose.onNodeWithContentDescription("Tilt new sticky notes").assertExists()
+        compose.onRoot().captureRoboImage("src/test/screenshots/ToolOptions_sticky.png")
     }
 
     @Test

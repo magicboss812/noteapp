@@ -111,8 +111,8 @@ class PageTextTest {
     }
 
     @Test
-    fun pageTexts_stickyNotesAreSkipped_andPagesWithoutTextAreAbsent() {
-        val sticky = StickyNote(ObjectId("s"), FlowId("sticky"), RectPt(300f, 400f, 420f, 520f), 0f, 0)
+    fun pageTexts_stickyNotesShowTheirTextInsideThemWithTheirArea_andPagesWithoutTextAreAbsent() {
+        val sticky = StickyNote(ObjectId("s"), FlowId("sticky"), RectPt(300f, 400f, 420f, 520f), 3f, 0)
         val d =
             ModelFixtures.document(
                 listOf(ModelFixtures.page("p1", listOf(body, sticky)), ModelFixtures.page("p2")),
@@ -122,13 +122,39 @@ class PageTextTest {
         val texts = PageTexts.of(d, layouter)
 
         assertThat(texts.keys).containsExactly(PageId("p1"))
-        assertThat(
-            texts
-                .getValue(PageId("p1"))
-                .runs
-                .map { it.frameId }
-                .toSet(),
-        ).containsExactly(body.id)
+        val text = texts.getValue(PageId("p1"))
+        assertThat(text.runs.map { it.frameId }.toSet()).containsExactly(body.id, sticky.id)
+        val run = text.runsOf(sticky.id).single()
+        val content = TextZones.stickyContentRect(sticky, unitPt)
+        assertThat(run.leftPt).isEqualTo(content.left)
+        assertThat(run.sliceTopPt).isEqualTo(content.top)
+        assertThat(text.boundsOf(sticky.id)).isEqualTo(sticky.paintBounds)
+        assertThat(text.isStraight(sticky.id)).isFalse()
+    }
+
+    @Test
+    fun pageTexts_stickyWhoseTextIsFocused_isStraight_andTurningRepaintsItsArea() {
+        val sticky = StickyNote(ObjectId("s"), FlowId("sticky"), RectPt(300f, 400f, 420f, 520f), 3f, 0)
+        val d =
+            ModelFixtures.document(
+                listOf(ModelFixtures.page("p1", listOf(sticky))),
+                flows = listOf(ModelFixtures.flow("sticky", "Note\n\nMore")),
+            )
+        val layouts = PageTexts.layouts(d, layouter)
+        val blockId =
+            layouts
+                .getValue(FlowId("sticky"))
+                .markdown.blocks
+                .last()
+                .id
+
+        val plain = PageTexts.of(d, layouts).getValue(PageId("p1"))
+        val edited = PageTexts.of(d, layouts, FocusedBlock(FlowId("sticky"), blockId)).getValue(PageId("p1"))
+
+        assertThat(edited.isStraight(sticky.id)).isTrue()
+        assertThat(edited.runsOf(sticky.id)).hasSize(1)
+        assertThat(PageText.changedBounds(plain, edited)).contains(sticky.paintBounds)
+        assertThat(PageText.changedBounds(plain, edited).all { sticky.paintBounds.contains(it) }).isTrue()
     }
 
     @Test

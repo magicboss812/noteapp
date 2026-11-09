@@ -3,8 +3,11 @@ package dev.folio.core.text.flow
 import dev.folio.core.model.Document
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
+import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.StickyNote
 import dev.folio.core.model.TextFlow
+import dev.folio.core.model.geometry.RectPt
 import dev.folio.core.text.markdown.MarkdownDocument
 
 /**
@@ -20,8 +23,8 @@ data class FocusedBlock(
 
 /**
  * Turns the flows of a document into what each page paints (05-canvas-rendering.md#page-renderer): every flow is
- * laid out over its frames on the loaded pages and the resulting runs are grouped by page. Sticky notes are skipped
- * (their painter arrives with P07-T05). Callers load a flow's pages first and run this on the `text` dispatcher.
+ * laid out over its frames on the loaded pages and the resulting runs are grouped by page, sticky notes with their
+ * paint areas (A-068). Callers load a flow's pages first and run this on the `text` dispatcher.
  */
 object PageTexts {
     /** Parses the flow text; the editor passes a cache that keeps block ids stable while a flow is edited. */
@@ -77,15 +80,31 @@ object PageTexts {
         focused: FocusedBlock? = null,
     ): Map<PageId, PageText> {
         val runs = LinkedHashMap<PageId, MutableList<TextRun>>()
+        val areas = HashMap<PageId, MutableMap<ObjectId, RectPt>>()
+        val straight = HashMap<PageId, MutableSet<ObjectId>>()
         for ((flowId, layout) in layouts) {
             val skip = if (focused?.flowId == flowId) layout.markdown.indexOf(focused.blockId) else FlowLayout.NO_BLOCK
             val cell = focused?.cell ?: FlowLayout.NO_CELL
             for (i in layout.slots.indices) {
                 val slot = layout.slots[i]
-                val isFrame = doc.page(slot.pageId)?.objects?.firstOrNull { it.id == slot.frameId } is FlowFrame
-                if (isFrame) runs.getOrPut(slot.pageId) { ArrayList() } += layout.runs(i, skip, cell)
+                when (val o = doc.page(slot.pageId)?.objects?.firstOrNull { it.id == slot.frameId }) {
+                    is FlowFrame -> {
+                        runs.getOrPut(slot.pageId) { ArrayList() } += layout.runs(i, skip, cell)
+                    }
+
+                    // A sticky note is drawn straight while its text is edited (A-068).
+                    is StickyNote -> {
+                        runs.getOrPut(slot.pageId) { ArrayList() } += layout.runs(i, skip, cell)
+                        areas.getOrPut(slot.pageId) { HashMap() }[o.id] = o.paintBounds
+                        if (focused?.flowId == flowId) straight.getOrPut(slot.pageId) { HashSet() } += o.id
+                    }
+
+                    else -> {
+                        Unit
+                    }
+                }
             }
         }
-        return runs.mapValues { (_, list) -> PageText.of(list) }
+        return runs.mapValues { (id, list) -> PageText.of(list, areas[id].orEmpty(), straight[id].orEmpty()) }
     }
 }

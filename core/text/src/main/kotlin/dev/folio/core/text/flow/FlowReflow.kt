@@ -109,7 +109,7 @@ object FlowFrames {
         return TextZones.autoBorders(zone, anchor, flow.style.align, Float.POSITIVE_INFINITY)
     }
 
-    /** Slot of [sticky]: its padded content rect in sticky coordinates, lines at the page's U without column snapping. */
+    /** Slot of [sticky]: its padded content rect before its rotation, lines at the page's U without column snapping. */
     fun slotOf(
         ref: PageRef,
         sticky: StickyNote,
@@ -122,6 +122,7 @@ object FlowFrames {
             rect,
             LayoutGrid(unitPt, LayoutGrid.LINED_INDENT_PT),
             TextZones.capacityUnits(rect.heightPt, unitPt),
+            sticky = true,
         )
     }
 }

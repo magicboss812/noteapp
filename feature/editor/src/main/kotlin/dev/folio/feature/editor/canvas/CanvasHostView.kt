@@ -269,6 +269,7 @@ class CanvasHostView internal constructor(
             enabled = {
                 controller.activeTool != CanvasTool.NAVIGATE &&
                     controller.activeTool != CanvasTool.TEXT &&
+                    controller.activeTool != CanvasTool.STICKY &&
                     controller.activeTool != CanvasTool.LASSO &&
                     StylusFeatures.hoverCursor(router.capabilities, controller.stylusPreferences)
             },
@@ -891,7 +892,7 @@ class CanvasHostView internal constructor(
         if (boxHandles.toolbarCovers(x, y) || selectionView.menuCovers(x, y)) return
         if (boxHandles.covers(x, y)) {
             if (boxHandles.editing) controller.textController?.blur()
-        } else if (active != CanvasTool.TEXT || tool == MotionEvent.TOOL_TYPE_ERASER) {
+        } else if ((active != CanvasTool.TEXT && active != CanvasTool.STICKY) || tool == MotionEvent.TOOL_TYPE_ERASER) {
             textField.yieldToStylus(x, y)
         }
     }
@@ -941,14 +942,18 @@ class CanvasHostView internal constructor(
         // Checkboxes and links act in every tool; selecting a box needs a tool other than navigate.
         if (texts.tapAt(pageId, pt.x, pt.y) || controller.activeTool == CanvasTool.NAVIGATE) return
         textField.tapped(System.nanoTime())
-        texts.tapBox(pageId, pt.x, pt.y, boxSlopPt(), textTool = controller.activeTool == CanvasTool.TEXT)
+        if (controller.activeTool == CanvasTool.STICKY) {
+            texts.placeSticky(pageId, pt.x, pt.y, boxSlopPt())
+        } else {
+            texts.tapBox(pageId, pt.x, pt.y, boxSlopPt(), textTool = controller.activeTool == CanvasTool.TEXT)
+        }
     }
 
     // The slop around a box's lines that still takes a tap (A-059), in page pt at the current zoom.
     private fun boxSlopPt(): Float = BOX_SLOP_DP * resources.displayMetrics.density / viewport.scale
 
     // A pen tap with the Text tool: the box there is selected (the caret moves in the box being edited), else a new box
-    // starts at the tap (10-editor-ui.md#text-boxes).
+    // starts at the tap (10-editor-ui.md#text-boxes). With the Sticky tool a new sticky note starts there (A-068).
     private fun onTextToolTap(
         xPx: Float,
         yPx: Float,
@@ -958,7 +963,11 @@ class CanvasHostView internal constructor(
         val pt = viewport.toPagePt(pageId, PointPx(xPx, yPx))
         if (texts.tapAt(pageId, pt.x, pt.y)) return
         textField.tapped(System.nanoTime())
-        texts.tapBox(pageId, pt.x, pt.y, boxSlopPt(), textTool = true)
+        if (controller.activeTool == CanvasTool.STICKY) {
+            texts.placeSticky(pageId, pt.x, pt.y, boxSlopPt())
+        } else {
+            texts.tapBox(pageId, pt.x, pt.y, boxSlopPt(), textTool = true)
+        }
     }
 
     private fun onViewportChanged() {

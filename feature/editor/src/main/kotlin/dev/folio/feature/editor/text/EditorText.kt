@@ -15,6 +15,7 @@ import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.FrameRole
 import dev.folio.core.model.ObjectId
 import dev.folio.core.model.PageId
+import dev.folio.core.model.PageObject
 import dev.folio.core.model.PageRef
 import dev.folio.core.model.StickyNote
 import dev.folio.core.model.TextAlign
@@ -480,6 +481,21 @@ class EditorText internal constructor(
         slopPt: Float = 0f,
     ): CaretPlan? = CaretPlans.forTap(documentSession.document.value, mutableSnapshot.value.layouts, pageId, xPt, yPt, style, slopPt)
 
+    /** A new sticky note in [look] at ([xPt], [yPt]) on page [pageId], its flow in [style] (A-068). Main thread. */
+    internal fun planSticky(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+        look: StickyLook,
+        style: FlowStyle,
+    ): CaretPlan.NewBox? = CaretPlans.forSticky(documentSession.document.value, pageId, xPt, yPt, look, style)
+
+    /** True when flow [flowId] is the text of a sticky note (a tap on it edits it at once, A-068). Main thread. */
+    internal fun isSticky(flowId: FlowId): Boolean =
+        mutableSnapshot.value.layouts[flowId]
+            ?.slots
+            ?.any { it.sticky } == true
+
     /** Where typing with nothing focused on page [pageId] puts the caret; new flows get [style]. Main thread. */
     internal fun planTyping(
         pageId: PageId,
@@ -794,12 +810,12 @@ class EditorText internal constructor(
         return FlowSearch.firstPage(documentSession.document.value, layouts, query)
     }
 
-    // What decides the layout: the flows, the page list's specs and backgrounds, and the frames. Ink commits change
-    // none of it, so a stroke never lays the text out again.
+    // What decides the layout: the flows, the page list's specs and backgrounds, and the frames and sticky notes. Ink
+    // commits change none of it, so a stroke never lays the text out again.
     private class LayoutInputs(
         val flows: Map<FlowId, TextFlow>,
         val pages: List<PageRef>,
-        val frames: Map<PageId, List<FlowFrame>>,
+        val frames: Map<PageId, List<PageObject>>,
     ) {
         override fun equals(other: Any?): Boolean =
             other is LayoutInputs && flows == other.flows && samePages(pages, other.pages) && frames == other.frames
@@ -808,9 +824,9 @@ class EditorText internal constructor(
 
         companion object {
             fun of(doc: Document): LayoutInputs {
-                val frames = HashMap<PageId, List<FlowFrame>>()
+                val frames = HashMap<PageId, List<PageObject>>()
                 for ((id, page) in doc.pageBodies) {
-                    val list = page.objects.filterIsInstance<FlowFrame>()
+                    val list = page.objects.filter { it is FlowFrame || it is StickyNote }
                     if (list.isNotEmpty()) frames[id] = list
                 }
                 return LayoutInputs(doc.flows, doc.pages, frames)

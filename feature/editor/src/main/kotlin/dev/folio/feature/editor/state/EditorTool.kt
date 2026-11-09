@@ -19,7 +19,7 @@ enum class EditorTool(
 
     // Gallery and Camera in the options row insert; the pen then selects images like the lasso (P07-T04).
     IMAGE(CanvasTool.LASSO),
-    STICKY(null),
+    STICKY(CanvasTool.STICKY),
     ATTACHMENT(null),
     ;
 

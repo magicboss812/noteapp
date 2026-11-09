@@ -5,6 +5,7 @@ import dev.folio.core.model.Borders
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FlowStyle
 import dev.folio.core.model.PageId
+import dev.folio.core.model.StickyNote
 import dev.folio.core.model.TextAlign
 import dev.folio.core.model.edit.EditCommand
 import dev.folio.core.model.geometry.RectPt
@@ -73,6 +74,8 @@ internal class TextEditor(
     private val steps: RevocableSteps = RevocableSteps({ if (execute(it)) Unit else null }, { false }),
     /** The style of a flow a tap or a keystroke creates. */
     private val newFlowStyle: () -> FlowStyle = { DEFAULT_FLOW_STYLE },
+    /** The look of a sticky note the Sticky tool creates. */
+    private val newSticky: () -> StickyLook = { StickyLook(StickyNote.COLORS[0], 0f) },
 ) : TextController {
     // [edit] null: a tapped checkbox, toggled without moving the focus, or with a [plan] a caret placement and the
     // keyboard text [typed] while it runs, or with [drop] the removal of flow [flowId] if it is an empty box, or with
@@ -159,7 +162,14 @@ internal class TextEditor(
             placeCaret(pageId, xPt, yPt, slopPt)
             return
         }
-        val next = BoxModes.next(text.mode, if (hit == null) BoxEvent.TapOutside else BoxEvent.Tap(hit.flowId))
+        // A sticky note has no Preview: a tap on it edits it (A-068).
+        val event =
+            when {
+                hit == null -> BoxEvent.TapOutside
+                text.isSticky(hit.flowId) -> BoxEvent.Caret(hit.flowId)
+                else -> BoxEvent.Tap(hit.flowId)
+            }
+        val next = BoxModes.next(text.mode, event)
         if (next is BoxMode.Edit) {
             // A tap in the box being edited moves the caret.
             focusAt(pageId, xPt, yPt, slopPt)
@@ -458,6 +468,23 @@ internal class TextEditor(
                 enqueue(Pending(plan.flowId, NO_BLOCK, NO_REVISION, null, plan))
             }
         }
+    }
+
+    override fun placeSticky(
+        pageId: PageId,
+        xPt: Float,
+        yPt: Float,
+        slopPt: Float,
+    ) {
+        if (text.caretAt(pageId, xPt, yPt, slopPt) != null) {
+            tapBox(pageId, xPt, yPt, slopPt, textTool = false)
+            return
+        }
+        val plan = text.planSticky(pageId, xPt, yPt, newSticky(), newFlowStyle()) ?: return
+        clearQuery()
+        text.mode.flowId?.let { dropIfEmpty(it) }
+        text.deselect()
+        enqueue(Pending(plan.flowId, NO_BLOCK, NO_REVISION, null, plan))
     }
 
     // Queues the removal of flow [flowId] for when the edits before it ran, if it is an empty box by then.

@@ -44,6 +44,9 @@ enum class CanvasTool {
 
     /** A drag draws a lasso that selects objects by [CanvasController.lassoSpec] (06-ink-input.md#lasso); no ink. */
     LASSO,
+
+    /** A tap starts a sticky note with the caret in it, or edits the text there (A-068); no ink. */
+    STICKY,
 }
 
 /** What the lasso draws ([rectangle] or freeform) and the object [kinds] it selects. */

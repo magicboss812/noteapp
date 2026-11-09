@@ -7,6 +7,7 @@ import dev.folio.core.ink.erase.EraserMode
 import dev.folio.core.ink.erase.EraserOptions
 import dev.folio.core.model.BrushKind
 import dev.folio.core.model.ShapeKind
+import dev.folio.core.model.StickyNote
 import dev.folio.core.storage.settings.SettingsStore
 import dev.folio.core.text.fonts.BodySize
 import dev.folio.core.text.fonts.FontRegistry
@@ -123,6 +124,12 @@ private data class ShapeJson(
 )
 
 @Serializable
+private data class StickyJson(
+    val color: Int = 0,
+    val tilt: Boolean = false,
+)
+
+@Serializable
 private data class ToolOptionsJson(
     val version: Int = 1,
     val pen: PenJson = PenJson(),
@@ -132,6 +139,7 @@ private data class ToolOptionsJson(
     val lasso: LassoJson = LassoJson(),
     val text: TextJson = TextJson(),
     val shape: ShapeJson = ShapeJson(),
+    val sticky: StickyJson = StickyJson(),
 )
 
 private fun Swatches.toJson() = SwatchesJson(colors, selected)
@@ -151,6 +159,7 @@ private fun ToolOptions.toJson() =
         lasso = LassoJson(lasso.mode, lasso.filters),
         text = TextJson(text.fontFamily, text.bodyCap, text.baselineLift),
         shape = ShapeJson(shape.kind, shape.widths.toJson(), shape.dashed, shape.fill, shape.constrain),
+        sticky = StickyJson(sticky.color, sticky.tilt),
     )
 
 private fun ToolOptionsJson.toOptions(): ToolOptions {
@@ -175,5 +184,7 @@ private fun ToolOptionsJson.toOptions(): ToolOptions {
         // A blank family name breaks the invariant (whole options fall back); a size or lift out of range is clamped.
         text = TextOptions(text.fontFamily).withBodyCap(text.bodyCap).withBaselineLift(text.baselineLift),
         shape = ShapeOptions(shape.kind, shape.widths?.toPresets() ?: defaults.shape.widths, shape.dashed, shape.fill, shape.constrain),
+        // An unknown color index (a future palette) falls back to the first color.
+        sticky = StickyOptions(sticky.color.takeIf { it in StickyNote.COLORS.indices } ?: 0, sticky.tilt),
     )
 }

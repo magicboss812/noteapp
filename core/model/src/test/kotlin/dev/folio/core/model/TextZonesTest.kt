@@ -189,9 +189,34 @@ class TextZonesTest {
     }
 
     @Test
-    fun stickyContentRect_insetHalfUnit_inStickyCoordinates() {
+    fun stickyContentRect_insetHalfUnit_inPagePtBeforeRotation() {
         val sticky = StickyNote(ObjectId("s"), FlowId("f"), RectPt(300f, 400f, 420f, 520f), 5f, 0)
-        assertThat(TextZones.stickyContentRect(sticky, 20f)).isEqualTo(RectPt(10f, 10f, 110f, 110f))
+        assertThat(TextZones.stickyContentRect(sticky, 20f)).isEqualTo(RectPt(310f, 410f, 410f, 510f))
+    }
+
+    @Test
+    fun newStickyAt_wholeUnitSquare_topLeftAtTap_keptOnThePage() {
+        val u = lined.spacingPt
+        val spec = PageSpec.Custom(595f, 842f)
+        val rect = TextZones.newStickyAt(spec, lined, 100f, 200f)
+        assertThat(rect.left).isEqualTo(100f)
+        assertThat(rect.top).isEqualTo(200f)
+        assertThat(rect.widthPt).isEqualTo(rect.heightPt)
+        val units = rect.heightPt / u
+        assertThat(units).isWithin(1e-3f).of(units.roundToInt().toFloat())
+        assertThat(units.roundToInt()).isAtLeast(3)
+        val corner = TextZones.newStickyAt(spec, lined, 590f, 840f)
+        assertThat(corner.right).isWithin(1e-3f).of(595f)
+        assertThat(corner.bottom).isWithin(1e-3f).of(842f)
+    }
+
+    @Test
+    fun stickyPaintBounds_holdStraightAndTurnedRectAndShadow() {
+        val sticky = StickyNote(ObjectId("s"), FlowId("f"), RectPt(300f, 400f, 420f, 520f), 4f, 0)
+        val paint = sticky.paintBounds
+        assertThat(paint.contains(sticky.bounds)).isTrue()
+        assertThat(paint.contains(sticky.rect)).isTrue()
+        assertThat(paint.bottom).isAtLeast(sticky.bounds.bottom + StickyNote.SHADOW_DY_PT + StickyNote.SHADOW_BLUR_PT)
     }
 
     @Test

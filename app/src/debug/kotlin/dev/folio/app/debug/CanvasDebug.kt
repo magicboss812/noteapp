@@ -292,12 +292,13 @@ internal class CanvasDebug(
     fun tool(arg: String?): DebugReply {
         val setting =
             ToolSetting.parse(arg)
-                ?: return DebugReply.error("tool needs pen, text, lasso[,rect] or eraser[,stroke|partial][,radiusPt][,hl]")
+                ?: return DebugReply.error("tool needs pen, text, sticky, lasso[,rect] or eraser[,stroke|partial][,radiusPt][,hl]")
         val current = session ?: return DebugReply.error(NO_CANVAS)
         current.selectTool(
             when (setting.tool) {
                 CanvasTool.ERASER -> EditorTool.ERASER
                 CanvasTool.TEXT -> EditorTool.TEXT
+                CanvasTool.STICKY -> EditorTool.STICKY
                 CanvasTool.LASSO -> EditorTool.LASSO
                 else -> EditorTool.PEN
             },
