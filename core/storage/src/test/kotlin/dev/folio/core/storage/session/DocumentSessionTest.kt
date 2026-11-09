@@ -11,9 +11,13 @@ import dev.folio.core.model.Document
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
 import dev.folio.core.model.FrameRole
+import dev.folio.core.model.ImageObject
 import dev.folio.core.model.ObjectId
+import dev.folio.core.model.RectF01
 import dev.folio.core.model.edit.AddObjects
+import dev.folio.core.model.edit.Batch
 import dev.folio.core.model.edit.RemoveObjects
+import dev.folio.core.model.edit.UpdateAssets
 import dev.folio.core.model.edit.UpdateFlows
 import dev.folio.core.model.edit.UpdateMeta
 import dev.folio.core.model.geometry.RectPt
@@ -384,6 +388,46 @@ class DocumentSessionTest : RepositoryTestBase() {
                 assertThat(reader.names()).containsAtLeast(FolioEntries.COVER, FolioEntries.pageThumb(page))
                 assertThat(reader.read(FolioEntries.COVER, 100).orThrow()).isEqualTo(byteArrayOf(1, 2, 3))
             }
+        }
+
+    @Test
+    fun storeAsset_sameBytesTwice_oneEntryAndInsertUndoRedoReopen() =
+        runTest {
+            val ref = documents.create(spec("Images")).orThrow()
+            val registry = sessions(backgroundScope)
+            val session = registry.open(ref.path).orThrow()
+            val page =
+                session.document.value.pages
+                    .single()
+                    .id
+            session.loadPages(listOf(page)).orThrow()
+            val bytes = ByteArray(5000) { (it * 7).toByte() }
+
+            val info = session.storeAsset(bytes, "image/png", "photo.png").orThrow()
+            assertThat(session.storeAsset(bytes.copyOf(), "image/png", "again.png").orThrow().id).isEqualTo(info.id)
+            val image = ImageObject(ObjectId("img"), info.id, RectPt(10f, 10f, 110f, 60f), 0f, RectF01.FULL)
+            session.execute(Batch(listOf(UpdateAssets(listOf(info)), AddObjects(page, listOf(image))))).orThrow()
+            assertThat(session.readAsset(info.id).orThrow()).isEqualTo(bytes)
+
+            session.undo().orThrow()
+            assertThat(session.document.value.assets).isEmpty()
+            assertThat(session.readAsset(info.id)).isInstanceOf(Outcome.Failure::class.java)
+            session.redo().orThrow()
+            registry.close(session).orThrow()
+
+            FolioContainerReader.open(file(ref.path)).orThrow().use { reader ->
+                assertThat(reader.names().filter { it.startsWith("assets/") }).containsExactly("assets/${info.id.value}.png")
+            }
+            WorkingCopyStore(appFs, fs).discard(ref.docId).orThrow()
+            val reopened = sessions(backgroundScope).open(ref.path).orThrow()
+            reopened.loadPages(listOf(page)).orThrow()
+            assertThat(reopened.document.value.assets[info.id]).isEqualTo(info)
+            assertThat(
+                reopened.document.value.pageBodies
+                    .getValue(page)
+                    .objects,
+            ).contains(image)
+            assertThat(reopened.readAsset(info.id).orThrow()).isEqualTo(bytes)
         }
 
     private fun readFile(ref: DocumentRef): Document =

@@ -41,8 +41,10 @@ enum class RenderTarget(
 class PageRenderer(
     assets: TemplateAssets = TemplateAssets.None,
     private val ink: InkPainter = AndroidInkPainter(),
+    images: ImageSource = ImageSource.None,
 ) {
     private val templates = TemplateRenderer(assets)
+    private val imagePainter = ImagePainter(images)
     private val text = TextRunPainter()
     private val shapes = ShapePainter()
     private val toDevice = Matrix()
@@ -115,8 +117,10 @@ class PageRenderer(
 
                 is Shape -> shapes.draw(canvas, o)
 
+                is ImageObject -> imagePainter.draw(canvas, o, scale)
+
                 // Painters for these arrive with their features (P07); a sticky note paints its own flow there.
-                is ImageObject, is StickyNote, is Attachment -> Unit
+                is StickyNote, is Attachment -> Unit
             }
         }
     }

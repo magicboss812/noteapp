@@ -1,14 +1,19 @@
 package dev.folio.core.storage.session
 
+import androidx.annotation.WorkerThread
 import dev.folio.core.common.Clock
 import dev.folio.core.common.FolioDispatchers
 import dev.folio.core.common.FolioLog
 import dev.folio.core.common.Outcome
+import dev.folio.core.common.flatMap
+import dev.folio.core.format.AssetNames
 import dev.folio.core.format.codec.PageCodec
 import dev.folio.core.format.container.DocumentCodec
 import dev.folio.core.format.container.DocumentEntries
 import dev.folio.core.format.container.FolioEntries
 import dev.folio.core.format.manifest.ManifestApp
+import dev.folio.core.model.AssetId
+import dev.folio.core.model.AssetInfo
 import dev.folio.core.model.Document
 import dev.folio.core.model.FlowFrame
 import dev.folio.core.model.FlowId
@@ -158,6 +163,33 @@ class DocumentSession internal constructor(
     suspend fun writeThumbnails(thumbs: Map<String, ByteArray>): Outcome<Unit> {
         if (closed || thumbs.isEmpty()) return Outcome.Success(Unit)
         return withContext(dispatchers.io) { synchronized(copyLock) { copy.writeEntries(thumbs) } }
+    }
+
+    /**
+     * Stores [bytes] as an asset of [mime] in the working copy and returns its info (04-file-format.md#assets); equal
+     * bytes are stored once. The document lists it only once a command adds it (`UpdateAssets`), so an insert and its
+     * undo are one step; the entry stays in the working copy for redo.
+     */
+    suspend fun storeAsset(
+        bytes: ByteArray,
+        mime: String,
+        originalName: String?,
+    ): Outcome<AssetInfo> {
+        if (bytes.size > FolioEntries.MAX_PAYLOAD_BYTES) return Outcome.Failure("asset too large (${bytes.size} bytes)")
+        val info = AssetNames.info(bytes, mime, originalName)
+        val entry = AssetNames.entry(info)
+        return withContext(dispatchers.io) {
+            synchronized(copyLock) {
+                if (entry in copy.names()) Outcome.Success(Unit) else copy.writeEntries(mapOf(entry to bytes))
+            }
+        }.flatMap { Outcome.Success(info) }
+    }
+
+    /** Bytes of asset [id] of the document, read from the working copy. */
+    @WorkerThread
+    fun readAsset(id: AssetId): Outcome<ByteArray> {
+        val info = state.value.assets[id] ?: return Outcome.Failure("unknown asset ${id.value}")
+        return synchronized(copyLock) { copy.read(AssetNames.entry(info), FolioEntries.MAX_PAYLOAD_BYTES) }
     }
 
     /** Final pack; the session cannot be used afterwards. */
